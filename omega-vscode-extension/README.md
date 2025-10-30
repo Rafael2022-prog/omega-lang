@@ -172,7 +172,7 @@ function bridge_tokens(bytes32 recipient, uint256 amount) public {
 
 ### Setup
 ```bash
-git clone https://github.com/omega-lang/omega-vscode
+git clone https://github.com/Rafael2022-prog/omega-lang-vscode
 cd omega-vscode
 npm install
 ```
@@ -189,7 +189,7 @@ npm test
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](https://github.com/omega-lang/omega-vscode/blob/main/CONTRIBUTING.md).
+We welcome contributions! Please see our [Contributing Guide](https://github.com/Rafael2022-prog/omega-lang-vscode/blob/main/CONTRIBUTING.md).
 
 ### Areas for Contribution
 - Language server improvements
@@ -201,7 +201,7 @@ We welcome contributions! Please see our [Contributing Guide](https://github.com
 
 - 📖 [Documentation](https://docs.omega-lang.org)
 - 💬 [Discord Community](https://discord.gg/omega-lang)
-- 🐛 [Report Issues](https://github.com/omega-lang/omega-vscode/issues)
+- 🐛 [Report Issues](https://github.com/Rafael2022-prog/omega-lang-vscode/issues)
 - 📧 [Email Support](mailto:support@omega-lang.org)
 
 ## License

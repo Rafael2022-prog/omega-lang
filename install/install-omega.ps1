@@ -156,4 +156,4 @@ Write-Host "2. Create a new project: omega init my-project" -ForegroundColor Whi
 Write-Host "3. Open .mega files with syntax highlighting" -ForegroundColor White
 Write-Host ""
 Write-Host "Documentation: https://omega-lang.org/docs" -ForegroundColor Blue
-Write-Host "Support: https://github.com/omega-lang/omega/issues" -ForegroundColor Blue
+Write-Host "Support: https://github.com/Rafael2022-prog/omega-lang/issues" -ForegroundColor Blue

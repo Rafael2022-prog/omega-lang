@@ -77,7 +77,7 @@ bootstrap:
 	else \
 		echo "❌ No OMEGA compiler found"; \
 		echo "📥 Please install OMEGA bootstrap compiler first"; \
-		echo "   Download from: https://github.com/omega-lang/omega/releases"; \
+		echo "   Download from: https://github.com/Rafael2022-prog/omega-lang/releases"; \
 		exit 1; \
 	fi
 

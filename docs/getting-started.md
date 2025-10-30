@@ -37,7 +37,7 @@ git --version
 ### Method 1: Install dari Source (Recommended)
 ```bash
 # Clone repository
-git clone https://github.com/omega-lang/omega.git
+git clone https://github.com/Rafael2022-prog/omega-lang.git
 cd omega
 
 # Build compiler
@@ -53,7 +53,7 @@ omega --version
 ### Method 2: Pre-built Binaries
 ```bash
 # Download latest release
-curl -L https://github.com/omega-lang/omega/releases/latest/download/omega-x86_64-unknown-linux-gnu.tar.gz | tar xz
+curl -L https://github.com/Rafael2022-prog/omega-lang/releases/latest/download/omega-x86_64-unknown-linux-gnu.tar.gz | tar xz
 
 # Move to PATH
 sudo mv omega /usr/local/bin/
@@ -685,7 +685,7 @@ Setelah menguasai dasar-dasar OMEGA, Anda dapat:
 
 3. **Join Community**
    - [Discord server](https://discord.gg/omega-lang)
-   - [GitHub discussions](https://github.com/omega-lang/omega/discussions)
+   - [GitHub discussions](https://github.com/Rafael2022-prog/omega-lang/discussions)
    - [Twitter updates](https://twitter.com/omega_lang)
 
 ## 🆘 Troubleshooting
@@ -731,9 +731,9 @@ omega build --release
 Jika Anda mengalami masalah atau memiliki pertanyaan:
 
 1. **Check Documentation**: [docs.omega-lang.org](https://docs.omega-lang.org)
-2. **Search Issues**: [GitHub Issues](https://github.com/omega-lang/omega/issues)
+2. **Search Issues**: [GitHub Issues](https://github.com/Rafael2022-prog/omega-lang/issues)
 3. **Ask Community**: [Discord #help channel](https://discord.gg/omega-lang)
-4. **Report Bugs**: [Create new issue](https://github.com/omega-lang/omega/issues/new)
+4. **Report Bugs**: [Create new issue](https://github.com/Rafael2022-prog/omega-lang/issues/new)
 
 ---
 

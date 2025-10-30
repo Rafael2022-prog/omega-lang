@@ -259,7 +259,7 @@ Kami menyambut kontribusi dari komunitas! Lihat [CONTRIBUTING.md](./CONTRIBUTING
 
 ### Development Setup
 ```bash
-git clone https://github.com/omega-lang/omega.git
+git clone https://github.com/Rafael2022-prog/omega-lang.git
 cd omega
 cargo build
 cargo test

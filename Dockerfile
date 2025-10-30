@@ -105,5 +105,5 @@ LABEL maintainer="OMEGA Team <team@omega-lang.org>" \
       org.opencontainers.image.version="1.0.0" \
       org.opencontainers.image.vendor="OMEGA Team" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/omega-lang/omega" \
+      org.opencontainers.image.source="https://github.com/Rafael2022-prog/omega-lang" \
       org.opencontainers.image.documentation="https://docs.omega-lang.org"

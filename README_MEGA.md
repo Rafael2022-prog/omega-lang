@@ -305,7 +305,7 @@ omega Makefile.mega package
 ## 📞 Support
 
 - **Discord**: [OMEGA Community](https://discord.gg/omega-lang)
-- **GitHub Issues**: [Report bugs](https://github.com/omega-lang/omega/issues)
+- **GitHub Issues**: [Report bugs](https://github.com/Rafael2022-prog/omega-lang/issues)
 - **Documentation**: [docs.omega-lang.org](https://docs.omega-lang.org)
 - **Email**: support@omega-lang.org
 

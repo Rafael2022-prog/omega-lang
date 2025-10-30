@@ -8,7 +8,7 @@ edition = "2025"
 authors = ["Emylton Leunufna <emylton@omegalang.xyz>"]
 description = "OMEGA - Universal Blockchain Programming Language (Self-Hosting)"
 license = "MIT"
-repository = "https://github.com/omega-lang/omega"
+repository = "https://github.com/Rafael2022-prog/omega-lang"
 keywords = ["blockchain", "compiler", "evm", "solana", "cosmos", "self-hosting", "mega"]
 categories = ["development-tools", "compilers", "blockchain"]
 

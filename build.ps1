@@ -78,7 +78,7 @@ function Test-OmegaCompiler {
 function Invoke-Bootstrap {
     Write-ColorOutput "🌱 Bootstrap Mode: No OMEGA compiler found" $ColorYellow
     Write-ColorOutput "📥 Please install OMEGA bootstrap compiler first:" $ColorYellow
-    Write-Host "   1. Download from: https://github.com/omega-lang/omega/releases"
+    Write-Host "   1. Download from: https://github.com/Rafael2022-prog/omega-lang/releases"
     Write-Host "   2. Or build from source using existing compiler"
     Write-Host "   3. Add to PATH and retry"
     exit 1
