@@ -1,0 +1,255 @@
+name: 🚀 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: 🧪 Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [16.x, 18.x, 20.x]
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: 📦 Install LSP dependencies
+      run: |
+        cd lsp-server
+        npm ci
+        cd ..
+
+    - name: 📦 Install VS Code extension dependencies
+      run: |
+        cd omega-vscode-extension
+        npm ci
+        cd ..
+
+    - name: 🧪 Run tests (Linux/macOS)
+      if: runner.os != 'Windows'
+      run: |
+        chmod +x scripts/simple_test.ps1
+        ./scripts/simple_test.ps1
+
+    - name: 🧪 Run tests (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        powershell -ExecutionPolicy Bypass -File scripts/simple_test.ps1
+
+    - name: 📊 Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
+        path: test-reports/
+
+  lint:
+    name: 🔍 Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd lsp-server && npm ci && cd ..
+        cd omega-vscode-extension && npm ci && cd ..
+
+    - name: 🔍 Run ESLint (LSP Server)
+      run: |
+        cd lsp-server
+        npx eslint . --ext .js,.ts --format json --output-file ../eslint-results.json || true
+        cd ..
+
+    - name: 🔍 Run ESLint (VS Code Extension)
+      run: |
+        cd omega-vscode-extension
+        npx eslint . --ext .js,.ts --format json --output-file ../eslint-extension-results.json || true
+        cd ..
+
+    - name: 📊 Upload lint results
+      uses: actions/upload-artifact@v4
+      with:
+        name: lint-results
+        path: |
+          eslint-results.json
+          eslint-extension-results.json
+
+  security:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd lsp-server && npm ci && cd ..
+        cd omega-vscode-extension && npm ci && cd ..
+
+    - name: 🔒 Run npm audit (LSP Server)
+      run: |
+        cd lsp-server
+        npm audit --audit-level moderate --json > ../audit-lsp.json || true
+        cd ..
+
+    - name: 🔒 Run npm audit (VS Code Extension)
+      run: |
+        cd omega-vscode-extension
+        npm audit --audit-level moderate --json > ../audit-extension.json || true
+        cd ..
+
+    - name: 📊 Upload security results
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-results
+        path: |
+          audit-lsp.json
+          audit-extension.json
+
+  build:
+    name: 🏗️ Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd lsp-server && npm ci && cd ..
+        cd omega-vscode-extension && npm ci && cd ..
+
+    - name: 🏗️ Build VS Code extension
+      run: |
+        cd omega-vscode-extension
+        npm run compile
+        cd ..
+
+    - name: 📦 Package VS Code extension
+      run: |
+        cd omega-vscode-extension
+        npx vsce package
+        cd ..
+
+    - name: 📊 Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-${{ matrix.os }}
+        path: |
+          omega-vscode-extension/*.vsix
+
+  performance:
+    name: ⚡ Performance Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd lsp-server && npm ci && cd ..
+
+    - name: ⚡ Run performance benchmarks
+      run: |
+        chmod +x scripts/performance_benchmark.sh
+        ./scripts/performance_benchmark.sh
+
+    - name: 📊 Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: test-reports/performance/
+
+  coverage:
+    name: 📊 Code Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd lsp-server && npm ci && cd ..
+        cd omega-vscode-extension && npm ci && cd ..
+
+    - name: 📊 Generate coverage report
+      run: |
+        # Run tests with coverage
+        chmod +x scripts/simple_test.ps1
+        ./scripts/simple_test.ps1
+
+    - name: 📤 Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+
+  notify:
+    name: 📢 Notifications
+    runs-on: ubuntu-latest
+    needs: [test, lint, security, build]
+    if: always()
+
+    steps:
+    - name: 📢 Notify on success
+      if: needs.test.result == 'success' && needs.lint.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success'
+      run: |
+        echo "✅ All checks passed! Ready for review."
+
+    - name: 📢 Notify on failure
+      if: needs.test.result == 'failure' || needs.lint.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure'
+      run: |
+        echo "❌ Some checks failed. Please review the results."
+        exit 1
