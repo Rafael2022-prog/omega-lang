@@ -139,3 +139,7 @@ omega-vscode-extension/node_modules/
 # Large TypeScript Definition Files
 **/lib.*.d.ts
 **/index.d.ts
+
+# Website Development (not for repository)
+website/
+**/website/
