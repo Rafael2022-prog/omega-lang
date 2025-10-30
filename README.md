@@ -33,7 +33,7 @@ OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengemb
 ## 📦 Instalasi
 
 ### Prerequisites
-- Rust 1.70+ (untuk compiler)
+- OMEGA Compiler (native)
 - Node.js 18+ (untuk EVM tooling)
 - Git
 
@@ -41,8 +41,8 @@ OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengemb
 ```bash
 git clone https://github.com/Rafael2022-prog/omega-lang.git
 cd omega
-cargo build --release
-cargo install --path .
+make build
+make install
 ```
 
 ### Install via Package Manager
@@ -107,7 +107,7 @@ blockchain SimpleToken {
 omega build
 # Output:
 # ✅ EVM: SimpleToken.sol generated
-# ✅ Solana: lib.rs + Cargo.toml generated
+# ✅ Solana: native code generated
 # ✅ Build completed successfully
 ```
 
@@ -123,7 +123,7 @@ omega deploy --target solana --network devnet
 - [Language Specification](./docs/LANGUAGE_SPECIFICATION.md) - Spesifikasi lengkap bahasa OMEGA
 - [Getting Started Guide](./docs/getting-started.md) - Tutorial step-by-step
 - [Best Practices](./docs/best-practices.md) - Panduan best practices
-- [Migration Guide](./docs/migration.md) - Migrasi dari Solidity/Rust
+- [Migration Guide](./docs/migration.md) - Migrasi dari Solidity/JavaScript
 
 ### 🔧 Developer Tools
 - [Compiler Architecture](./docs/COMPILER_ARCHITECTURE.md) - Arsitektur compiler
@@ -261,8 +261,8 @@ Kami menyambut kontribusi dari komunitas! Lihat [CONTRIBUTING.md](./CONTRIBUTING
 ```bash
 git clone https://github.com/Rafael2022-prog/omega-lang.git
 cd omega
-cargo build
-cargo test
+make build
+omega test
 ```
 
 ### Areas for Contribution
@@ -297,6 +297,18 @@ cargo test
 - [ ] Security audits
 - [ ] Performance benchmarks
 - [ ] Enterprise features
+
+### Phase 5: Enterprise & Scale (Q1 2026)
+- [ ] Layer 2 integration
+- [ ] Institutional features
+- [ ] Compliance frameworks
+- [ ] Advanced tooling
+
+### Phase 6: Innovation & Future (Q2 2026 - Q1 2027+)
+- [ ] AI integration
+- [ ] Quantum resistance
+- [ ] Next-generation features
+- [ ] Industry standard adoption
 
 ## 📈 Performance Benchmarks
 
@@ -333,7 +345,7 @@ OMEGA is licensed under the [MIT License](./LICENSE).
 Terima kasih kepada:
 - Ethereum Foundation untuk EVM specification
 - Solana Labs untuk Solana runtime documentation
-- Rust community untuk tooling inspiration
+- OMEGA community untuk tooling inspiration
 - All contributors dan early adopters
 
 ---

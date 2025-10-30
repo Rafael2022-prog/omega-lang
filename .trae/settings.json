@@ -4,10 +4,10 @@
   },
   "trae.fileIcons": {
     "mega": {
-      "iconPath": "./temp-logo.svg",
+      "iconPath": "r:/OMEGA/temp-logo.svg",
       "theme": {
-        "light": "./temp-logo.svg",
-        "dark": "./temp-logo.svg"
+        "light": "r:/OMEGA/temp-logo.svg",
+        "dark": "r:/OMEGA/temp-logo.svg"
       }
     }
   },
@@ -15,7 +15,7 @@
     "omega": {
       "extensions": [".mega"],
       "displayName": "OMEGA Blockchain Language",
-      "icon": "./temp-logo.svg",
+      "icon": "r:/OMEGA/temp-logo.svg",
       "mimeType": "text/x-omega"
     }
   },
