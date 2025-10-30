@@ -119,3 +119,23 @@ jspm_packages/
 NOTES.md
 DRAFT_*.md
 TODO_PERSONAL.md
+
+# VS Code Extension Build Artifacts
+*.vsix
+omega-vscode-extension/out/
+omega-vscode-extension/node_modules/
+
+# TypeScript Compiler Files (should not be in repo)
+**/typescript.js
+**/typescript.d.ts
+**/typescriptServices.js
+**/typescriptServices.d.ts
+**/tsserver.js
+**/tsserverlibrary.js
+**/tsserverlibrary.d.ts
+**/tsc.js
+**/typingsInstaller.js
+
+# Large TypeScript Definition Files
+**/lib.*.d.ts
+**/index.d.ts
