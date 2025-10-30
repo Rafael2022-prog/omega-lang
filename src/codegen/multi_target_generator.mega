@@ -1,0 +1,488 @@
+// OMEGA Multi-Target Code Generator - Menghasilkan kode untuk Cosmos, Substrate, Move, dan NEAR
+// Menyediakan generator untuk berbagai blockchain platform selain EVM dan Solana
+
+import "../ir/ir.mega";
+import "../error/error.mega";
+import "./base_generator.mega";
+
+/// Cosmos SDK code generator untuk menghasilkan Go code
+blockchain CosmosCodeGenerator is BaseCodeGenerator {
+    state {
+        mapping(string => string) go_type_mappings;            // Mapping OMEGA types ke Go types
+        string[] import_statements;                            // Go import statements
+        string module_name;                                    // Cosmos module name
+        string sdk_version;                                    // Cosmos SDK version
+    }
+    
+    constructor() BaseCodeGenerator() {
+        initialize_go_mappings();
+        sdk_version = "v0.47.0";
+        initialize_cosmos_features();
+    }
+    
+    function initialize_go_mappings() internal {
+        go_type_mappings["uint"] = "uint64";
+        go_type_mappings["uint8"] = "uint8";
+        go_type_mappings["uint16"] = "uint16";
+        go_type_mappings["uint32"] = "uint32";
+        go_type_mappings["uint64"] = "uint64";
+        go_type_mappings["int"] = "int64";
+        go_type_mappings["bool"] = "bool";
+        go_type_mappings["string"] = "string";
+        go_type_mappings["bytes"] = "[]byte";
+        go_type_mappings["address"] = "sdk.AccAddress";
+    }
+    
+    function initialize_cosmos_features() internal override {
+        supported_features = ["basic_types", "functions", "events", "modules", "keepers", "msgs", "queries"];
+    }
+    
+    function generate(IRModule memory module) public override returns (string memory) {
+        string memory result = "package main\n\n";
+        result = string(abi.encodePacked(result, generate_cosmos_imports()));
+        result = string(abi.encodePacked(result, generate_cosmos_module(module.blockchains[0])));
+        return result;
+    }
+    
+    function generate_cosmos_imports() internal pure returns (string memory) {
+        return "import (\n    \"github.com/cosmos/cosmos-sdk/types\"\n    sdk \"github.com/cosmos/cosmos-sdk/types\"\n)\n\n";
+    }
+    
+    function generate_cosmos_module(BlockchainIR memory blockchain) internal returns (string memory) {
+        string memory result = string(abi.encodePacked("type ", blockchain.name, "Keeper struct {\n"));
+        result = string(abi.encodePacked(result, "    // Keeper fields\n}\n\n"));
+        
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            result = string(abi.encodePacked(result, generate_cosmos_function(blockchain.functions[i])));
+        }
+        
+        return result;
+    }
+    
+    function generate_cosmos_function(FunctionIR memory func) internal view returns (string memory) {
+        string memory result = string(abi.encodePacked("func (k ", context.current_blockchain, "Keeper) "));
+        result = string(abi.encodePacked(result, to_pascal_case(func.name), "("));
+        
+        for (uint i = 0; i < func.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            result = string(abi.encodePacked(result, to_snake_case(func.parameters[i].name), " ", convert_go_type(func.parameters[i].param_type)));
+        }
+        
+        result = string(abi.encodePacked(result, ")"));
+        
+        if (bytes(func.return_type).length > 0) {
+            result = string(abi.encodePacked(result, " ", convert_go_type(func.return_type)));
+        }
+        
+        result = string(abi.encodePacked(result, " {\n    // Function implementation\n    return\n}\n\n"));
+        
+        return result;
+    }
+    
+    function convert_go_type(string memory omega_type) internal view returns (string memory) {
+        if (bytes(go_type_mappings[omega_type]).length > 0) {
+            return go_type_mappings[omega_type];
+        }
+        return omega_type;
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Cosmos;
+    }
+    
+    function get_file_extension() public pure override returns (string memory) {
+        return ".go";
+    }
+}
+
+/// Substrate code generator untuk menghasilkan Rust code dengan Substrate framework
+blockchain SubstrateCodeGenerator is BaseCodeGenerator {
+    state {
+        mapping(string => string) substrate_type_mappings;     // Mapping OMEGA types ke Substrate types
+        string[] frame_imports;                                // FRAME imports
+        string substrate_version;                              // Substrate version
+    }
+    
+    constructor() BaseCodeGenerator() {
+        initialize_substrate_mappings();
+        substrate_version = "4.0.0";
+        initialize_substrate_features();
+    }
+    
+    function initialize_substrate_mappings() internal {
+        substrate_type_mappings["uint"] = "u64";
+        substrate_type_mappings["uint8"] = "u8";
+        substrate_type_mappings["uint16"] = "u16";
+        substrate_type_mappings["uint32"] = "u32";
+        substrate_type_mappings["uint64"] = "u64";
+        substrate_type_mappings["uint128"] = "u128";
+        substrate_type_mappings["int"] = "i64";
+        substrate_type_mappings["bool"] = "bool";
+        substrate_type_mappings["string"] = "Vec<u8>";
+        substrate_type_mappings["bytes"] = "Vec<u8>";
+        substrate_type_mappings["address"] = "T::AccountId";
+    }
+    
+    function initialize_substrate_features() internal override {
+        supported_features = ["basic_types", "functions", "events", "pallets", "storage", "extrinsics"];
+    }
+    
+    function generate(IRModule memory module) public override returns (string memory) {
+        string memory result = generate_substrate_imports();
+        result = string(abi.encodePacked(result, generate_substrate_pallet(module.blockchains[0])));
+        return result;
+    }
+    
+    function generate_substrate_imports() internal pure returns (string memory) {
+        return "#![cfg_attr(not(feature = \"std\"), no_std)]\n\nuse frame_support::{\n    decl_module, decl_storage, decl_event, decl_error,\n    traits::{Get, Randomness},\n    weights::Weight,\n};\nuse sp_std::vec::Vec;\n\n";
+    }
+    
+    function generate_substrate_pallet(BlockchainIR memory blockchain) internal returns (string memory) {
+        string memory result = string(abi.encodePacked("pub trait Config: frame_system::Config {\n"));
+        result = string(abi.encodePacked(result, "    type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;\n}\n\n"));
+        
+        result = string(abi.encodePacked(result, "decl_storage! {\n"));
+        result = string(abi.encodePacked(result, "    trait Store for Module<T: Config> as ", blockchain.name, " {\n"));
+        result = string(abi.encodePacked(result, "        // Storage items\n    }\n}\n\n"));
+        
+        result = string(abi.encodePacked(result, "decl_event! {\n"));
+        result = string(abi.encodePacked(result, "    pub enum Event<T> where AccountId = <T as frame_system::Config>::AccountId {\n"));
+        result = string(abi.encodePacked(result, "        // Events\n    }\n}\n\n"));
+        
+        result = string(abi.encodePacked(result, "decl_module! {\n"));
+        result = string(abi.encodePacked(result, "    pub struct Module<T: Config> for enum Call where origin: T::Origin {\n"));
+        result = string(abi.encodePacked(result, "        type Error = Error<T>;\n"));
+        result = string(abi.encodePacked(result, "        fn deposit_event() = default;\n\n"));
+        
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            result = string(abi.encodePacked(result, generate_substrate_function(blockchain.functions[i])));
+        }
+        
+        result = string(abi.encodePacked(result, "    }\n}\n"));
+        
+        return result;
+    }
+    
+    function generate_substrate_function(FunctionIR memory func) internal view returns (string memory) {
+        string memory result = string(abi.encodePacked("        #[weight = 10_000]\n"));
+        result = string(abi.encodePacked(result, "        pub fn ", to_snake_case(func.name), "(\n"));
+        result = string(abi.encodePacked(result, "            origin,\n"));
+        
+        for (uint i = 0; i < func.parameters.length; i++) {
+            result = string(abi.encodePacked(result, "            ", to_snake_case(func.parameters[i].name), ": ", convert_substrate_type(func.parameters[i].param_type), ",\n"));
+        }
+        
+        result = string(abi.encodePacked(result, "        ) -> DispatchResult {\n"));
+        result = string(abi.encodePacked(result, "            let _who = ensure_signed(origin)?;\n"));
+        result = string(abi.encodePacked(result, "            // Function implementation\n"));
+        result = string(abi.encodePacked(result, "            Ok(())\n"));
+        result = string(abi.encodePacked(result, "        }\n\n"));
+        
+        return result;
+    }
+    
+    function convert_substrate_type(string memory omega_type) internal view returns (string memory) {
+        if (bytes(substrate_type_mappings[omega_type]).length > 0) {
+            return substrate_type_mappings[omega_type];
+        }
+        return omega_type;
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Substrate;
+    }
+    
+    function get_file_extension() public pure override returns (string memory) {
+        return ".rs";
+    }
+}
+
+/// Move VM code generator untuk menghasilkan Move code
+blockchain MoveCodeGenerator is BaseCodeGenerator {
+    state {
+        mapping(string => string) move_type_mappings;          // Mapping OMEGA types ke Move types
+        string[] move_imports;                                 // Move imports
+        string move_version;                                   // Move version
+    }
+    
+    constructor() BaseCodeGenerator() {
+        initialize_move_mappings();
+        move_version = "1.0";
+        initialize_move_features();
+    }
+    
+    function initialize_move_mappings() internal {
+        move_type_mappings["uint"] = "u64";
+        move_type_mappings["uint8"] = "u8";
+        move_type_mappings["uint16"] = "u16";
+        move_type_mappings["uint32"] = "u32";
+        move_type_mappings["uint64"] = "u64";
+        move_type_mappings["uint128"] = "u128";
+        move_type_mappings["uint256"] = "u256";
+        move_type_mappings["bool"] = "bool";
+        move_type_mappings["string"] = "vector<u8>";
+        move_type_mappings["bytes"] = "vector<u8>";
+        move_type_mappings["address"] = "address";
+    }
+    
+    function initialize_move_features() internal override {
+        supported_features = ["basic_types", "functions", "resources", "modules", "scripts"];
+    }
+    
+    function generate(IRModule memory module) public override returns (string memory) {
+        string memory result = generate_move_module(module.blockchains[0]);
+        return result;
+    }
+    
+    function generate_move_module(BlockchainIR memory blockchain) internal returns (string memory) {
+        string memory result = string(abi.encodePacked("module 0x1::", blockchain.name, " {\n"));
+        result = string(abi.encodePacked(result, "    use std::signer;\n"));
+        result = string(abi.encodePacked(result, "    use std::vector;\n\n"));
+        
+        // Generate structs for state variables
+        if (blockchain.state_variables.length > 0) {
+            result = string(abi.encodePacked(result, "    struct State has key {\n"));
+            for (uint i = 0; i < blockchain.state_variables.length; i++) {
+                result = string(abi.encodePacked(result, "        ", to_snake_case(blockchain.state_variables[i].name), ": ", convert_move_type(blockchain.state_variables[i].var_type), ",\n"));
+            }
+            result = string(abi.encodePacked(result, "    }\n\n"));
+        }
+        
+        // Generate functions
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            result = string(abi.encodePacked(result, generate_move_function(blockchain.functions[i])));
+        }
+        
+        result = string(abi.encodePacked(result, "}\n"));
+        
+        return result;
+    }
+    
+    function generate_move_function(FunctionIR memory func) internal view returns (string memory) {
+        string memory result = "    public ";
+        
+        if (keccak256(bytes(func.visibility)) == keccak256(bytes("public"))) {
+            result = string(abi.encodePacked(result, "entry "));
+        }
+        
+        result = string(abi.encodePacked(result, "fun ", to_snake_case(func.name), "("));
+        
+        // Add account parameter for entry functions
+        if (keccak256(bytes(func.visibility)) == keccak256(bytes("public"))) {
+            result = string(abi.encodePacked(result, "account: &signer"));
+            if (func.parameters.length > 0) {
+                result = string(abi.encodePacked(result, ", "));
+            }
+        }
+        
+        for (uint i = 0; i < func.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            result = string(abi.encodePacked(result, to_snake_case(func.parameters[i].name), ": ", convert_move_type(func.parameters[i].param_type)));
+        }
+        
+        result = string(abi.encodePacked(result, ")"));
+        
+        if (bytes(func.return_type).length > 0) {
+            result = string(abi.encodePacked(result, ": ", convert_move_type(func.return_type)));
+        }
+        
+        result = string(abi.encodePacked(result, " {\n"));
+        result = string(abi.encodePacked(result, "        // Function implementation\n"));
+        result = string(abi.encodePacked(result, "    }\n\n"));
+        
+        return result;
+    }
+    
+    function convert_move_type(string memory omega_type) internal view returns (string memory) {
+        if (bytes(move_type_mappings[omega_type]).length > 0) {
+            return move_type_mappings[omega_type];
+        }
+        return omega_type;
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Move;
+    }
+    
+    function get_file_extension() public pure override returns (string memory) {
+        return ".move";
+    }
+}
+
+/// NEAR Protocol code generator untuk menghasilkan Rust code dengan NEAR SDK
+blockchain NEARCodeGenerator is BaseCodeGenerator {
+    state {
+        mapping(string => string) near_type_mappings;          // Mapping OMEGA types ke NEAR types
+        string[] near_imports;                                 // NEAR imports
+        string near_sdk_version;                               // NEAR SDK version
+    }
+    
+    constructor() BaseCodeGenerator() {
+        initialize_near_mappings();
+        near_sdk_version = "4.0.0";
+        initialize_near_features();
+    }
+    
+    function initialize_near_mappings() internal {
+        near_type_mappings["uint"] = "u64";
+        near_type_mappings["uint8"] = "u8";
+        near_type_mappings["uint16"] = "u16";
+        near_type_mappings["uint32"] = "u32";
+        near_type_mappings["uint64"] = "u64";
+        near_type_mappings["uint128"] = "u128";
+        near_type_mappings["int"] = "i64";
+        near_type_mappings["bool"] = "bool";
+        near_type_mappings["string"] = "String";
+        near_type_mappings["bytes"] = "Vec<u8>";
+        near_type_mappings["address"] = "AccountId";
+    }
+    
+    function initialize_near_features() internal override {
+        supported_features = ["basic_types", "functions", "events", "storage", "cross_contract_calls"];
+    }
+    
+    function generate(IRModule memory module) public override returns (string memory) {
+        string memory result = generate_near_imports();
+        result = string(abi.encodePacked(result, generate_near_contract(module.blockchains[0])));
+        return result;
+    }
+    
+    function generate_near_imports() internal pure returns (string memory) {
+        return "use near_sdk::{\n    borsh::{self, BorshDeserialize, BorshSerialize},\n    collections::LookupMap,\n    env, near_bindgen, AccountId, Balance, PanicOnDefault, Promise,\n};\n\n";
+    }
+    
+    function generate_near_contract(BlockchainIR memory blockchain) internal returns (string memory) {
+        string memory result = "#[near_bindgen]\n";
+        result = string(abi.encodePacked(result, "#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]\n"));
+        result = string(abi.encodePacked(result, "pub struct ", blockchain.name, " {\n"));
+        
+        // Generate state variables
+        for (uint i = 0; i < blockchain.state_variables.length; i++) {
+            result = string(abi.encodePacked(result, "    ", to_snake_case(blockchain.state_variables[i].name), ": ", convert_near_type(blockchain.state_variables[i].var_type), ",\n"));
+        }
+        
+        result = string(abi.encodePacked(result, "}\n\n"));
+        
+        result = string(abi.encodePacked(result, "#[near_bindgen]\n"));
+        result = string(abi.encodePacked(result, "impl ", blockchain.name, " {\n"));
+        
+        // Generate constructor
+        if (blockchain.constructor.name.length > 0) {
+            result = string(abi.encodePacked(result, generate_near_constructor(blockchain.constructor)));
+        }
+        
+        // Generate functions
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            result = string(abi.encodePacked(result, generate_near_function(blockchain.functions[i])));
+        }
+        
+        result = string(abi.encodePacked(result, "}\n"));
+        
+        return result;
+    }
+    
+    function generate_near_constructor(FunctionIR memory constructor) internal view returns (string memory) {
+        string memory result = "    #[init]\n";
+        result = string(abi.encodePacked(result, "    pub fn new("));
+        
+        for (uint i = 0; i < constructor.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            result = string(abi.encodePacked(result, to_snake_case(constructor.parameters[i].name), ": ", convert_near_type(constructor.parameters[i].param_type)));
+        }
+        
+        result = string(abi.encodePacked(result, ") -> Self {\n"));
+        result = string(abi.encodePacked(result, "        Self {\n"));
+        result = string(abi.encodePacked(result, "            // Initialize state\n"));
+        result = string(abi.encodePacked(result, "        }\n"));
+        result = string(abi.encodePacked(result, "    }\n\n"));
+        
+        return result;
+    }
+    
+    function generate_near_function(FunctionIR memory func) internal view returns (string memory) {
+        string memory result = "";
+        
+        // Add appropriate annotation
+        if (keccak256(bytes(func.mutability)) == keccak256(bytes("view"))) {
+            result = string(abi.encodePacked(result, "    pub fn "));
+        } else {
+            result = string(abi.encodePacked(result, "    pub fn "));
+        }
+        
+        result = string(abi.encodePacked(result, to_snake_case(func.name), "("));
+        
+        // Add self parameter
+        if (keccak256(bytes(func.mutability)) == keccak256(bytes("view"))) {
+            result = string(abi.encodePacked(result, "&self"));
+        } else {
+            result = string(abi.encodePacked(result, "&mut self"));
+        }
+        
+        // Add other parameters
+        for (uint i = 0; i < func.parameters.length; i++) {
+            result = string(abi.encodePacked(result, ", ", to_snake_case(func.parameters[i].name), ": ", convert_near_type(func.parameters[i].param_type)));
+        }
+        
+        result = string(abi.encodePacked(result, ")"));
+        
+        if (bytes(func.return_type).length > 0) {
+            result = string(abi.encodePacked(result, " -> ", convert_near_type(func.return_type)));
+        }
+        
+        result = string(abi.encodePacked(result, " {\n"));
+        result = string(abi.encodePacked(result, "        // Function implementation\n"));
+        result = string(abi.encodePacked(result, "    }\n\n"));
+        
+        return result;
+    }
+    
+    function convert_near_type(string memory omega_type) internal view returns (string memory) {
+        if (bytes(near_type_mappings[omega_type]).length > 0) {
+            return near_type_mappings[omega_type];
+        }
+        return omega_type;
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Near;
+    }
+    
+    function get_file_extension() public pure override returns (string memory) {
+        return ".rs";
+    }
+}
+
+/// Multi-target generator factory untuk membuat generator yang sesuai
+blockchain MultiTargetGeneratorFactory {
+    state {
+        mapping(TargetPlatform => address) generators;         // Mapping platform ke generator address
+    }
+    
+    constructor() {
+        // Initialize generators (in real implementation, these would be deployed contracts)
+        // generators[TargetPlatform.Cosmos] = address(new CosmosCodeGenerator());
+        // generators[TargetPlatform.Substrate] = address(new SubstrateCodeGenerator());
+        // generators[TargetPlatform.Move] = address(new MoveCodeGenerator());
+        // generators[TargetPlatform.Near] = address(new NEARCodeGenerator());
+    }
+    
+    /// Create generator untuk platform tertentu
+    function create_generator(TargetPlatform platform) public view returns (address) {
+        return generators[platform];
+    }
+    
+    /// Check if platform is supported
+    function is_platform_supported(TargetPlatform platform) public view returns (bool) {
+        return generators[platform] != address(0);
+    }
+    
+    /// Get all supported platforms
+    function get_supported_platforms() public pure returns (TargetPlatform[] memory) {
+        TargetPlatform[] memory platforms = new TargetPlatform[](4);
+        platforms[0] = TargetPlatform.Cosmos;
+        platforms[1] = TargetPlatform.Substrate;
+        platforms[2] = TargetPlatform.Move;
+        platforms[3] = TargetPlatform.Near;
+        return platforms;
+    }
+}

@@ -1,0 +1,411 @@
+// OMEGA Constant Folding Optimization Pass
+// Mengoptimasi ekspresi konstanta pada compile time
+
+import "../ir/ir.mega";
+import "./base_optimizer.mega";
+
+/// Constant folding optimization pass
+blockchain ConstantFoldingPass {
+    state {
+        string pass_name;
+        string description;
+        uint256 constants_folded;
+        uint256 expressions_simplified;
+        mapping(string => int256) constant_values;
+        bool initialized;
+    }
+    
+    /// Constructor
+    constructor() {
+        pass_name = "constant_folding";
+        description = "Evaluates constant expressions at compile time";
+        constants_folded = 0;
+        expressions_simplified = 0;
+        initialized = true;
+    }
+    
+    /// Implementasi OptimizationPass trait
+    function run(IRModule memory module) public returns (IRModule memory) {
+        require(initialized, "ConstantFoldingPass not initialized");
+        
+        constants_folded = 0;
+        expressions_simplified = 0;
+        
+        // Process all functions in module
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            module.functions[i] = optimize_function(module.functions[i]);
+        }
+        
+        // Process global constants
+        module = optimize_global_constants(module);
+        
+        return module;
+    }
+    
+    /// Get pass name
+    function get_name() public view returns (string memory) {
+        return pass_name;
+    }
+    
+    /// Get pass description
+    function get_description() public view returns (string memory) {
+        return description;
+    }
+    
+    /// Check if pass can run on module
+    function can_run(IRModule memory module) public pure returns (bool) {
+        return module.functions.length > 0;
+    }
+    
+    /// Estimate improvement
+    function estimate_improvement(IRModule memory module) public pure returns (uint256) {
+        uint256 total_expressions = 0;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            total_expressions += count_expressions_in_function(module.functions[i]);
+        }
+        // Estimate 10-30% of expressions can be constant folded
+        return (total_expressions * 20) / 100;
+    }
+    
+    /// Optimize function
+    function optimize_function(IRFunction memory func) private returns (IRFunction memory) {
+        // Process function body
+        func.body = optimize_block(func.body);
+        return func;
+    }
+    
+    /// Optimize block
+    function optimize_block(IRBlock memory block) private returns (IRBlock memory) {
+        for (uint256 i = 0; i < block.instructions.length; i++) {
+            block.instructions[i] = optimize_instruction(block.instructions[i]);
+        }
+        return block;
+    }
+    
+    /// Optimize instruction
+    function optimize_instruction(IRInstruction memory instr) private returns (IRInstruction memory) {
+        if (instr.opcode == IROpcode.ADD) {
+            return optimize_binary_arithmetic(instr, "add");
+        } else if (instr.opcode == IROpcode.SUB) {
+            return optimize_binary_arithmetic(instr, "sub");
+        } else if (instr.opcode == IROpcode.MUL) {
+            return optimize_binary_arithmetic(instr, "mul");
+        } else if (instr.opcode == IROpcode.DIV) {
+            return optimize_binary_arithmetic(instr, "div");
+        } else if (instr.opcode == IROpcode.MOD) {
+            return optimize_binary_arithmetic(instr, "mod");
+        } else if (instr.opcode == IROpcode.AND) {
+            return optimize_binary_logical(instr, "and");
+        } else if (instr.opcode == IROpcode.OR) {
+            return optimize_binary_logical(instr, "or");
+        } else if (instr.opcode == IROpcode.XOR) {
+            return optimize_binary_logical(instr, "xor");
+        } else if (instr.opcode == IROpcode.NOT) {
+            return optimize_unary_logical(instr, "not");
+        } else if (instr.opcode == IROpcode.NEG) {
+            return optimize_unary_arithmetic(instr, "neg");
+        } else if (instr.opcode == IROpcode.ASSIGN) {
+            return optimize_assignment(instr);
+        }
+        
+        return instr;
+    }
+    
+    /// Optimize binary arithmetic operations
+    function optimize_binary_arithmetic(IRInstruction memory instr, string memory op) private returns (IRInstruction memory) {
+        if (instr.operands.length != 2) return instr;
+        
+        IROperand memory left = instr.operands[0];
+        IROperand memory right = instr.operands[1];
+        
+        // Check if both operands are constants
+        if (is_constant(left) && is_constant(right)) {
+            int256 left_val = get_constant_value(left);
+            int256 right_val = get_constant_value(right);
+            int256 result;
+            
+            if (keccak256(bytes(op)) == keccak256(bytes("add"))) {
+                result = left_val + right_val;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("sub"))) {
+                result = left_val - right_val;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("mul"))) {
+                result = left_val * right_val;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("div"))) {
+                require(right_val != 0, "Division by zero in constant folding");
+                result = left_val / right_val;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("mod"))) {
+                require(right_val != 0, "Modulo by zero in constant folding");
+                result = left_val % right_val;
+            }
+            
+            // Replace instruction with constant load
+            instr.opcode = IROpcode.LOAD_CONST;
+            instr.operands = new IROperand[](1);
+            instr.operands[0] = create_constant_operand(result);
+            
+            constants_folded++;
+            return instr;
+        }
+        
+        // Check for identity operations
+        if (is_constant(right)) {
+            int256 right_val = get_constant_value(right);
+            
+            if (keccak256(bytes(op)) == keccak256(bytes("add")) && right_val == 0) {
+                // x + 0 = x
+                instr.opcode = IROpcode.MOVE;
+                instr.operands = new IROperand[](1);
+                instr.operands[0] = left;
+                expressions_simplified++;
+                return instr;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("mul")) && right_val == 1) {
+                // x * 1 = x
+                instr.opcode = IROpcode.MOVE;
+                instr.operands = new IROperand[](1);
+                instr.operands[0] = left;
+                expressions_simplified++;
+                return instr;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("mul")) && right_val == 0) {
+                // x * 0 = 0
+                instr.opcode = IROpcode.LOAD_CONST;
+                instr.operands = new IROperand[](1);
+                instr.operands[0] = create_constant_operand(0);
+                expressions_simplified++;
+                return instr;
+            }
+        }
+        
+        return instr;
+    }
+    
+    /// Optimize binary logical operations
+    function optimize_binary_logical(IRInstruction memory instr, string memory op) private returns (IRInstruction memory) {
+        if (instr.operands.length != 2) return instr;
+        
+        IROperand memory left = instr.operands[0];
+        IROperand memory right = instr.operands[1];
+        
+        // Check if both operands are constants
+        if (is_constant(left) && is_constant(right)) {
+            int256 left_val = get_constant_value(left);
+            int256 right_val = get_constant_value(right);
+            int256 result;
+            
+            if (keccak256(bytes(op)) == keccak256(bytes("and"))) {
+                result = (left_val != 0 && right_val != 0) ? 1 : 0;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("or"))) {
+                result = (left_val != 0 || right_val != 0) ? 1 : 0;
+            } else if (keccak256(bytes(op)) == keccak256(bytes("xor"))) {
+                result = ((left_val != 0) != (right_val != 0)) ? 1 : 0;
+            }
+            
+            // Replace with constant
+            instr.opcode = IROpcode.LOAD_CONST;
+            instr.operands = new IROperand[](1);
+            instr.operands[0] = create_constant_operand(result);
+            
+            constants_folded++;
+            return instr;
+        }
+        
+        return instr;
+    }
+    
+    /// Optimize unary operations
+    function optimize_unary_arithmetic(IRInstruction memory instr, string memory op) private returns (IRInstruction memory) {
+        if (instr.operands.length != 1) return instr;
+        
+        IROperand memory operand = instr.operands[0];
+        
+        if (is_constant(operand)) {
+            int256 val = get_constant_value(operand);
+            int256 result;
+            
+            if (keccak256(bytes(op)) == keccak256(bytes("neg"))) {
+                result = -val;
+            }
+            
+            instr.opcode = IROpcode.LOAD_CONST;
+            instr.operands[0] = create_constant_operand(result);
+            
+            constants_folded++;
+            return instr;
+        }
+        
+        return instr;
+    }
+    
+    /// Optimize unary logical operations
+    function optimize_unary_logical(IRInstruction memory instr, string memory op) private returns (IRInstruction memory) {
+        if (instr.operands.length != 1) return instr;
+        
+        IROperand memory operand = instr.operands[0];
+        
+        if (is_constant(operand)) {
+            int256 val = get_constant_value(operand);
+            int256 result;
+            
+            if (keccak256(bytes(op)) == keccak256(bytes("not"))) {
+                result = (val == 0) ? 1 : 0;
+            }
+            
+            instr.opcode = IROpcode.LOAD_CONST;
+            instr.operands[0] = create_constant_operand(result);
+            
+            constants_folded++;
+            return instr;
+        }
+        
+        return instr;
+    }
+    
+    /// Optimize assignment
+    function optimize_assignment(IRInstruction memory instr) private returns (IRInstruction memory) {
+        if (instr.operands.length != 2) return instr;
+        
+        IROperand memory source = instr.operands[1];
+        
+        if (is_constant(source)) {
+            // Track constant assignments for future use
+            if (instr.operands[0].type == IROperandType.VARIABLE) {
+                constant_values[instr.operands[0].value] = get_constant_value(source);
+            }
+        }
+        
+        return instr;
+    }
+    
+    /// Optimize global constants
+    function optimize_global_constants(IRModule memory module) private returns (IRModule memory) {
+        // Process global variable initializations
+        for (uint256 i = 0; i < module.global_variables.length; i++) {
+            IRGlobalVariable memory global_var = module.global_variables[i];
+            if (global_var.has_initializer && is_constant_expression(global_var.initializer)) {
+                // Evaluate constant initializer
+                int256 value = evaluate_constant_expression(global_var.initializer);
+                global_var.initializer = create_constant_expression(value);
+                module.global_variables[i] = global_var;
+                constants_folded++;
+            }
+        }
+        
+        return module;
+    }
+    
+    /// Check if operand is constant
+    function is_constant(IROperand memory operand) private pure returns (bool) {
+        return operand.type == IROperandType.CONSTANT || operand.type == IROperandType.IMMEDIATE;
+    }
+    
+    /// Get constant value from operand
+    function get_constant_value(IROperand memory operand) private pure returns (int256) {
+        if (operand.type == IROperandType.CONSTANT || operand.type == IROperandType.IMMEDIATE) {
+            return parse_int(operand.value);
+        }
+        return 0;
+    }
+    
+    /// Create constant operand
+    function create_constant_operand(int256 value) private pure returns (IROperand memory) {
+        return IROperand({
+            type: IROperandType.CONSTANT,
+            value: int_to_string(value),
+            data_type: IRDataType.INT256
+        });
+    }
+    
+    /// Check if expression is constant
+    function is_constant_expression(IRExpression memory expr) private pure returns (bool) {
+        // Simplified check - in real implementation would be more comprehensive
+        return expr.type == IRExpressionType.LITERAL;
+    }
+    
+    /// Evaluate constant expression
+    function evaluate_constant_expression(IRExpression memory expr) private pure returns (int256) {
+        // Simplified evaluation - in real implementation would handle complex expressions
+        if (expr.type == IRExpressionType.LITERAL) {
+            return parse_int(expr.value);
+        }
+        return 0;
+    }
+    
+    /// Create constant expression
+    function create_constant_expression(int256 value) private pure returns (IRExpression memory) {
+        return IRExpression({
+            type: IRExpressionType.LITERAL,
+            value: int_to_string(value),
+            data_type: IRDataType.INT256
+        });
+    }
+    
+    /// Count expressions in function
+    function count_expressions_in_function(IRFunction memory func) private pure returns (uint256) {
+        // Simplified count - in real implementation would traverse all blocks
+        return func.body.instructions.length;
+    }
+    
+    /// Parse integer from string
+    function parse_int(string memory str) private pure returns (int256) {
+        // Simplified parsing - in real implementation would handle negative numbers, hex, etc.
+        bytes memory b = bytes(str);
+        int256 result = 0;
+        bool negative = false;
+        uint256 start = 0;
+        
+        if (b.length > 0 && b[0] == '-') {
+            negative = true;
+            start = 1;
+        }
+        
+        for (uint256 i = start; i < b.length; i++) {
+            if (b[i] >= '0' && b[i] <= '9') {
+                result = result * 10 + int256(uint256(uint8(b[i]) - 48));
+            }
+        }
+        
+        return negative ? -result : result;
+    }
+    
+    /// Convert integer to string
+    function int_to_string(int256 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        bool negative = value < 0;
+        if (negative) value = -value;
+        
+        uint256 temp = uint256(value);
+        uint256 digits;
+        uint256 temp_value = temp;
+        
+        while (temp_value != 0) {
+            digits++;
+            temp_value /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits + (negative ? 1 : 0));
+        uint256 index = buffer.length;
+        
+        while (temp != 0) {
+            index--;
+            buffer[index] = bytes1(uint8(48 + temp % 10));
+            temp /= 10;
+        }
+        
+        if (negative) {
+            buffer[0] = '-';
+        }
+        
+        return string(buffer);
+    }
+    
+    /// Get optimization statistics
+    function get_stats() public view returns (uint256, uint256) {
+        return (constants_folded, expressions_simplified);
+    }
+    
+    /// Reset statistics
+    function reset_stats() public {
+        constants_folded = 0;
+        expressions_simplified = 0;
+    }
+}

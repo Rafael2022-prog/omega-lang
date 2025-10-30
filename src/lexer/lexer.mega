@@ -1,0 +1,790 @@
+// OMEGA Lexer - Self-hosted implementation in MEGA
+// Replaces the Rust-based lexer with native MEGA code
+// 
+// Lexer bertanggung jawab untuk mengkonversi source code menjadi stream of tokens
+// yang dapat diproses oleh parser. Mendukung semua token types yang diperlukan
+// untuk bahasa OMEGA termasuk keywords, operators, literals, dan identifiers.
+
+import "./error/error.mega";
+
+/// OMEGA Lexical Analyzer blockchain
+/// Mengimplementasikan tokenization untuk bahasa OMEGA dengan dukungan penuh
+/// untuk semua konstruksi bahasa termasuk cross-chain annotations
+blockchain OmegaLexer {
+    state {
+        string input;                    // Source code yang sedang diproses
+        uint256 position;                // Posisi karakter saat ini dalam input
+        uint256 line;                    // Nomor baris saat ini (1-indexed)
+        uint256 column;                  // Nomor kolom saat ini (1-indexed)
+        uint256 start_position;          // Posisi awal token yang sedang diproses
+        mapping(string => TokenType) keywords; // Mapping keyword strings ke token types
+        string[] error_messages;         // Daftar error messages yang ditemukan
+        bool has_errors_flag;            // Flag untuk menandai adanya errors
+        OmegaErrorHandler error_handler; // Integrated error handling system
+        string current_file;             // Current file being processed
+    }
+    
+    /// Constructor untuk inisialisasi lexer
+    /// Mengatur mapping keywords dan state awal lexer
+    constructor() {
+        // Initialize keyword mapping untuk semua reserved words dalam OMEGA
+        // Core language constructs
+        keywords["blockchain"] = TokenType.Blockchain;    // Definisi blockchain contract
+        keywords["state"] = TokenType.State;              // State variable declarations
+        keywords["function"] = TokenType.Function;        // Function definitions
+        keywords["constructor"] = TokenType.Constructor;  // Constructor functions
+        keywords["event"] = TokenType.Event;              // Event declarations
+        keywords["modifier"] = TokenType.Modifier;        // Function modifiers
+        keywords["struct"] = TokenType.Struct;            // Struct type definitions
+        keywords["enum"] = TokenType.Enum;                // Enum type definitions
+        keywords["import"] = TokenType.Import;            // Import statements
+        
+        // Control flow keywords
+        keywords["if"] = TokenType.If;                    // Conditional statements
+        keywords["else"] = TokenType.Else;                // Else clauses
+        keywords["while"] = TokenType.While;              // While loops
+        keywords["for"] = TokenType.For;                  // For loops
+        keywords["return"] = TokenType.Return;            // Return statements
+        keywords["break"] = TokenType.Break;              // Break statements
+        keywords["continue"] = TokenType.Continue;        // Continue statements
+        
+        // Blockchain-specific keywords
+        keywords["emit"] = TokenType.Emit;                // Event emission
+        keywords["require"] = TokenType.Require;          // Require assertions
+        keywords["assert"] = TokenType.Assert;            // Assert statements
+        keywords["revert"] = TokenType.Revert;            // Revert transactions
+        
+        // Visibility modifiers
+        keywords["public"] = TokenType.Public;            // Public visibility
+        keywords["private"] = TokenType.Private;          // Private visibility
+        keywords["internal"] = TokenType.Internal;        // Internal visibility
+        keywords["external"] = TokenType.External;        // External visibility
+        
+        // Function state mutability
+        keywords["view"] = TokenType.View;                // View functions (read-only)
+        keywords["pure"] = TokenType.Pure;                // Pure functions (no state access)
+        keywords["payable"] = TokenType.Payable;          // Payable functions
+        keywords["constant"] = TokenType.Constant;        // Constant variables
+        keywords["immutable"] = TokenType.Immutable;      // Immutable variables
+        
+        // Inheritance keywords
+        keywords["override"] = TokenType.Override;        // Function overrides
+        keywords["virtual"] = TokenType.Virtual;          // Virtual functions
+        keywords["abstract"] = TokenType.Abstract;        // Abstract contracts
+        keywords["interface"] = TokenType.Interface;      // Interface definitions
+        keywords["library"] = TokenType.Library;          // Library definitions
+        keywords["using"] = TokenType.Using;              // Using directives
+        
+        // Data types
+        keywords["mapping"] = TokenType.Mapping;          // Mapping types
+        keywords["address"] = TokenType.Address;          // Address type
+        keywords["bool"] = TokenType.Bool;                // Boolean type
+        keywords["string"] = TokenType.String;            // String type
+        keywords["bytes"] = TokenType.Bytes;              // Bytes type
+        keywords["uint"] = TokenType.Uint;                // Unsigned integer types
+        keywords["int"] = TokenType.Int;                  // Signed integer types
+        
+        // Literals
+        keywords["true"] = TokenType.True;                // Boolean true literal
+        keywords["false"] = TokenType.False;              // Boolean false literal
+        keywords["null"] = TokenType.Null;                // Null literal
+        
+        // Special identifiers
+        keywords["this"] = TokenType.This;                // Current contract reference
+        keywords["super"] = TokenType.Super;              // Parent contract reference
+        
+        // Global variables
+        keywords["msg"] = TokenType.Msg;                  // Message context
+        keywords["block"] = TokenType.Block;              // Block context
+        keywords["tx"] = TokenType.Tx;                    // Transaction context
+        keywords["gas"] = TokenType.Gas;                  // Gas-related operations
+        keywords["value"] = TokenType.Value;              // Ether value
+        keywords["sender"] = TokenType.Sender;            // Message sender
+        keywords["origin"] = TokenType.Origin;            // Transaction origin
+        keywords["timestamp"] = TokenType.Timestamp;      // Block timestamp
+        keywords["number"] = TokenType.Number;            // Block number
+        keywords["difficulty"] = TokenType.Difficulty;    // Block difficulty
+        keywords["gaslimit"] = TokenType.GasLimit;        // Block gas limit
+        keywords["coinbase"] = TokenType.Coinbase;        // Block coinbase
+        
+        // Exception handling
+        keywords["try"] = TokenType.Try;                  // Try blocks
+        keywords["catch"] = TokenType.Catch;              // Catch blocks
+        keywords["throw"] = TokenType.Throw;              // Throw statements
+        
+        // Object operations
+        keywords["new"] = TokenType.New;                  // Object instantiation
+        keywords["delete"] = TokenType.Delete;            // Object deletion
+        keywords["typeof"] = TokenType.Typeof;            // Type checking
+        keywords["is"] = TokenType.Is;                    // Type testing
+        keywords["as"] = TokenType.As;                    // Type casting
+        keywords["in"] = TokenType.In;                    // Membership testing
+        
+        // Event modifiers
+        keywords["indexed"] = TokenType.Indexed;          // Indexed event parameters
+        keywords["anonymous"] = TokenType.Anonymous;      // Anonymous events
+        
+        // Memory locations
+        keywords["memory"] = TokenType.Memory;            // Memory storage
+        keywords["storage"] = TokenType.Storage;          // Storage location
+        keywords["calldata"] = TokenType.Calldata;        // Calldata location
+        keywords["stack"] = TokenType.Stack;              // Stack location
+        
+        // Assembly keywords
+        keywords["assembly"] = TokenType.Assembly;        // Inline assembly
+        keywords["let"] = TokenType.Let;                  // Assembly let bindings
+        keywords["switch"] = TokenType.Switch;            // Assembly switch statements
+        keywords["case"] = TokenType.Case;                // Assembly case labels
+        keywords["default"] = TokenType.Default;          // Assembly default case
+        keywords["leave"] = TokenType.Leave;              // Assembly leave statements
+        
+        // Cross-chain specific keywords (OMEGA extension)
+        keywords["cross_chain"] = TokenType.CrossChain;   // Cross-chain annotations
+        keywords["target"] = TokenType.Target;            // Target platform specification
+        keywords["solana"] = TokenType.Solana;            // Solana target
+        keywords["cosmos"] = TokenType.Cosmos;            // Cosmos target
+        keywords["substrate"] = TokenType.Substrate;      // Substrate target
+        keywords["move"] = TokenType.Move;                // Move VM target
+        keywords["near"] = TokenType.Near;                // NEAR Protocol target
+        
+        // Initialize error tracking dan error handler
+        error_messages = [];
+        has_errors_flag = false;
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+        
+        // Initialize lexer state
+        position = 0;
+        line = 1;
+        column = 1;
+        start_position = 0;
+        has_errors_flag = false;
+    }
+    
+    /// Main tokenization function yang mengkonversi source code menjadi token array
+    /// @param source Source code string yang akan di-tokenize
+    /// @return Array of tokens yang dihasilkan dari source code
+    function tokenize(string memory source) public returns (Token[] memory) {
+        // Reset lexer state untuk tokenization baru
+        input = source;
+        position = 0;
+        line = 1;
+        column = 1;
+        has_errors_flag = false;
+        
+        // Initialize token array - dalam implementasi nyata, ini akan dynamic
+        Token[] memory tokens;
+        uint256 token_count = 0;
+        
+        // Main tokenization loop - proses setiap karakter dalam input
+        while (!is_at_end()) {
+            // Mark start position untuk token saat ini
+            start_position = position;
+            
+            // Scan single token dari posisi saat ini
+            Token memory token = scan_token();
+            
+            // Filter out whitespace dan comments dari output tokens
+            // (kecuali jika diperlukan untuk formatting tools)
+            if (token.token_type != TokenType.Whitespace && 
+                token.token_type != TokenType.Comment) {
+                tokens[token_count] = token;
+                token_count++;
+            }
+        }
+        
+        // Add EOF token untuk menandai akhir input
+        tokens[token_count] = Token({
+            token_type: TokenType.EOF,
+            lexeme: "",
+            line: line,
+            column: column,
+            position: position
+        });
+        
+        return tokens;
+    }
+    
+    /// Scan single token dari posisi saat ini dalam input
+    /// Mengidentifikasi jenis token dan membuat Token object yang sesuai
+    /// @return Token object yang dihasilkan
+    function scan_token() private returns (Token memory) {
+        bytes1 c = advance(); // Consume karakter berikutnya
+        
+        // Handle single character tokens
+        if (c == '(') return make_token(TokenType.LeftParen);      // Opening parenthesis
+        if (c == ')') return make_token(TokenType.RightParen);     // Closing parenthesis
+        if (c == '{') return make_token(TokenType.LeftBrace);      // Opening brace
+        if (c == '}') return make_token(TokenType.RightBrace);     // Closing brace
+        if (c == '[') return make_token(TokenType.LeftBracket);    // Opening bracket
+        if (c == ']') return make_token(TokenType.RightBracket);   // Closing bracket
+        if (c == ',') return make_token(TokenType.Comma);          // Comma separator
+        if (c == '.') return make_token(TokenType.Dot);            // Dot operator
+        if (c == ';') return make_token(TokenType.Semicolon);      // Statement terminator
+        if (c == '~') return make_token(TokenType.Tilde);          // Bitwise NOT
+        if (c == '?') return make_token(TokenType.Question);       // Ternary operator
+        if (c == ':') return make_token(TokenType.Colon);          // Colon separator
+        
+        // Handle multi-character tokens starting with '+'
+        if (c == '+') {
+            if (match('=')) return make_token(TokenType.PlusEqual);  // += operator
+            if (match('+')) return make_token(TokenType.PlusPlus);   // ++ operator
+            return make_token(TokenType.Plus);                       // + operator
+        }
+        
+        // Handle multi-character tokens starting with '-'
+        if (c == '-') {
+            if (match('=')) return make_token(TokenType.MinusEqual); // -= operator
+            if (match('-')) return make_token(TokenType.MinusMinus); // -- operator
+            if (match('>')) return make_token(TokenType.Arrow);      // -> operator
+            return make_token(TokenType.Minus);                      // - operator
+        }
+        
+        // Handle multi-character tokens starting with '*'
+        if (c == '*') {
+            if (match('=')) return make_token(TokenType.StarEqual);  // *= operator
+            if (match('*')) return make_token(TokenType.StarStar);   // ** operator (exponentiation)
+            return make_token(TokenType.Star);                       // * operator
+        }
+        
+        // Handle multi-character tokens starting with '/'
+        if (c == '/') {
+            if (match('=')) return make_token(TokenType.SlashEqual); // /= operator
+            
+            // Handle line comments (// comment)
+            if (match('/')) {
+                // Consume characters until end of line atau end of file
+                while (peek() != '\n' && !is_at_end()) advance();
+                return make_token(TokenType.Comment);
+            }
+            
+            // Handle block comments (/* comment */)
+            if (match('*')) {
+                // Consume characters until closing */ atau end of file
+                while (!is_at_end()) {
+                    if (peek() == '*' && peek_next() == '/') {
+                        advance(); // consume '*'
+                        advance(); // consume '/'
+                        break;
+                    }
+                    // Track line numbers dalam block comments
+                    if (peek() == '\n') line++;
+                    advance();
+                }
+                return make_token(TokenType.Comment);
+            }
+            
+            return make_token(TokenType.Slash);                      // / operator
+        }
+        
+        // Handle modulo operator dan compound assignment
+        if (c == '%') {
+            if (match('=')) return make_token(TokenType.PercentEqual); // %= operator
+            return make_token(TokenType.Percent);                      // % operator
+        }
+        
+        // Handle bitwise AND operator dan logical AND
+        if (c == '&') {
+            if (match('&')) return make_token(TokenType.AmpersandAmpersand); // && logical AND
+            if (match('=')) return make_token(TokenType.AmpersandEqual);     // &= bitwise AND assignment
+            return make_token(TokenType.Ampersand);                          // & bitwise AND
+        }
+        
+        // Handle bitwise OR operator dan logical OR
+        if (c == '|') {
+            if (match('|')) return make_token(TokenType.PipePipe);           // || logical OR
+            if (match('=')) return make_token(TokenType.PipeEqual);          // |= bitwise OR assignment
+            return make_token(TokenType.Pipe);                               // | bitwise OR
+        }
+        
+        // Handle bitwise XOR operator
+        if (c == '^') {
+            if (match('=')) return make_token(TokenType.CaretEqual);         // ^= XOR assignment
+            return make_token(TokenType.Caret);                              // ^ XOR operator
+        }
+        
+        // Handle logical NOT dan inequality operator
+        if (c == '!') {
+            if (match('=')) return make_token(TokenType.BangEqual);          // != not equal
+            return make_token(TokenType.Bang);                               // ! logical NOT
+        }
+        
+        // Handle assignment dan equality operators
+        if (c == '=') {
+            if (match('=')) return make_token(TokenType.EqualEqual);         // == equality
+            if (match('>')) return make_token(TokenType.FatArrow);           // => fat arrow (lambdas)
+            return make_token(TokenType.Equal);                              // = assignment
+        }
+        
+        // Handle less than operator dan left shift
+        if (c == '<') {
+            if (match('=')) return make_token(TokenType.LessEqual);          // <= less than or equal
+            if (match('<')) {
+                if (match('=')) return make_token(TokenType.LeftShiftEqual); // <<= left shift assignment
+                return make_token(TokenType.LeftShift);                      // << left shift
+            }
+            return make_token(TokenType.Less);                               // < less than
+        }
+        
+        // Handle greater than operator dan right shift
+        if (c == '>') {
+            if (match('=')) return make_token(TokenType.GreaterEqual);       // >= greater than or equal
+            if (match('>')) {
+                if (match('=')) return make_token(TokenType.RightShiftEqual);// >>= right shift assignment
+                return make_token(TokenType.RightShift);                     // >> right shift
+            }
+            return make_token(TokenType.Greater);                            // > greater than
+        }
+        
+        // Handle whitespace characters (space, carriage return, tab)
+        if (c == ' ' || c == '\r' || c == '\t') {
+            return make_token(TokenType.Whitespace);
+        }
+        
+        // Handle newlines - increment line counter dan reset column
+        if (c == '\n') {
+            line++;
+            column = 1;
+            return make_token(TokenType.Whitespace);
+        }
+        
+        // Handle string literals dengan double quotes
+        if (c == '"') return scan_string();
+        
+        // Handle character literals dengan single quotes
+        if (c == '\'') return scan_char();
+        
+        // Handle hexadecimal number literals (0x prefix)
+        if (c == '0' && (peek() == 'x' || peek() == 'X')) {
+            advance(); // consume 'x' atau 'X'
+            return scan_hex_number();
+        }
+        
+        // Handle decimal number literals
+        if (is_digit(c)) return scan_number();
+        
+        // Handle identifiers dan keywords (start dengan letter atau underscore)
+        if (is_alpha(c)) return scan_identifier();
+        
+        // Handle annotations (start dengan @)
+        if (c == '@') return scan_annotation();
+        
+        // Unknown character - generate error token
+        return make_error_token("Unexpected character");
+    }
+    
+    /// Scan string literal yang dimulai dengan double quote
+    /// Mendukung escape sequences dan multi-line strings
+    /// @return Token untuk string literal atau error token jika unterminated
+    function scan_string() private returns (Token memory) {
+        // Consume characters until closing quote atau end of file
+        while (peek() != '"' && !is_at_end()) {
+            // Track line numbers untuk multi-line strings
+            if (peek() == '\n') line++;
+            advance();
+        }
+        
+        // Check for unterminated string
+        if (is_at_end()) {
+            return make_error_token("Unterminated string");
+        }
+        
+        advance(); // consume closing '"'
+        return make_token(TokenType.StringLiteral);
+    }
+    
+    /// Scan character literal yang dimulai dengan single quote
+    /// Character literals harus berisi tepat satu karakter
+    /// @return Token untuk character literal atau error token
+    function scan_char() private returns (Token memory) {
+        // Check for immediate end of file
+        if (is_at_end()) {
+            return make_error_token("Unterminated character literal");
+        }
+        
+        advance(); // consume character content
+        
+        // Check for closing quote
+        if (peek() != '\'') {
+            return make_error_token("Unterminated character literal");
+        }
+        
+        advance(); // consume closing '\''
+        return make_token(TokenType.CharLiteral);
+    }
+    
+    /// Scan numeric literal (integer atau floating point)
+    /// Mendukung decimal numbers, floating point, dan scientific notation
+    /// @return Token untuk integer atau float literal
+    function scan_number() private returns (Token memory) {
+        // Consume digit sequence untuk integer part
+        while (is_digit(peek())) advance();
+        
+        // Look for decimal part (floating point numbers)
+        if (peek() == '.' && is_digit(peek_next())) {
+            advance(); // consume '.'
+            while (is_digit(peek())) advance(); // consume fractional digits
+            return make_token(TokenType.FloatLiteral);
+        }
+        
+        // Look for scientific notation exponent (e atau E)
+        if (peek() == 'e' || peek() == 'E') {
+            advance(); // consume 'e' atau 'E'
+            // Optional sign untuk exponent
+            if (peek() == '+' || peek() == '-') advance();
+            // Consume exponent digits
+            while (is_digit(peek())) advance();
+            return make_token(TokenType.FloatLiteral);
+        }
+        
+        // Default to integer literal
+        return make_token(TokenType.IntegerLiteral);
+    }
+
+    /// Scan hexadecimal number literal (setelah 0x prefix)
+    /// Mengkonsumsi semua valid hex digits
+    /// @return Token untuk hexadecimal literal
+    function scan_hex_number() private returns (Token memory) {
+        // Consume semua hex digits yang valid
+        while (is_hex_digit(peek())) advance();
+        return make_token(TokenType.HexLiteral);
+    }
+    
+    /// Scan identifier atau keyword
+    /// Dimulai dengan letter/underscore, diikuti alphanumeric characters
+    /// @return Token untuk identifier atau keyword yang sesuai
+    function scan_identifier() private returns (Token memory) {
+        // Consume alphanumeric characters untuk identifier
+        while (is_alphanumeric(peek())) advance();
+        
+        // Get text dari identifier yang di-scan
+        string memory text = get_current_lexeme();
+        
+        // Check apakah text adalah keyword yang dikenal
+        TokenType token_type = keywords[text];
+        
+        // Jika bukan keyword, maka ini adalah identifier biasa
+        if (token_type == TokenType.Unknown) {
+            token_type = TokenType.Identifier;
+        }
+        
+        return make_token(token_type);
+    }
+    
+    /// Scan annotation yang dimulai dengan @ symbol
+    /// Annotations digunakan untuk metadata dan cross-chain directives
+    /// @return Token untuk annotation
+    function scan_annotation() private returns (Token memory) {
+        // Consume alphanumeric characters untuk annotation name
+        while (is_alphanumeric(peek())) advance();
+        return make_token(TokenType.Annotation);
+    }
+    
+    // ============================================================================
+    // HELPER FUNCTIONS - Utility functions untuk lexical analysis
+    // ============================================================================
+    
+    /// Check apakah sudah mencapai end of input
+    /// @return true jika position sudah melewati input length
+    function is_at_end() private view returns (bool) {
+        return position >= bytes(input).length;
+    }
+    
+    /// Advance position dan return current character
+    /// Juga mengupdate column counter untuk error reporting
+    /// @return Current character atau 0 jika end of input
+    function advance() private returns (bytes1) {
+        if (is_at_end()) return 0;
+        
+        bytes1 c = bytes(input)[position];
+        position++;
+        column++;
+        return c;
+    }
+    
+    /// Check apakah current character matches expected character
+    /// Jika match, advance position; jika tidak, tetap di tempat
+    /// @param expected Character yang diharapkan
+    /// @return true jika character matches dan position di-advance
+    function match(bytes1 expected) private returns (bool) {
+        if (is_at_end()) return false;
+        if (bytes(input)[position] != expected) return false;
+        
+        position++;
+        column++;
+        return true;
+    }
+    
+    /// Peek current character tanpa advancing position
+    /// Digunakan untuk lookahead dalam tokenization
+    /// @return Current character atau 0 jika end of input
+    function peek() private view returns (bytes1) {
+        if (is_at_end()) return 0;
+        return bytes(input)[position];
+    }
+    
+    /// Peek next character (position + 1) tanpa advancing
+    /// Digunakan untuk two-character lookahead
+    /// @return Next character atau 0 jika beyond input
+    function peek_next() private view returns (bytes1) {
+        if (position + 1 >= bytes(input).length) return 0;
+        return bytes(input)[position + 1];
+    }
+    
+    /// Check apakah character adalah digit (0-9)
+    /// @param c Character yang akan dicek
+    /// @return true jika character adalah digit
+    function is_digit(bytes1 c) private pure returns (bool) {
+        return c >= '0' && c <= '9';
+    }
+    
+    /// Check apakah character adalah hexadecimal digit (0-9, a-f, A-F)
+    /// @param c Character yang akan dicek
+    /// @return true jika character adalah hex digit
+    function is_hex_digit(bytes1 c) private pure returns (bool) {
+        return (c >= '0' && c <= '9') || 
+               (c >= 'a' && c <= 'f') || 
+               (c >= 'A' && c <= 'F');
+    }
+    
+    /// Check apakah character adalah alphabetic atau underscore
+    /// Valid starting characters untuk identifiers
+    /// @param c Character yang akan dicek
+    /// @return true jika character adalah alpha atau underscore
+    function is_alpha(bytes1 c) private pure returns (bool) {
+        return (c >= 'a' && c <= 'z') || 
+               (c >= 'A' && c <= 'Z') || 
+               c == '_';
+    }
+    
+    /// Check apakah character adalah alphanumeric (alpha atau digit)
+    /// Valid continuation characters untuk identifiers
+    /// @param c Character yang akan dicek
+    /// @return true jika character adalah alphanumeric
+    function is_alphanumeric(bytes1 c) private pure returns (bool) {
+        return is_alpha(c) || is_digit(c);
+    }
+    
+    /// Extract lexeme string dari start_position sampai current position
+    /// Digunakan untuk membuat token dengan text content yang sesuai
+    /// @return String representation dari current lexeme
+    function get_current_lexeme() private view returns (string memory) {
+        bytes memory source_bytes = bytes(input);
+        bytes memory lexeme = new bytes(position - start_position);
+        
+        // Copy bytes dari start_position ke current position
+        for (uint256 i = 0; i < lexeme.length; i++) {
+            lexeme[i] = source_bytes[start_position + i];
+        }
+        
+        return string(lexeme);
+    }
+    
+    /// Create token dengan specified type dan current lexeme
+    /// Menggunakan current position info untuk line/column tracking
+    /// @param token_type Type dari token yang akan dibuat
+    /// @return Token object dengan semua metadata yang diperlukan
+    function make_token(TokenType token_type) private view returns (Token memory) {
+        return Token({
+            token_type: token_type,
+            lexeme: get_current_lexeme(),
+            line: line,
+            column: column - (position - start_position), // Column start dari token
+            position: start_position
+        });
+    }
+    
+    /// Create error token dengan error message
+    /// Digunakan ketika lexer menemukan invalid input
+    /// @param message Error message yang menjelaskan masalah
+    /// @return Error token dengan message sebagai lexeme
+    function make_error_token(string memory message) private view returns (Token memory) {
+        return Token({
+            token_type: TokenType.Error,
+            lexeme: message,
+            line: line,
+            column: column,
+            position: position
+        });
+    }
+}
+
+// ============================================================================
+// DATA STRUCTURES - Token dan TokenType definitions
+// ============================================================================
+
+/// Token structure yang merepresentasikan single lexical unit
+/// Berisi semua informasi yang diperlukan untuk parsing dan error reporting
+struct Token {
+    TokenType token_type;    // Jenis token (keyword, operator, literal, etc.)
+    string lexeme;           // Text content dari token
+    uint256 line;            // Line number dalam source code (1-indexed)
+    uint256 column;          // Column number dalam line (1-indexed)
+    uint256 position;        // Absolute position dalam source code (0-indexed)
+}
+
+/// Enumeration dari semua token types yang didukung oleh OMEGA lexer
+/// Mencakup literals, keywords, operators, dan special tokens
+enum TokenType {
+    // ========================================================================
+    // LITERALS - Data values dalam source code
+    // ========================================================================
+    Identifier,          // Variable names, function names, etc.
+    IntegerLiteral,      // Decimal integer numbers (123, 456)
+    FloatLiteral,        // Floating point numbers (3.14, 1e10)
+    StringLiteral,       // String values ("hello world")
+    CharLiteral,         // Single character values ('a', 'Z')
+    HexLiteral,          // Hexadecimal numbers (0xFF, 0x123ABC)
+    
+    // ========================================================================
+    // KEYWORDS - BLOCKCHAIN SPECIFIC
+    // ========================================================================
+    Blockchain,          // blockchain contract definitions
+    State,               // state variable declarations
+    Function,            // function definitions
+    Constructor,         // constructor functions
+    Event,               // event declarations
+    Modifier,            // function modifiers
+    Struct,              // struct type definitions
+    Enum,                // enum type definitions
+    Import,              // import statements
+    
+    // ========================================================================
+    // KEYWORDS - CONTROL FLOW
+    // ========================================================================
+    If,                  // if conditional statements
+    Else,                // else clauses
+    While,               // while loops
+    For,                 // for loops
+    Return,              // return statements
+    Break,               // break statements
+    Continue,            // continue statements
+    
+    // ========================================================================
+    // KEYWORDS - BLOCKCHAIN OPERATIONS
+    // ========================================================================
+    Emit,                // event emission
+    Require,             // require assertions
+    Assert,              // assert statements
+    Revert,              // revert transactions
+    
+    // ========================================================================
+    // KEYWORDS - VISIBILITY MODIFIERS
+    // ========================================================================
+    Public,              // public visibility
+    Private,             // private visibility
+    Internal,            // internal visibility
+    External,            // external visibility
+    
+    // ========================================================================
+    // KEYWORDS - STATE MUTABILITY
+    // ========================================================================
+    View,                // view functions (read-only)
+    Pure,                // pure functions (no state access)
+    Payable,             // payable functions
+    Constant,            // constant variables
+    Immutable,           // immutable variables
+    
+    // ========================================================================
+    // ERROR HANDLING
+    // ========================================================================
+    Error,               // error token for invalid input
+    EOF                  // end of file
+}
+
+/// Enhanced error handling functions for lexer
+impl OmegaLexer {
+    /// Set current file being processed
+    function set_current_file(string file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Report lexical error with context
+    function report_error(string message, uint256 error_position) private {
+        let location = SourceLocation {
+            file: current_file,
+            line: line,
+            column: column,
+            position: error_position
+        };
+        
+        let context = ErrorContext {
+            context_type: ContextType.Lexical,
+            source_code: get_line_content(line),
+            additional_info: message
+        };
+        
+        let error = OmegaError {
+            error_type: ErrorType.LexicalError,
+            severity: ErrorSeverity.Error,
+            code: ErrorCode.InvalidToken,
+            message: message,
+            location: location,
+            context: context,
+            suggestions: generate_suggestions(message)
+        };
+        
+        error_handler.report_error(error);
+        error_messages.push(message);
+        has_errors_flag = true;
+    }
+    
+    /// Get line content for error context
+    function get_line_content(uint256 line_number) private view returns (string) {
+        string[] lines = input.split("\n");
+        if (line_number > 0 && line_number <= lines.length) {
+            return lines[line_number - 1];
+        }
+        return "";
+    }
+    
+    /// Generate suggestions for common lexical errors
+    function generate_suggestions(string error_message) private pure returns (string[]) {
+        string[] suggestions = [];
+        
+        if (error_message.contains("unterminated string")) {
+            suggestions.push("Add closing quote to string literal");
+            suggestions.push("Check for escaped quotes in string");
+        } else if (error_message.contains("invalid character")) {
+            suggestions.push("Check for non-ASCII characters");
+            suggestions.push("Verify character encoding");
+        } else if (error_message.contains("invalid number")) {
+            suggestions.push("Check number format (decimal, hex, binary)");
+            suggestions.push("Verify number is within valid range");
+        }
+        
+        return suggestions;
+    }
+    
+    /// Check if lexer has encountered errors
+    function has_errors() public view returns (bool) {
+        return has_errors_flag || error_handler.has_errors();
+    }
+    
+    /// Get all error messages
+    function get_errors() public view returns (string[]) {
+        return error_messages;
+    }
+    
+    /// Get error statistics
+    function get_error_stats() public view returns (ErrorStatistics) {
+        return error_handler.get_statistics();
+    }
+    
+    /// Clear all errors (for testing)
+    function clear_errors() public {
+        error_messages = [];
+        has_errors_flag = false;
+        error_handler.clear_errors();
+    }
+}
+    
+    // ========================================================================
+    // KEYWORDS - INHERITANCE & OOP
+    // ========================================================================
+    Override,            // function overrides
+    Virtual,             // virtual functions
+    Abstract,            // abstract contracts
+    Interface,           // interface definitions
+
+// ... existing code ...

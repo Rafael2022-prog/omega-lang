@@ -1,0 +1,107 @@
+Windows Registry Editor Version 5.00
+
+; OMEGA File Association with Enhanced Context Menu and Icons
+; This registry file adds comprehensive file association for .mega files
+
+; Define the file type
+[HKEY_CLASSES_ROOT\.mega]
+@="OmegaSourceFile"
+"Content Type"="text/x-omega"
+"PerceivedType"="text"
+
+[HKEY_CLASSES_ROOT\.mega\OpenWithProgids]
+"OmegaSourceFile"=""
+
+; Define the file type description and icon
+[HKEY_CLASSES_ROOT\OmegaSourceFile]
+@="OMEGA Blockchain Source File"
+"FriendlyTypeName"="OMEGA Source File"
+"InfoTip"="OMEGA blockchain programming language source file"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\DefaultIcon]
+@="r:\\OMEGA\\temp-logo.svg,0"
+
+; Shell commands for context menu
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell]
+@="open"
+
+; Open with default editor
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\open]
+@="&Open"
+"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\open\command]
+@="\"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+
+; Edit with VS Code
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\edit]
+@="&Edit with VS Code"
+"Icon"="\"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\",0"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\edit\command]
+@="\"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+
+; Compile OMEGA file
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\compile]
+@="&Compile with OMEGA"
+"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\compile\command]
+@="cmd /k \"cd /d \"%~dp1\" && omega build \"%1\" && pause\""
+
+; Run OMEGA file
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\run]
+@="&Run with OMEGA"
+"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\run\command]
+@="cmd /k \"cd /d \"%~dp1\" && omega run \"%1\" && pause\""
+
+; Test OMEGA file
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\test]
+@="&Test with OMEGA"
+"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\test\command]
+@="cmd /k \"cd /d \"%~dp1\" && omega test \"%1\" && pause\""
+
+; Open containing folder
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\folder]
+@="Open &Folder"
+"Icon"="shell32.dll,4"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\folder\command]
+@="explorer.exe /select,\"%1\""
+
+; Properties
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\properties]
+@="P&roperties"
+"Icon"="shell32.dll,0"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\properties\command]
+@="rundll32.exe shell32.dll,OpenAs_RunDLL %1"
+
+; File Explorer integration
+[HKEY_CLASSES_ROOT\SystemFileAssociations\.mega]
+"PerceivedType"="text"
+
+[HKEY_CLASSES_ROOT\SystemFileAssociations\.mega\DefaultIcon]
+@="r:\\OMEGA\\temp-logo.svg,0"
+
+[HKEY_CLASSES_ROOT\SystemFileAssociations\.mega\shell\open]
+@="&Open"
+
+[HKEY_CLASSES_ROOT\SystemFileAssociations\.mega\shell\open\command]
+@="\"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+
+; Add to "New" context menu
+[HKEY_CLASSES_ROOT\.mega\ShellNew]
+"NullFile"=""
+"FileName"="template.mega"
+
+; MIME type registration
+[HKEY_CLASSES_ROOT\MIME\Database\Content Type\text/x-omega]
+"Extension"=".mega"
+
+[HKEY_CLASSES_ROOT\MIME\Database\Content Type\application/x-omega-source]
+"Extension"=".mega"

@@ -1,0 +1,40 @@
+{
+  "name": "omega-file-handler",
+  "version": "1.0.0",
+  "description": "Universal file handler for OMEGA .mega files across all platforms",
+  "main": "omega-file-handler.js",
+  "bin": {
+    "omega-file-handler": "./omega-file-handler.js"
+  },
+  "scripts": {
+    "install-associations": "node omega-file-handler.js install",
+    "uninstall-associations": "node omega-file-handler.js uninstall",
+    "status": "node omega-file-handler.js status",
+    "test": "node test-file-handler.js"
+  },
+  "keywords": [
+    "omega",
+    "file-association",
+    "cross-platform",
+    "blockchain",
+    "programming-language"
+  ],
+  "author": "OMEGA Development Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "os": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rafael2022-prog/omega-lang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rafael2022-prog/omega-lang/issues"
+  },
+  "homepage": "https://www.omegalang.xyz"
+}

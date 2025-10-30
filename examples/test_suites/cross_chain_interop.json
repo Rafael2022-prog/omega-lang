@@ -1,0 +1,158 @@
+{
+  "name": "Cross-Chain Interoperability Test Suite",
+  "description": "Test suite for cross-chain communication and interoperability features",
+  "test_cases": [
+    {
+      "id": "cross_chain_bridge",
+      "name": "Cross-Chain Asset Bridge",
+      "description": "Test asset bridging between EVM and Solana",
+      "targets": ["evm", "solana"],
+      "source_code": "// EVM Side Bridge\nblockchain EVMBridge {\n    state {\n        mapping(bytes32 => bool) processed_transactions;\n        mapping(address => uint256) locked_balances;\n        mapping(bytes32 => PendingTransfer) pending_transfers;\n        \n        struct PendingTransfer {\n            address sender;\n            bytes32 recipient; // Solana public key\n            uint256 amount;\n            uint256 timestamp;\n            bool completed;\n        }\n        \n        address admin;\n        uint256 bridge_fee;\n        uint256 min_transfer_amount;\n        bool bridge_active;\n    }\n    \n    constructor(address _admin, uint256 _bridge_fee, uint256 _min_amount) {\n        admin = _admin;\n        bridge_fee = _bridge_fee;\n        min_transfer_amount = _min_amount;\n        bridge_active = true;\n    }\n    \n    function lock_and_bridge(bytes32 recipient, uint256 amount) public payable {\n        require(bridge_active, \"Bridge inactive\");\n        require(amount >= min_transfer_amount, \"Amount too small\");\n        require(msg.value >= bridge_fee, \"Insufficient bridge fee\");\n        \n        bytes32 transfer_id = keccak256(abi.encodePacked(msg.sender, recipient, amount, block.timestamp));\n        require(!processed_transactions[transfer_id], \"Transfer already processed\");\n        \n        locked_balances[msg.sender] += amount;\n        pending_transfers[transfer_id] = PendingTransfer({\n            sender: msg.sender,\n            recipient: recipient,\n            amount: amount,\n            timestamp: block.timestamp,\n            completed: false\n        });\n        \n        processed_transactions[transfer_id] = true;\n        \n        emit TokensLocked(msg.sender, recipient, amount, transfer_id);\n    }\n    \n    function complete_bridge_from_solana(bytes32 transfer_id, address recipient, uint256 amount, bytes memory signature) public {\n        require(msg.sender == admin, \"Only admin\");\n        require(!pending_transfers[transfer_id].completed, \"Transfer already completed\");\n        \n        // Verify signature from Solana validator (simplified)\n        require(verify_solana_signature(transfer_id, recipient, amount, signature), \"Invalid signature\");\n        \n        locked_balances[recipient] -= amount;\n        pending_transfers[transfer_id].completed = true;\n        \n        // Transfer tokens to recipient (simplified)\n        emit BridgeCompleted(transfer_id, recipient, amount);\n    }\n    \n    function get_pending_transfer(bytes32 transfer_id) public view returns (address, bytes32, uint256, uint256, bool) {\n        PendingTransfer storage transfer = pending_transfers[transfer_id];\n        return (transfer.sender, transfer.recipient, transfer.amount, transfer.timestamp, transfer.completed);\n    }\n    \n    function verify_solana_signature(bytes32 transfer_id, address recipient, uint256 amount, bytes memory signature) internal pure returns (bool) {\n        // Simplified signature verification - in real implementation would use proper cryptographic verification\n        return signature.length > 0;\n    }\n    \n    event TokensLocked(address indexed sender, bytes32 indexed recipient, uint256 amount, bytes32 transfer_id);\n    event BridgeCompleted(bytes32 indexed transfer_id, address indexed recipient, uint256 amount);\n}\n\n// Solana Side Bridge\nblockchain SolanaBridge {\n    state {\n        mapping(bytes32 => bool) processed_transactions;\n        mapping(pubkey => uint64) locked_balances;\n        mapping(bytes32 => PendingTransfer) pending_transfers;\n        \n        struct PendingTransfer {\n            pubkey sender;\n            bytes20 recipient; // EVM address\n            uint64 amount;\n            uint64 timestamp;\n            bool completed;\n        }\n        \n        pubkey admin;\n        uint64 bridge_fee;\n        uint64 min_transfer_amount;\n        bool bridge_active;\n    }\n    \n    constructor(pubkey _admin, uint64 _bridge_fee, uint64 _min_amount) {\n        admin = _admin;\n        bridge_fee = _bridge_fee;\n        min_transfer_amount = _min_amount;\n        bridge_active = true;\n    }\n    \n    function lock_and_bridge_to_evm(bytes20 recipient, uint64 amount) public {\n        require(bridge_active, \"Bridge inactive\");\n        require(amount >= min_transfer_amount, \"Amount too small\");\n        \n        bytes32 transfer_id = hash(msg.sender, recipient, amount, clock.timestamp);\n        require(!processed_transactions[transfer_id], \"Transfer already processed\");\n        \n        locked_balances[msg.sender] += amount;\n        pending_transfers[transfer_id] = PendingTransfer({\n            sender: msg.sender,\n            recipient: recipient,\n            amount: amount,\n            timestamp: clock.timestamp,\n            completed: false\n        });\n        \n        processed_transactions[transfer_id] = true;\n        \n        emit TokensLocked(msg.sender, recipient, amount, transfer_id);\n    }\n    \n    function complete_bridge_from_evm(bytes32 transfer_id, pubkey recipient, uint64 amount, bytes signature) public {\n        require(msg.sender == admin, \"Only admin\");\n        require(!pending_transfers[transfer_id].completed, \"Transfer already completed\");\n        \n        // Verify signature from EVM validator (simplified)\n        require(verify_evm_signature(transfer_id, recipient, amount, signature), \"Invalid signature\");\n        \n        locked_balances[recipient] -= amount;\n        pending_transfers[transfer_id].completed = true;\n        \n        emit BridgeCompleted(transfer_id, recipient, amount);\n    }\n    \n    function get_pending_transfer(bytes32 transfer_id) public view returns (pubkey, bytes20, uint64, uint64, bool) {\n        PendingTransfer storage transfer = pending_transfers[transfer_id];\n        return (transfer.sender, transfer.recipient, transfer.amount, transfer.timestamp, transfer.completed);\n    }\n    \n    function verify_evm_signature(bytes32 transfer_id, pubkey recipient, uint64 amount, bytes signature) internal pure returns (bool) {\n        // Simplified signature verification\n        return signature.length > 0;\n    }\n    \n    event TokensLocked(pubkey indexed sender, bytes20 indexed recipient, uint64 amount, bytes32 transfer_id);\n    event BridgeCompleted(bytes32 indexed transfer_id, pubkey indexed recipient, uint64 amount);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["EVMBridge.sol"],
+          "gas_usage": {
+            "compilation_gas": null,
+            "deployment_gas": 1800000,
+            "execution_gas": 120000
+          },
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 60000,
+      "dependencies": []
+    },
+    {
+      "id": "cross_chain_oracle",
+      "name": "Cross-Chain Price Oracle",
+      "description": "Test price oracle that aggregates data from multiple chains",
+      "targets": ["evm", "solana", "cosmos"],
+      "source_code": "blockchain CrossChainOracle {\n    state {\n        struct PriceData {\n            uint256 price;\n            uint256 timestamp;\n            uint256 confidence;\n            bytes32 source_chain;\n        }\n        \n        struct AggregatedPrice {\n            uint256 price;\n            uint256 timestamp;\n            uint256 confidence;\n            uint256 source_count;\n        }\n        \n        mapping(bytes32 => mapping(bytes32 => PriceData)) price_feeds; // asset -> chain -> price_data\n        mapping(bytes32 => AggregatedPrice) aggregated_prices; // asset -> aggregated_price\n        mapping(address => bool) authorized_oracles;\n        mapping(bytes32 => bool) supported_chains;\n        mapping(bytes32 => bool) supported_assets;\n        \n        address admin;\n        uint256 max_price_age;\n        uint256 min_confidence;\n        uint256 min_sources;\n    }\n    \n    constructor(address _admin, uint256 _max_age, uint256 _min_confidence, uint256 _min_sources) {\n        admin = _admin;\n        max_price_age = _max_age;\n        min_confidence = _min_confidence;\n        min_sources = _min_sources;\n    }\n    \n    function add_oracle(address oracle) public {\n        require(msg.sender == admin, \"Only admin\");\n        authorized_oracles[oracle] = true;\n        emit OracleAdded(oracle);\n    }\n    \n    function add_supported_chain(bytes32 chain_id) public {\n        require(msg.sender == admin, \"Only admin\");\n        supported_chains[chain_id] = true;\n        emit ChainAdded(chain_id);\n    }\n    \n    function add_supported_asset(bytes32 asset_id) public {\n        require(msg.sender == admin, \"Only admin\");\n        supported_assets[asset_id] = true;\n        emit AssetAdded(asset_id);\n    }\n    \n    function submit_price(bytes32 asset_id, bytes32 chain_id, uint256 price, uint256 confidence) public {\n        require(authorized_oracles[msg.sender], \"Not authorized oracle\");\n        require(supported_chains[chain_id], \"Unsupported chain\");\n        require(supported_assets[asset_id], \"Unsupported asset\");\n        require(price > 0, \"Invalid price\");\n        require(confidence >= min_confidence, \"Confidence too low\");\n        \n        price_feeds[asset_id][chain_id] = PriceData({\n            price: price,\n            timestamp: block.timestamp,\n            confidence: confidence,\n            source_chain: chain_id\n        });\n        \n        // Trigger price aggregation\n        aggregate_price(asset_id);\n        \n        emit PriceSubmitted(msg.sender, asset_id, chain_id, price, confidence);\n    }\n    \n    function aggregate_price(bytes32 asset_id) internal {\n        require(supported_assets[asset_id], \"Unsupported asset\");\n        \n        uint256 total_weighted_price = 0;\n        uint256 total_weight = 0;\n        uint256 source_count = 0;\n        uint256 min_timestamp = block.timestamp;\n        \n        // Iterate through all supported chains to collect price data\n        bytes32[] memory chains = get_supported_chains();\n        \n        for (uint256 i = 0; i < chains.length; i++) {\n            PriceData storage data = price_feeds[asset_id][chains[i]];\n            \n            // Check if price data is recent enough\n            if (data.timestamp > 0 && (block.timestamp - data.timestamp) <= max_price_age) {\n                uint256 weight = data.confidence;\n                total_weighted_price += data.price * weight;\n                total_weight += weight;\n                source_count += 1;\n                \n                if (data.timestamp < min_timestamp) {\n                    min_timestamp = data.timestamp;\n                }\n            }\n        }\n        \n        require(source_count >= min_sources, \"Insufficient price sources\");\n        require(total_weight > 0, \"No valid price data\");\n        \n        uint256 aggregated_price_value = total_weighted_price / total_weight;\n        uint256 aggregated_confidence = total_weight / source_count;\n        \n        aggregated_prices[asset_id] = AggregatedPrice({\n            price: aggregated_price_value,\n            timestamp: min_timestamp,\n            confidence: aggregated_confidence,\n            source_count: source_count\n        });\n        \n        emit PriceAggregated(asset_id, aggregated_price_value, aggregated_confidence, source_count);\n    }\n    \n    function get_price(bytes32 asset_id) public view returns (uint256, uint256, uint256, uint256) {\n        require(supported_assets[asset_id], \"Unsupported asset\");\n        \n        AggregatedPrice storage price_data = aggregated_prices[asset_id];\n        require(price_data.timestamp > 0, \"No price data available\");\n        require((block.timestamp - price_data.timestamp) <= max_price_age, \"Price data too old\");\n        \n        return (price_data.price, price_data.timestamp, price_data.confidence, price_data.source_count);\n    }\n    \n    function get_chain_price(bytes32 asset_id, bytes32 chain_id) public view returns (uint256, uint256, uint256) {\n        require(supported_assets[asset_id], \"Unsupported asset\");\n        require(supported_chains[chain_id], \"Unsupported chain\");\n        \n        PriceData storage data = price_feeds[asset_id][chain_id];\n        require(data.timestamp > 0, \"No price data for this chain\");\n        \n        return (data.price, data.timestamp, data.confidence);\n    }\n    \n    function is_price_valid(bytes32 asset_id) public view returns (bool) {\n        AggregatedPrice storage price_data = aggregated_prices[asset_id];\n        \n        return price_data.timestamp > 0 && \n               (block.timestamp - price_data.timestamp) <= max_price_age &&\n               price_data.source_count >= min_sources &&\n               price_data.confidence >= min_confidence;\n    }\n    \n    function update_parameters(uint256 _max_age, uint256 _min_confidence, uint256 _min_sources) public {\n        require(msg.sender == admin, \"Only admin\");\n        \n        max_price_age = _max_age;\n        min_confidence = _min_confidence;\n        min_sources = _min_sources;\n        \n        emit ParametersUpdated(_max_age, _min_confidence, _min_sources);\n    }\n    \n    // Helper function to get supported chains (simplified)\n    function get_supported_chains() internal pure returns (bytes32[] memory) {\n        bytes32[] memory chains = new bytes32[](3);\n        chains[0] = keccak256(\"ethereum\");\n        chains[1] = keccak256(\"solana\");\n        chains[2] = keccak256(\"cosmos\");\n        return chains;\n    }\n    \n    event OracleAdded(address indexed oracle);\n    event ChainAdded(bytes32 indexed chain_id);\n    event AssetAdded(bytes32 indexed asset_id);\n    event PriceSubmitted(address indexed oracle, bytes32 indexed asset_id, bytes32 indexed chain_id, uint256 price, uint256 confidence);\n    event PriceAggregated(bytes32 indexed asset_id, uint256 price, uint256 confidence, uint256 source_count);\n    event ParametersUpdated(uint256 max_age, uint256 min_confidence, uint256 min_sources);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["CrossChainOracle.sol"],
+          "gas_usage": {
+            "compilation_gas": null,
+            "deployment_gas": 2200000,
+            "execution_gas": 160000
+          },
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "cosmos": {
+          "success": true,
+          "output_files": ["main.go", "go.mod"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 90000,
+      "dependencies": []
+    },
+    {
+      "id": "multi_chain_governance",
+      "name": "Multi-Chain Governance System",
+      "description": "Test governance system that works across multiple blockchains",
+      "targets": ["evm", "solana"],
+      "source_code": "blockchain MultiChainGovernance {\n    state {\n        struct Proposal {\n            uint256 id;\n            string title;\n            string description;\n            address proposer;\n            uint256 start_time;\n            uint256 end_time;\n            uint256 for_votes;\n            uint256 against_votes;\n            uint256 abstain_votes;\n            mapping(bytes32 => bool) chain_votes_counted; // chain_id -> counted\n            mapping(bytes32 => ChainVoteData) chain_vote_data;\n            ProposalState state;\n            bool executed;\n        }\n        \n        struct ChainVoteData {\n            uint256 for_votes;\n            uint256 against_votes;\n            uint256 abstain_votes;\n            bytes32 merkle_root;\n            bool finalized;\n        }\n        \n        struct Vote {\n            address voter;\n            uint256 proposal_id;\n            VoteType vote_type;\n            uint256 voting_power;\n            bytes32 chain_id;\n        }\n        \n        enum ProposalState {\n            Pending,\n            Active,\n            Succeeded,\n            Defeated,\n            Executed,\n            Cancelled\n        }\n        \n        enum VoteType {\n            Against,\n            For,\n            Abstain\n        }\n        \n        mapping(uint256 => Proposal) proposals;\n        mapping(bytes32 => bool) supported_chains;\n        mapping(address => bool) authorized_validators;\n        mapping(bytes32 => mapping(address => uint256)) voting_power; // chain_id -> voter -> power\n        \n        uint256 proposal_count;\n        uint256 voting_period;\n        uint256 proposal_threshold;\n        uint256 quorum_threshold;\n        address admin;\n    }\n    \n    constructor(address _admin, uint256 _voting_period, uint256 _proposal_threshold, uint256 _quorum_threshold) {\n        admin = _admin;\n        voting_period = _voting_period;\n        proposal_threshold = _proposal_threshold;\n        quorum_threshold = _quorum_threshold;\n        proposal_count = 0;\n    }\n    \n    function add_supported_chain(bytes32 chain_id) public {\n        require(msg.sender == admin, \"Only admin\");\n        supported_chains[chain_id] = true;\n        emit ChainAdded(chain_id);\n    }\n    \n    function add_validator(address validator) public {\n        require(msg.sender == admin, \"Only admin\");\n        authorized_validators[validator] = true;\n        emit ValidatorAdded(validator);\n    }\n    \n    function set_voting_power(bytes32 chain_id, address voter, uint256 power) public {\n        require(authorized_validators[msg.sender], \"Not authorized validator\");\n        require(supported_chains[chain_id], \"Unsupported chain\");\n        \n        voting_power[chain_id][voter] = power;\n        emit VotingPowerSet(chain_id, voter, power);\n    }\n    \n    function create_proposal(string memory title, string memory description) public returns (uint256) {\n        // Check if proposer has enough voting power across all chains\n        uint256 total_power = get_total_voting_power(msg.sender);\n        require(total_power >= proposal_threshold, \"Insufficient voting power\");\n        \n        uint256 proposal_id = proposal_count;\n        \n        proposals[proposal_id].id = proposal_id;\n        proposals[proposal_id].title = title;\n        proposals[proposal_id].description = description;\n        proposals[proposal_id].proposer = msg.sender;\n        proposals[proposal_id].start_time = block.timestamp;\n        proposals[proposal_id].end_time = block.timestamp + voting_period;\n        proposals[proposal_id].state = ProposalState.Active;\n        proposals[proposal_id].executed = false;\n        \n        proposal_count += 1;\n        \n        emit ProposalCreated(proposal_id, msg.sender, title);\n        return proposal_id;\n    }\n    \n    function submit_chain_votes(uint256 proposal_id, bytes32 chain_id, uint256 for_votes, uint256 against_votes, uint256 abstain_votes, bytes32 merkle_root, bytes memory validator_signature) public {\n        require(authorized_validators[msg.sender], \"Not authorized validator\");\n        require(supported_chains[chain_id], \"Unsupported chain\");\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        require(proposals[proposal_id].state == ProposalState.Active, \"Proposal not active\");\n        require(!proposals[proposal_id].chain_votes_counted[chain_id], \"Chain votes already counted\");\n        \n        // Verify validator signature (simplified)\n        require(verify_validator_signature(proposal_id, chain_id, for_votes, against_votes, abstain_votes, merkle_root, validator_signature), \"Invalid signature\");\n        \n        proposals[proposal_id].chain_vote_data[chain_id] = ChainVoteData({\n            for_votes: for_votes,\n            against_votes: against_votes,\n            abstain_votes: abstain_votes,\n            merkle_root: merkle_root,\n            finalized: true\n        });\n        \n        proposals[proposal_id].chain_votes_counted[chain_id] = true;\n        proposals[proposal_id].for_votes += for_votes;\n        proposals[proposal_id].against_votes += against_votes;\n        proposals[proposal_id].abstain_votes += abstain_votes;\n        \n        emit ChainVotesSubmitted(proposal_id, chain_id, for_votes, against_votes, abstain_votes);\n    }\n    \n    function finalize_proposal(uint256 proposal_id) public {\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        require(proposals[proposal_id].state == ProposalState.Active, \"Proposal not active\");\n        require(block.timestamp >= proposals[proposal_id].end_time, \"Voting period not ended\");\n        \n        uint256 total_votes = proposals[proposal_id].for_votes + proposals[proposal_id].against_votes + proposals[proposal_id].abstain_votes;\n        \n        // Check quorum\n        if (total_votes < quorum_threshold) {\n            proposals[proposal_id].state = ProposalState.Defeated;\n            emit ProposalDefeated(proposal_id, \"Quorum not reached\");\n            return;\n        }\n        \n        // Determine outcome\n        if (proposals[proposal_id].for_votes > proposals[proposal_id].against_votes) {\n            proposals[proposal_id].state = ProposalState.Succeeded;\n            emit ProposalSucceeded(proposal_id);\n        } else {\n            proposals[proposal_id].state = ProposalState.Defeated;\n            emit ProposalDefeated(proposal_id, \"More against votes\");\n        }\n    }\n    \n    function execute_proposal(uint256 proposal_id) public {\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        require(proposals[proposal_id].state == ProposalState.Succeeded, \"Proposal not succeeded\");\n        require(!proposals[proposal_id].executed, \"Proposal already executed\");\n        \n        proposals[proposal_id].executed = true;\n        proposals[proposal_id].state = ProposalState.Executed;\n        \n        // Execute proposal logic (simplified)\n        emit ProposalExecuted(proposal_id);\n    }\n    \n    function get_proposal(uint256 proposal_id) public view returns (uint256, string memory, string memory, address, uint256, uint256, uint256, uint256, uint256, ProposalState, bool) {\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        \n        Proposal storage proposal = proposals[proposal_id];\n        return (\n            proposal.id,\n            proposal.title,\n            proposal.description,\n            proposal.proposer,\n            proposal.start_time,\n            proposal.end_time,\n            proposal.for_votes,\n            proposal.against_votes,\n            proposal.abstain_votes,\n            proposal.state,\n            proposal.executed\n        );\n    }\n    \n    function get_chain_vote_data(uint256 proposal_id, bytes32 chain_id) public view returns (uint256, uint256, uint256, bytes32, bool) {\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        require(supported_chains[chain_id], \"Unsupported chain\");\n        \n        ChainVoteData storage data = proposals[proposal_id].chain_vote_data[chain_id];\n        return (data.for_votes, data.against_votes, data.abstain_votes, data.merkle_root, data.finalized);\n    }\n    \n    function get_total_voting_power(address voter) internal view returns (uint256) {\n        uint256 total = 0;\n        bytes32[] memory chains = get_supported_chains();\n        \n        for (uint256 i = 0; i < chains.length; i++) {\n            total += voting_power[chains[i]][voter];\n        }\n        \n        return total;\n    }\n    \n    function verify_validator_signature(uint256 proposal_id, bytes32 chain_id, uint256 for_votes, uint256 against_votes, uint256 abstain_votes, bytes32 merkle_root, bytes memory signature) internal pure returns (bool) {\n        // Simplified signature verification\n        return signature.length > 0;\n    }\n    \n    function get_supported_chains() internal pure returns (bytes32[] memory) {\n        bytes32[] memory chains = new bytes32[](2);\n        chains[0] = keccak256(\"ethereum\");\n        chains[1] = keccak256(\"solana\");\n        return chains;\n    }\n    \n    event ChainAdded(bytes32 indexed chain_id);\n    event ValidatorAdded(address indexed validator);\n    event VotingPowerSet(bytes32 indexed chain_id, address indexed voter, uint256 power);\n    event ProposalCreated(uint256 indexed proposal_id, address indexed proposer, string title);\n    event ChainVotesSubmitted(uint256 indexed proposal_id, bytes32 indexed chain_id, uint256 for_votes, uint256 against_votes, uint256 abstain_votes);\n    event ProposalSucceeded(uint256 indexed proposal_id);\n    event ProposalDefeated(uint256 indexed proposal_id, string reason);\n    event ProposalExecuted(uint256 indexed proposal_id);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["MultiChainGovernance.sol"],
+          "gas_usage": {
+            "compilation_gas": null,
+            "deployment_gas": 3500000,
+            "execution_gas": 250000
+          },
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 120000,
+      "dependencies": []
+    }
+  ],
+  "setup": {
+    "commands": [
+      "echo 'Setting up cross-chain interoperability tests'",
+      "mkdir -p cross_chain_test_output",
+      "echo 'Initializing multi-chain test environment'"
+    ],
+    "environment": {
+      "OMEGA_TEST_MODE": "cross_chain",
+      "OMEGA_LOG_LEVEL": "debug",
+      "OMEGA_CROSS_CHAIN_ENABLED": "true",
+      "OMEGA_BRIDGE_TIMEOUT": "60000"
+    },
+    "accounts": [
+      {
+        "name": "bridge_admin",
+        "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "private_key": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "balance": "10000000000000000000000"
+      },
+      {
+        "name": "oracle_validator",
+        "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "private_key": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "balance": "5000000000000000000000"
+      },
+      {
+        "name": "governance_proposer",
+        "address": "0xcccccccccccccccccccccccccccccccccccccccc",
+        "private_key": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "balance": "3000000000000000000000"
+      },
+      {
+        "name": "cross_chain_user",
+        "address": "0xdddddddddddddddddddddddddddddddddddddddd",
+        "private_key": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "balance": "2000000000000000000000"
+      }
+    ]
+  },
+  "teardown": {
+    "commands": [
+      "echo 'Cleaning up cross-chain interoperability tests'",
+      "echo 'Generating cross-chain test report'"
+    ],
+    "cleanup_files": [
+      "cross_chain_test_output"
+    ]
+  }
+}

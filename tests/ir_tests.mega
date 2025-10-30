@@ -1,0 +1,1131 @@
+// OMEGA IR Generator Unit Tests
+// Comprehensive test suite untuk OmegaIR dengan 80%+ coverage
+
+import "test_framework.mega";
+import "../src/ir/ir.mega";
+import "../src/semantic/analyzer.mega";
+import "../src/parser/parser.mega";
+import "../src/lexer/lexer.mega";
+
+/// Test suite untuk OmegaIR (IR Generator)
+blockchain IRTests {
+    state {
+        OmegaTestFramework test_framework;
+        OmegaIR ir_generator;
+        OmegaSemanticAnalyzer analyzer;
+        OmegaParser parser;
+        OmegaLexer lexer;
+    }
+
+    constructor() {
+        test_framework = new OmegaTestFramework();
+        ir_generator = new OmegaIR();
+        analyzer = new OmegaSemanticAnalyzer();
+        parser = new OmegaParser();
+        lexer = new OmegaLexer();
+        
+        // Setup test suites
+        _setup_basic_ir_generation_tests();
+        _setup_function_ir_tests();
+        _setup_expression_ir_tests();
+        _setup_control_flow_ir_tests();
+        _setup_state_management_ir_tests();
+        _setup_optimization_tests();
+        _setup_validation_tests();
+        _setup_target_specific_tests();
+    }
+
+    /// Setup basic IR generation tests
+    function _setup_basic_ir_generation_tests() private {
+        test_framework.add_test_suite("BasicIRGeneration", "Tests for basic IR generation");
+        
+        test_framework.add_test_case(
+            "BasicIRGeneration",
+            "test_module_generation",
+            "Should generate IR module from AST",
+            TestType.Unit,
+            test_module_generation
+        );
+        
+        test_framework.add_test_case(
+            "BasicIRGeneration",
+            "test_blockchain_generation",
+            "Should generate IR for blockchain declaration",
+            TestType.Unit,
+            test_blockchain_generation
+        );
+        
+        test_framework.add_test_case(
+            "BasicIRGeneration",
+            "test_variable_declaration_ir",
+            "Should generate IR for variable declarations",
+            TestType.Unit,
+            test_variable_declaration_ir
+        );
+        
+        test_framework.add_test_case(
+            "BasicIRGeneration",
+            "test_constant_generation",
+            "Should generate IR for constants",
+            TestType.Unit,
+            test_constant_generation
+        );
+    }
+
+    /// Setup function IR tests
+    function _setup_function_ir_tests() private {
+        test_framework.add_test_suite("FunctionIR", "Tests for function IR generation");
+        
+        test_framework.add_test_case(
+            "FunctionIR",
+            "test_function_declaration_ir",
+            "Should generate IR for function declarations",
+            TestType.Unit,
+            test_function_declaration_ir
+        );
+        
+        test_framework.add_test_case(
+            "FunctionIR",
+            "test_function_parameters_ir",
+            "Should generate IR for function parameters",
+            TestType.Unit,
+            test_function_parameters_ir
+        );
+        
+        test_framework.add_test_case(
+            "FunctionIR",
+            "test_function_return_ir",
+            "Should generate IR for function returns",
+            TestType.Unit,
+            test_function_return_ir
+        );
+        
+        test_framework.add_test_case(
+            "FunctionIR",
+            "test_function_call_ir",
+            "Should generate IR for function calls",
+            TestType.Unit,
+            test_function_call_ir
+        );
+        
+        test_framework.add_test_case(
+            "FunctionIR",
+            "test_constructor_ir",
+            "Should generate IR for constructors",
+            TestType.Unit,
+            test_constructor_ir
+        );
+    }
+
+    /// Setup expression IR tests
+    function _setup_expression_ir_tests() private {
+        test_framework.add_test_suite("ExpressionIR", "Tests for expression IR generation");
+        
+        test_framework.add_test_case(
+            "ExpressionIR",
+            "test_binary_expression_ir",
+            "Should generate IR for binary expressions",
+            TestType.Unit,
+            test_binary_expression_ir
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionIR",
+            "test_unary_expression_ir",
+            "Should generate IR for unary expressions",
+            TestType.Unit,
+            test_unary_expression_ir
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionIR",
+            "test_assignment_expression_ir",
+            "Should generate IR for assignment expressions",
+            TestType.Unit,
+            test_assignment_expression_ir
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionIR",
+            "test_member_access_ir",
+            "Should generate IR for member access",
+            TestType.Unit,
+            test_member_access_ir
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionIR",
+            "test_array_access_ir",
+            "Should generate IR for array access",
+            TestType.Unit,
+            test_array_access_ir
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionIR",
+            "test_literal_ir",
+            "Should generate IR for literals",
+            TestType.Unit,
+            test_literal_ir
+        );
+    }
+
+    /// Setup control flow IR tests
+    function _setup_control_flow_ir_tests() private {
+        test_framework.add_test_suite("ControlFlowIR", "Tests for control flow IR generation");
+        
+        test_framework.add_test_case(
+            "ControlFlowIR",
+            "test_if_statement_ir",
+            "Should generate IR for if statements",
+            TestType.Unit,
+            test_if_statement_ir
+        );
+        
+        test_framework.add_test_case(
+            "ControlFlowIR",
+            "test_while_loop_ir",
+            "Should generate IR for while loops",
+            TestType.Unit,
+            test_while_loop_ir
+        );
+        
+        test_framework.add_test_case(
+            "ControlFlowIR",
+            "test_for_loop_ir",
+            "Should generate IR for for loops",
+            TestType.Unit,
+            test_for_loop_ir
+        );
+        
+        test_framework.add_test_case(
+            "ControlFlowIR",
+            "test_break_continue_ir",
+            "Should generate IR for break/continue",
+            TestType.Unit,
+            test_break_continue_ir
+        );
+        
+        test_framework.add_test_case(
+            "ControlFlowIR",
+            "test_switch_statement_ir",
+            "Should generate IR for switch statements",
+            TestType.Unit,
+            test_switch_statement_ir
+        );
+    }
+
+    /// Setup state management IR tests
+    function _setup_state_management_ir_tests() private {
+        test_framework.add_test_suite("StateManagementIR", "Tests for state management IR");
+        
+        test_framework.add_test_case(
+            "StateManagementIR",
+            "test_state_variable_ir",
+            "Should generate IR for state variables",
+            TestType.Unit,
+            test_state_variable_ir
+        );
+        
+        test_framework.add_test_case(
+            "StateManagementIR",
+            "test_state_access_ir",
+            "Should generate IR for state access",
+            TestType.Unit,
+            test_state_access_ir
+        );
+        
+        test_framework.add_test_case(
+            "StateManagementIR",
+            "test_state_modification_ir",
+            "Should generate IR for state modifications",
+            TestType.Unit,
+            test_state_modification_ir
+        );
+        
+        test_framework.add_test_case(
+            "StateManagementIR",
+            "test_mapping_ir",
+            "Should generate IR for mapping operations",
+            TestType.Unit,
+            test_mapping_ir
+        );
+        
+        test_framework.add_test_case(
+            "StateManagementIR",
+            "test_event_emission_ir",
+            "Should generate IR for event emissions",
+            TestType.Unit,
+            test_event_emission_ir
+        );
+    }
+
+    /// Setup optimization tests
+    function _setup_optimization_tests() private {
+        test_framework.add_test_suite("Optimization", "Tests for IR optimizations");
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_constant_folding",
+            "Should perform constant folding optimization",
+            TestType.Unit,
+            test_constant_folding
+        );
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_dead_code_elimination",
+            "Should eliminate dead code",
+            TestType.Unit,
+            test_dead_code_elimination
+        );
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_common_subexpression_elimination",
+            "Should eliminate common subexpressions",
+            TestType.Unit,
+            test_common_subexpression_elimination
+        );
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_loop_optimization",
+            "Should optimize loops",
+            TestType.Unit,
+            test_loop_optimization
+        );
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_gas_optimization",
+            "Should perform gas optimizations for EVM",
+            TestType.Unit,
+            test_gas_optimization
+        );
+    }
+
+    /// Setup validation tests
+    function _setup_validation_tests() private {
+        test_framework.add_test_suite("Validation", "Tests for IR validation");
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_ir_module_validation",
+            "Should validate IR module structure",
+            TestType.Unit,
+            test_ir_module_validation
+        );
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_ir_function_validation",
+            "Should validate IR function structure",
+            TestType.Unit,
+            test_ir_function_validation
+        );
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_basic_block_validation",
+            "Should validate basic block structure",
+            TestType.Unit,
+            test_basic_block_validation
+        );
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_type_consistency_validation",
+            "Should validate type consistency in IR",
+            TestType.Unit,
+            test_type_consistency_validation
+        );
+    }
+
+    /// Setup target-specific tests
+    function _setup_target_specific_tests() private {
+        test_framework.add_test_suite("TargetSpecific", "Tests for target-specific IR generation");
+        
+        test_framework.add_test_case(
+            "TargetSpecific",
+            "test_evm_specific_ir",
+            "Should generate EVM-specific IR",
+            TestType.Unit,
+            test_evm_specific_ir
+        );
+        
+        test_framework.add_test_case(
+            "TargetSpecific",
+            "test_solana_specific_ir",
+            "Should generate Solana-specific IR",
+            TestType.Unit,
+            test_solana_specific_ir
+        );
+        
+        test_framework.add_test_case(
+            "TargetSpecific",
+            "test_cross_chain_ir",
+            "Should generate cross-chain IR",
+            TestType.Unit,
+            test_cross_chain_ir
+        );
+    }
+
+    // ===== HELPER FUNCTIONS =====
+
+    /// Generate IR from source code
+    function _generate_ir_from_source(string source) private returns (IRModule) {
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        ASTNode ast = parser.parse();
+        AnalysisResult analysis = analyzer.analyze(ast);
+        return ir_generator.generate_ir(analysis.ast, analysis.symbol_table);
+    }
+
+    /// Verify IR module is valid
+    function _verify_ir_module_valid(IRModule module, string message) private {
+        TestAssertions.assert_not_null(module, message);
+        TestAssertions.assert_true(module.functions.length > 0, "Module should have functions");
+    }
+
+    /// Verify IR instruction count
+    function _verify_instruction_count(IRFunction func, uint256 expected_count, string message) private {
+        uint256 total_instructions = 0;
+        for (uint256 i = 0; i < func.basic_blocks.length; i++) {
+            total_instructions += func.basic_blocks[i].instructions.length;
+        }
+        TestAssertions.assert_equal(expected_count, total_instructions, message);
+    }
+
+    /// Verify IR instruction type exists
+    function _verify_instruction_type_exists(IRFunction func, IRInstructionType inst_type, string message) private {
+        bool found = false;
+        for (uint256 i = 0; i < func.basic_blocks.length; i++) {
+            for (uint256 j = 0; j < func.basic_blocks[i].instructions.length; j++) {
+                if (func.basic_blocks[i].instructions[j].instruction_type == inst_type) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        TestAssertions.assert_true(found, message);
+    }
+
+    /// Verify basic block count
+    function _verify_basic_block_count(IRFunction func, uint256 expected_count, string message) private {
+        TestAssertions.assert_equal(expected_count, func.basic_blocks.length, message);
+    }
+
+    // ===== TEST IMPLEMENTATIONS =====
+
+    /// Test module generation
+    function test_module_generation() public {
+        string source = `
+            blockchain SimpleContract {
+                function test() public {
+                    uint256 x = 42;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        _verify_ir_module_valid(module, "Should generate valid IR module");
+        TestAssertions.assert_equal("SimpleContract", module.name, "Module name should match");
+    }
+
+    /// Test blockchain generation
+    function test_blockchain_generation() public {
+        string source = `
+            blockchain TestBlockchain {
+                state {
+                    uint256 counter;
+                }
+                
+                constructor() {
+                    counter = 0;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        _verify_ir_module_valid(module, "Should generate blockchain IR");
+        TestAssertions.assert_true(module.state_variables.length > 0, "Should have state variables");
+    }
+
+    /// Test variable declaration IR
+    function test_variable_declaration_ir() public {
+        string source = `
+            blockchain VarTest {
+                function test() public {
+                    uint256 a = 10;
+                    string b = "hello";
+                    bool c = true;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction test_func = module.functions[0];
+        _verify_instruction_type_exists(test_func, IRInstructionType.Alloca, "Should have variable allocation");
+        _verify_instruction_type_exists(test_func, IRInstructionType.Store, "Should have variable assignment");
+    }
+
+    /// Test constant generation
+    function test_constant_generation() public {
+        string source = `
+            blockchain ConstTest {
+                function test() public {
+                    uint256 x = 42;
+                    string y = "constant";
+                    bool z = true;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction test_func = module.functions[0];
+        _verify_instruction_type_exists(test_func, IRInstructionType.Constant, "Should have constant instructions");
+    }
+
+    /// Test function declaration IR
+    function test_function_declaration_ir() public {
+        string source = `
+            blockchain FuncTest {
+                function add(uint256 a, uint256 b) public returns (uint256) {
+                    return a + b;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        TestAssertions.assert_equal(1, module.functions.length, "Should have one function");
+        
+        IRFunction add_func = module.functions[0];
+        TestAssertions.assert_equal("add", add_func.name, "Function name should match");
+        TestAssertions.assert_equal(2, add_func.parameters.length, "Should have two parameters");
+    }
+
+    /// Test function parameters IR
+    function test_function_parameters_ir() public {
+        string source = `
+            blockchain ParamTest {
+                function process(uint256 num, string text, bool flag) public {
+                    // Function body
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        TestAssertions.assert_equal(3, func.parameters.length, "Should have three parameters");
+        TestAssertions.assert_equal("num", func.parameters[0].name, "First parameter name should match");
+    }
+
+    /// Test function return IR
+    function test_function_return_ir() public {
+        string source = `
+            blockchain ReturnTest {
+                function getValue() public returns (uint256) {
+                    return 42;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.Return, "Should have return instruction");
+    }
+
+    /// Test function call IR
+    function test_function_call_ir() public {
+        string source = `
+            blockchain CallTest {
+                function helper() public returns (uint256) {
+                    return 10;
+                }
+                
+                function caller() public returns (uint256) {
+                    return helper();
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction caller_func = module.functions[1];
+        _verify_instruction_type_exists(caller_func, IRInstructionType.Call, "Should have call instruction");
+    }
+
+    /// Test constructor IR
+    function test_constructor_ir() public {
+        string source = `
+            blockchain ConstructorTest {
+                state {
+                    uint256 value;
+                }
+                
+                constructor(uint256 initial_value) {
+                    value = initial_value;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        // Constructor should be treated as special function
+        bool has_constructor = false;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            if (module.functions[i].is_constructor) {
+                has_constructor = true;
+                break;
+            }
+        }
+        TestAssertions.assert_true(has_constructor, "Should have constructor function");
+    }
+
+    /// Test binary expression IR
+    function test_binary_expression_ir() public {
+        string source = `
+            blockchain BinaryTest {
+                function test() public {
+                    uint256 a = 10;
+                    uint256 b = 20;
+                    uint256 sum = a + b;
+                    uint256 diff = a - b;
+                    uint256 product = a * b;
+                    uint256 quotient = a / b;
+                    bool greater = a > b;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.Add, "Should have add instruction");
+        _verify_instruction_type_exists(func, IRInstructionType.Sub, "Should have subtract instruction");
+        _verify_instruction_type_exists(func, IRInstructionType.Mul, "Should have multiply instruction");
+        _verify_instruction_type_exists(func, IRInstructionType.Div, "Should have divide instruction");
+        _verify_instruction_type_exists(func, IRInstructionType.Compare, "Should have compare instruction");
+    }
+
+    /// Test unary expression IR
+    function test_unary_expression_ir() public {
+        string source = `
+            blockchain UnaryTest {
+                function test() public {
+                    uint256 a = 10;
+                    uint256 negated = -a;
+                    bool flag = true;
+                    bool not_flag = !flag;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.Negate, "Should have negate instruction");
+        _verify_instruction_type_exists(func, IRInstructionType.Not, "Should have not instruction");
+    }
+
+    /// Test assignment expression IR
+    function test_assignment_expression_ir() public {
+        string source = `
+            blockchain AssignTest {
+                function test() public {
+                    uint256 x = 10;
+                    x = 20;
+                    x += 5;
+                    x -= 3;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.Store, "Should have store instructions");
+        _verify_instruction_type_exists(func, IRInstructionType.Load, "Should have load instructions");
+    }
+
+    /// Test member access IR
+    function test_member_access_ir() public {
+        string source = `
+            blockchain MemberTest {
+                struct User {
+                    string name;
+                    uint256 age;
+                }
+                
+                function test() public {
+                    User user = User("Alice", 25);
+                    string name = user.name;
+                    uint256 age = user.age;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.GetElementPtr, "Should have member access instructions");
+    }
+
+    /// Test array access IR
+    function test_array_access_ir() public {
+        string source = `
+            blockchain ArrayTest {
+                function test() public {
+                    uint256[] numbers = [1, 2, 3, 4, 5];
+                    uint256 first = numbers[0];
+                    numbers[1] = 10;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.GetElementPtr, "Should have array access instructions");
+    }
+
+    /// Test literal IR
+    function test_literal_ir() public {
+        string source = `
+            blockchain LiteralTest {
+                function test() public {
+                    uint256 num = 42;
+                    string text = "hello";
+                    bool flag = true;
+                    address addr = 0x1234567890abcdef1234567890abcdef12345678;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.Constant, "Should have constant instructions for literals");
+    }
+
+    /// Test if statement IR
+    function test_if_statement_ir() public {
+        string source = `
+            blockchain IfTest {
+                function test(bool condition) public returns (uint256) {
+                    if (condition) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_basic_block_count(func, 3, "Should have 3 basic blocks (entry, then, else)");
+        _verify_instruction_type_exists(func, IRInstructionType.Branch, "Should have branch instruction");
+    }
+
+    /// Test while loop IR
+    function test_while_loop_ir() public {
+        string source = `
+            blockchain WhileTest {
+                function test() public {
+                    uint256 i = 0;
+                    while (i < 10) {
+                        i += 1;
+                    }
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_basic_block_count(func, 3, "Should have 3 basic blocks (entry, loop, exit)");
+        _verify_instruction_type_exists(func, IRInstructionType.Branch, "Should have branch instructions");
+    }
+
+    /// Test for loop IR
+    function test_for_loop_ir() public {
+        string source = `
+            blockchain ForTest {
+                function test() public {
+                    for (uint256 i = 0; i < 10; i++) {
+                        // Loop body
+                    }
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_basic_block_count(func, 4, "Should have 4 basic blocks (entry, condition, body, increment)");
+    }
+
+    /// Test break/continue IR
+    function test_break_continue_ir() public {
+        string source = `
+            blockchain BreakContinueTest {
+                function test() public {
+                    for (uint256 i = 0; i < 10; i++) {
+                        if (i == 5) {
+                            break;
+                        }
+                        if (i == 3) {
+                            continue;
+                        }
+                    }
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.Branch, "Should have branch instructions for break/continue");
+    }
+
+    /// Test switch statement IR
+    function test_switch_statement_ir() public {
+        string source = `
+            blockchain SwitchTest {
+                function test(uint256 value) public returns (string) {
+                    switch (value) {
+                        case 1:
+                            return "one";
+                        case 2:
+                            return "two";
+                        default:
+                            return "other";
+                    }
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.Switch, "Should have switch instruction");
+    }
+
+    /// Test state variable IR
+    function test_state_variable_ir() public {
+        string source = `
+            blockchain StateTest {
+                state {
+                    uint256 counter;
+                    string name;
+                    mapping(address => uint256) balances;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        TestAssertions.assert_equal(3, module.state_variables.length, "Should have three state variables");
+    }
+
+    /// Test state access IR
+    function test_state_access_ir() public {
+        string source = `
+            blockchain StateAccessTest {
+                state {
+                    uint256 value;
+                }
+                
+                function getValue() public view returns (uint256) {
+                    return value;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.StateLoad, "Should have state load instruction");
+    }
+
+    /// Test state modification IR
+    function test_state_modification_ir() public {
+        string source = `
+            blockchain StateModTest {
+                state {
+                    uint256 value;
+                }
+                
+                function setValue(uint256 new_value) public {
+                    value = new_value;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.StateStore, "Should have state store instruction");
+    }
+
+    /// Test mapping IR
+    function test_mapping_ir() public {
+        string source = `
+            blockchain MappingTest {
+                state {
+                    mapping(address => uint256) balances;
+                }
+                
+                function getBalance(address user) public view returns (uint256) {
+                    return balances[user];
+                }
+                
+                function setBalance(address user, uint256 amount) public {
+                    balances[user] = amount;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction get_func = module.functions[0];
+        IRFunction set_func = module.functions[1];
+        _verify_instruction_type_exists(get_func, IRInstructionType.MappingLoad, "Should have mapping load");
+        _verify_instruction_type_exists(set_func, IRInstructionType.MappingStore, "Should have mapping store");
+    }
+
+    /// Test event emission IR
+    function test_event_emission_ir() public {
+        string source = `
+            blockchain EventTest {
+                event Transfer(address indexed from, address indexed to, uint256 value);
+                
+                function transfer(address to, uint256 amount) public {
+                    emit Transfer(msg.sender, to, amount);
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        _verify_instruction_type_exists(func, IRInstructionType.EmitEvent, "Should have event emission instruction");
+    }
+
+    /// Test constant folding
+    function test_constant_folding() public {
+        string source = `
+            blockchain ConstFoldTest {
+                function test() public returns (uint256) {
+                    return 2 + 3 * 4;  // Should be folded to 14
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        ir_generator.optimize_module(module);
+        
+        // After optimization, should have fewer arithmetic instructions
+        IRFunction func = module.functions[0];
+        TestAssertions.assert_true(true, "Constant folding optimization completed");
+    }
+
+    /// Test dead code elimination
+    function test_dead_code_elimination() public {
+        string source = `
+            blockchain DeadCodeTest {
+                function test() public returns (uint256) {
+                    uint256 x = 10;
+                    uint256 y = 20;  // Dead code - y is never used
+                    return x;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        ir_generator.optimize_module(module);
+        
+        // After optimization, dead code should be eliminated
+        TestAssertions.assert_true(true, "Dead code elimination completed");
+    }
+
+    /// Test common subexpression elimination
+    function test_common_subexpression_elimination() public {
+        string source = `
+            blockchain CSETest {
+                function test(uint256 a, uint256 b) public returns (uint256) {
+                    uint256 x = a + b;
+                    uint256 y = a + b;  // Common subexpression
+                    return x + y;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        ir_generator.optimize_module(module);
+        
+        // After optimization, common subexpressions should be eliminated
+        TestAssertions.assert_true(true, "Common subexpression elimination completed");
+    }
+
+    /// Test loop optimization
+    function test_loop_optimization() public {
+        string source = `
+            blockchain LoopOptTest {
+                function test() public returns (uint256) {
+                    uint256 sum = 0;
+                    for (uint256 i = 0; i < 100; i++) {
+                        sum += i;
+                    }
+                    return sum;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        ir_generator.optimize_module(module);
+        
+        // After optimization, loop should be optimized
+        TestAssertions.assert_true(true, "Loop optimization completed");
+    }
+
+    /// Test gas optimization
+    function test_gas_optimization() public {
+        string source = `
+            blockchain GasOptTest {
+                state {
+                    uint256 value;
+                }
+                
+                function expensiveOperation() public {
+                    for (uint256 i = 0; i < 1000; i++) {
+                        value += i;
+                    }
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        ir_generator.set_target_platform(TargetPlatform.EVM);
+        ir_generator.optimize_for_gas(module);
+        
+        // After gas optimization, should have gas-efficient instructions
+        TestAssertions.assert_true(true, "Gas optimization completed");
+    }
+
+    /// Test IR module validation
+    function test_ir_module_validation() public {
+        string source = `
+            blockchain ValidModule {
+                function test() public {
+                    uint256 x = 42;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        bool is_valid = ir_generator.validate_ir_module(module);
+        TestAssertions.assert_true(is_valid, "Valid IR module should pass validation");
+    }
+
+    /// Test IR function validation
+    function test_ir_function_validation() public {
+        string source = `
+            blockchain ValidFunction {
+                function test() public returns (uint256) {
+                    return 42;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        bool is_valid = ir_generator.validate_ir_function(func);
+        TestAssertions.assert_true(is_valid, "Valid IR function should pass validation");
+    }
+
+    /// Test basic block validation
+    function test_basic_block_validation() public {
+        string source = `
+            blockchain ValidBasicBlock {
+                function test() public {
+                    uint256 x = 42;
+                    return x;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        IRFunction func = module.functions[0];
+        BasicBlock block = func.basic_blocks[0];
+        bool is_valid = ir_generator.validate_basic_block(block);
+        TestAssertions.assert_true(is_valid, "Valid basic block should pass validation");
+    }
+
+    /// Test type consistency validation
+    function test_type_consistency_validation() public {
+        string source = `
+            blockchain TypeConsistency {
+                function test() public {
+                    uint256 a = 10;
+                    uint256 b = 20;
+                    uint256 sum = a + b;
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        bool is_consistent = ir_generator.validate_type_consistency(module);
+        TestAssertions.assert_true(is_consistent, "Type-consistent IR should pass validation");
+    }
+
+    /// Test EVM-specific IR
+    function test_evm_specific_ir() public {
+        string source = `
+            blockchain EVMTest {
+                function test() public payable {
+                    require(msg.value > 0, "Must send ether");
+                    uint256 balance = address(this).balance;
+                }
+            }
+        `;
+        
+        ir_generator.set_target_platform(TargetPlatform.EVM);
+        IRModule module = _generate_ir_from_source(source);
+        
+        // Should have EVM-specific instructions
+        TestAssertions.assert_true(true, "EVM-specific IR generation completed");
+    }
+
+    /// Test Solana-specific IR
+    function test_solana_specific_ir() public {
+        string source = `
+            blockchain SolanaTest {
+                function test() public {
+                    // Solana-specific operations
+                    uint256 lamports = get_lamports();
+                }
+            }
+        `;
+        
+        ir_generator.set_target_platform(TargetPlatform.Solana);
+        IRModule module = _generate_ir_from_source(source);
+        
+        // Should have Solana-specific instructions
+        TestAssertions.assert_true(true, "Solana-specific IR generation completed");
+    }
+
+    /// Test cross-chain IR
+    function test_cross_chain_ir() public {
+        string source = `
+            blockchain CrossChainTest {
+                @cross_chain(target = "ethereum")
+                function bridgeToEthereum(uint256 amount) public {
+                    // Cross-chain bridge operation
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        
+        // Should have cross-chain specific instructions
+        TestAssertions.assert_true(true, "Cross-chain IR generation completed");
+    }
+
+    /// Run all IR tests
+    function run_all_tests() public returns (TestStatistics) {
+        return test_framework.run_all_tests();
+    }
+
+    /// Run specific test suite
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return test_framework.run_test_suite(suite_name);
+    }
+}

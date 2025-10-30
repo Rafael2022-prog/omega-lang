@@ -1,0 +1,323 @@
+// OMEGA Type Converter - Konversi tipe dari AST ke IR
+// Modul khusus untuk konversi tipe, visibility, mutability, dan literal
+
+import "../ast/ast_nodes.mega";
+import "../lexer/lexer.mega";
+import "../error/error.mega";
+
+/// Blockchain untuk mengelola konversi tipe dari AST ke IR
+blockchain TypeConverter {
+    state {
+        mapping(string => TypeIR) type_cache;               // Cache untuk tipe yang sudah dikonversi
+        OmegaErrorHandler error_handler;                    // Error handler untuk konversi
+        uint256 conversion_count;                           // Counter untuk tracking konversi
+    }
+    
+    /// Konstruktor untuk inisialisasi type converter
+    constructor() {
+        error_handler = OmegaErrorHandler::new();
+        conversion_count = 0;
+    }
+    
+    /// Konversi tipe dari AST ke IR
+    function convert_type_to_ir(Type memory type_def) public returns (TypeIR memory) {
+        conversion_count++;
+        
+        // Check cache first
+        string memory type_key = generate_type_key(type_def);
+        if (type_cache[type_key].type_kind != TypeKind.Unknown) {
+            return type_cache[type_key];
+        }
+        
+        TypeIR memory result;
+        
+        if (type_def.type_kind == TypeKind.Elementary) {
+            result = convert_elementary_type(type_def);
+        } else if (type_def.type_kind == TypeKind.Array) {
+            result = convert_array_type(type_def);
+        } else if (type_def.type_kind == TypeKind.Mapping) {
+            result = convert_mapping_type(type_def);
+        } else if (type_def.type_kind == TypeKind.UserDefined) {
+            result = convert_user_defined_type(type_def);
+        } else if (type_def.type_kind == TypeKind.Function) {
+            result = convert_function_type(type_def);
+        } else if (type_def.type_kind == TypeKind.Tuple) {
+            result = convert_tuple_type(type_def);
+        } else {
+            result = create_unknown_type(type_def.name);
+        }
+        
+        // Cache the result
+        type_cache[type_key] = result;
+        return result;
+    }
+    
+    /// Konversi tipe elementary (uint256, bool, address, dll)
+    function convert_elementary_type(Type memory type_def) private returns (TypeIR memory) {
+        TypeIR memory result;
+        result.type_kind = TypeKind.Elementary;
+        result.name = type_def.name;
+        
+        if (starts_with(type_def.name, "uint")) {
+            result.size = extract_uint_size(type_def.name);
+            result.is_signed = false;
+        } else if (starts_with(type_def.name, "int")) {
+            result.size = extract_int_size(type_def.name);
+            result.is_signed = true;
+        } else if (equals(type_def.name, "bool")) {
+            result.size = 1;
+            result.is_signed = false;
+        } else if (equals(type_def.name, "address")) {
+            result.size = 160;
+            result.is_signed = false;
+        } else if (starts_with(type_def.name, "bytes")) {
+            result.size = extract_bytes_size(type_def.name);
+            result.is_signed = false;
+        } else if (equals(type_def.name, "string")) {
+            result.size = 0; // Dynamic size
+            result.is_signed = false;
+        }
+        
+        return result;
+    }
+    
+    /// Konversi tipe array
+    function convert_array_type(Type memory type_def) private returns (TypeIR memory) {
+        TypeIR memory result;
+        result.type_kind = TypeKind.Array;
+        result.name = type_def.name;
+        result.size = type_def.array_size;
+        result.is_signed = false;
+        
+        // Konversi element type
+        if (type_def.element_type.type_kind != TypeKind.Unknown) {
+            result.element_type = convert_type_to_ir(type_def.element_type);
+        }
+        
+        return result;
+    }
+    
+    /// Konversi tipe mapping
+    function convert_mapping_type(Type memory type_def) private returns (TypeIR memory) {
+        TypeIR memory result;
+        result.type_kind = TypeKind.Mapping;
+        result.name = type_def.name;
+        result.size = 0; // Dynamic size
+        result.is_signed = false;
+        
+        // Konversi key dan value types
+        if (type_def.key_type.type_kind != TypeKind.Unknown) {
+            result.key_type = convert_type_to_ir(type_def.key_type);
+        }
+        if (type_def.value_type.type_kind != TypeKind.Unknown) {
+            result.value_type = convert_type_to_ir(type_def.value_type);
+        }
+        
+        return result;
+    }
+    
+    /// Konversi user-defined type (struct, enum, contract)
+    function convert_user_defined_type(Type memory type_def) private returns (TypeIR memory) {
+        TypeIR memory result;
+        result.type_kind = TypeKind.UserDefined;
+        result.name = type_def.name;
+        result.size = 0; // Will be calculated based on members
+        result.is_signed = false;
+        
+        return result;
+    }
+    
+    /// Konversi function type
+    function convert_function_type(Type memory type_def) private returns (TypeIR memory) {
+        TypeIR memory result;
+        result.type_kind = TypeKind.Function;
+        result.name = type_def.name;
+        result.size = 0;
+        result.is_signed = false;
+        
+        return result;
+    }
+    
+    /// Konversi tuple type
+    function convert_tuple_type(Type memory type_def) private returns (TypeIR memory) {
+        TypeIR memory result;
+        result.type_kind = TypeKind.Tuple;
+        result.name = type_def.name;
+        result.size = 0;
+        result.is_signed = false;
+        
+        return result;
+    }
+    
+    /// Konversi visibility dari AST ke IR
+    function convert_visibility_to_ir(Visibility visibility) public pure returns (VisibilityIR) {
+        if (visibility == Visibility.Public) {
+            return VisibilityIR.Public;
+        } else if (visibility == Visibility.Private) {
+            return VisibilityIR.Private;
+        } else if (visibility == Visibility.Internal) {
+            return VisibilityIR.Internal;
+        } else if (visibility == Visibility.External) {
+            return VisibilityIR.External;
+        } else {
+            return VisibilityIR.Internal; // Default
+        }
+    }
+    
+    /// Konversi mutability dari AST ke IR
+    function convert_mutability_to_ir(Mutability mutability) public pure returns (MutabilityIR) {
+        if (mutability == Mutability.Pure) {
+            return MutabilityIR.Pure;
+        } else if (mutability == Mutability.View) {
+            return MutabilityIR.View;
+        } else if (mutability == Mutability.Payable) {
+            return MutabilityIR.Payable;
+        } else {
+            return MutabilityIR.NonPayable; // Default
+        }
+    }
+    
+    /// Konversi literal dari AST ke IR
+    function convert_literal_to_ir(Literal memory literal) public returns (LiteralIR memory) {
+        LiteralIR memory result;
+        result.literal_type = convert_literal_type(literal.literal_type);
+        result.value = literal.value;
+        result.type_info = convert_type_to_ir(literal.type_info);
+        
+        return result;
+    }
+    
+    /// Konversi operator dari AST ke IR
+    function convert_operator_to_ir(Operator op) public pure returns (OperatorIR) {
+        // Binary operators
+        if (op == Operator.Add) return OperatorIR.Add;
+        if (op == Operator.Sub) return OperatorIR.Sub;
+        if (op == Operator.Mul) return OperatorIR.Mul;
+        if (op == Operator.Div) return OperatorIR.Div;
+        if (op == Operator.Mod) return OperatorIR.Mod;
+        if (op == Operator.Pow) return OperatorIR.Pow;
+        
+        // Comparison operators
+        if (op == Operator.Equal) return OperatorIR.Equal;
+        if (op == Operator.NotEqual) return OperatorIR.NotEqual;
+        if (op == Operator.LessThan) return OperatorIR.LessThan;
+        if (op == Operator.LessThanOrEqual) return OperatorIR.LessThanOrEqual;
+        if (op == Operator.GreaterThan) return OperatorIR.GreaterThan;
+        if (op == Operator.GreaterThanOrEqual) return OperatorIR.GreaterThanOrEqual;
+        
+        // Logical operators
+        if (op == Operator.And) return OperatorIR.And;
+        if (op == Operator.Or) return OperatorIR.Or;
+        if (op == Operator.Not) return OperatorIR.Not;
+        
+        // Bitwise operators
+        if (op == Operator.BitwiseAnd) return OperatorIR.BitwiseAnd;
+        if (op == Operator.BitwiseOr) return OperatorIR.BitwiseOr;
+        if (op == Operator.BitwiseXor) return OperatorIR.BitwiseXor;
+        if (op == Operator.BitwiseNot) return OperatorIR.BitwiseNot;
+        if (op == Operator.LeftShift) return OperatorIR.LeftShift;
+        if (op == Operator.RightShift) return OperatorIR.RightShift;
+        
+        // Assignment operators
+        if (op == Operator.Assign) return OperatorIR.Assign;
+        if (op == Operator.AddAssign) return OperatorIR.AddAssign;
+        if (op == Operator.SubAssign) return OperatorIR.SubAssign;
+        if (op == Operator.MulAssign) return OperatorIR.MulAssign;
+        if (op == Operator.DivAssign) return OperatorIR.DivAssign;
+        
+        return OperatorIR.Unknown;
+    }
+    
+    /// Helper functions
+    function generate_type_key(Type memory type_def) private pure returns (string memory) {
+        return string(abi.encodePacked(type_def.name, "_", uint2str(uint256(type_def.type_kind))));
+    }
+    
+    function create_unknown_type(string memory name) private pure returns (TypeIR memory) {
+        TypeIR memory result;
+        result.type_kind = TypeKind.Unknown;
+        result.name = name;
+        result.size = 0;
+        result.is_signed = false;
+        return result;
+    }
+    
+    function convert_literal_type(LiteralType lit_type) private pure returns (LiteralTypeIR) {
+        if (lit_type == LiteralType.Number) return LiteralTypeIR.Number;
+        if (lit_type == LiteralType.String) return LiteralTypeIR.String;
+        if (lit_type == LiteralType.Boolean) return LiteralTypeIR.Boolean;
+        if (lit_type == LiteralType.Address) return LiteralTypeIR.Address;
+        if (lit_type == LiteralType.Hex) return LiteralTypeIR.Hex;
+        return LiteralTypeIR.Unknown;
+    }
+    
+    function extract_uint_size(string memory type_name) private pure returns (uint256) {
+        // Extract size from uint8, uint16, uint256, etc.
+        if (equals(type_name, "uint")) return 256;
+        // Implementation for extracting number from string
+        return 256; // Default
+    }
+    
+    function extract_int_size(string memory type_name) private pure returns (uint256) {
+        // Extract size from int8, int16, int256, etc.
+        if (equals(type_name, "int")) return 256;
+        // Implementation for extracting number from string
+        return 256; // Default
+    }
+    
+    function extract_bytes_size(string memory type_name) private pure returns (uint256) {
+        // Extract size from bytes1, bytes32, etc.
+        if (equals(type_name, "bytes")) return 0; // Dynamic
+        // Implementation for extracting number from string
+        return 32; // Default
+    }
+    
+    function starts_with(string memory str, string memory prefix) private pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory prefix_bytes = bytes(prefix);
+        
+        if (prefix_bytes.length > str_bytes.length) return false;
+        
+        for (uint i = 0; i < prefix_bytes.length; i++) {
+            if (str_bytes[i] != prefix_bytes[i]) return false;
+        }
+        return true;
+    }
+    
+    function equals(string memory a, string memory b) private pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
+    
+    function uint2str(uint256 _i) private pure returns (string memory) {
+        if (_i == 0) return "0";
+        
+        uint256 j = _i;
+        uint256 len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+        
+        bytes memory bstr = new bytes(len);
+        uint256 k = len;
+        while (_i != 0) {
+            k = k - 1;
+            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
+    }
+    
+    /// Reset cache dan counter
+    function reset() public {
+        conversion_count = 0;
+        // Clear cache (implementation depends on mapping clear support)
+    }
+    
+    /// Get conversion statistics
+    function get_conversion_count() public view returns (uint256) {
+        return conversion_count;
+    }
+}

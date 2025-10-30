@@ -1,0 +1,892 @@
+// OMEGA Type Checker - Modul untuk type checking dan type compatibility
+// Menangani type checking untuk expressions, statements, dan declarations
+
+import "../parser/ast_nodes.mega";
+import "./symbol_table.mega";
+import "../error/error.mega";
+
+/// Type checker untuk validasi tipe dalam OMEGA
+blockchain TypeChecker {
+    state {
+        TypeEnvironment type_env;
+        SymbolTableManager symbol_manager;
+        OmegaErrorHandler error_handler;
+        string current_function;
+        string current_blockchain;
+        string current_file;
+    }
+    
+    constructor() {
+        type_env = TypeEnvironment({
+            builtin_types: initialize_builtin_types(),
+            user_types: new mapping(string => UserType)
+        });
+        
+        symbol_manager = SymbolTableManager::new();
+        error_handler = OmegaErrorHandler::new();
+        current_function = "";
+        current_blockchain = "";
+        current_file = "";
+    }
+    
+    /// Set symbol manager
+    function set_symbol_manager(SymbolTableManager memory manager) public {
+        symbol_manager = manager;
+    }
+    
+    /// Type check a complete program
+    function type_check_program(Program memory program) public {
+        for (uint256 i = 0; i < program.items.length; i++) {
+            Item memory item = program.items[i];
+            
+            if (item.item_type == ItemType.BlockchainItem) {
+                type_check_blockchain(item.blockchain_item);
+            } else if (item.item_type == ItemType.FunctionItem) {
+                type_check_function(item.function_item);
+            } else if (item.item_type == ItemType.ConstantItem) {
+                type_check_constant(item.constant_item);
+            }
+        }
+    }
+    
+    /// Type check blockchain declaration
+    function type_check_blockchain(Blockchain memory blockchain) public {
+        string memory old_blockchain = current_blockchain;
+        current_blockchain = blockchain.name;
+        
+        // Type check state variables
+        for (uint256 i = 0; i < blockchain.state_block.variables.length; i++) {
+            type_check_state_variable(blockchain.state_block.variables[i]);
+        }
+        
+        // Type check functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            type_check_function(blockchain.functions[i]);
+        }
+        
+        // Type check modifiers
+        for (uint256 i = 0; i < blockchain.modifiers.length; i++) {
+            type_check_modifier(blockchain.modifiers[i]);
+        }
+        
+        current_blockchain = old_blockchain;
+    }
+    
+    /// Type check state variable
+    function type_check_state_variable(StateVariable memory var) public {
+        // Validate type exists
+        if (!is_valid_type(var.variable_type)) {
+            report_type_error(
+                string(abi.encodePacked("Unknown type '", type_to_string(var.variable_type), "'")),
+                0, 0
+            );
+        }
+        
+        // Type check default value if present
+        if (var.default_value.expression_type != ExpressionType.None) {
+            Type memory value_type = type_check_expression(var.default_value);
+            
+            if (!types_compatible(var.variable_type, value_type)) {
+                report_type_mismatch(
+                    type_to_string(var.variable_type),
+                    type_to_string(value_type),
+                    0, 0
+                );
+            }
+        }
+    }
+    
+    /// Type check function
+    function type_check_function(Function memory func) public {
+        string memory old_function = current_function;
+        current_function = func.name;
+        
+        symbol_manager.push_scope(func.name);
+        
+        // Add parameters to scope
+        for (uint256 i = 0; i < func.parameters.length; i++) {
+            Parameter memory param = func.parameters[i];
+            
+            if (!is_valid_type(param.parameter_type)) {
+                report_type_error(
+                    string(abi.encodePacked("Unknown parameter type '", type_to_string(param.parameter_type), "'")),
+                    0, 0
+                );
+            }
+            
+            Symbol memory param_symbol = Symbol({
+                name: param.name,
+                symbol_type: SymbolType.Parameter,
+                type_info: param.parameter_type,
+                visibility: Visibility.Private,
+                mutability: Mutability.NonPayable,
+                location: SourceLocation({
+                    file: current_file,
+                    line: 0,
+                    column: 0,
+                    length: param.name.length
+                }),
+                is_defined: true,
+                is_used: false
+            });
+            
+            symbol_manager.define_symbol(param.name, param_symbol);
+        }
+        
+        // Type check function body
+        type_check_block(func.body);
+        
+        // Validate return paths if function has return type
+        if (func.return_type.type_kind != TypeKind.Void) {
+            validate_return_paths(func.body, func.return_type);
+        }
+        
+        symbol_manager.pop_scope();
+        current_function = old_function;
+    }
+    
+    /// Type check modifier
+    function type_check_modifier(Modifier memory modifier) public {
+        symbol_manager.push_scope(modifier.name);
+        
+        // Add parameters to scope
+        for (uint256 i = 0; i < modifier.parameters.length; i++) {
+            Parameter memory param = modifier.parameters[i];
+            
+            Symbol memory param_symbol = Symbol({
+                name: param.name,
+                symbol_type: SymbolType.Parameter,
+                type_info: param.parameter_type,
+                visibility: Visibility.Private,
+                mutability: Mutability.NonPayable,
+                location: SourceLocation({
+                    file: current_file,
+                    line: 0,
+                    column: 0,
+                    length: param.name.length
+                }),
+                is_defined: true,
+                is_used: false
+            });
+            
+            symbol_manager.define_symbol(param.name, param_symbol);
+        }
+        
+        type_check_block(modifier.body);
+        
+        symbol_manager.pop_scope();
+    }
+    
+    /// Type check constant
+    function type_check_constant(Constant memory constant) public {
+        if (!is_valid_type(constant.constant_type)) {
+            report_type_error(
+                string(abi.encodePacked("Unknown constant type '", type_to_string(constant.constant_type), "'")),
+                0, 0
+            );
+        }
+        
+        Type memory value_type = type_check_expression(constant.value);
+        
+        if (!types_compatible(constant.constant_type, value_type)) {
+            report_type_mismatch(
+                type_to_string(constant.constant_type),
+                type_to_string(value_type),
+                0, 0
+            );
+        }
+    }
+    
+    /// Type check block
+    function type_check_block(Block memory block) public {
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            type_check_statement(block.statements[i]);
+        }
+    }
+    
+    /// Type check statement
+    function type_check_statement(Statement memory stmt) public {
+        if (stmt.statement_type == StatementType.VariableDeclaration) {
+            type_check_variable_declaration(stmt);
+        } else if (stmt.statement_type == StatementType.If) {
+            type_check_if_statement(stmt);
+        } else if (stmt.statement_type == StatementType.While) {
+            type_check_while_statement(stmt);
+        } else if (stmt.statement_type == StatementType.For) {
+            type_check_for_statement(stmt);
+        } else if (stmt.statement_type == StatementType.Return) {
+            type_check_return_statement(stmt);
+        } else if (stmt.statement_type == StatementType.Emit) {
+            type_check_emit_statement(stmt);
+        } else if (stmt.statement_type == StatementType.Require) {
+            type_check_require_statement(stmt);
+        } else if (stmt.statement_type == StatementType.Assert) {
+            type_check_assert_statement(stmt);
+        } else if (stmt.statement_type == StatementType.Revert) {
+            type_check_revert_statement(stmt);
+        } else if (stmt.statement_type == StatementType.Expression) {
+            type_check_expression(stmt.expression);
+        } else if (stmt.statement_type == StatementType.Block) {
+            type_check_block(stmt.block);
+        }
+    }
+    
+    /// Type check variable declaration
+    function type_check_variable_declaration(Statement memory stmt) public {
+        VariableDeclaration memory var_decl = stmt.variable_declaration;
+        
+        if (!is_valid_type(var_decl.variable_type)) {
+            report_type_error(
+                string(abi.encodePacked("Unknown type '", type_to_string(var_decl.variable_type), "'")),
+                0, 0
+            );
+        }
+        
+        if (var_decl.initializer.expression_type != ExpressionType.None) {
+            Type memory init_type = type_check_expression(var_decl.initializer);
+            
+            if (!types_compatible(var_decl.variable_type, init_type)) {
+                report_type_mismatch(
+                    type_to_string(var_decl.variable_type),
+                    type_to_string(init_type),
+                    0, 0
+                );
+            }
+        }
+        
+        // Add variable to symbol table
+        Symbol memory var_symbol = Symbol({
+            name: var_decl.name,
+            symbol_type: SymbolType.Variable,
+            type_info: var_decl.variable_type,
+            visibility: Visibility.Private,
+            mutability: var_decl.mutability,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: var_decl.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(var_decl.name, var_symbol);
+    }
+    
+    /// Type check if statement
+    function type_check_if_statement(Statement memory stmt) public {
+        IfStatement memory if_stmt = stmt.if_statement;
+        
+        Type memory condition_type = type_check_expression(if_stmt.condition);
+        
+        if (!is_boolean_type(condition_type)) {
+            report_type_error("If condition must be boolean", 0, 0);
+        }
+        
+        type_check_statement(if_stmt.then_branch);
+        
+        if (if_stmt.else_branch.statement_type != StatementType.None) {
+            type_check_statement(if_stmt.else_branch);
+        }
+    }
+    
+    /// Type check while statement
+    function type_check_while_statement(Statement memory stmt) public {
+        WhileStatement memory while_stmt = stmt.while_statement;
+        
+        Type memory condition_type = type_check_expression(while_stmt.condition);
+        
+        if (!is_boolean_type(condition_type)) {
+            report_type_error("While condition must be boolean", 0, 0);
+        }
+        
+        type_check_statement(while_stmt.body);
+    }
+    
+    /// Type check for statement
+    function type_check_for_statement(Statement memory stmt) public {
+        ForStatement memory for_stmt = stmt.for_statement;
+        
+        symbol_manager.push_scope("for");
+        
+        if (for_stmt.initializer.statement_type != StatementType.None) {
+            type_check_statement(for_stmt.initializer);
+        }
+        
+        if (for_stmt.condition.expression_type != ExpressionType.None) {
+            Type memory condition_type = type_check_expression(for_stmt.condition);
+            
+            if (!is_boolean_type(condition_type)) {
+                report_type_error("For condition must be boolean", 0, 0);
+            }
+        }
+        
+        if (for_stmt.increment.expression_type != ExpressionType.None) {
+            type_check_expression(for_stmt.increment);
+        }
+        
+        type_check_statement(for_stmt.body);
+        
+        symbol_manager.pop_scope();
+    }
+    
+    /// Type check return statement
+    function type_check_return_statement(Statement memory stmt) public {
+        ReturnStatement memory return_stmt = stmt.return_statement;
+        
+        if (return_stmt.value.expression_type != ExpressionType.None) {
+            Type memory return_type = type_check_expression(return_stmt.value);
+            // TODO: Check against function return type
+        }
+    }
+    
+    /// Type check emit statement
+    function type_check_emit_statement(Statement memory stmt) public {
+        EmitStatement memory emit_stmt = stmt.emit_statement;
+        
+        // Type check event call
+        type_check_expression(emit_stmt.event_call);
+    }
+    
+    /// Type check require statement
+    function type_check_require_statement(Statement memory stmt) public {
+        RequireStatement memory require_stmt = stmt.require_statement;
+        
+        Type memory condition_type = type_check_expression(require_stmt.condition);
+        
+        if (!is_boolean_type(condition_type)) {
+            report_type_error("Require condition must be boolean", 0, 0);
+        }
+        
+        if (require_stmt.message.expression_type != ExpressionType.None) {
+            Type memory message_type = type_check_expression(require_stmt.message);
+            
+            if (!is_string_type(message_type)) {
+                report_type_error("Require message must be string", 0, 0);
+            }
+        }
+    }
+    
+    /// Type check assert statement
+    function type_check_assert_statement(Statement memory stmt) public {
+        AssertStatement memory assert_stmt = stmt.assert_statement;
+        
+        Type memory condition_type = type_check_expression(assert_stmt.condition);
+        
+        if (!is_boolean_type(condition_type)) {
+            report_type_error("Assert condition must be boolean", 0, 0);
+        }
+        
+        if (assert_stmt.message.expression_type != ExpressionType.None) {
+            Type memory message_type = type_check_expression(assert_stmt.message);
+            
+            if (!is_string_type(message_type)) {
+                report_type_error("Assert message must be string", 0, 0);
+            }
+        }
+    }
+    
+    /// Type check revert statement
+    function type_check_revert_statement(Statement memory stmt) public {
+        RevertStatement memory revert_stmt = stmt.revert_statement;
+        
+        if (revert_stmt.message.expression_type != ExpressionType.None) {
+            Type memory message_type = type_check_expression(revert_stmt.message);
+            
+            if (!is_string_type(message_type)) {
+                report_type_error("Revert message must be string", 0, 0);
+            }
+        }
+    }
+    
+    /// Type check expression and return its type
+    function type_check_expression(Expression memory expr) public returns (Type memory) {
+        if (expr.expression_type == ExpressionType.Literal) {
+            return type_of_literal(expr.literal);
+        } else if (expr.expression_type == ExpressionType.Identifier) {
+            return type_check_identifier(expr.identifier);
+        } else if (expr.expression_type == ExpressionType.Binary) {
+            return type_check_binary_expression(expr);
+        } else if (expr.expression_type == ExpressionType.Unary) {
+            return type_check_unary_expression(expr);
+        } else if (expr.expression_type == ExpressionType.Assignment) {
+            return type_check_assignment_expression(expr);
+        } else if (expr.expression_type == ExpressionType.Call) {
+            return type_check_function_call(expr);
+        } else if (expr.expression_type == ExpressionType.MemberAccess) {
+            return type_check_member_access(expr);
+        } else if (expr.expression_type == ExpressionType.ArrayAccess) {
+            return type_check_index_access(expr);
+        }
+        
+        return get_error_type();
+    }
+    
+    /// Get type of literal
+    function type_of_literal(Literal memory literal) public pure returns (Type memory) {
+        if (literal.literal_type == LiteralType.Integer) {
+            return Type({
+                type_kind: TypeKind.UInt256,
+                name: "uint256",
+                size: 32,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            });
+        } else if (literal.literal_type == LiteralType.String) {
+            return Type({
+                type_kind: TypeKind.String,
+                name: "string",
+                size: 0,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            });
+        } else if (literal.literal_type == LiteralType.Boolean) {
+            return Type({
+                type_kind: TypeKind.Bool,
+                name: "bool",
+                size: 1,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            });
+        } else if (literal.literal_type == LiteralType.Address) {
+            return Type({
+                type_kind: TypeKind.Address,
+                name: "address",
+                size: 20,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            });
+        }
+        
+        return get_error_type();
+    }
+    
+    /// Type check identifier
+    function type_check_identifier(string memory name) public returns (Type memory) {
+        Symbol memory symbol = symbol_manager.lookup_symbol(name);
+        
+        if (symbol.symbol_type == SymbolType.Error) {
+            report_undefined_symbol(name, 0, 0);
+            return get_error_type();
+        }
+        
+        symbol_manager.mark_symbol_used(name);
+        return symbol.type_info;
+    }
+    
+    /// Type check binary expression
+    function type_check_binary_expression(Expression memory expr) public returns (Type memory) {
+        BinaryExpression memory bin_expr = expr.binary_expression;
+        
+        Type memory left_type = type_check_expression(bin_expr.left);
+        Type memory right_type = type_check_expression(bin_expr.right);
+        
+        // Handle arithmetic operators
+        if (bin_expr.operator == BinaryOperator.Add ||
+            bin_expr.operator == BinaryOperator.Subtract ||
+            bin_expr.operator == BinaryOperator.Multiply ||
+            bin_expr.operator == BinaryOperator.Divide ||
+            bin_expr.operator == BinaryOperator.Modulo) {
+            
+            if (!is_numeric_type(left_type) || !is_numeric_type(right_type)) {
+                report_type_error("Arithmetic operators require numeric types", 0, 0);
+                return get_error_type();
+            }
+            
+            return promote_numeric_types(left_type, right_type);
+        }
+        
+        // Handle comparison operators
+        if (bin_expr.operator == BinaryOperator.Equal ||
+            bin_expr.operator == BinaryOperator.NotEqual ||
+            bin_expr.operator == BinaryOperator.Less ||
+            bin_expr.operator == BinaryOperator.LessEqual ||
+            bin_expr.operator == BinaryOperator.Greater ||
+            bin_expr.operator == BinaryOperator.GreaterEqual) {
+            
+            if (!types_comparable(left_type, right_type)) {
+                report_type_error("Cannot compare incompatible types", 0, 0);
+                return get_error_type();
+            }
+            
+            return Type({
+                type_kind: TypeKind.Bool,
+                name: "bool",
+                size: 1,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            });
+        }
+        
+        // Handle logical operators
+        if (bin_expr.operator == BinaryOperator.LogicalAnd ||
+            bin_expr.operator == BinaryOperator.LogicalOr) {
+            
+            if (!is_boolean_type(left_type) || !is_boolean_type(right_type)) {
+                report_type_error("Logical operators require boolean types", 0, 0);
+                return get_error_type();
+            }
+            
+            return left_type;
+        }
+        
+        return get_error_type();
+    }
+    
+    /// Type check unary expression
+    function type_check_unary_expression(Expression memory expr) public returns (Type memory) {
+        UnaryExpression memory unary_expr = expr.unary_expression;
+        
+        Type memory operand_type = type_check_expression(unary_expr.operand);
+        
+        if (unary_expr.operator == UnaryOperator.Minus) {
+            if (!is_numeric_type(operand_type)) {
+                report_type_error("Unary minus requires numeric type", 0, 0);
+                return get_error_type();
+            }
+            return operand_type;
+        }
+        
+        if (unary_expr.operator == UnaryOperator.LogicalNot) {
+            if (!is_boolean_type(operand_type)) {
+                report_type_error("Logical not requires boolean type", 0, 0);
+                return get_error_type();
+            }
+            return operand_type;
+        }
+        
+        return get_error_type();
+    }
+    
+    /// Type check assignment expression
+    function type_check_assignment_expression(Expression memory expr) public returns (Type memory) {
+        AssignmentExpression memory assign_expr = expr.assignment_expression;
+        
+        Type memory left_type = type_check_expression(assign_expr.left);
+        Type memory right_type = type_check_expression(assign_expr.right);
+        
+        if (!is_lvalue(assign_expr.left)) {
+            report_type_error("Left side of assignment must be assignable", 0, 0);
+            return get_error_type();
+        }
+        
+        if (!types_compatible(left_type, right_type)) {
+            report_type_mismatch(
+                type_to_string(left_type),
+                type_to_string(right_type),
+                0, 0
+            );
+            return get_error_type();
+        }
+        
+        return left_type;
+    }
+    
+    /// Type check function call
+    function type_check_function_call(Expression memory expr) public returns (Type memory) {
+        CallExpression memory call_expr = expr.call_expression;
+        
+        // Look up function symbol
+        Symbol memory func_symbol = symbol_manager.lookup_symbol(call_expr.function_name);
+        
+        if (func_symbol.symbol_type != SymbolType.Function) {
+            report_type_error(
+                string(abi.encodePacked("'", call_expr.function_name, "' is not a function")),
+                0, 0
+            );
+            return get_error_type();
+        }
+        
+        // Type check arguments
+        for (uint256 i = 0; i < call_expr.arguments.length; i++) {
+            type_check_expression(call_expr.arguments[i]);
+        }
+        
+        return func_symbol.type_info; // Return type of function
+    }
+    
+    /// Type check member access
+    function type_check_member_access(Expression memory expr) public returns (Type memory) {
+        MemberAccessExpression memory member_expr = expr.member_access_expression;
+        
+        Type memory object_type = type_check_expression(member_expr.object);
+        
+        // TODO: Implement member access type checking based on object type
+        
+        return get_error_type();
+    }
+    
+    /// Type check array/index access
+    function type_check_index_access(Expression memory expr) public returns (Type memory) {
+        ArrayAccessExpression memory index_expr = expr.array_access_expression;
+        
+        Type memory array_type = type_check_expression(index_expr.array);
+        Type memory index_type = type_check_expression(index_expr.index);
+        
+        if (!array_type.is_array && !array_type.is_mapping) {
+            report_type_error("Index access requires array or mapping type", 0, 0);
+            return get_error_type();
+        }
+        
+        if (array_type.is_array && !is_integer_type(index_type)) {
+            report_type_error("Array index must be integer", 0, 0);
+            return get_error_type();
+        }
+        
+        if (array_type.is_mapping) {
+            if (!types_compatible(array_type.key_type, index_type)) {
+                report_type_mismatch(
+                    type_to_string(array_type.key_type),
+                    type_to_string(index_type),
+                    0, 0
+                );
+                return get_error_type();
+            }
+            return array_type.value_type;
+        }
+        
+        // For arrays, return element type
+        return array_type; // Simplified - should return element type
+    }
+    
+    /// Validate return paths in function
+    function validate_return_paths(Block memory block, Type memory expected_type) public {
+        // TODO: Implement return path validation
+    }
+    
+    /// Check if type is valid
+    function is_valid_type(Type memory type_def) public view returns (bool) {
+        return type_def.type_kind != TypeKind.Error;
+    }
+    
+    /// Check if types are compatible
+    function types_compatible(Type memory expected, Type memory actual) public pure returns (bool) {
+        if (expected.type_kind == actual.type_kind) return true;
+        
+        // Allow implicit conversions for numeric types
+        if (is_numeric_type(expected) && is_numeric_type(actual)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /// Check if types are comparable
+    function types_comparable(Type memory left, Type memory right) public pure returns (bool) {
+        return types_compatible(left, right);
+    }
+    
+    /// Check if type is numeric
+    function is_numeric_type(Type memory type_def) public pure returns (bool) {
+        return type_def.type_kind == TypeKind.UInt256 ||
+               type_def.type_kind == TypeKind.Int256 ||
+               type_def.type_kind == TypeKind.UInt128 ||
+               type_def.type_kind == TypeKind.Int128;
+    }
+    
+    /// Check if type is integer
+    function is_integer_type(Type memory type_def) public pure returns (bool) {
+        return is_numeric_type(type_def);
+    }
+    
+    /// Check if type is boolean
+    function is_boolean_type(Type memory type_def) public pure returns (bool) {
+        return type_def.type_kind == TypeKind.Bool;
+    }
+    
+    /// Check if type is string
+    function is_string_type(Type memory type_def) public pure returns (bool) {
+        return type_def.type_kind == TypeKind.String;
+    }
+    
+    /// Check if expression is lvalue
+    function is_lvalue(Expression memory expr) public pure returns (bool) {
+        return expr.expression_type == ExpressionType.Identifier ||
+               expr.expression_type == ExpressionType.MemberAccess ||
+               expr.expression_type == ExpressionType.ArrayAccess;
+    }
+    
+    /// Promote numeric types for binary operations
+    function promote_numeric_types(Type memory left, Type memory right) public pure returns (Type memory) {
+        // Simple promotion - return larger type
+        if (left.type_kind == TypeKind.UInt256 || right.type_kind == TypeKind.UInt256) {
+            return Type({
+                type_kind: TypeKind.UInt256,
+                name: "uint256",
+                size: 32,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            });
+        }
+        
+        return left;
+    }
+    
+    /// Get error type
+    function get_error_type() public pure returns (Type memory) {
+        return Type({
+            type_kind: TypeKind.Error,
+            name: "error",
+            size: 0,
+            is_array: false,
+            array_size: 0,
+            is_mapping: false,
+            key_type: Type({}),
+            value_type: Type({})
+        });
+    }
+    
+    /// Convert type to string representation
+    function type_to_string(Type memory type_def) public pure returns (string memory) {
+        return type_def.name;
+    }
+    
+    /// Initialize builtin types
+    function initialize_builtin_types() private pure returns (mapping(string => Type)) {
+        mapping(string => Type) builtin_types;
+        
+        builtin_types["uint256"] = Type({
+            type_kind: TypeKind.UInt256,
+            name: "uint256",
+            size: 32,
+            is_array: false,
+            array_size: 0,
+            is_mapping: false,
+            key_type: Type({}),
+            value_type: Type({})
+        });
+        
+        builtin_types["bool"] = Type({
+            type_kind: TypeKind.Bool,
+            name: "bool",
+            size: 1,
+            is_array: false,
+            array_size: 0,
+            is_mapping: false,
+            key_type: Type({}),
+            value_type: Type({})
+        });
+        
+        builtin_types["string"] = Type({
+            type_kind: TypeKind.String,
+            name: "string",
+            size: 0,
+            is_array: false,
+            array_size: 0,
+            is_mapping: false,
+            key_type: Type({}),
+            value_type: Type({})
+        });
+        
+        builtin_types["address"] = Type({
+            type_kind: TypeKind.Address,
+            name: "address",
+            size: 20,
+            is_array: false,
+            array_size: 0,
+            is_mapping: false,
+            key_type: Type({}),
+            value_type: Type({})
+        });
+        
+        return builtin_types;
+    }
+    
+    /// Set current file for error reporting
+    function set_current_file(string memory file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Report type error
+    function report_type_error(string memory message, uint256 line, uint256 column) private {
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.TypeError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: line,
+                    column: column,
+                    length: 0
+                }),
+                context: ErrorContext.TypeChecker,
+                severity: ErrorSeverity.Error,
+                error_code: "T001",
+                suggestions: new string[](0)
+            })
+        );
+    }
+    
+    /// Report type mismatch
+    function report_type_mismatch(string memory expected, string memory actual, uint256 line, uint256 column) private {
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.TypeError,
+                message: string(abi.encodePacked("Type mismatch: expected '", expected, "', got '", actual, "'")),
+                location: SourceLocation({
+                    file: current_file,
+                    line: line,
+                    column: column,
+                    length: 0
+                }),
+                context: ErrorContext.TypeChecker,
+                severity: ErrorSeverity.Error,
+                error_code: "T002",
+                suggestions: new string[](0)
+            })
+        );
+    }
+    
+    /// Report undefined symbol
+    function report_undefined_symbol(string memory name, uint256 line, uint256 column) private {
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.SemanticError,
+                message: string(abi.encodePacked("Undefined symbol '", name, "'")),
+                location: SourceLocation({
+                    file: current_file,
+                    line: line,
+                    column: column,
+                    length: name.length
+                }),
+                context: ErrorContext.TypeChecker,
+                severity: ErrorSeverity.Error,
+                error_code: "S002",
+                suggestions: new string[](0)
+            })
+        );
+    }
+}
+
+/// Type environment for managing types
+struct TypeEnvironment {
+    mapping(string => Type) builtin_types;
+    mapping(string => UserType) user_types;
+}
+
+/// User-defined type
+struct UserType {
+    string name;
+    Type base_type;
+    bool is_struct;
+    bool is_enum;
+}

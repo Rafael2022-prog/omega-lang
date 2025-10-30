@@ -1,0 +1,560 @@
+// OMEGA Comprehensive Coverage Tests - Written in MEGA
+// Test suite yang dirancang khusus untuk meningkatkan coverage dari 60% ke 80%
+// Fokus pada area yang kurang tercakup: semantic analysis, optimizer, dan edge cases
+
+/// Main test suite untuk comprehensive coverage improvement
+/// Mengorganisir tests berdasarkan component dan coverage gaps
+blockchain ComprehensiveCoverageTests {
+    state {
+        TestSuite lexer_coverage_suite;
+        TestSuite parser_coverage_suite;
+        TestSuite semantic_coverage_suite;
+        TestSuite ir_coverage_suite;
+        TestSuite codegen_coverage_suite;
+        TestSuite optimizer_coverage_suite;
+        TestSuite integration_coverage_suite;
+        TestSuite edge_case_suite;
+    }
+    
+    /// Constructor untuk setup semua test suites
+    constructor() {
+        setup_lexer_coverage_tests();
+        setup_parser_coverage_tests();
+        setup_semantic_coverage_tests();
+        setup_ir_coverage_tests();
+        setup_codegen_coverage_tests();
+        setup_optimizer_coverage_tests();
+        setup_integration_coverage_tests();
+        setup_edge_case_tests();
+    }
+    
+    /// Run semua coverage improvement tests
+    /// @return TestResults Comprehensive test results
+    function run_all_coverage_tests() public returns (TestResults) {
+        TestResults results = TestResults::new();
+        
+        // Run tests untuk setiap component
+        results.add_suite_result(run_lexer_coverage_tests());
+        results.add_suite_result(run_parser_coverage_tests());
+        results.add_suite_result(run_semantic_coverage_tests());
+        results.add_suite_result(run_ir_coverage_tests());
+        results.add_suite_result(run_codegen_coverage_tests());
+        results.add_suite_result(run_optimizer_coverage_tests());
+        results.add_suite_result(run_integration_coverage_tests());
+        results.add_suite_result(run_edge_case_tests());
+        
+        return results;
+    }
+    
+    /// Setup lexer coverage tests untuk meningkatkan coverage dari 85% ke 90%
+    function setup_lexer_coverage_tests() public {
+        lexer_coverage_suite = TestSuite::new("Lexer Coverage Tests");
+        
+        // Test untuk edge cases dalam tokenization
+        lexer_coverage_suite.add_test_case(create_unicode_tokenization_test());
+        lexer_coverage_suite.add_test_case(create_nested_comment_test());
+        lexer_coverage_suite.add_test_case(create_malformed_string_test());
+        lexer_coverage_suite.add_test_case(create_large_number_test());
+        lexer_coverage_suite.add_test_case(create_special_character_test());
+        lexer_coverage_suite.add_test_case(create_whitespace_edge_cases_test());
+        lexer_coverage_suite.add_test_case(create_keyword_boundary_test());
+        lexer_coverage_suite.add_test_case(create_operator_precedence_test());
+    }
+    
+    /// Setup parser coverage tests untuk meningkatkan coverage dari 75% ke 85%
+    function setup_parser_coverage_tests() public {
+        parser_coverage_suite = TestSuite::new("Parser Coverage Tests");
+        
+        // Test untuk complex parsing scenarios
+        parser_coverage_suite.add_test_case(create_nested_blockchain_test());
+        parser_coverage_suite.add_test_case(create_complex_expression_test());
+        parser_coverage_suite.add_test_case(create_modifier_combination_test());
+        parser_coverage_suite.add_test_case(create_cross_chain_syntax_test());
+        parser_coverage_suite.add_test_case(create_generic_type_test());
+        parser_coverage_suite.add_test_case(create_error_recovery_test());
+        parser_coverage_suite.add_test_case(create_ambiguous_grammar_test());
+        parser_coverage_suite.add_test_case(create_large_ast_test());
+    }
+    
+    /// Setup semantic coverage tests untuk meningkatkan coverage dari 65% ke 80%
+    function setup_semantic_coverage_tests() public {
+        semantic_coverage_suite = TestSuite::new("Semantic Coverage Tests");
+        
+        // Test untuk semantic analysis edge cases
+        semantic_coverage_suite.add_test_case(create_type_inference_test());
+        semantic_coverage_suite.add_test_case(create_circular_dependency_test());
+        semantic_coverage_suite.add_test_case(create_cross_chain_validation_test());
+        semantic_coverage_suite.add_test_case(create_security_pattern_test());
+        semantic_coverage_suite.add_test_case(create_state_mutation_test());
+        semantic_coverage_suite.add_test_case(create_modifier_validation_test());
+        semantic_coverage_suite.add_test_case(create_gas_estimation_test());
+        semantic_coverage_suite.add_test_case(create_reentrancy_detection_test());
+        semantic_coverage_suite.add_test_case(create_overflow_detection_test());
+        semantic_coverage_suite.add_test_case(create_access_control_test());
+    }
+    
+    /// Setup IR coverage tests untuk meningkatkan coverage dari 78% ke 85%
+    function setup_ir_coverage_tests() public {
+        ir_coverage_suite = TestSuite::new("IR Coverage Tests");
+        
+        // Test untuk IR generation dan optimization
+        ir_coverage_suite.add_test_case(create_complex_ir_generation_test());
+        ir_coverage_suite.add_test_case(create_ir_validation_test());
+        ir_coverage_suite.add_test_case(create_type_conversion_test());
+        ir_coverage_suite.add_test_case(create_ir_optimization_test());
+        ir_coverage_suite.add_test_case(create_control_flow_test());
+        ir_coverage_suite.add_test_case(create_memory_management_test());
+        ir_coverage_suite.add_test_case(create_function_inlining_test());
+    }
+    
+    /// Setup codegen coverage tests untuk meningkatkan coverage dari 70% ke 82%
+    function setup_codegen_coverage_tests() public {
+        codegen_coverage_suite = TestSuite::new("Codegen Coverage Tests");
+        
+        // Test untuk multi-target code generation
+        codegen_coverage_suite.add_test_case(create_evm_advanced_features_test());
+        codegen_coverage_suite.add_test_case(create_solana_specific_test());
+        codegen_coverage_suite.add_test_case(create_wasm_generation_test());
+        codegen_coverage_suite.add_test_case(create_native_code_test());
+        codegen_coverage_suite.add_test_case(create_cross_compilation_test());
+        codegen_coverage_suite.add_test_case(create_target_optimization_test());
+        codegen_coverage_suite.add_test_case(create_abi_generation_test());
+        codegen_coverage_suite.add_test_case(create_debug_info_test());
+    }
+    
+    /// Setup optimizer coverage tests untuk meningkatkan coverage dari 68% ke 80%
+    function setup_optimizer_coverage_tests() public {
+        optimizer_coverage_suite = TestSuite::new("Optimizer Coverage Tests");
+        
+        // Test untuk optimization algorithms
+        optimizer_coverage_suite.add_test_case(create_constant_folding_advanced_test());
+        optimizer_coverage_suite.add_test_case(create_dead_code_elimination_test());
+        optimizer_coverage_suite.add_test_case(create_loop_optimization_test());
+        optimizer_coverage_suite.add_test_case(create_peephole_optimization_test());
+        optimizer_coverage_suite.add_test_case(create_function_inlining_test());
+        optimizer_coverage_suite.add_test_case(create_register_allocation_test());
+        optimizer_coverage_suite.add_test_case(create_instruction_scheduling_test());
+        optimizer_coverage_suite.add_test_case(create_profile_guided_optimization_test());
+    }
+    
+    /// Setup integration coverage tests untuk end-to-end scenarios
+    function setup_integration_coverage_tests() public {
+        integration_coverage_suite = TestSuite::new("Integration Coverage Tests");
+        
+        // Test untuk full pipeline integration
+        integration_coverage_suite.add_test_case(create_full_compilation_test());
+        integration_coverage_suite.add_test_case(create_multi_target_compilation_test());
+        integration_coverage_suite.add_test_case(create_cross_chain_deployment_test());
+        integration_coverage_suite.add_test_case(create_performance_regression_test());
+        integration_coverage_suite.add_test_case(create_memory_usage_test());
+        integration_coverage_suite.add_test_case(create_concurrent_compilation_test());
+    }
+    
+    /// Setup edge case tests untuk unusual scenarios
+    function setup_edge_case_tests() public {
+        edge_case_suite = TestSuite::new("Edge Case Tests");
+        
+        // Test untuk edge cases dan error conditions
+        edge_case_suite.add_test_case(create_empty_file_test());
+        edge_case_suite.add_test_case(create_very_large_file_test());
+        edge_case_suite.add_test_case(create_deeply_nested_test());
+        edge_case_suite.add_test_case(create_unicode_edge_cases_test());
+        edge_case_suite.add_test_case(create_memory_limit_test());
+        edge_case_suite.add_test_case(create_stack_overflow_test());
+        edge_case_suite.add_test_case(create_invalid_input_test());
+    }
+    
+    // ========== LEXER COVERAGE TESTS ==========
+    
+    /// Test untuk Unicode tokenization edge cases
+    function create_unicode_tokenization_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Unicode Tokenization Test");
+        test.description = "Test lexer handling of Unicode characters in identifiers and strings";
+        test.test_function = "test_unicode_tokenization";
+        
+        // Test data dengan Unicode characters
+        test.input_data = TestData::from_string("blockchain 测试Contract { string 名前 = \"こんにちは\"; }");
+        test.expected_output = TestData::from_tokens([
+            Token::Keyword("blockchain"),
+            Token::Identifier("测试Contract"),
+            Token::LeftBrace,
+            Token::Keyword("string"),
+            Token::Identifier("名前"),
+            Token::Assign,
+            Token::StringLiteral("こんにちは"),
+            Token::Semicolon,
+            Token::RightBrace
+        ]);
+        
+        return test;
+    }
+    
+    /// Test untuk nested comment handling
+    function create_nested_comment_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Nested Comment Test");
+        test.description = "Test lexer handling of nested comments and edge cases";
+        test.test_function = "test_nested_comments";
+        
+        test.input_data = TestData::from_string("/* outer /* inner */ still outer */ function test() {}");
+        test.expected_output = TestData::from_tokens([
+            Token::Keyword("function"),
+            Token::Identifier("test"),
+            Token::LeftParen,
+            Token::RightParen,
+            Token::LeftBrace,
+            Token::RightBrace
+        ]);
+        
+        return test;
+    }
+    
+    /// Test untuk malformed string handling
+    function create_malformed_string_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Malformed String Test");
+        test.description = "Test lexer error handling for malformed strings";
+        test.test_function = "test_malformed_strings";
+        
+        test.input_data = TestData::from_string("string s = \"unclosed string");
+        test.expected_output = TestData::from_error("Unterminated string literal");
+        
+        return test;
+    }
+    
+    // ========== PARSER COVERAGE TESTS ==========
+    
+    /// Test untuk nested blockchain declarations
+    function create_nested_blockchain_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Nested Blockchain Test");
+        test.description = "Test parser handling of complex nested blockchain structures";
+        test.test_function = "test_nested_blockchain_parsing";
+        
+        test.input_data = TestData::from_string(`
+            blockchain OuterContract {
+                state {
+                    InnerContract inner;
+                }
+                
+                blockchain InnerContract {
+                    state {
+                        uint256 value;
+                    }
+                    
+                    function getValue() public view returns (uint256) {
+                        return value;
+                    }
+                }
+                
+                function createInner() public {
+                    inner = new InnerContract();
+                }
+            }
+        `);
+        
+        return test;
+    }
+    
+    /// Test untuk complex expression parsing
+    function create_complex_expression_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Complex Expression Test");
+        test.description = "Test parser handling of complex nested expressions";
+        test.test_function = "test_complex_expressions";
+        
+        test.input_data = TestData::from_string(`
+            function complexCalculation() public returns (uint256) {
+                return ((a + b) * (c - d)) / ((e ** f) % (g | h)) + 
+                       (x ? y : z) + array[index].field.method(param1, param2);
+            }
+        `);
+        
+        return test;
+    }
+    
+    // ========== SEMANTIC COVERAGE TESTS ==========
+    
+    /// Test untuk type inference edge cases
+    function create_type_inference_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Type Inference Test");
+        test.description = "Test semantic analyzer type inference capabilities";
+        test.test_function = "test_type_inference";
+        
+        test.input_data = TestData::from_string(`
+            function inferTypes() public {
+                auto x = 42;                    // Should infer uint256
+                auto y = "hello";               // Should infer string
+                auto z = [1, 2, 3];            // Should infer uint256[]
+                auto w = { a: 1, b: "test" };  // Should infer struct
+            }
+        `);
+        
+        return test;
+    }
+    
+    /// Test untuk circular dependency detection
+    function create_circular_dependency_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Circular Dependency Test");
+        test.description = "Test semantic analyzer circular dependency detection";
+        test.test_function = "test_circular_dependencies";
+        
+        test.input_data = TestData::from_string(`
+            blockchain A {
+                B b_instance;
+            }
+            
+            blockchain B {
+                A a_instance;  // This should trigger circular dependency error
+            }
+        `);
+        
+        test.expected_output = TestData::from_error("Circular dependency detected between A and B");
+        return test;
+    }
+    
+    /// Test untuk cross-chain validation
+    function create_cross_chain_validation_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Cross-chain Validation Test");
+        test.description = "Test semantic validation of cross-chain operations";
+        test.test_function = "test_cross_chain_validation";
+        
+        test.input_data = TestData::from_string(`
+            blockchain EthereumContract {
+                @cross_chain(target = "solana")
+                function bridgeToSolana(bytes32 recipient, uint256 amount) public {
+                    require(amount > 0, "Invalid amount");
+                    emit TokensBridged(msg.sender, recipient, amount, "solana");
+                }
+            }
+        `);
+        
+        return test;
+    }
+    
+    // ========== OPTIMIZER COVERAGE TESTS ==========
+    
+    /// Test untuk advanced constant folding
+    function create_constant_folding_advanced_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Advanced Constant Folding Test");
+        test.description = "Test optimizer constant folding with complex expressions";
+        test.test_function = "test_advanced_constant_folding";
+        
+        test.input_data = TestData::from_string(`
+            function constantExpressions() public pure returns (uint256) {
+                uint256 a = 2 + 3 * 4;           // Should fold to 14
+                uint256 b = (10 - 5) ** 2;       // Should fold to 25
+                bool c = true && (false || true); // Should fold to true
+                return a + b + (c ? 1 : 0);       // Should fold to 40
+            }
+        `);
+        
+        return test;
+    }
+    
+    /// Test untuk dead code elimination
+    function create_dead_code_elimination_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Dead Code Elimination Test");
+        test.description = "Test optimizer dead code elimination";
+        test.test_function = "test_dead_code_elimination";
+        
+        test.input_data = TestData::from_string(`
+            function deadCodeExample() public returns (uint256) {
+                uint256 x = 42;
+                uint256 y = 100;  // Dead code - y is never used
+                
+                if (false) {      // Dead code - condition is always false
+                    return y;
+                }
+                
+                return x;
+            }
+        `);
+        
+        return test;
+    }
+    
+    // ========== INTEGRATION COVERAGE TESTS ==========
+    
+    /// Test untuk full compilation pipeline
+    function create_full_compilation_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Full Compilation Pipeline Test");
+        test.description = "Test complete compilation from source to bytecode";
+        test.test_function = "test_full_compilation";
+        
+        test.input_data = TestData::from_string(`
+            blockchain SimpleToken {
+                state {
+                    mapping(address => uint256) balances;
+                    uint256 totalSupply;
+                }
+                
+                constructor(uint256 _initialSupply) {
+                    totalSupply = _initialSupply;
+                    balances[msg.sender] = _initialSupply;
+                }
+                
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    balances[msg.sender] -= amount;
+                    balances[to] += amount;
+                    return true;
+                }
+            }
+        `);
+        
+        return test;
+    }
+    
+    /// Test untuk multi-target compilation
+    function create_multi_target_compilation_test() public returns (TestCase) {
+        TestCase test = TestCase::new("Multi-target Compilation Test");
+        test.description = "Test compilation to multiple target platforms";
+        test.test_function = "test_multi_target_compilation";
+        
+        test.input_data = TestData::from_string(`
+            blockchain CrossPlatformContract {
+                state {
+                    uint256 value;
+                }
+                
+                function setValue(uint256 _value) public {
+                    value = _value;
+                }
+                
+                function getValue() public view returns (uint256) {
+                    return value;
+                }
+            }
+        `);
+        
+        // Test compilation untuk multiple targets
+        test.expected_output = TestData::from_targets([
+            CompilationTarget::EVM,
+            CompilationTarget::Solana,
+            CompilationTarget::WASM,
+            CompilationTarget::Native
+        ]);
+        
+        return test;
+    }
+    
+    // ========== TEST EXECUTION FUNCTIONS ==========
+    
+    /// Run lexer coverage tests
+    function run_lexer_coverage_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(lexer_coverage_suite);
+    }
+    
+    /// Run parser coverage tests
+    function run_parser_coverage_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(parser_coverage_suite);
+    }
+    
+    /// Run semantic coverage tests
+    function run_semantic_coverage_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(semantic_coverage_suite);
+    }
+    
+    /// Run IR coverage tests
+    function run_ir_coverage_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(ir_coverage_suite);
+    }
+    
+    /// Run codegen coverage tests
+    function run_codegen_coverage_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(codegen_coverage_suite);
+    }
+    
+    /// Run optimizer coverage tests
+    function run_optimizer_coverage_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(optimizer_coverage_suite);
+    }
+    
+    /// Run integration coverage tests
+    function run_integration_coverage_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(integration_coverage_suite);
+    }
+    
+    /// Run edge case tests
+    function run_edge_case_tests() public returns (TestSuiteResult) {
+        return TestRunner::execute_test_suite(edge_case_suite);
+    }
+}
+
+/// Helper structures untuk test data
+struct TestData {
+    string source_code;
+    Token[] expected_tokens;
+    ASTNode expected_ast;
+    IRNode expected_ir;
+    bytes expected_bytecode;
+    string expected_error;
+    CompilationTarget[] targets;
+}
+
+/// Token types untuk lexer testing
+enum TokenType {
+    Keyword,
+    Identifier,
+    StringLiteral,
+    NumberLiteral,
+    Operator,
+    Punctuation,
+    Comment,
+    Whitespace,
+    EOF,
+    Error
+}
+
+struct Token {
+    TokenType token_type;
+    string value;
+    uint256 line;
+    uint256 column;
+}
+
+/// Compilation targets untuk multi-target testing
+enum CompilationTarget {
+    EVM,
+    Solana,
+    WASM,
+    Native
+}
+
+/// AST node types untuk parser testing
+struct ASTNode {
+    string node_type;
+    ASTNode[] children;
+    string value;
+}
+
+/// IR node types untuk IR testing
+struct IRNode {
+    string instruction;
+    string[] operands;
+    IRNode[] children;
+}
+
+/// Factory functions untuk creating test data
+library TestDataFactory {
+    function from_string(string memory source) public pure returns (TestData memory) {
+        TestData memory data;
+        data.source_code = source;
+        return data;
+    }
+    
+    function from_tokens(Token[] memory tokens) public pure returns (TestData memory) {
+        TestData memory data;
+        data.expected_tokens = tokens;
+        return data;
+    }
+    
+    function from_error(string memory error) public pure returns (TestData memory) {
+        TestData memory data;
+        data.expected_error = error;
+        return data;
+    }
+    
+    function from_targets(CompilationTarget[] memory targets) public pure returns (TestData memory) {
+        TestData memory data;
+        data.targets = targets;
+        return data;
+    }
+}

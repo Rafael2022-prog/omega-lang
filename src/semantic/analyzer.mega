@@ -1,0 +1,491 @@
+// OMEGA Semantic Analyzer Core - Modul inti untuk analisis semantik
+// Mengintegrasikan symbol table, type checker, dan blockchain validator
+
+import "../parser/ast_nodes.mega";
+import "./symbol_table.mega";
+import "./type_checker.mega";
+import "./blockchain_validator.mega";
+import "../error/error.mega";
+
+/// Semantic analyzer utama untuk OMEGA
+blockchain OmegaSemanticAnalyzer {
+    state {
+        SymbolTableManager symbol_manager;
+        TypeChecker type_checker;
+        BlockchainValidator blockchain_validator;
+        OmegaErrorHandler error_handler;
+        string current_file;
+        AnalysisPhase current_phase;
+        AnalysisConfig config;
+        AnalysisResults results;
+    }
+    
+    constructor() {
+        symbol_manager = SymbolTableManager::new();
+        type_checker = TypeChecker::new();
+        blockchain_validator = BlockchainValidator::new();
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+        current_phase = AnalysisPhase.None;
+        config = initialize_default_config();
+        results = AnalysisResults({
+            symbols_collected: 0,
+            types_checked: 0,
+            validations_performed: 0,
+            errors_found: 0,
+            warnings_found: 0,
+            analysis_time_ms: 0
+        });
+    }
+    
+    /// Analyze complete program with three-phase analysis
+    function analyze(Program memory program, string memory file_path) public returns (AnalysisResults memory) {
+        uint256 start_time = block.timestamp;
+        current_file = file_path;
+        
+        // Set file context for all analyzers
+        symbol_manager.set_current_file(file_path);
+        type_checker.set_current_file(file_path);
+        blockchain_validator.set_current_file(file_path);
+        
+        // Connect analyzers
+        type_checker.set_symbol_manager(symbol_manager);
+        blockchain_validator.set_symbol_manager(symbol_manager);
+        
+        // Phase 1: Collect definitions and build symbol table
+        current_phase = AnalysisPhase.DefinitionCollection;
+        collect_definitions(program);
+        
+        // Phase 2: Type checking
+        current_phase = AnalysisPhase.TypeChecking;
+        type_check_program(program);
+        
+        // Phase 3: Blockchain-specific validation
+        current_phase = AnalysisPhase.BlockchainValidation;
+        validate_blockchain_rules(program);
+        
+        // Finalize results
+        current_phase = AnalysisPhase.Complete;
+        results.analysis_time_ms = (block.timestamp - start_time) * 1000;
+        results.errors_found = error_handler.get_error_count();
+        results.warnings_found = error_handler.get_warning_count();
+        
+        return results;
+    }
+    
+    /// Phase 1: Collect all definitions and build symbol table
+    function collect_definitions(Program memory program) public {
+        for (uint256 i = 0; i < program.items.length; i++) {
+            Item memory item = program.items[i];
+            collect_item_definitions(item);
+        }
+        
+        results.symbols_collected = symbol_manager.get_symbol_count();
+    }
+    
+    /// Collect definitions from a single item
+    function collect_item_definitions(Item memory item) public {
+        if (item.item_type == ItemType.BlockchainItem) {
+            collect_blockchain_definitions(item.blockchain_item);
+        } else if (item.item_type == ItemType.FunctionItem) {
+            collect_function_definition(item.function_item);
+        } else if (item.item_type == ItemType.StructItem) {
+            collect_struct_definition(item.struct_item);
+        } else if (item.item_type == ItemType.EnumItem) {
+            collect_enum_definition(item.enum_item);
+        } else if (item.item_type == ItemType.ConstantItem) {
+            collect_constant_definition(item.constant_item);
+        }
+    }
+    
+    /// Collect blockchain definitions
+    function collect_blockchain_definitions(Blockchain memory blockchain) public {
+        // Define blockchain symbol
+        Symbol memory blockchain_symbol = Symbol({
+            name: blockchain.name,
+            symbol_type: SymbolType.Blockchain,
+            type_info: Type({
+                type_kind: TypeKind.Blockchain,
+                name: blockchain.name,
+                size: 0,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            }),
+            visibility: Visibility.Public,
+            mutability: Mutability.NonPayable,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: blockchain.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(blockchain.name, blockchain_symbol);
+        symbol_manager.push_scope(blockchain.name);
+        
+        // Collect state variables
+        for (uint256 i = 0; i < blockchain.state_block.variables.length; i++) {
+            collect_state_variable_definition(blockchain.state_block.variables[i]);
+        }
+        
+        // Collect functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            collect_function_definition(blockchain.functions[i]);
+        }
+        
+        // Collect events
+        for (uint256 i = 0; i < blockchain.events.length; i++) {
+            collect_event_definition(blockchain.events[i]);
+        }
+        
+        // Collect modifiers
+        for (uint256 i = 0; i < blockchain.modifiers.length; i++) {
+            collect_modifier_definition(blockchain.modifiers[i]);
+        }
+        
+        symbol_manager.pop_scope();
+    }
+    
+    /// Collect state variable definition
+    function collect_state_variable_definition(StateVariable memory var) public {
+        Symbol memory var_symbol = Symbol({
+            name: var.name,
+            symbol_type: SymbolType.StateVariable,
+            type_info: var.variable_type,
+            visibility: var.visibility,
+            mutability: var.mutability,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: var.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(var.name, var_symbol);
+    }
+    
+    /// Collect function definition
+    function collect_function_definition(Function memory func) public {
+        Symbol memory func_symbol = Symbol({
+            name: func.name,
+            symbol_type: SymbolType.Function,
+            type_info: func.return_type,
+            visibility: func.visibility,
+            mutability: func.mutability,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: func.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(func.name, func_symbol);
+    }
+    
+    /// Collect event definition
+    function collect_event_definition(Event memory event_def) public {
+        Symbol memory event_symbol = Symbol({
+            name: event_def.name,
+            symbol_type: SymbolType.Event,
+            type_info: Type({
+                type_kind: TypeKind.Event,
+                name: event_def.name,
+                size: 0,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            }),
+            visibility: Visibility.Public,
+            mutability: Mutability.NonPayable,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: event_def.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(event_def.name, event_symbol);
+    }
+    
+    /// Collect modifier definition
+    function collect_modifier_definition(Modifier memory modifier) public {
+        Symbol memory modifier_symbol = Symbol({
+            name: modifier.name,
+            symbol_type: SymbolType.Modifier,
+            type_info: Type({
+                type_kind: TypeKind.Modifier,
+                name: modifier.name,
+                size: 0,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            }),
+            visibility: Visibility.Public,
+            mutability: Mutability.NonPayable,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: modifier.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(modifier.name, modifier_symbol);
+    }
+    
+    /// Collect struct definition
+    function collect_struct_definition(Struct memory struct_def) public {
+        Symbol memory struct_symbol = Symbol({
+            name: struct_def.name,
+            symbol_type: SymbolType.Struct,
+            type_info: Type({
+                type_kind: TypeKind.Struct,
+                name: struct_def.name,
+                size: 0,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            }),
+            visibility: Visibility.Public,
+            mutability: Mutability.NonPayable,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: struct_def.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(struct_def.name, struct_symbol);
+    }
+    
+    /// Collect enum definition
+    function collect_enum_definition(Enum memory enum_def) public {
+        Symbol memory enum_symbol = Symbol({
+            name: enum_def.name,
+            symbol_type: SymbolType.Enum,
+            type_info: Type({
+                type_kind: TypeKind.Enum,
+                name: enum_def.name,
+                size: 1,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            }),
+            visibility: Visibility.Public,
+            mutability: Mutability.NonPayable,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: enum_def.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(enum_def.name, enum_symbol);
+    }
+    
+    /// Collect constant definition
+    function collect_constant_definition(Constant memory constant) public {
+        Symbol memory constant_symbol = Symbol({
+            name: constant.name,
+            symbol_type: SymbolType.Constant,
+            type_info: constant.constant_type,
+            visibility: constant.visibility,
+            mutability: Mutability.NonPayable,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: constant.name.length
+            }),
+            is_defined: true,
+            is_used: false
+        });
+        
+        symbol_manager.define_symbol(constant.name, constant_symbol);
+    }
+    
+    /// Phase 2: Type checking
+    function type_check_program(Program memory program) public {
+        type_checker.type_check_program(program);
+        results.types_checked = get_type_check_count();
+    }
+    
+    /// Phase 3: Blockchain-specific validation
+    function validate_blockchain_rules(Program memory program) public {
+        blockchain_validator.validate_blockchain_rules(program);
+        results.validations_performed = get_validation_count();
+    }
+    
+    /// Get analysis results
+    function get_analysis_results() public view returns (AnalysisResults memory) {
+        return results;
+    }
+    
+    /// Get symbol table manager
+    function get_symbol_manager() public view returns (SymbolTableManager memory) {
+        return symbol_manager;
+    }
+    
+    /// Get type checker
+    function get_type_checker() public view returns (TypeChecker memory) {
+        return type_checker;
+    }
+    
+    /// Get blockchain validator
+    function get_blockchain_validator() public view returns (BlockchainValidator memory) {
+        return blockchain_validator;
+    }
+    
+    /// Get error handler
+    function get_error_handler() public view returns (OmegaErrorHandler memory) {
+        return error_handler;
+    }
+    
+    /// Check if analysis has errors
+    function has_errors() public view returns (bool) {
+        return error_handler.has_errors();
+    }
+    
+    /// Check if analysis has warnings
+    function has_warnings() public view returns (bool) {
+        return error_handler.has_warnings();
+    }
+    
+    /// Get current analysis phase
+    function get_current_phase() public view returns (AnalysisPhase) {
+        return current_phase;
+    }
+    
+    /// Set analysis configuration
+    function set_config(AnalysisConfig memory new_config) public {
+        config = new_config;
+        
+        // Apply config to sub-analyzers
+        if (config.enable_type_checking) {
+            // Type checker is enabled by default
+        }
+        
+        if (config.enable_blockchain_validation) {
+            // Blockchain validator is enabled by default
+        }
+    }
+    
+    /// Get analysis configuration
+    function get_config() public view returns (AnalysisConfig memory) {
+        return config;
+    }
+    
+    /// Reset analyzer state
+    function reset() public {
+        symbol_manager = SymbolTableManager::new();
+        type_checker = TypeChecker::new();
+        blockchain_validator = BlockchainValidator::new();
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+        current_phase = AnalysisPhase.None;
+        results = AnalysisResults({
+            symbols_collected: 0,
+            types_checked: 0,
+            validations_performed: 0,
+            errors_found: 0,
+            warnings_found: 0,
+            analysis_time_ms: 0
+        });
+    }
+    
+    /// Print analysis summary
+    function print_analysis_summary() public view {
+        // TODO: Implement analysis summary printing
+    }
+    
+    /// Export analysis results to JSON
+    function export_results_json() public view returns (string memory) {
+        // TODO: Implement JSON export
+        return "{}";
+    }
+    
+    /// Helper functions
+    
+    function get_type_check_count() private pure returns (uint256) {
+        // TODO: Implement type check counting
+        return 0;
+    }
+    
+    function get_validation_count() private pure returns (uint256) {
+        // TODO: Implement validation counting
+        return 0;
+    }
+    
+    function initialize_default_config() private pure returns (AnalysisConfig memory) {
+        return AnalysisConfig({
+            enable_type_checking: true,
+            enable_blockchain_validation: true,
+            enable_optimization_hints: true,
+            enable_security_checks: true,
+            strict_mode: false,
+            max_errors: 100,
+            max_warnings: 200
+        });
+    }
+}
+
+/// Analysis phases
+enum AnalysisPhase {
+    None,
+    DefinitionCollection,
+    TypeChecking,
+    BlockchainValidation,
+    Complete
+}
+
+/// Analysis configuration
+struct AnalysisConfig {
+    bool enable_type_checking;
+    bool enable_blockchain_validation;
+    bool enable_optimization_hints;
+    bool enable_security_checks;
+    bool strict_mode;
+    uint256 max_errors;
+    uint256 max_warnings;
+}
+
+/// Analysis results
+struct AnalysisResults {
+    uint256 symbols_collected;
+    uint256 types_checked;
+    uint256 validations_performed;
+    uint256 errors_found;
+    uint256 warnings_found;
+    uint256 analysis_time_ms;
+}

@@ -1,0 +1,33 @@
+// Simple Token Contract in OMEGA
+blockchain SimpleToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _initial_supply;
+        balances[msg.sender] = _initial_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+}

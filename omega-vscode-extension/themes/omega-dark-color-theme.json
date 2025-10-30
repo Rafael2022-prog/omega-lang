@@ -1,0 +1,145 @@
+{
+    "name": "OMEGA Dark",
+    "type": "dark",
+    "colors": {
+        "editor.background": "#0d1117",
+        "editor.foreground": "#c9d1d9",
+        "activityBar.background": "#161b22",
+        "sideBar.background": "#161b22",
+        "statusBar.background": "#21262d",
+        "titleBar.activeBackground": "#21262d",
+        "panel.background": "#0d1117",
+        "terminal.background": "#0d1117",
+        "editorGroupHeader.tabsBackground": "#161b22",
+        "tab.activeBackground": "#21262d",
+        "tab.inactiveBackground": "#161b22",
+        "editor.lineHighlightBackground": "#161b2240",
+        "editor.selectionBackground": "#264f7840",
+        "editorCursor.foreground": "#58a6ff",
+        "editorLineNumber.foreground": "#484f58",
+        "editorLineNumber.activeForeground": "#58a6ff"
+    },
+    "tokenColors": [
+        {
+            "name": "Comment",
+            "scope": [
+                "comment",
+                "punctuation.definition.comment"
+            ],
+            "settings": {
+                "fontStyle": "italic",
+                "foreground": "#8b949e"
+            }
+        },
+        {
+            "name": "Keywords",
+            "scope": [
+                "keyword.control.omega",
+                "keyword.other.omega",
+                "storage.type.omega"
+            ],
+            "settings": {
+                "foreground": "#ff7b72"
+            }
+        },
+        {
+            "name": "Storage Modifiers",
+            "scope": [
+                "storage.modifier.omega"
+            ],
+            "settings": {
+                "foreground": "#ffa657"
+            }
+        },
+        {
+            "name": "Strings",
+            "scope": [
+                "string.quoted.double.omega",
+                "string.quoted.single.omega"
+            ],
+            "settings": {
+                "foreground": "#a5d6ff"
+            }
+        },
+        {
+            "name": "Numbers",
+            "scope": [
+                "constant.numeric.decimal.omega",
+                "constant.numeric.hex.omega"
+            ],
+            "settings": {
+                "foreground": "#79c0ff"
+            }
+        },
+        {
+            "name": "Functions",
+            "scope": [
+                "entity.name.function.omega"
+            ],
+            "settings": {
+                "foreground": "#d2a8ff"
+            }
+        },
+        {
+            "name": "Types",
+            "scope": [
+                "storage.type.primitive.omega",
+                "storage.type.mapping.omega"
+            ],
+            "settings": {
+                "foreground": "#79c0ff"
+            }
+        },
+        {
+            "name": "Blockchain Keywords",
+            "scope": [
+                "support.variable.blockchain.omega",
+                "support.function.blockchain.omega"
+            ],
+            "settings": {
+                "foreground": "#f85149"
+            }
+        },
+        {
+            "name": "Cross-chain Annotations",
+            "scope": [
+                "keyword.other.cross-chain.omega",
+                "keyword.other.annotation.omega"
+            ],
+            "settings": {
+                "foreground": "#56d364",
+                "fontStyle": "bold"
+            }
+        },
+        {
+            "name": "Operators",
+            "scope": [
+                "keyword.operator.arithmetic.omega",
+                "keyword.operator.comparison.omega",
+                "keyword.operator.logical.omega"
+            ],
+            "settings": {
+                "foreground": "#ff7b72"
+            }
+        },
+        {
+            "name": "Constants",
+            "scope": [
+                "constant.language.omega"
+            ],
+            "settings": {
+                "foreground": "#79c0ff"
+            }
+        },
+        {
+            "name": "Punctuation",
+            "scope": [
+                "punctuation.definition.string.begin",
+                "punctuation.definition.string.end"
+            ],
+            "settings": {
+                "foreground": "#a5d6ff"
+            }
+        }
+    ]
+}

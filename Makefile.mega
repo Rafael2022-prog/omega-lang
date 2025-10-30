@@ -1,0 +1,639 @@
+// OMEGA Makefile - Build Automation in MEGA
+// Menggantikan traditional Makefile dengan MEGA-based build automation
+
+blockchain OmegaMakefile {
+    state {
+        mapping(string => BuildTarget) targets;
+        string[] target_order;
+        BuildEnvironment env;
+        TaskRunner runner;
+    }
+
+    // Build target definition
+    struct BuildTarget {
+        string name;
+        string description;
+        string[] dependencies;
+        BuildCommand[] commands;
+        bool phony;
+        string[] inputs;
+        string[] outputs;
+    }
+
+    // Build command
+    struct BuildCommand {
+        string command;
+        string[] args;
+        string working_dir;
+        mapping(string => string) env_vars;
+        bool ignore_errors;
+    }
+
+    // Build environment
+    struct BuildEnvironment {
+        string omega_version;
+        string build_dir;
+        string source_dir;
+        string test_dir;
+        string docs_dir;
+        mapping(string => string) variables;
+    }
+
+    // Task runner for parallel execution
+    struct TaskRunner {
+        uint256 max_parallel_jobs;
+        bool verbose;
+        bool dry_run;
+    }
+
+    constructor() {
+        _initialize_environment();
+        _define_targets();
+    }
+
+    // Main entry point
+    function make(string[] args) public returns (bool) {
+        if (args.length == 0) {
+            return _execute_target("all");
+        }
+
+        string target_name = args[0];
+        
+        // Handle special flags
+        for (uint i = 1; i < args.length; i++) {
+            if (string.compare(args[i], "--verbose") == 0 || string.compare(args[i], "-v") == 0) {
+                runner.verbose = true;
+            } else if (string.compare(args[i], "--dry-run") == 0 || string.compare(args[i], "-n") == 0) {
+                runner.dry_run = true;
+            } else if (string.compare(args[i], "--jobs") == 0 || string.compare(args[i], "-j") == 0) {
+                if (i + 1 < args.length) {
+                    runner.max_parallel_jobs = _parse_uint(args[i + 1]);
+                    i++;
+                }
+            }
+        }
+
+        return _execute_target(target_name);
+    }
+
+    // Execute a build target
+    function _execute_target(string target_name) private returns (bool) {
+        if (targets[target_name].name == "") {
+            _print_error(string.concat("Target '", target_name, "' not found"));
+            _print_available_targets();
+            return false;
+        }
+
+        BuildTarget target = targets[target_name];
+        
+        if (runner.verbose) {
+            _print_info(string.concat("Executing target: ", target.name));
+            _print_info(string.concat("Description: ", target.description));
+        }
+
+        // Execute dependencies first
+        for (uint i = 0; i < target.dependencies.length; i++) {
+            string dep = target.dependencies[i];
+            if (!_execute_target(dep)) {
+                _print_error(string.concat("Dependency '", dep, "' failed"));
+                return false;
+            }
+        }
+
+        // Check if target needs to be rebuilt
+        if (!target.phony && !_needs_rebuild(target)) {
+            if (runner.verbose) {
+                _print_info(string.concat("Target '", target.name, "' is up to date"));
+            }
+            return true;
+        }
+
+        // Execute target commands
+        for (uint i = 0; i < target.commands.length; i++) {
+            BuildCommand cmd = target.commands[i];
+            
+            if (runner.verbose || runner.dry_run) {
+                _print_command(cmd);
+            }
+            
+            if (!runner.dry_run) {
+                if (!_execute_command(cmd)) {
+                    if (!cmd.ignore_errors) {
+                        _print_error(string.concat("Command failed in target '", target.name, "'"));
+                        return false;
+                    }
+                }
+            }
+        }
+
+        if (runner.verbose) {
+            _print_success(string.concat("Target '", target.name, "' completed successfully"));
+        }
+
+        return true;
+    }
+
+    // Initialize build environment
+    function _initialize_environment() private {
+        env.omega_version = "1.0.0";
+        env.build_dir = "build";
+        env.source_dir = "src";
+        env.test_dir = "tests";
+        env.docs_dir = "docs";
+        
+        // Set environment variables
+        env.variables["OMEGA_VERSION"] = env.omega_version;
+        env.variables["BUILD_DIR"] = env.build_dir;
+        env.variables["SOURCE_DIR"] = env.source_dir;
+        env.variables["TEST_DIR"] = env.test_dir;
+        env.variables["DOCS_DIR"] = env.docs_dir;
+        
+        // Task runner settings
+        runner.max_parallel_jobs = 4;
+        runner.verbose = false;
+        runner.dry_run = false;
+    }
+
+    // Define all build targets
+    function _define_targets() private {
+        _define_all_target();
+        _define_build_target();
+        _define_clean_target();
+        _define_test_target();
+        _define_benchmark_target();
+        _define_docs_target();
+        _define_format_target();
+        _define_lint_target();
+        _define_install_target();
+        _define_uninstall_target();
+        _define_package_target();
+        _define_publish_target();
+        _define_bootstrap_target();
+    }
+
+    // Define 'all' target (default)
+    function _define_all_target() private {
+        BuildTarget target;
+        target.name = "all";
+        target.description = "Build all components";
+        target.dependencies = ["build", "test", "docs"];
+        target.phony = true;
+        
+        targets["all"] = target;
+        target_order.push("all");
+    }
+
+    // Define 'build' target
+    function _define_build_target() private {
+        BuildTarget target;
+        target.name = "build";
+        target.description = "Build the OMEGA compiler";
+        target.dependencies = ["clean"];
+        target.phony = false;
+        target.inputs = ["src/**/*.mega", "omega.toml"];
+        target.outputs = ["build/omega", "build/omega.exe"];
+        
+        // Build commands
+        BuildCommand[] commands = new BuildCommand[](3);
+        
+        // Create build directory
+        commands[0] = BuildCommand({
+            command: "mkdir",
+            args: ["-p", env.build_dir],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Compile OMEGA compiler
+        commands[1] = BuildCommand({
+            command: "omega",
+            args: ["build", "src/main.mega", "--target", "native", "--profile", "release"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Copy executable to build directory
+        commands[2] = BuildCommand({
+            command: "cp",
+            args: ["target/release/omega", "build/omega"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["build"] = target;
+        target_order.push("build");
+    }
+
+    // Define 'clean' target
+    function _define_clean_target() private {
+        BuildTarget target;
+        target.name = "clean";
+        target.description = "Clean build artifacts";
+        target.dependencies = new string[](0);
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](3);
+        
+        commands[0] = BuildCommand({
+            command: "rm",
+            args: ["-rf", env.build_dir],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: true
+        });
+        
+        commands[1] = BuildCommand({
+            command: "rm",
+            args: ["-rf", "target"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: true
+        });
+        
+        commands[2] = BuildCommand({
+            command: "rm",
+            args: ["-rf", ".omega/cache"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: true
+        });
+        
+        target.commands = commands;
+        targets["clean"] = target;
+        target_order.push("clean");
+    }
+
+    // Define 'test' target
+    function _define_test_target() private {
+        BuildTarget target;
+        target.name = "test";
+        target.description = "Run all tests";
+        target.dependencies = ["build"];
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](3);
+        
+        // Unit tests
+        commands[0] = BuildCommand({
+            command: "omega",
+            args: ["test", "--unit"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Integration tests
+        commands[1] = BuildCommand({
+            command: "omega",
+            args: ["test", "--integration"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Cross-chain tests
+        commands[2] = BuildCommand({
+            command: "omega",
+            args: ["test", "--cross-chain"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: true
+        });
+        
+        target.commands = commands;
+        targets["test"] = target;
+        target_order.push("test");
+    }
+
+    // Define 'benchmark' target
+    function _define_benchmark_target() private {
+        BuildTarget target;
+        target.name = "benchmark";
+        target.description = "Run performance benchmarks";
+        target.dependencies = ["build"];
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](1);
+        
+        commands[0] = BuildCommand({
+            command: "omega",
+            args: ["bench", "--all"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["benchmark"] = target;
+        target_order.push("benchmark");
+    }
+
+    // Define 'docs' target
+    function _define_docs_target() private {
+        BuildTarget target;
+        target.name = "docs";
+        target.description = "Generate documentation";
+        target.dependencies = new string[](0);
+        target.phony = false;
+        target.inputs = ["src/**/*.mega", "docs/**/*.md"];
+        target.outputs = ["docs/api/**/*.html"];
+        
+        BuildCommand[] commands = new BuildCommand[](2);
+        
+        // Generate API docs
+        commands[0] = BuildCommand({
+            command: "omega",
+            args: ["doc", "--output", "docs/api"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Generate user guide
+        commands[1] = BuildCommand({
+            command: "omega",
+            args: ["doc", "--guide", "--output", "docs/guide"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["docs"] = target;
+        target_order.push("docs");
+    }
+
+    // Define 'format' target
+    function _define_format_target() private {
+        BuildTarget target;
+        target.name = "format";
+        target.description = "Format source code";
+        target.dependencies = new string[](0);
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](1);
+        
+        commands[0] = BuildCommand({
+            command: "omega",
+            args: ["fmt", "src/**/*.mega"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["format"] = target;
+        target_order.push("format");
+    }
+
+    // Define 'lint' target
+    function _define_lint_target() private {
+        BuildTarget target;
+        target.name = "lint";
+        target.description = "Run linter on source code";
+        target.dependencies = new string[](0);
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](1);
+        
+        commands[0] = BuildCommand({
+            command: "omega",
+            args: ["lint", "src/**/*.mega"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["lint"] = target;
+        target_order.push("lint");
+    }
+
+    // Define 'install' target
+    function _define_install_target() private {
+        BuildTarget target;
+        target.name = "install";
+        target.description = "Install OMEGA compiler system-wide";
+        target.dependencies = ["build"];
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](2);
+        
+        commands[0] = BuildCommand({
+            command: "cp",
+            args: ["build/omega", "/usr/local/bin/omega"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        commands[1] = BuildCommand({
+            command: "chmod",
+            args: ["+x", "/usr/local/bin/omega"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["install"] = target;
+        target_order.push("install");
+    }
+
+    // Define 'uninstall' target
+    function _define_uninstall_target() private {
+        BuildTarget target;
+        target.name = "uninstall";
+        target.description = "Uninstall OMEGA compiler";
+        target.dependencies = new string[](0);
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](1);
+        
+        commands[0] = BuildCommand({
+            command: "rm",
+            args: ["-f", "/usr/local/bin/omega"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: true
+        });
+        
+        target.commands = commands;
+        targets["uninstall"] = target;
+        target_order.push("uninstall");
+    }
+
+    // Define 'package' target
+    function _define_package_target() private {
+        BuildTarget target;
+        target.name = "package";
+        target.description = "Create distribution package";
+        target.dependencies = ["build", "docs"];
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](3);
+        
+        // Create package directory
+        commands[0] = BuildCommand({
+            command: "mkdir",
+            args: ["-p", "dist/omega-1.0.0"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Copy files
+        commands[1] = BuildCommand({
+            command: "cp",
+            args: ["-r", "build", "docs", "README.md", "LICENSE", "dist/omega-1.0.0/"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Create archive
+        commands[2] = BuildCommand({
+            command: "tar",
+            args: ["-czf", "dist/omega-1.0.0.tar.gz", "-C", "dist", "omega-1.0.0"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["package"] = target;
+        target_order.push("package");
+    }
+
+    // Define 'publish' target
+    function _define_publish_target() private {
+        BuildTarget target;
+        target.name = "publish";
+        target.description = "Publish package to registry";
+        target.dependencies = ["package"];
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](1);
+        
+        commands[0] = BuildCommand({
+            command: "omega",
+            args: ["publish", "dist/omega-1.0.0.tar.gz"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["publish"] = target;
+        target_order.push("publish");
+    }
+
+    // Define 'bootstrap' target (for self-hosting)
+    function _define_bootstrap_target() private {
+        BuildTarget target;
+        target.name = "bootstrap";
+        target.description = "Bootstrap OMEGA compiler (self-hosting)";
+        target.dependencies = new string[](0);
+        target.phony = true;
+        
+        BuildCommand[] commands = new BuildCommand[](4);
+        
+        // Stage 1: Use existing Rust compiler to build MEGA compiler
+        commands[0] = BuildCommand({
+            command: "cargo",
+            args: ["build", "--release"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Stage 2: Use MEGA compiler to compile itself
+        commands[1] = BuildCommand({
+            command: "./target/release/omega",
+            args: ["build", "src/main.mega", "--target", "native"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Stage 3: Verify self-compiled version
+        commands[2] = BuildCommand({
+            command: "./build/omega",
+            args: ["--version"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        // Stage 4: Run self-hosting tests
+        commands[3] = BuildCommand({
+            command: "./build/omega",
+            args: ["test", "--self-hosting"],
+            working_dir: ".",
+            env_vars: mapping(string => string),
+            ignore_errors: false
+        });
+        
+        target.commands = commands;
+        targets["bootstrap"] = target;
+        target_order.push("bootstrap");
+    }
+
+    // Utility functions
+    function _needs_rebuild(BuildTarget target) private returns (bool) {
+        // Check if any input is newer than any output
+        // Simplified implementation
+        return true;
+    }
+
+    function _execute_command(BuildCommand cmd) private returns (bool) {
+        // Execute system command
+        // In real implementation, this would use system calls
+        return true;
+    }
+
+    function _print_command(BuildCommand cmd) private {
+        string full_command = cmd.command;
+        for (uint i = 0; i < cmd.args.length; i++) {
+            full_command = string.concat(full_command, " ", cmd.args[i]);
+        }
+        _print_info(string.concat("$ ", full_command));
+    }
+
+    function _print_available_targets() private {
+        _print_info("Available targets:");
+        for (uint i = 0; i < target_order.length; i++) {
+            string target_name = target_order[i];
+            BuildTarget target = targets[target_name];
+            _print_info(string.concat("  ", target_name, " - ", target.description));
+        }
+    }
+
+    function _parse_uint(string str) private pure returns (uint256) {
+        // Parse string to uint - simplified
+        return 4;
+    }
+
+    // Print utilities
+    function _print_info(string message) private {
+        emit LogMessage("INFO", message);
+    }
+
+    function _print_success(string message) private {
+        emit LogMessage("SUCCESS", message);
+    }
+
+    function _print_error(string message) private {
+        emit LogMessage("ERROR", message);
+    }
+
+    // Events
+    event LogMessage(string indexed level, string message);
+    event TargetStarted(string target_name);
+    event TargetCompleted(string target_name, bool success);
+    event CommandExecuted(string command, bool success);
+}

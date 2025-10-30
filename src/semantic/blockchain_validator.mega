@@ -1,0 +1,794 @@
+// OMEGA Blockchain Validator - Modul untuk validasi aturan blockchain-specific
+// Menangani validasi aturan khusus blockchain seperti gas optimization, security patterns, dll
+
+import "../parser/ast_nodes.mega";
+import "./symbol_table.mega";
+import "../error/error.mega";
+
+/// Validator untuk aturan blockchain-specific
+blockchain BlockchainValidator {
+    state {
+        SymbolTableManager symbol_manager;
+        OmegaErrorHandler error_handler;
+        string current_blockchain;
+        string current_function;
+        string current_file;
+        ValidationRules rules;
+        SecurityPatterns security_patterns;
+    }
+    
+    constructor() {
+        symbol_manager = SymbolTableManager::new();
+        error_handler = OmegaErrorHandler::new();
+        current_blockchain = "";
+        current_function = "";
+        current_file = "";
+        rules = initialize_validation_rules();
+        security_patterns = initialize_security_patterns();
+    }
+    
+    /// Set symbol manager
+    function set_symbol_manager(SymbolTableManager memory manager) public {
+        symbol_manager = manager;
+    }
+    
+    /// Validate blockchain rules for entire program
+    function validate_blockchain_rules(Program memory program) public {
+        for (uint256 i = 0; i < program.items.length; i++) {
+            Item memory item = program.items[i];
+            
+            if (item.item_type == ItemType.BlockchainItem) {
+                validate_blockchain_declaration(item.blockchain_item);
+            } else if (item.item_type == ItemType.FunctionItem) {
+                validate_standalone_function(item.function_item);
+            }
+        }
+    }
+    
+    /// Validate blockchain declaration
+    function validate_blockchain_declaration(Blockchain memory blockchain) public {
+        string memory old_blockchain = current_blockchain;
+        current_blockchain = blockchain.name;
+        
+        // Validate blockchain structure
+        validate_blockchain_structure(blockchain);
+        
+        // Validate state variables
+        validate_state_variables(blockchain.state_block);
+        
+        // Validate functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            validate_function(blockchain.functions[i]);
+        }
+        
+        // Validate events
+        for (uint256 i = 0; i < blockchain.events.length; i++) {
+            validate_event(blockchain.events[i]);
+        }
+        
+        // Validate modifiers
+        for (uint256 i = 0; i < blockchain.modifiers.length; i++) {
+            validate_modifier(blockchain.modifiers[i]);
+        }
+        
+        // Check for required functions
+        validate_required_functions(blockchain);
+        
+        // Check for security patterns
+        validate_security_patterns(blockchain);
+        
+        current_blockchain = old_blockchain;
+    }
+    
+    /// Validate blockchain structure
+    function validate_blockchain_structure(Blockchain memory blockchain) public {
+        // Check naming conventions
+        if (!is_valid_blockchain_name(blockchain.name)) {
+            report_validation_error(
+                string(abi.encodePacked("Invalid blockchain name '", blockchain.name, "'. Must start with uppercase letter")),
+                0, 0
+            );
+        }
+        
+        // Check for constructor
+        bool has_constructor = false;
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            if (keccak256(bytes(blockchain.functions[i].name)) == keccak256(bytes("constructor"))) {
+                has_constructor = true;
+                break;
+            }
+        }
+        
+        if (!has_constructor && blockchain.state_block.variables.length > 0) {
+            report_validation_warning(
+                "Blockchain with state variables should have a constructor",
+                0, 0
+            );
+        }
+    }
+    
+    /// Validate state variables
+    function validate_state_variables(StateBlock memory state_block) public {
+        for (uint256 i = 0; i < state_block.variables.length; i++) {
+            StateVariable memory var = state_block.variables[i];
+            
+            // Check naming conventions
+            if (!is_valid_state_variable_name(var.name)) {
+                report_validation_error(
+                    string(abi.encodePacked("Invalid state variable name '", var.name, "'. Should use snake_case")),
+                    0, 0
+                );
+            }
+            
+            // Check for proper visibility
+            if (var.visibility == Visibility.Public) {
+                report_validation_info(
+                    string(abi.encodePacked("Public state variable '", var.name, "' will generate getter function")),
+                    0, 0
+                );
+            }
+            
+            // Check for gas-expensive types
+            if (is_gas_expensive_type(var.variable_type)) {
+                report_validation_warning(
+                    string(abi.encodePacked("State variable '", var.name, "' uses gas-expensive type")),
+                    0, 0
+                );
+            }
+            
+            // Check for uninitialized mappings
+            if (var.variable_type.is_mapping && var.default_value.expression_type != ExpressionType.None) {
+                report_validation_error(
+                    string(abi.encodePacked("Mapping '", var.name, "' cannot have default value")),
+                    0, 0
+                );
+            }
+        }
+    }
+    
+    /// Validate function
+    function validate_function(Function memory func) public {
+        string memory old_function = current_function;
+        current_function = func.name;
+        
+        // Check naming conventions
+        if (!is_valid_function_name(func.name)) {
+            report_validation_error(
+                string(abi.encodePacked("Invalid function name '", func.name, "'. Should use snake_case")),
+                0, 0
+            );
+        }
+        
+        // Check visibility
+        validate_function_visibility(func);
+        
+        // Check mutability
+        validate_function_mutability(func);
+        
+        // Check for reentrancy vulnerabilities
+        validate_reentrancy_protection(func);
+        
+        // Check for gas optimization opportunities
+        validate_gas_optimization(func);
+        
+        // Check for proper error handling
+        validate_error_handling(func);
+        
+        // Validate function body
+        validate_function_body(func.body);
+        
+        current_function = old_function;
+    }
+    
+    /// Validate function visibility
+    function validate_function_visibility(Function memory func) public {
+        if (func.visibility == Visibility.Public && !has_external_callers(func.name)) {
+            report_validation_warning(
+                string(abi.encodePacked("Function '", func.name, "' is public but not called externally. Consider making it private")),
+                0, 0
+            );
+        }
+        
+        if (func.visibility == Visibility.Private && is_interface_function(func.name)) {
+            report_validation_error(
+                string(abi.encodePacked("Interface function '", func.name, "' cannot be private")),
+                0, 0
+            );
+        }
+    }
+    
+    /// Validate function mutability
+    function validate_function_mutability(Function memory func) public {
+        bool modifies_state = function_modifies_state(func);
+        bool reads_state = function_reads_state(func);
+        
+        if (func.mutability == Mutability.Pure && (modifies_state || reads_state)) {
+            report_validation_error(
+                string(abi.encodePacked("Pure function '", func.name, "' cannot read or modify state")),
+                0, 0
+            );
+        }
+        
+        if (func.mutability == Mutability.View && modifies_state) {
+            report_validation_error(
+                string(abi.encodePacked("View function '", func.name, "' cannot modify state")),
+                0, 0
+            );
+        }
+        
+        if (func.mutability == Mutability.NonPayable && !modifies_state && !reads_state) {
+            report_validation_warning(
+                string(abi.encodePacked("Function '", func.name, "' could be marked as pure")),
+                0, 0
+            );
+        } else if (func.mutability == Mutability.NonPayable && !modifies_state && reads_state) {
+            report_validation_warning(
+                string(abi.encodePacked("Function '", func.name, "' could be marked as view")),
+                0, 0
+            );
+        }
+    }
+    
+    /// Validate reentrancy protection
+    function validate_reentrancy_protection(Function memory func) public {
+        if (function_has_external_calls(func) && function_modifies_state(func)) {
+            bool has_reentrancy_guard = function_has_reentrancy_guard(func);
+            
+            if (!has_reentrancy_guard) {
+                report_validation_warning(
+                    string(abi.encodePacked("Function '", func.name, "' makes external calls and modifies state. Consider adding reentrancy protection")),
+                    0, 0
+                );
+            }
+        }
+    }
+    
+    /// Validate gas optimization
+    function validate_gas_optimization(Function memory func) public {
+        // Check for unnecessary storage reads
+        validate_storage_access_patterns(func.body);
+        
+        // Check for loop optimizations
+        validate_loop_optimizations(func.body);
+        
+        // Check for efficient data types
+        validate_data_type_efficiency(func);
+    }
+    
+    /// Validate error handling
+    function validate_error_handling(Function memory func) public {
+        // Check for proper require statements
+        validate_require_statements(func.body);
+        
+        // Check for proper revert conditions
+        validate_revert_conditions(func.body);
+        
+        // Check for overflow protection
+        validate_overflow_protection(func.body);
+    }
+    
+    /// Validate function body
+    function validate_function_body(Block memory block) public {
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            validate_statement(block.statements[i]);
+        }
+    }
+    
+    /// Validate statement
+    function validate_statement(Statement memory stmt) public {
+        if (stmt.statement_type == StatementType.If) {
+            validate_if_statement(stmt.if_statement);
+        } else if (stmt.statement_type == StatementType.While) {
+            validate_while_statement(stmt.while_statement);
+        } else if (stmt.statement_type == StatementType.For) {
+            validate_for_statement(stmt.for_statement);
+        } else if (stmt.statement_type == StatementType.Require) {
+            validate_require_statement(stmt.require_statement);
+        } else if (stmt.statement_type == StatementType.Expression) {
+            validate_expression(stmt.expression);
+        } else if (stmt.statement_type == StatementType.Block) {
+            validate_function_body(stmt.block);
+        }
+    }
+    
+    /// Validate if statement
+    function validate_if_statement(IfStatement memory if_stmt) public {
+        validate_expression(if_stmt.condition);
+        validate_statement(if_stmt.then_branch);
+        
+        if (if_stmt.else_branch.statement_type != StatementType.None) {
+            validate_statement(if_stmt.else_branch);
+        }
+    }
+    
+    /// Validate while statement
+    function validate_while_statement(WhileStatement memory while_stmt) public {
+        validate_expression(while_stmt.condition);
+        validate_statement(while_stmt.body);
+        
+        // Check for potential infinite loops
+        if (!has_loop_termination_condition(while_stmt)) {
+            report_validation_warning(
+                "While loop may not terminate. Ensure proper exit condition",
+                0, 0
+            );
+        }
+    }
+    
+    /// Validate for statement
+    function validate_for_statement(ForStatement memory for_stmt) public {
+        if (for_stmt.initializer.statement_type != StatementType.None) {
+            validate_statement(for_stmt.initializer);
+        }
+        
+        if (for_stmt.condition.expression_type != ExpressionType.None) {
+            validate_expression(for_stmt.condition);
+        }
+        
+        if (for_stmt.increment.expression_type != ExpressionType.None) {
+            validate_expression(for_stmt.increment);
+        }
+        
+        validate_statement(for_stmt.body);
+        
+        // Check for gas limit issues in loops
+        if (has_unbounded_loop(for_stmt)) {
+            report_validation_warning(
+                "For loop may consume excessive gas. Consider adding bounds",
+                0, 0
+            );
+        }
+    }
+    
+    /// Validate require statement
+    function validate_require_statement(RequireStatement memory require_stmt) public {
+        validate_expression(require_stmt.condition);
+        
+        if (require_stmt.message.expression_type != ExpressionType.None) {
+            validate_expression(require_stmt.message);
+            
+            // Check for informative error messages
+            if (is_generic_error_message(require_stmt.message)) {
+                report_validation_warning(
+                    "Consider using more specific error message",
+                    0, 0
+                );
+            }
+        } else {
+            report_validation_warning(
+                "Require statement should include error message",
+                0, 0
+            );
+        }
+    }
+    
+    /// Validate expression
+    function validate_expression(Expression memory expr) public {
+        if (expr.expression_type == ExpressionType.Binary) {
+            validate_binary_expression(expr.binary_expression);
+        } else if (expr.expression_type == ExpressionType.Call) {
+            validate_function_call(expr.call_expression);
+        } else if (expr.expression_type == ExpressionType.Assignment) {
+            validate_assignment_expression(expr.assignment_expression);
+        }
+    }
+    
+    /// Validate binary expression
+    function validate_binary_expression(BinaryExpression memory bin_expr) public {
+        validate_expression(bin_expr.left);
+        validate_expression(bin_expr.right);
+        
+        // Check for potential overflow in arithmetic operations
+        if (is_arithmetic_operator(bin_expr.operator)) {
+            if (!has_overflow_protection(bin_expr)) {
+                report_validation_warning(
+                    "Arithmetic operation may overflow. Consider using SafeMath",
+                    0, 0
+                );
+            }
+        }
+    }
+    
+    /// Validate function call
+    function validate_function_call(CallExpression memory call_expr) public {
+        // Check for external calls
+        if (is_external_call(call_expr.function_name)) {
+            report_validation_info(
+                string(abi.encodePacked("External call to '", call_expr.function_name, "'")),
+                0, 0
+            );
+        }
+        
+        // Check for deprecated functions
+        if (is_deprecated_function(call_expr.function_name)) {
+            report_validation_warning(
+                string(abi.encodePacked("Function '", call_expr.function_name, "' is deprecated")),
+                0, 0
+            );
+        }
+        
+        // Validate arguments
+        for (uint256 i = 0; i < call_expr.arguments.length; i++) {
+            validate_expression(call_expr.arguments[i]);
+        }
+    }
+    
+    /// Validate assignment expression
+    function validate_assignment_expression(AssignmentExpression memory assign_expr) public {
+        validate_expression(assign_expr.left);
+        validate_expression(assign_expr.right);
+        
+        // Check for state variable assignments in view functions
+        if (current_function != "" && is_view_function(current_function)) {
+            if (assigns_to_state_variable(assign_expr)) {
+                report_validation_error(
+                    "Cannot assign to state variable in view function",
+                    0, 0
+                );
+            }
+        }
+    }
+    
+    /// Validate event
+    function validate_event(Event memory event_def) public {
+        // Check naming conventions
+        if (!is_valid_event_name(event_def.name)) {
+            report_validation_error(
+                string(abi.encodePacked("Invalid event name '", event_def.name, "'. Should use PascalCase")),
+                0, 0
+            );
+        }
+        
+        // Check for proper indexing
+        uint256 indexed_count = 0;
+        for (uint256 i = 0; i < event_def.parameters.length; i++) {
+            if (event_def.parameters[i].indexed) {
+                indexed_count++;
+            }
+        }
+        
+        if (indexed_count > 3) {
+            report_validation_error(
+                string(abi.encodePacked("Event '", event_def.name, "' has too many indexed parameters (max 3)")),
+                0, 0
+            );
+        }
+    }
+    
+    /// Validate modifier
+    function validate_modifier(Modifier memory modifier) public {
+        // Check naming conventions
+        if (!is_valid_modifier_name(modifier.name)) {
+            report_validation_error(
+                string(abi.encodePacked("Invalid modifier name '", modifier.name, "'. Should use camelCase")),
+                0, 0
+            );
+        }
+        
+        // Check for proper placeholder usage
+        if (!has_placeholder(modifier.body)) {
+            report_validation_error(
+                string(abi.encodePacked("Modifier '", modifier.name, "' must contain placeholder '_'")),
+                0, 0
+            );
+        }
+        
+        validate_function_body(modifier.body);
+    }
+    
+    /// Validate standalone function
+    function validate_standalone_function(Function memory func) public {
+        validate_function(func);
+    }
+    
+    /// Validate required functions
+    function validate_required_functions(Blockchain memory blockchain) public {
+        // Check for standard interface implementations
+        if (implements_erc20_interface(blockchain)) {
+            validate_erc20_implementation(blockchain);
+        }
+        
+        if (implements_erc721_interface(blockchain)) {
+            validate_erc721_implementation(blockchain);
+        }
+    }
+    
+    /// Validate security patterns
+    function validate_security_patterns(Blockchain memory blockchain) public {
+        // Check for access control patterns
+        validate_access_control_patterns(blockchain);
+        
+        // Check for emergency stop patterns
+        validate_emergency_stop_patterns(blockchain);
+        
+        // Check for upgrade patterns
+        validate_upgrade_patterns(blockchain);
+    }
+    
+    /// Validate storage access patterns
+    function validate_storage_access_patterns(Block memory block) public {
+        // TODO: Implement storage access pattern validation
+    }
+    
+    /// Validate loop optimizations
+    function validate_loop_optimizations(Block memory block) public {
+        // TODO: Implement loop optimization validation
+    }
+    
+    /// Validate data type efficiency
+    function validate_data_type_efficiency(Function memory func) public {
+        // TODO: Implement data type efficiency validation
+    }
+    
+    /// Validate require statements
+    function validate_require_statements(Block memory block) public {
+        // TODO: Implement require statement validation
+    }
+    
+    /// Validate revert conditions
+    function validate_revert_conditions(Block memory block) public {
+        // TODO: Implement revert condition validation
+    }
+    
+    /// Validate overflow protection
+    function validate_overflow_protection(Block memory block) public {
+        // TODO: Implement overflow protection validation
+    }
+    
+    /// Validate access control patterns
+    function validate_access_control_patterns(Blockchain memory blockchain) public {
+        // TODO: Implement access control pattern validation
+    }
+    
+    /// Validate emergency stop patterns
+    function validate_emergency_stop_patterns(Blockchain memory blockchain) public {
+        // TODO: Implement emergency stop pattern validation
+    }
+    
+    /// Validate upgrade patterns
+    function validate_upgrade_patterns(Blockchain memory blockchain) public {
+        // TODO: Implement upgrade pattern validation
+    }
+    
+    /// Validate ERC20 implementation
+    function validate_erc20_implementation(Blockchain memory blockchain) public {
+        // TODO: Implement ERC20 validation
+    }
+    
+    /// Validate ERC721 implementation
+    function validate_erc721_implementation(Blockchain memory blockchain) public {
+        // TODO: Implement ERC721 validation
+    }
+    
+    // Helper functions for validation checks
+    
+    function is_valid_blockchain_name(string memory name) public pure returns (bool) {
+        bytes memory nameBytes = bytes(name);
+        if (nameBytes.length == 0) return false;
+        
+        // Must start with uppercase letter
+        return nameBytes[0] >= 0x41 && nameBytes[0] <= 0x5A;
+    }
+    
+    function is_valid_state_variable_name(string memory name) public pure returns (bool) {
+        bytes memory nameBytes = bytes(name);
+        if (nameBytes.length == 0) return false;
+        
+        // Should use snake_case (start with lowercase)
+        return nameBytes[0] >= 0x61 && nameBytes[0] <= 0x7A;
+    }
+    
+    function is_valid_function_name(string memory name) public pure returns (bool) {
+        return is_valid_state_variable_name(name);
+    }
+    
+    function is_valid_event_name(string memory name) public pure returns (bool) {
+        return is_valid_blockchain_name(name);
+    }
+    
+    function is_valid_modifier_name(string memory name) public pure returns (bool) {
+        return is_valid_state_variable_name(name);
+    }
+    
+    function is_gas_expensive_type(Type memory type_def) public pure returns (bool) {
+        return type_def.is_array || type_def.is_mapping || 
+               type_def.type_kind == TypeKind.String;
+    }
+    
+    function has_external_callers(string memory func_name) public pure returns (bool) {
+        // TODO: Implement external caller detection
+        return true;
+    }
+    
+    function is_interface_function(string memory func_name) public pure returns (bool) {
+        // TODO: Implement interface function detection
+        return false;
+    }
+    
+    function function_modifies_state(Function memory func) public pure returns (bool) {
+        // TODO: Implement state modification detection
+        return true;
+    }
+    
+    function function_reads_state(Function memory func) public pure returns (bool) {
+        // TODO: Implement state reading detection
+        return true;
+    }
+    
+    function function_has_external_calls(Function memory func) public pure returns (bool) {
+        // TODO: Implement external call detection
+        return false;
+    }
+    
+    function function_has_reentrancy_guard(Function memory func) public pure returns (bool) {
+        // TODO: Implement reentrancy guard detection
+        return false;
+    }
+    
+    function has_loop_termination_condition(WhileStatement memory while_stmt) public pure returns (bool) {
+        // TODO: Implement loop termination analysis
+        return true;
+    }
+    
+    function has_unbounded_loop(ForStatement memory for_stmt) public pure returns (bool) {
+        // TODO: Implement unbounded loop detection
+        return false;
+    }
+    
+    function is_generic_error_message(Expression memory message) public pure returns (bool) {
+        // TODO: Implement generic error message detection
+        return false;
+    }
+    
+    function is_arithmetic_operator(BinaryOperator operator) public pure returns (bool) {
+        return operator == BinaryOperator.Add ||
+               operator == BinaryOperator.Subtract ||
+               operator == BinaryOperator.Multiply ||
+               operator == BinaryOperator.Divide;
+    }
+    
+    function has_overflow_protection(BinaryExpression memory bin_expr) public pure returns (bool) {
+        // TODO: Implement overflow protection detection
+        return false;
+    }
+    
+    function is_external_call(string memory func_name) public pure returns (bool) {
+        // TODO: Implement external call detection
+        return false;
+    }
+    
+    function is_deprecated_function(string memory func_name) public pure returns (bool) {
+        // TODO: Implement deprecated function detection
+        return false;
+    }
+    
+    function is_view_function(string memory func_name) public pure returns (bool) {
+        // TODO: Implement view function detection
+        return false;
+    }
+    
+    function assigns_to_state_variable(AssignmentExpression memory assign_expr) public pure returns (bool) {
+        // TODO: Implement state variable assignment detection
+        return false;
+    }
+    
+    function has_placeholder(Block memory block) public pure returns (bool) {
+        // TODO: Implement placeholder detection
+        return true;
+    }
+    
+    function implements_erc20_interface(Blockchain memory blockchain) public pure returns (bool) {
+        // TODO: Implement ERC20 interface detection
+        return false;
+    }
+    
+    function implements_erc721_interface(Blockchain memory blockchain) public pure returns (bool) {
+        // TODO: Implement ERC721 interface detection
+        return false;
+    }
+    
+    /// Initialize validation rules
+    function initialize_validation_rules() private pure returns (ValidationRules memory) {
+        return ValidationRules({
+            enforce_naming_conventions: true,
+            check_gas_optimization: true,
+            validate_security_patterns: true,
+            require_error_messages: true,
+            check_overflow_protection: true
+        });
+    }
+    
+    /// Initialize security patterns
+    function initialize_security_patterns() private pure returns (SecurityPatterns memory) {
+        return SecurityPatterns({
+            require_access_control: true,
+            check_reentrancy: true,
+            validate_input: true,
+            check_external_calls: true,
+            require_emergency_stop: false
+        });
+    }
+    
+    /// Set current file for error reporting
+    function set_current_file(string memory file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Report validation error
+    function report_validation_error(string memory message, uint256 line, uint256 column) private {
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.ValidationError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: line,
+                    column: column,
+                    length: 0
+                }),
+                context: ErrorContext.Validator,
+                severity: ErrorSeverity.Error,
+                error_code: "V001",
+                suggestions: new string[](0)
+            })
+        );
+    }
+    
+    /// Report validation warning
+    function report_validation_warning(string memory message, uint256 line, uint256 column) private {
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.ValidationError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: line,
+                    column: column,
+                    length: 0
+                }),
+                context: ErrorContext.Validator,
+                severity: ErrorSeverity.Warning,
+                error_code: "V002",
+                suggestions: new string[](0)
+            })
+        );
+    }
+    
+    /// Report validation info
+    function report_validation_info(string memory message, uint256 line, uint256 column) private {
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.ValidationError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: line,
+                    column: column,
+                    length: 0
+                }),
+                context: ErrorContext.Validator,
+                severity: ErrorSeverity.Info,
+                error_code: "V003",
+                suggestions: new string[](0)
+            })
+        );
+    }
+}
+
+/// Validation rules configuration
+struct ValidationRules {
+    bool enforce_naming_conventions;
+    bool check_gas_optimization;
+    bool validate_security_patterns;
+    bool require_error_messages;
+    bool check_overflow_protection;
+}
+
+/// Security patterns configuration
+struct SecurityPatterns {
+    bool require_access_control;
+    bool check_reentrancy;
+    bool validate_input;
+    bool check_external_calls;
+    bool require_emergency_stop;
+}

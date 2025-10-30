@@ -1,0 +1,39 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OMEGA Editor
+Name[id]=Editor OMEGA
+Comment=Edit OMEGA blockchain source files
+Comment[id]=Edit file sumber blockchain OMEGA
+GenericName=Source Code Editor
+GenericName[id]=Editor Kode Sumber
+Keywords=omega;blockchain;smart-contract;editor;development;programming;
+Icon=omega-file-icon
+Exec=code %f
+Terminal=false
+MimeType=application/x-omega-source;text/x-omega;
+Categories=Development;TextEditor;IDE;
+StartupNotify=true
+NoDisplay=false
+StartupWMClass=code
+
+# File associations
+[Desktop Action Edit]
+Name=Edit with OMEGA Editor
+Name[id]=Edit dengan Editor OMEGA
+Icon=omega-file-icon
+Exec=code %f
+
+[Desktop Action Compile]
+Name=Compile OMEGA File
+Name[id]=Kompilasi File OMEGA
+Icon=omega-compile-icon
+Exec=omega build %f
+
+[Desktop Action Run]
+Name=Run OMEGA File
+Name[id]=Jalankan File OMEGA
+Icon=omega-run-icon
+Exec=omega run %f
+
+Actions=Edit;Compile;Run;

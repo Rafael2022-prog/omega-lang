@@ -1,0 +1,67 @@
+{
+    "name": "OMEGA Language Support",
+    "description": "OMEGA blockchain programming language support for Sublime Text",
+    "version": "1.0.0",
+    "author": "OMEGA Team",
+    "homepage": "https://www.omegalang.xyz",
+    
+    "file_patterns": ["*.mega"],
+    
+    "syntax_definitions": [
+        {
+            "name": "OMEGA",
+            "scope": "source.omega",
+            "file_extensions": ["mega"],
+            "syntax_file": "OMEGA.sublime-syntax"
+        }
+    ],
+    
+    "color_schemes": [
+        {
+            "name": "OMEGA Dark",
+            "file": "OMEGA-dark.sublime-color-scheme"
+        }
+    ],
+    
+    "icon_file_type_associations": [
+        {
+            "scope": "source.omega",
+            "icon": "file_type_omega.png",
+            "extensions": ["mega"]
+        }
+    ],
+    
+    "settings": {
+        "file_exclude_patterns": [],
+        "folder_exclude_patterns": [],
+        "binary_file_patterns": [],
+        "index_exclude_patterns": []
+    },
+    
+    "completions": [
+        {
+            "scope": "source.omega",
+            "completions": "OMEGA.sublime-completions"
+        }
+    ],
+    
+    "build_systems": [
+        {
+            "name": "OMEGA",
+            "file_regex": "^(.+):([0-9]+):([0-9]+): (.*)$",
+            "selector": "source.omega",
+            "shell_cmd": "omega build \"$file\"",
+            "working_dir": "$file_path",
+            "variants": [
+                {
+                    "name": "Run",
+                    "shell_cmd": "omega run \"$file\""
+                },
+                {
+                    "name": "Test",
+                    "shell_cmd": "omega test \"$file\""
+                }
+            ]
+        }
+    ]
+}

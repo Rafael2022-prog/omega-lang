@@ -1,0 +1,1797 @@
+// OMEGA Parser - Self-hosted implementation in MEGA
+// Replaces the Rust-based parser with native MEGA code
+// Mengimplementasikan parser untuk bahasa OMEGA menggunakan recursive descent parsing
+
+import "./lexer.mega" as Lexer;
+import "./error/error.mega";
+
+/// Parser utama untuk bahasa OMEGA
+/// Menggunakan teknik recursive descent parsing untuk menganalisis token stream
+blockchain OmegaParser {
+    state {
+        Token[] tokens;              // Array token dari lexer
+        uint256 current;             // Index token saat ini yang sedang diproses
+        ParseError[] errors;         // Kumpulan error yang ditemukan selama parsing
+        OmegaErrorHandler error_handler; // Integrated error handling system
+        string current_file;         // Current file being parsed
+        uint256 panic_mode;          // Panic mode for error recovery
+    }
+    
+    /// Konstruktor parser - menginisialisasi state awal
+    constructor() {
+        current = 0;
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+        panic_mode = 0;
+    }
+    
+    /// Fungsi utama parsing - mengonversi token stream menjadi AST
+    /// @param input_tokens Array token dari lexer
+    /// @return Program AST yang merepresentasikan seluruh program
+    function parse(Token[] memory input_tokens) public returns (Program memory) {
+        tokens = input_tokens;
+        current = 0;
+        
+        Item[] memory items;
+        uint256 item_count = 0;
+        
+        // Parse semua item top-level dalam program
+        while (!is_at_end()) {
+            try {
+                Item memory item = parse_item();
+                items[item_count] = item;
+                item_count++;
+            } catch (ParseError memory error) {
+                errors.push(error);
+                synchronize(); // Recovery dari error untuk melanjutkan parsing
+            }
+        }
+        
+        return Program({
+            items: items
+        });
+    }
+    
+    /// Parse item top-level (import, blockchain, struct, enum, function, constant)
+    /// @return Item AST node yang merepresentasikan item yang diparsing
+    function parse_item() private returns (Item memory) {
+        // Parse annotations terlebih dahulu (jika ada)
+        Annotation[] memory annotations = parse_annotations();
+        
+        TokenType token_type = peek().token_type;
+        
+        // Dispatch ke parser spesifik berdasarkan token type
+        if (token_type == TokenType.Import) {
+            return Item({
+                item_type: ItemType.Import,
+                import_item: parse_import()
+            });
+        } else if (token_type == TokenType.Blockchain) {
+            return Item({
+                item_type: ItemType.Blockchain,
+                blockchain_item: parse_blockchain(annotations)
+            });
+        } else if (token_type == TokenType.Struct) {
+            return Item({
+                item_type: ItemType.Struct,
+                struct_item: parse_struct(annotations)
+            });
+        } else if (token_type == TokenType.Enum) {
+            return Item({
+                item_type: ItemType.Enum,
+                enum_item: parse_enum(annotations)
+            });
+        } else if (token_type == TokenType.Function) {
+            return Item({
+                item_type: ItemType.Function,
+                function_item: parse_function(annotations)
+            });
+        } else if (token_type == TokenType.Constant) {
+            return Item({
+                item_type: ItemType.Constant,
+                constant_item: parse_constant(annotations)
+            });
+        } else {
+            revert("Unexpected token in item declaration");
+        }
+    }
+    
+    /// Parse annotations (@annotation_name atau @annotation_name(args))
+    /// @return Array annotation yang ditemukan
+    function parse_annotations() private returns (Annotation[] memory) {
+        Annotation[] memory annotations;
+        uint256 count = 0;
+        
+        // Parse semua annotation yang berurutan
+        while (check(TokenType.Annotation)) {
+            string memory name = advance().lexeme;
+            
+            AnnotationArg[] memory args;
+            uint256 arg_count = 0;
+            
+            // Parse argument annotation jika ada
+            if (match(TokenType.LeftParen)) {
+                if (!check(TokenType.RightParen)) {
+                    do {
+                        args[arg_count] = parse_annotation_arg();
+                        arg_count++;
+                    } while (match(TokenType.Comma));
+                }
+                consume(TokenType.RightParen, "Expected ')' after annotation arguments");
+            }
+            
+            annotations[count] = Annotation({
+                name: name,
+                args: args
+            });
+            count++;
+        }
+        
+        return annotations;
+    }
+    
+    /// Parse argument annotation (positional atau named)
+    /// @return AnnotationArg AST node
+    function parse_annotation_arg() private returns (AnnotationArg memory) {
+        // Check untuk named argument (name = value)
+        if (check(TokenType.Identifier) && peek_next().token_type == TokenType.Equal) {
+            string memory name = advance().lexeme;
+            consume(TokenType.Equal, "Expected '=' in named annotation argument");
+            Literal memory value = parse_literal();
+            
+            return AnnotationArg({
+                arg_type: AnnotationArgType.Named,
+                name: name,
+                value: value
+            });
+        } else {
+            // Positional argument
+            Literal memory value = parse_literal();
+            return AnnotationArg({
+                arg_type: AnnotationArgType.Positional,
+                value: value
+            });
+        }
+    }
+    
+    /// Parse import statement (import "path" as alias;)
+    /// @return Import AST node
+    function parse_import() private returns (Import memory) {
+        consume(TokenType.Import, "Expected 'import'");
+        
+        string memory path = consume(TokenType.StringLiteral, "Expected import path").lexeme;
+        
+        // Parse optional alias
+        string memory alias = "";
+        if (match(TokenType.As)) {
+            alias = consume(TokenType.Identifier, "Expected alias name").lexeme;
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after import");
+        
+        return Import({
+            path: path,
+            alias: alias
+        });
+    }
+    
+    /// Parse blockchain definition dengan semua komponennya
+    /// @param annotations Annotations yang sudah diparsing sebelumnya
+    /// @return Blockchain AST node
+    function parse_blockchain(Annotation[] memory annotations) private returns (Blockchain memory) {
+        consume(TokenType.Blockchain, "Expected 'blockchain'");
+        string memory name = consume(TokenType.Identifier, "Expected blockchain name").lexeme;
+        
+        consume(TokenType.LeftBrace, "Expected '{' after blockchain name");
+        
+        // Initialize komponen blockchain
+        StateBlock memory state_block;
+        bool has_state = false;
+        Event[] memory events;
+        uint256 event_count = 0;
+        Function[] memory functions;
+        uint256 function_count = 0;
+        Modifier[] memory modifiers;
+        uint256 modifier_count = 0;
+        
+        // Parse semua item dalam blockchain body
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            Annotation[] memory item_annotations = parse_annotations();
+            
+            if (match(TokenType.State)) {
+                if (has_state) {
+                    revert("Duplicate state block in blockchain");
+                }
+                state_block = parse_state_block();
+                has_state = true;
+            } else if (match(TokenType.Event)) {
+                events[event_count] = parse_event(item_annotations);
+                event_count++;
+            } else if (match(TokenType.Function) || match(TokenType.Constructor)) {
+                functions[function_count] = parse_function(item_annotations);
+                function_count++;
+            } else if (match(TokenType.Modifier)) {
+                modifiers[modifier_count] = parse_modifier(item_annotations);
+                modifier_count++;
+            } else {
+                revert("Unexpected token in blockchain body");
+            }
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after blockchain body");
+        
+        return Blockchain({
+            annotations: annotations,
+            name: name,
+            state_block: state_block,
+            has_state_block: has_state,
+            events: events,
+            functions: functions,
+            modifiers: modifiers
+        });
+    }
+    
+    /// Parse state block yang berisi deklarasi state variables
+    /// @return StateBlock AST node
+    function parse_state_block() private returns (StateBlock memory) {
+        consume(TokenType.LeftBrace, "Expected '{' after 'state'");
+        
+        StateVariable[] memory variables;
+        uint256 var_count = 0;
+        
+        // Parse semua state variable dalam block
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            variables[var_count] = parse_state_variable();
+            var_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after state block");
+        
+        return StateBlock({
+            variables: variables
+        });
+    }
+    
+    /// Parse deklarasi state variable dengan tipe, nama, visibility, dan nilai awal
+    /// @return StateVariable AST node
+    function parse_state_variable() private returns (StateVariable memory) {
+        Type memory var_type = parse_type();
+        string memory name = consume(TokenType.Identifier, "Expected variable name").lexeme;
+        
+        // Default visibility adalah private untuk state variables
+        Visibility visibility = Visibility.Private;
+        if (check_visibility()) {
+            visibility = parse_visibility();
+        }
+        
+        // Parse nilai awal jika ada
+        Expression memory initial_value;
+        bool has_initial = false;
+        if (match(TokenType.Equal)) {
+            initial_value = parse_expression();
+            has_initial = true;
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after state variable");
+        
+        return StateVariable({
+            var_type: var_type,
+            name: name,
+            visibility: visibility,
+            initial_value: initial_value,
+            has_initial_value: has_initial
+        });
+    }
+    
+    /// Parse deklarasi event dengan parameter dan annotations
+    /// @param annotations Annotations yang sudah diparsing sebelumnya
+    /// @return Event AST node
+    function parse_event(Annotation[] memory annotations) private returns (Event memory) {
+        string memory name = consume(TokenType.Identifier, "Expected event name").lexeme;
+        
+        consume(TokenType.LeftParen, "Expected '(' after event name");
+        
+        EventParameter[] memory parameters;
+        uint256 param_count = 0;
+        
+        // Parse parameter event jika ada
+        if (!check(TokenType.RightParen)) {
+            do {
+                parameters[param_count] = parse_event_parameter();
+                param_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after event parameters");
+        consume(TokenType.Semicolon, "Expected ';' after event");
+        
+        return Event({
+            annotations: annotations,
+            name: name,
+            parameters: parameters
+        });
+    }
+    
+    /// Parse parameter event dengan tipe, nama, dan flag indexed
+    /// @return EventParameter AST node
+    function parse_event_parameter() private returns (EventParameter memory) {
+        Type memory param_type = parse_type();
+        
+        // Check untuk keyword 'indexed'
+        bool indexed = false;
+        if (match(TokenType.Indexed)) {
+            indexed = true;
+        }
+        
+        string memory name = consume(TokenType.Identifier, "Expected parameter name").lexeme;
+        
+        return EventParameter({
+            param_type: param_type,
+            name: name,
+            indexed: indexed
+        });
+    }
+    
+    /// Parse definisi function atau constructor dengan semua komponennya
+    /// @param annotations Annotations yang sudah diparsing sebelumnya
+    /// @return Function AST node
+    function parse_function(Annotation[] memory annotations) private returns (Function memory) {
+        bool is_constructor = previous().token_type == TokenType.Constructor;
+        
+        string memory name;
+        if (is_constructor) {
+            name = "constructor";
+        } else {
+            name = consume(TokenType.Identifier, "Expected function name").lexeme;
+        }
+        
+        consume(TokenType.LeftParen, "Expected '(' after function name");
+        
+        // Parse parameter list
+        Parameter[] memory parameters;
+        uint256 param_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                parameters[param_count] = parse_parameter();
+                param_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after parameters");
+        
+        // Parse function modifiers (visibility, mutability, custom modifiers, return type)
+        Visibility visibility = Visibility.Internal; // default
+        Mutability mutability = Mutability.Mutable; // default
+        string[] memory modifiers;
+        uint256 modifier_count = 0;
+        Type memory return_type;
+        bool has_return_type = false;
+        
+        // Loop untuk parse semua modifier yang mungkin ada
+        while (check_visibility() || check_mutability() || check_modifier() || 
+               check(TokenType.Returns)) {
+            
+            if (check_visibility()) {
+                visibility = parse_visibility();
+            } else if (check_mutability()) {
+                mutability = parse_mutability();
+            } else if (check(TokenType.Returns)) {
+                advance(); // consume 'returns'
+                consume(TokenType.LeftParen, "Expected '(' after 'returns'");
+                return_type = parse_type();
+                has_return_type = true;
+                consume(TokenType.RightParen, "Expected ')' after return type");
+            } else if (check_modifier()) {
+                modifiers[modifier_count] = advance().lexeme;
+                modifier_count++;
+            }
+        }
+        
+        Block memory body = parse_block();
+        
+        return Function({
+            annotations: annotations,
+            name: name,
+            parameters: parameters,
+            return_type: return_type,
+            has_return_type: has_return_type,
+            visibility: visibility,
+            mutability: mutability,
+            modifiers: modifiers,
+            body: body,
+            is_constructor: is_constructor
+        });
+    }
+    
+    /// Parse parameter function dengan tipe dan nama
+    /// @return Parameter AST node dengan tipe dan nama parameter
+    function parse_parameter() private returns (Parameter memory) {
+        Type memory param_type = parse_type();
+        string memory name = consume(TokenType.Identifier, "Expected parameter name").lexeme;
+        
+        return Parameter({
+            param_type: param_type,
+            name: name
+        });
+    }
+    
+    /// Parse tipe data OMEGA (primitif, custom, array, mapping)
+    /// Mendukung semua tipe data yang tersedia dalam bahasa OMEGA
+    /// @return Type AST node yang merepresentasikan tipe data
+    function parse_type() private returns (Type memory) {
+        TokenType token_type = peek().token_type;
+        
+        // Parse tipe boolean
+        if (token_type == TokenType.Bool) {
+            advance();
+            return Type({
+                type_kind: TypeKind.Bool
+            });
+        // Parse tipe string
+        } else if (token_type == TokenType.String) {
+            advance();
+            return Type({
+                type_kind: TypeKind.String
+            });
+        // Parse tipe address (khusus blockchain)
+        } else if (token_type == TokenType.Address) {
+            advance();
+            return Type({
+                type_kind: TypeKind.Address
+            });
+        // Parse tipe unsigned integer dengan ukuran opsional
+        } else if (token_type == TokenType.Uint) {
+            advance();
+            uint16 size = 256; // default uint256
+            if (check(TokenType.IntegerLiteral)) {
+                // Parse size seperti uint256, uint128, dll
+                size = uint16(parse_integer_literal());
+            }
+            return Type({
+                type_kind: TypeKind.Uint,
+                size: size
+            });
+        // Parse tipe signed integer dengan ukuran opsional
+        } else if (token_type == TokenType.Int) {
+            advance();
+            uint16 size = 256; // default int256
+            if (check(TokenType.IntegerLiteral)) {
+                size = uint16(parse_integer_literal());
+            }
+            return Type({
+                type_kind: TypeKind.Int,
+                size: size
+            });
+        // Parse tipe bytes (fixed atau dynamic)
+        } else if (token_type == TokenType.Bytes) {
+            advance();
+            if (check(TokenType.IntegerLiteral)) {
+                // Fixed bytes seperti bytes32, bytes4
+                uint8 size = uint8(parse_integer_literal());
+                return Type({
+                    type_kind: TypeKind.FixedBytes,
+                    bytes_size: size
+                });
+            } else {
+                // Dynamic bytes
+                return Type({
+                    type_kind: TypeKind.DynamicBytes
+                });
+            }
+        // Parse tipe mapping (key => value)
+        } else if (token_type == TokenType.Mapping) {
+            advance();
+            consume(TokenType.LeftParen, "Expected '(' after 'mapping'");
+            Type memory key_type = parse_type();
+            consume(TokenType.FatArrow, "Expected '=>' in mapping");
+            Type memory value_type = parse_type();
+            consume(TokenType.RightParen, "Expected ')' after mapping types");
+            
+            return Type({
+                type_kind: TypeKind.Mapping,
+                key_type: key_type,
+                value_type: value_type
+            });
+        // Parse tipe custom (struct, enum, atau identifier lain)
+        } else if (token_type == TokenType.Identifier) {
+            string memory name = advance().lexeme;
+            
+            // Check untuk sintaks array
+            if (match(TokenType.LeftBracket)) {
+                if (check(TokenType.RightBracket)) {
+                    // Dynamic array: Type[]
+                    advance();
+                    return Type({
+                        type_kind: TypeKind.Array,
+                        element_type: Type({
+                            type_kind: TypeKind.Custom,
+                            name: name
+                        }),
+                        size: 0,
+                        is_dynamic: true
+                    });
+                } else {
+                    // Fixed array: Type[size]
+                    uint256 size = parse_integer_literal();
+                    consume(TokenType.RightBracket, "Expected ']' after array size");
+                    return Type({
+                        type_kind: TypeKind.Array,
+                        element_type: Type({
+                            type_kind: TypeKind.Custom,
+                            name: name
+                        }),
+                        size: size,
+                        is_dynamic: false
+                    });
+                }
+            } else {
+                // Tipe custom biasa
+                return Type({
+                    type_kind: TypeKind.Custom,
+                    name: name
+                });
+            }
+        } else {
+            revert("Expected type");
+        }
+    }
+    
+    /// Parse blok statement yang dibatasi oleh kurung kurawal
+    /// @return Block AST node yang berisi array statement
+    function parse_block() private returns (Block memory) {
+        consume(TokenType.LeftBrace, "Expected '{'");
+        
+        Statement[] memory statements;
+        uint256 stmt_count = 0;
+        
+        // Parse semua statement dalam blok
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            statements[stmt_count] = parse_statement();
+            stmt_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}'");
+        
+        return Block({
+            statements: statements
+        });
+    }
+    
+    /// Parse statement individual (if, while, for, return, dll)
+    /// Menentukan jenis statement berdasarkan token pertama
+    /// @return Statement AST node sesuai dengan jenis statement
+    function parse_statement() private returns (Statement memory) {
+        TokenType token_type = peek().token_type;
+        
+        // Parse conditional statement
+        if (token_type == TokenType.If) {
+            return parse_if_statement();
+        // Parse loop statements
+        } else if (token_type == TokenType.While) {
+            return parse_while_statement();
+        } else if (token_type == TokenType.For) {
+            return parse_for_statement();
+        // Parse control flow statements
+        } else if (token_type == TokenType.Return) {
+            return parse_return_statement();
+        } else if (token_type == TokenType.Break) {
+            advance();
+            consume(TokenType.Semicolon, "Expected ';' after 'break'");
+            return Statement({
+                stmt_type: StatementType.Break
+            });
+        } else if (token_type == TokenType.Continue) {
+            advance();
+            consume(TokenType.Semicolon, "Expected ';' after 'continue'");
+            return Statement({
+                stmt_type: StatementType.Continue
+            });
+        // Parse blockchain-specific statements
+        } else if (token_type == TokenType.Emit) {
+            return parse_emit_statement();
+        } else if (token_type == TokenType.Require) {
+            return parse_require_statement();
+        } else if (token_type == TokenType.Assert) {
+            return parse_assert_statement();
+        } else if (token_type == TokenType.Revert) {
+            return parse_revert_statement();
+        // Parse nested block
+        } else if (token_type == TokenType.LeftBrace) {
+            return Statement({
+                stmt_type: StatementType.Block,
+                block: parse_block()
+            });
+        // Parse variable declaration
+        } else if (is_type_start()) {
+            return parse_variable_declaration();
+        } else {
+            // Expression statement (assignment, function call, dll)
+            Expression memory expr = parse_expression();
+            consume(TokenType.Semicolon, "Expected ';' after expression");
+            return Statement({
+                stmt_type: StatementType.Expression,
+                expression: expr
+            });
+        }
+    }
+    
+    /// Parse if statement dengan kondisi dan optional else branch
+    /// @return Statement AST node untuk conditional logic
+    function parse_if_statement() private returns (Statement memory) {
+        consume(TokenType.If, "Expected 'if'");
+        consume(TokenType.LeftParen, "Expected '(' after 'if'");
+        Expression memory condition = parse_expression();
+        consume(TokenType.RightParen, "Expected ')' after if condition");
+        
+        Statement memory then_branch = parse_statement();
+        
+        // Parse optional else branch
+        Statement memory else_branch;
+        bool has_else = false;
+        if (match(TokenType.Else)) {
+            else_branch = parse_statement();
+            has_else = true;
+        }
+        
+        return Statement({
+            stmt_type: StatementType.If,
+
+            condition: condition,
+            then_branch: then_branch,
+            else_branch: else_branch,
+            has_else_branch: has_else
+        });
+    }
+    
+    function parse_while_statement() private returns (Statement memory) {
+        consume(TokenType.While, "Expected 'while'");
+        consume(TokenType.LeftParen, "Expected '(' after 'while'");
+        Expression memory condition = parse_expression();
+        consume(TokenType.RightParen, "Expected ')' after while condition");
+        
+        Statement memory body = parse_statement();
+        
+        return Statement({
+            stmt_type: StatementType.While,
+            condition: condition,
+            body: body
+        });
+    }
+    
+    function parse_for_statement() private returns (Statement memory) {
+        consume(TokenType.For, "Expected 'for'");
+        consume(TokenType.LeftParen, "Expected '(' after 'for'");
+        
+        Statement memory init;
+        bool has_init = false;
+        if (!check(TokenType.Semicolon)) {
+            init = parse_statement();
+            has_init = true;
+        } else {
+            consume(TokenType.Semicolon, "Expected ';'");
+        }
+        
+        Expression memory condition;
+        bool has_condition = false;
+        if (!check(TokenType.Semicolon)) {
+            condition = parse_expression();
+            has_condition = true;
+        }
+        consume(TokenType.Semicolon, "Expected ';' after for condition");
+        
+        Expression memory update;
+        bool has_update = false;
+        if (!check(TokenType.RightParen)) {
+            update = parse_expression();
+            has_update = true;
+        }
+        consume(TokenType.RightParen, "Expected ')' after for clauses");
+        
+        Statement memory body = parse_statement();
+        
+        return Statement({
+            stmt_type: StatementType.For,
+            init: init,
+            has_init: has_init,
+            condition: condition,
+            has_condition: has_condition,
+            update: update,
+            has_update: has_update,
+            body: body
+        });
+    }
+    
+    function parse_return_statement() private returns (Statement memory) {
+        consume(TokenType.Return, "Expected 'return'");
+        
+        Expression memory value;
+        bool has_value = false;
+        if (!check(TokenType.Semicolon)) {
+            value = parse_expression();
+            has_value = true;
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after return");
+        
+        return Statement({
+            stmt_type: StatementType.Return,
+            return_value: value,
+            has_return_value: has_value
+        });
+    }
+    
+    function parse_emit_statement() private returns (Statement memory) {
+        consume(TokenType.Emit, "Expected 'emit'");
+        string memory event_name = consume(TokenType.Identifier, "Expected event name").lexeme;
+        
+        consume(TokenType.LeftParen, "Expected '(' after event name");
+        
+        Expression[] memory arguments;
+        uint256 arg_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                arguments[arg_count] = parse_expression();
+                arg_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after event arguments");
+        consume(TokenType.Semicolon, "Expected ';' after emit");
+        
+        return Statement({
+            stmt_type: StatementType.Emit,
+            event_name: event_name,
+            arguments: arguments
+        });
+    }
+    
+    function parse_require_statement() private returns (Statement memory) {
+        consume(TokenType.Require, "Expected 'require'");
+        consume(TokenType.LeftParen, "Expected '(' after 'require'");
+        
+        Expression memory condition = parse_expression();
+        
+        Expression memory message;
+        bool has_message = false;
+        if (match(TokenType.Comma)) {
+            message = parse_expression();
+            has_message = true;
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after require");
+        consume(TokenType.Semicolon, "Expected ';' after require");
+        
+        return Statement({
+            stmt_type: StatementType.Require,
+            condition: condition,
+            message: message,
+            has_message: has_message
+        });
+    }
+    
+    function parse_assert_statement() private returns (Statement memory) {
+        consume(TokenType.Assert, "Expected 'assert'");
+        consume(TokenType.LeftParen, "Expected '(' after 'assert'");
+        
+        Expression memory condition = parse_expression();
+        
+        Expression memory message;
+        bool has_message = false;
+        if (match(TokenType.Comma)) {
+            message = parse_expression();
+            has_message = true;
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after assert");
+        consume(TokenType.Semicolon, "Expected ';' after assert");
+        
+        return Statement({
+            stmt_type: StatementType.Assert,
+            condition: condition,
+            message: message,
+            has_message: has_message
+        });
+    }
+    
+    function parse_revert_statement() private returns (Statement memory) {
+        consume(TokenType.Revert, "Expected 'revert'");
+        
+        Expression memory message;
+        bool has_message = false;
+        if (match(TokenType.LeftParen)) {
+            if (!check(TokenType.RightParen)) {
+                message = parse_expression();
+                has_message = true;
+            }
+            consume(TokenType.RightParen, "Expected ')' after revert");
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after revert");
+        
+        return Statement({
+            stmt_type: StatementType.Revert,
+            message: message,
+            has_message: has_message
+        });
+    }
+    
+    function parse_variable_declaration() private returns (Statement memory) {
+        Type memory var_type = parse_type();
+        string memory name = consume(TokenType.Identifier, "Expected variable name").lexeme;
+        
+        Expression memory initializer;
+        bool has_initializer = false;
+        if (match(TokenType.Equal)) {
+            initializer = parse_expression();
+            has_initializer = true;
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after variable declaration");
+        
+        return Statement({
+            stmt_type: StatementType.VariableDeclaration,
+            var_type: var_type,
+            var_name: name,
+            initializer: initializer,
+            has_initializer: has_initializer
+        });
+    }
+    
+    function parse_expression() private returns (Expression memory) {
+        return parse_assignment();
+    }
+    
+    function parse_assignment() private returns (Expression memory) {
+        Expression memory expr = parse_logical_or();
+        
+        if (match_assignment_operator()) {
+            TokenType operator = previous().token_type;
+            Expression memory value = parse_assignment();
+            
+            return Expression({
+                expr_type: ExpressionType.Assignment,
+                left: expr,
+                right: value,
+                operator: operator
+            });
+        }
+        
+        return expr;
+    }
+    
+    function parse_logical_or() private returns (Expression memory) {
+        Expression memory expr = parse_logical_and();
+        
+        while (match(TokenType.PipePipe)) {
+            TokenType operator = previous().token_type;
+            Expression memory right = parse_logical_and();
+            
+            expr = Expression({
+                expr_type: ExpressionType.Binary,
+                left: expr,
+                right: right,
+                operator: operator
+            });
+        }
+        
+        return expr;
+    }
+    
+    function parse_logical_and() private returns (Expression memory) {
+        Expression memory expr = parse_equality();
+        
+        while (match(TokenType.AmpersandAmpersand)) {
+            TokenType operator = previous().token_type;
+            Expression memory right = parse_equality();
+            
+            expr = Expression({
+                expr_type: ExpressionType.Binary,
+                left: expr,
+                right: right,
+                operator: operator
+            });
+        }
+        
+        return expr;
+    }
+    
+    function parse_equality() private returns (Expression memory) {
+        Expression memory expr = parse_comparison();
+        
+        while (match(TokenType.EqualEqual) || match(TokenType.BangEqual)) {
+            TokenType operator = previous().token_type;
+            Expression memory right = parse_comparison();
+            
+            expr = Expression({
+                expr_type: ExpressionType.Binary,
+                left: expr,
+                right: right,
+                operator: operator
+            });
+        }
+        
+        return expr;
+    }
+    
+    function parse_comparison() private returns (Expression memory) {
+        Expression memory expr = parse_term();
+        
+        while (match(TokenType.Greater) || match(TokenType.GreaterEqual) ||
+               match(TokenType.Less) || match(TokenType.LessEqual)) {
+            TokenType operator = previous().token_type;
+            Expression memory right = parse_term();
+            
+            expr = Expression({
+                expr_type: ExpressionType.Binary,
+                left: expr,
+                right: right,
+                operator: operator
+            });
+        }
+        
+        return expr;
+    }
+    
+    function parse_term() private returns (Expression memory) {
+        Expression memory expr = parse_factor();
+        
+        while (match(TokenType.Minus) || match(TokenType.Plus)) {
+            TokenType operator = previous().token_type;
+            Expression memory right = parse_factor();
+            
+            expr = Expression({
+                expr_type: ExpressionType.Binary,
+                left: expr,
+                right: right,
+                operator: operator
+            });
+        }
+        
+        return expr;
+    }
+    
+    function parse_factor() private returns (Expression memory) {
+        Expression memory expr = parse_unary();
+        
+        while (match(TokenType.Slash) || match(TokenType.Star) || match(TokenType.Percent)) {
+            TokenType operator = previous().token_type;
+            Expression memory right = parse_unary();
+            
+            expr = Expression({
+                expr_type: ExpressionType.Binary,
+                left: expr,
+                right: right,
+                operator: operator
+            });
+        }
+        
+        return expr;
+    }
+    
+    function parse_unary() private returns (Expression memory) {
+        if (match(TokenType.Bang) || match(TokenType.Minus) || match(TokenType.Tilde)) {
+            TokenType operator = previous().token_type;
+            Expression memory right = parse_unary();
+            
+            return Expression({
+                expr_type: ExpressionType.Unary,
+                operand: right,
+                operator: operator
+            });
+        }
+        
+        return parse_call();
+    }
+    
+    function parse_call() private returns (Expression memory) {
+        Expression memory expr = parse_primary();
+        
+        while (true) {
+            if (match(TokenType.LeftParen)) {
+                expr = finish_call(expr);
+            } else if (match(TokenType.Dot)) {
+                string memory name = consume(TokenType.Identifier, "Expected property name after '.'").lexeme;
+                expr = Expression({
+                    expr_type: ExpressionType.MemberAccess,
+                    object: expr,
+                    member: name
+                });
+            } else if (match(TokenType.LeftBracket)) {
+                Expression memory index = parse_expression();
+                consume(TokenType.RightBracket, "Expected ']' after array index");
+                expr = Expression({
+                    expr_type: ExpressionType.IndexAccess,
+                    object: expr,
+                    index: index
+                });
+            } else {
+                break;
+            }
+        }
+        
+        return expr;
+    }
+    
+    function finish_call(Expression memory callee) private returns (Expression memory) {
+        Expression[] memory arguments;
+        uint256 arg_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                arguments[arg_count] = parse_expression();
+                arg_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after arguments");
+        
+        return Expression({
+            expr_type: ExpressionType.FunctionCall,
+            function: callee,
+            arguments: arguments
+        });
+    }
+    
+    function parse_primary() private returns (Expression memory) {
+        if (match(TokenType.True)) {
+            return Expression({
+                expr_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Bool,
+                    bool_value: true
+                })
+            });
+        }
+        
+        if (match(TokenType.False)) {
+            return Expression({
+                expr_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Bool,
+                    bool_value: false
+                })
+            });
+        }
+        
+        if (match(TokenType.Null)) {
+            return Expression({
+                expr_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Null
+                })
+            });
+        }
+        
+        if (match(TokenType.IntegerLiteral)) {
+            return Expression({
+                expr_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Integer,
+                    integer_value: parse_integer_from_string(previous().lexeme)
+                })
+            });
+        }
+        
+        if (match(TokenType.StringLiteral)) {
+            return Expression({
+                expr_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.String,
+                    string_value: previous().lexeme
+                })
+            });
+        }
+        
+        if (match(TokenType.Identifier)) {
+            return Expression({
+                expr_type: ExpressionType.Identifier,
+                name: previous().lexeme
+            });
+        }
+        
+        if (match(TokenType.LeftParen)) {
+            Expression memory expr = parse_expression();
+            consume(TokenType.RightParen, "Expected ')' after expression");
+            return expr;
+        }
+        
+        revert("Expected expression");
+    }
+    
+    function parse_literal() private returns (Literal memory) {
+        if (match(TokenType.True)) {
+            return Literal({
+                literal_type: LiteralType.Bool,
+                bool_value: true
+            });
+        }
+        
+        if (match(TokenType.False)) {
+            return Literal({
+                literal_type: LiteralType.Bool,
+                bool_value: false
+            });
+        }
+        
+        if (match(TokenType.IntegerLiteral)) {
+            return Literal({
+                literal_type: LiteralType.Integer,
+                integer_value: parse_integer_from_string(previous().lexeme)
+            });
+        }
+        
+        if (match(TokenType.StringLiteral)) {
+            return Literal({
+                literal_type: LiteralType.String,
+                string_value: previous().lexeme
+            });
+        }
+        
+        revert("Expected literal");
+    }
+    
+    // Helper functions
+    function match(TokenType token_type) private returns (bool) {
+        if (check(token_type)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+    
+    function match_assignment_operator() private returns (bool) {
+        return match(TokenType.Equal) || match(TokenType.PlusEqual) ||
+               match(TokenType.MinusEqual) || match(TokenType.StarEqual) ||
+               match(TokenType.SlashEqual) || match(TokenType.PercentEqual);
+    }
+    
+    function check(TokenType token_type) private view returns (bool) {
+        if (is_at_end()) return false;
+        return peek().token_type == token_type;
+    }
+    
+    function advance() private returns (Token memory) {
+        if (!is_at_end()) current++;
+        return previous();
+    }
+    
+    function is_at_end() private view returns (bool) {
+        return peek().token_type == TokenType.EOF;
+    }
+    
+    function peek() private view returns (Token memory) {
+        return tokens[current];
+    }
+    
+    function peek_next() private view returns (Token memory) {
+        if (current + 1 >= tokens.length) {
+            return Token({
+                token_type: TokenType.EOF,
+                lexeme: "",
+                line: 0,
+                column: 0,
+                position: 0
+            });
+        }
+        return tokens[current + 1];
+    }
+    
+    function previous() private view returns (Token memory) {
+        return tokens[current - 1];
+    }
+    
+    function consume(TokenType token_type, string memory message) private returns (Token memory) {
+        if (check(token_type)) return advance();
+        
+        revert(message);
+    }
+    
+    function synchronize() private {
+        advance();
+        
+        while (!is_at_end()) {
+            if (previous().token_type == TokenType.Semicolon) return;
+            
+            TokenType token_type = peek().token_type;
+            if (token_type == TokenType.Blockchain ||
+                token_type == TokenType.Function ||
+                token_type == TokenType.Struct ||
+                token_type == TokenType.Enum ||
+                token_type == TokenType.If ||
+                token_type == TokenType.While ||
+                token_type == TokenType.For ||
+                token_type == TokenType.Return) {
+                return;
+            }
+            
+            advance();
+        }
+    }
+    
+    function check_visibility() private view returns (bool) {
+        TokenType token_type = peek().token_type;
+        return token_type == TokenType.Public ||
+               token_type == TokenType.Private ||
+               token_type == TokenType.Internal ||
+               token_type == TokenType.External;
+    }
+    
+    function parse_visibility() private returns (Visibility) {
+        if (match(TokenType.Public)) return Visibility.Public;
+        if (match(TokenType.Private)) return Visibility.Private;
+        if (match(TokenType.Internal)) return Visibility.Internal;
+        if (match(TokenType.External)) return Visibility.External;
+        
+        revert("Expected visibility modifier");
+    }
+    
+    function check_mutability() private view returns (bool) {
+        TokenType token_type = peek().token_type;
+        return token_type == TokenType.View ||
+               token_type == TokenType.Pure ||
+               token_type == TokenType.Payable;
+    }
+    
+    function parse_mutability() private returns (Mutability) {
+        if (match(TokenType.View)) return Mutability.View;
+        if (match(TokenType.Pure)) return Mutability.Pure;
+        if (match(TokenType.Payable)) return Mutability.Payable;
+        
+        return Mutability.Mutable; // default
+    }
+    
+    function check_modifier() private view returns (bool) {
+        return check(TokenType.Identifier);
+    }
+    
+    function is_type_start() private view returns (bool) {
+        TokenType token_type = peek().token_type;
+        return token_type == TokenType.Bool ||
+               token_type == TokenType.String ||
+               token_type == TokenType.Address ||
+               token_type == TokenType.Uint ||
+               token_type == TokenType.Int ||
+               token_type == TokenType.Bytes ||
+               token_type == TokenType.Mapping ||
+               token_type == TokenType.Identifier;
+    }
+    
+    function parse_integer_literal() private returns (uint256) {
+        Token memory token = consume(TokenType.IntegerLiteral, "Expected integer literal");
+        return parse_integer_from_string(token.lexeme);
+    }
+    
+    function parse_integer_from_string(string memory str) private pure returns (uint256) {
+        bytes memory b = bytes(str);
+        uint256 result = 0;
+        
+        for (uint256 i = 0; i < b.length; i++) {
+            uint256 digit = uint256(uint8(b[i])) - 48; // ASCII '0' = 48
+            result = result * 10 + digit;
+        }
+        
+        return result;
+    }
+    
+    function parse_struct(Annotation[] memory annotations) private returns (Struct memory) {
+        consume(TokenType.Struct, "Expected 'struct'");
+        string memory name = consume(TokenType.Identifier, "Expected struct name").lexeme;
+        
+        consume(TokenType.LeftBrace, "Expected '{' after struct name");
+        
+        StructField[] memory fields;
+        uint256 field_count = 0;
+        
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            Type memory field_type = parse_type();
+            string memory field_name = consume(TokenType.Identifier, "Expected field name").lexeme;
+            
+            Visibility visibility = Visibility.Public; // default for struct fields
+            if (check_visibility()) {
+                visibility = parse_visibility();
+            }
+            
+            consume(TokenType.Semicolon, "Expected ';' after struct field");
+            
+            fields[field_count] = StructField({
+                field_type: field_type,
+                name: field_name,
+                visibility: visibility
+            });
+            field_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after struct body");
+        
+        return Struct({
+            annotations: annotations,
+            name: name,
+            fields: fields
+        });
+    }
+    
+    function parse_enum(Annotation[] memory annotations) private returns (Enum memory) {
+        consume(TokenType.Enum, "Expected 'enum'");
+        string memory name = consume(TokenType.Identifier, "Expected enum name").lexeme;
+        
+        consume(TokenType.LeftBrace, "Expected '{' after enum name");
+        
+        EnumVariant[] memory variants;
+        uint256 variant_count = 0;
+        
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            string memory variant_name = consume(TokenType.Identifier, "Expected variant name").lexeme;
+            
+            Type[] memory fields;
+            bool has_fields = false;
+            if (match(TokenType.LeftParen)) {
+                uint256 field_count = 0;
+                if (!check(TokenType.RightParen)) {
+                    do {
+                        fields[field_count] = parse_type();
+                        field_count++;
+                    } while (match(TokenType.Comma));
+                }
+                consume(TokenType.RightParen, "Expected ')' after variant fields");
+                has_fields = true;
+            }
+            
+            if (!check(TokenType.RightBrace)) {
+                consume(TokenType.Comma, "Expected ',' after enum variant");
+            }
+            
+            variants[variant_count] = EnumVariant({
+                name: variant_name,
+                fields: fields,
+                has_fields: has_fields
+            });
+            variant_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after enum body");
+        
+        return Enum({
+            annotations: annotations,
+            name: name,
+            variants: variants
+        });
+    }
+    
+    function parse_constant(Annotation[] memory annotations) private returns (Constant memory) {
+        consume(TokenType.Constant, "Expected 'constant'");
+        Type memory const_type = parse_type();
+        string memory name = consume(TokenType.Identifier, "Expected constant name").lexeme;
+        consume(TokenType.Equal, "Expected '=' after constant name");
+        Expression memory value = parse_expression();
+        consume(TokenType.Semicolon, "Expected ';' after constant");
+        
+        return Constant({
+            annotations: annotations,
+            name: name,
+            const_type: const_type,
+            value: value
+        });
+    }
+    
+    function parse_modifier(Annotation[] memory annotations) private returns (Modifier memory) {
+        string memory name = consume(TokenType.Identifier, "Expected modifier name").lexeme;
+        
+        consume(TokenType.LeftParen, "Expected '(' after modifier name");
+        
+        Parameter[] memory parameters;
+        uint256 param_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                parameters[param_count] = parse_parameter();
+                param_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after modifier parameters");
+        
+        Block memory body = parse_block();
+        
+        return Modifier({
+            annotations: annotations,
+            name: name,
+            parameters: parameters,
+            body: body
+        });
+    }
+}
+
+// AST Node Structures
+struct Program {
+    Item[] items;
+}
+
+struct Item {
+    ItemType item_type;
+    Import import_item;
+    Blockchain blockchain_item;
+    Struct struct_item;
+    Enum enum_item;
+    Function function_item;
+    Constant constant_item;
+}
+
+enum ItemType {
+    Import,
+    Blockchain,
+    Struct,
+    Enum,
+    Function,
+    Constant
+}
+
+struct Import {
+    string path;
+    string alias;
+}
+
+struct Blockchain {
+    Annotation[] annotations;
+    string name;
+    StateBlock state_block;
+    bool has_state_block;
+    Event[] events;
+    Function[] functions;
+    Modifier[] modifiers;
+}
+
+struct StateBlock {
+    StateVariable[] variables;
+}
+
+struct StateVariable {
+    Type var_type;
+    string name;
+    Visibility visibility;
+    Expression initial_value;
+    bool has_initial_value;
+}
+
+struct Event {
+    Annotation[] annotations;
+    string name;
+    EventParameter[] parameters;
+}
+
+struct EventParameter {
+    Type param_type;
+    string name;
+    bool indexed;
+}
+
+struct Function {
+    Annotation[] annotations;
+    string name;
+    Parameter[] parameters;
+    Type return_type;
+    bool has_return_type;
+    Visibility visibility;
+    Mutability mutability;
+    string[] modifiers;
+    Block body;
+    bool is_constructor;
+}
+
+struct Parameter {
+    Type param_type;
+    string name;
+}
+
+struct Modifier {
+    Annotation[] annotations;
+    string name;
+    Parameter[] parameters;
+    Block body;
+}
+
+struct Struct {
+    Annotation[] annotations;
+    string name;
+    StructField[] fields;
+}
+
+struct StructField {
+    Type field_type;
+    string name;
+    Visibility visibility;
+}
+
+struct Enum {
+    Annotation[] annotations;
+    string name;
+    EnumVariant[] variants;
+}
+
+struct EnumVariant {
+    string name;
+    Type[] fields;
+    bool has_fields;
+}
+
+struct Constant {
+    Annotation[] annotations;
+    string name;
+    Type const_type;
+    Expression value;
+}
+
+struct Annotation {
+    string name;
+    AnnotationArg[] args;
+}
+
+struct AnnotationArg {
+    AnnotationArgType arg_type;
+    string name;
+    Literal value;
+}
+
+enum AnnotationArgType {
+    Positional,
+    Named
+}
+
+struct Type {
+    TypeKind type_kind;
+    string name;
+    uint16 size;
+    uint8 bytes_size;
+    Type key_type;
+    Type value_type;
+    Type element_type;
+    uint256 size;
+    bool is_dynamic;
+}
+
+enum TypeKind {
+    Bool,
+    String,
+    Address,
+    Uint,
+    Int,
+    FixedBytes,
+    DynamicBytes,
+    Array,
+    Mapping,
+    Custom
+}
+
+enum Visibility {
+    Public,
+    Private,
+    Internal,
+    External
+}
+
+enum Mutability {
+    Mutable,
+    View,
+    Pure,
+    Payable
+}
+
+struct Block {
+    Statement[] statements;
+}
+
+struct Statement {
+    StatementType stmt_type;
+    Type var_type;
+    string var_name;
+    Expression initializer;
+    bool has_initializer;
+    Expression expression;
+    Expression condition;
+    Statement then_branch;
+    Statement else_branch;
+    bool has_else_branch;
+    Statement body;
+    Statement init;
+    bool has_init;
+    bool has_condition;
+    Expression update;
+    bool has_update;
+    Expression return_value;
+    bool has_return_value;
+    string event_name;
+    Expression[] arguments;
+    Expression message;
+    bool has_message;
+    Block block;
+}
+
+enum StatementType {
+    VariableDeclaration,
+    Expression,
+    If,
+    While,
+    For,
+    Return,
+    Break,
+    Continue,
+    Emit,
+    Require,
+    Assert,
+    Revert,
+    Block
+}
+
+struct Expression {
+    ExpressionType expr_type;
+    Literal literal;
+    string name;
+    Expression left;
+    Expression right;
+    TokenType operator;
+    Expression operand;
+    Expression function;
+    Expression[] arguments;
+    Expression object;
+    string member;
+    Expression index;
+}
+
+enum ExpressionType {
+    Literal,
+    Identifier,
+    Binary,
+    Unary,
+    Assignment,
+    FunctionCall,
+    MemberAccess,
+    IndexAccess
+}
+
+struct Literal {
+    LiteralType literal_type;
+    bool bool_value;
+    uint256 integer_value;
+    string string_value;
+    address address_value;
+    bytes bytes_value;
+}
+
+enum LiteralType {
+    Bool,
+    Integer,
+    String,
+    Address,
+    Bytes,
+    Null
+}
+
+/// Enhanced error handling functions for parser
+impl OmegaParser {
+    /// Set current file being parsed
+    function set_current_file(string file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Report parsing error with context
+    function report_parse_error(string message, Token error_token) private {
+        let location = SourceLocation {
+            file: current_file,
+            line: error_token.line,
+            column: error_token.column,
+            position: error_token.position
+        };
+        
+        let context = ErrorContext {
+            context_type: ContextType.Syntactic,
+            source_code: get_token_context(error_token),
+            additional_info: format("Expected: {}, Found: {}", message, error_token.token_type)
+        };
+        
+        let error = OmegaError {
+            error_type: ErrorType.SyntaxError,
+            severity: ErrorSeverity.Error,
+            code: ErrorCode.UnexpectedToken,
+            message: message,
+            location: location,
+            context: context,
+            suggestions: generate_parse_suggestions(message, error_token)
+        };
+        
+        error_handler.report_error(error);
+        panic_mode = 1; // Enter panic mode for error recovery
+    }
+    
+    /// Get token context for error reporting
+    function get_token_context(Token token) private view returns (string) {
+        // Return surrounding tokens for context
+        string context = "";
+        uint256 start = current > 2 ? current - 2 : 0;
+        uint256 end = current + 3 < tokens.length ? current + 3 : tokens.length;
+        
+        for (uint256 i = start; i < end; i++) {
+            if (i == current) {
+                context += " >>> " + tokens[i].lexeme + " <<< ";
+            } else {
+                context += tokens[i].lexeme + " ";
+            }
+        }
+        
+        return context;
+    }
+    
+    /// Generate suggestions for parsing errors
+    function generate_parse_suggestions(string error_message, Token error_token) private pure returns (string[]) {
+        string[] suggestions = [];
+        
+        if (error_message.contains("expected ';'")) {
+            suggestions.push("Add semicolon at end of statement");
+        } else if (error_message.contains("expected '}'")) {
+            suggestions.push("Add closing brace");
+            suggestions.push("Check for unmatched opening brace");
+        } else if (error_message.contains("expected identifier")) {
+            suggestions.push("Provide a valid identifier name");
+            suggestions.push("Check for reserved keywords");
+        } else if (error_message.contains("expected type")) {
+            suggestions.push("Specify a valid type (uint256, string, address, etc.)");
+        }
+        
+        return suggestions;
+    }
+    
+    /// Enhanced error recovery with panic mode
+    function synchronize() private {
+        panic_mode = 0;
+        advance(); // Skip the problematic token
+        
+        while (!is_at_end()) {
+            if (previous().token_type == TokenType.Semicolon) return;
+            
+            // Synchronize on statement boundaries
+            TokenType current_type = peek().token_type;
+            if (current_type == TokenType.Blockchain ||
+                current_type == TokenType.Function ||
+                current_type == TokenType.Struct ||
+                current_type == TokenType.Enum ||
+                current_type == TokenType.Import ||
+                current_type == TokenType.If ||
+                current_type == TokenType.While ||
+                current_type == TokenType.For ||
+                current_type == TokenType.Return) {
+                return;
+            }
+            
+            advance();
+        }
+    }
+    
+    /// Check if parser has encountered errors
+    function has_errors() public view returns (bool) {
+        return errors.length > 0 || error_handler.has_errors();
+    }
+    
+    /// Get all parsing errors
+    function get_parse_errors() public view returns (ParseError[]) {
+        return errors;
+    }
+    
+    /// Get error statistics
+    function get_error_stats() public view returns (ErrorStatistics) {
+        return error_handler.get_statistics();
+    }
+    
+    /// Clear all errors (for testing)
+    function clear_errors() public {
+        errors = [];
+        error_handler.clear_errors();
+        panic_mode = 0;
+    }
+}
+}
+
+struct ParseError {
+    string message;
+    uint256 line;
+    uint256 column;
+}

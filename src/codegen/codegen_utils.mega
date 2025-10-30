@@ -1,0 +1,457 @@
+// OMEGA Code Generation Utilities
+// Menyediakan fungsi-fungsi utilitas untuk code generation
+
+import "../ir/ir.mega";
+import "../error/error.mega";
+import "./base_generator.mega";
+
+/// Utilitas untuk code generation
+blockchain CodeGenUtils {
+    state {
+        mapping(string => string) string_cache;               // Cache untuk string yang sering digunakan
+        mapping(string => uint) indentation_levels;           // Level indentasi per konteks
+        string[] reserved_keywords;                           // Reserved keywords untuk berbagai bahasa
+        mapping(string => string[]) language_keywords;        // Keywords per bahasa
+    }
+    
+    constructor() {
+        initialize_reserved_keywords();
+        initialize_language_keywords();
+    }
+    
+    /// Initialize reserved keywords
+    function initialize_reserved_keywords() internal {
+        reserved_keywords = ["abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default", "do", "double", "else", "enum", "extends", "final", "finally", "float", "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while"];
+    }
+    
+    /// Initialize language-specific keywords
+    function initialize_language_keywords() internal {
+        // Solidity keywords
+        language_keywords["solidity"] = ["contract", "library", "interface", "function", "modifier", "event", "struct", "enum", "mapping", "address", "uint", "int", "bool", "string", "bytes", "memory", "storage", "calldata", "pure", "view", "payable", "external", "internal", "private", "public"];
+        
+        // Rust keywords
+        language_keywords["rust"] = ["fn", "let", "mut", "const", "static", "struct", "enum", "impl", "trait", "mod", "use", "pub", "crate", "self", "Self", "super", "where", "match", "if", "else", "loop", "while", "for", "in", "break", "continue", "return", "move", "ref", "async", "await"];
+        
+        // Go keywords
+        language_keywords["go"] = ["break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", "map", "package", "range", "return", "select", "struct", "switch", "type", "var"];
+        
+        // Move keywords
+        language_keywords["move"] = ["module", "script", "use", "fun", "struct", "resource", "acquires", "let", "mut", "move", "copy", "public", "native", "friend", "entry", "inline", "spec", "pragma", "include", "define", "global", "local", "ensures", "requires", "aborts_if", "modifies"];
+    }
+    
+    /// Convert string to camelCase
+    function to_camel_case(string memory input) public pure returns (string memory) {
+        bytes memory inputBytes = bytes(input);
+        if (inputBytes.length == 0) return "";
+        
+        bytes memory result = new bytes(inputBytes.length);
+        uint resultIndex = 0;
+        bool capitalizeNext = false;
+        
+        for (uint i = 0; i < inputBytes.length; i++) {
+            if (inputBytes[i] == '_' || inputBytes[i] == '-' || inputBytes[i] == ' ') {
+                capitalizeNext = true;
+            } else {
+                if (capitalizeNext && inputBytes[i] >= 'a' && inputBytes[i] <= 'z') {
+                    result[resultIndex] = bytes1(uint8(inputBytes[i]) - 32);
+                    capitalizeNext = false;
+                } else if (i == 0 && inputBytes[i] >= 'A' && inputBytes[i] <= 'Z') {
+                    result[resultIndex] = bytes1(uint8(inputBytes[i]) + 32);
+                } else {
+                    result[resultIndex] = inputBytes[i];
+                    capitalizeNext = false;
+                }
+                resultIndex++;
+            }
+        }
+        
+        bytes memory finalResult = new bytes(resultIndex);
+        for (uint i = 0; i < resultIndex; i++) {
+            finalResult[i] = result[i];
+        }
+        
+        return string(finalResult);
+    }
+    
+    /// Convert string to PascalCase
+    function to_pascal_case(string memory input) public pure returns (string memory) {
+        bytes memory inputBytes = bytes(input);
+        if (inputBytes.length == 0) return "";
+        
+        bytes memory result = new bytes(inputBytes.length);
+        uint resultIndex = 0;
+        bool capitalizeNext = true;
+        
+        for (uint i = 0; i < inputBytes.length; i++) {
+            if (inputBytes[i] == '_' || inputBytes[i] == '-' || inputBytes[i] == ' ') {
+                capitalizeNext = true;
+            } else {
+                if (capitalizeNext && inputBytes[i] >= 'a' && inputBytes[i] <= 'z') {
+                    result[resultIndex] = bytes1(uint8(inputBytes[i]) - 32);
+                    capitalizeNext = false;
+                } else if (!capitalizeNext && inputBytes[i] >= 'A' && inputBytes[i] <= 'Z') {
+                    result[resultIndex] = bytes1(uint8(inputBytes[i]) + 32);
+                } else {
+                    result[resultIndex] = inputBytes[i];
+                    capitalizeNext = false;
+                }
+                resultIndex++;
+            }
+        }
+        
+        bytes memory finalResult = new bytes(resultIndex);
+        for (uint i = 0; i < resultIndex; i++) {
+            finalResult[i] = result[i];
+        }
+        
+        return string(finalResult);
+    }
+    
+    /// Convert string to snake_case
+    function to_snake_case(string memory input) public pure returns (string memory) {
+        bytes memory inputBytes = bytes(input);
+        if (inputBytes.length == 0) return "";
+        
+        bytes memory result = new bytes(inputBytes.length * 2);
+        uint resultIndex = 0;
+        
+        for (uint i = 0; i < inputBytes.length; i++) {
+            if (inputBytes[i] >= 'A' && inputBytes[i] <= 'Z') {
+                if (i > 0 && inputBytes[i-1] != '_') {
+                    result[resultIndex] = '_';
+                    resultIndex++;
+                }
+                result[resultIndex] = bytes1(uint8(inputBytes[i]) + 32);
+            } else if (inputBytes[i] == '-' || inputBytes[i] == ' ') {
+                result[resultIndex] = '_';
+            } else {
+                result[resultIndex] = inputBytes[i];
+            }
+            resultIndex++;
+        }
+        
+        bytes memory finalResult = new bytes(resultIndex);
+        for (uint i = 0; i < resultIndex; i++) {
+            finalResult[i] = result[i];
+        }
+        
+        return string(finalResult);
+    }
+    
+    /// Convert string to SCREAMING_SNAKE_CASE
+    function to_screaming_snake_case(string memory input) public pure returns (string memory) {
+        string memory snake = to_snake_case(input);
+        return to_upper_case(snake);
+    }
+    
+    /// Convert string to uppercase
+    function to_upper_case(string memory input) public pure returns (string memory) {
+        bytes memory inputBytes = bytes(input);
+        bytes memory result = new bytes(inputBytes.length);
+        
+        for (uint i = 0; i < inputBytes.length; i++) {
+            if (inputBytes[i] >= 'a' && inputBytes[i] <= 'z') {
+                result[i] = bytes1(uint8(inputBytes[i]) - 32);
+            } else {
+                result[i] = inputBytes[i];
+            }
+        }
+        
+        return string(result);
+    }
+    
+    /// Convert string to lowercase
+    function to_lower_case(string memory input) public pure returns (string memory) {
+        bytes memory inputBytes = bytes(input);
+        bytes memory result = new bytes(inputBytes.length);
+        
+        for (uint i = 0; i < inputBytes.length; i++) {
+            if (inputBytes[i] >= 'A' && inputBytes[i] <= 'Z') {
+                result[i] = bytes1(uint8(inputBytes[i]) + 32);
+            } else {
+                result[i] = inputBytes[i];
+            }
+        }
+        
+        return string(result);
+    }
+    
+    /// Escape string untuk berbagai bahasa
+    function escape_string(string memory input, string memory language) public pure returns (string memory) {
+        bytes memory inputBytes = bytes(input);
+        bytes memory result = new bytes(inputBytes.length * 2);
+        uint resultIndex = 0;
+        
+        for (uint i = 0; i < inputBytes.length; i++) {
+            if (inputBytes[i] == '"') {
+                result[resultIndex] = '\\';
+                resultIndex++;
+                result[resultIndex] = '"';
+            } else if (inputBytes[i] == '\\') {
+                result[resultIndex] = '\\';
+                resultIndex++;
+                result[resultIndex] = '\\';
+            } else if (inputBytes[i] == '\n') {
+                result[resultIndex] = '\\';
+                resultIndex++;
+                result[resultIndex] = 'n';
+            } else if (inputBytes[i] == '\r') {
+                result[resultIndex] = '\\';
+                resultIndex++;
+                result[resultIndex] = 'r';
+            } else if (inputBytes[i] == '\t') {
+                result[resultIndex] = '\\';
+                resultIndex++;
+                result[resultIndex] = 't';
+            } else {
+                result[resultIndex] = inputBytes[i];
+            }
+            resultIndex++;
+        }
+        
+        bytes memory finalResult = new bytes(resultIndex);
+        for (uint i = 0; i < resultIndex; i++) {
+            finalResult[i] = result[i];
+        }
+        
+        return string(finalResult);
+    }
+    
+    /// Generate indentation
+    function generate_indentation(uint level, string memory indent_char) public pure returns (string memory) {
+        if (level == 0) return "";
+        
+        bytes memory indentBytes = bytes(indent_char);
+        bytes memory result = new bytes(level * indentBytes.length);
+        
+        for (uint i = 0; i < level; i++) {
+            for (uint j = 0; j < indentBytes.length; j++) {
+                result[i * indentBytes.length + j] = indentBytes[j];
+            }
+        }
+        
+        return string(result);
+    }
+    
+    /// Add indentation to each line
+    function indent_lines(string memory input, uint level, string memory indent_char) public pure returns (string memory) {
+        if (level == 0) return input;
+        
+        string memory indent = generate_indentation(level, indent_char);
+        bytes memory inputBytes = bytes(input);
+        bytes memory indentBytes = bytes(indent);
+        bytes memory result = new bytes(inputBytes.length + (level * indentBytes.length * 10)); // Estimate
+        
+        uint resultIndex = 0;
+        bool lineStart = true;
+        
+        for (uint i = 0; i < inputBytes.length; i++) {
+            if (lineStart && inputBytes[i] != '\n') {
+                for (uint j = 0; j < indentBytes.length; j++) {
+                    result[resultIndex] = indentBytes[j];
+                    resultIndex++;
+                }
+                lineStart = false;
+            }
+            
+            result[resultIndex] = inputBytes[i];
+            resultIndex++;
+            
+            if (inputBytes[i] == '\n') {
+                lineStart = true;
+            }
+        }
+        
+        bytes memory finalResult = new bytes(resultIndex);
+        for (uint i = 0; i < resultIndex; i++) {
+            finalResult[i] = result[i];
+        }
+        
+        return string(finalResult);
+    }
+    
+    /// Check if identifier is reserved keyword
+    function is_reserved_keyword(string memory identifier, string memory language) public view returns (bool) {
+        string[] memory keywords = language_keywords[language];
+        
+        for (uint i = 0; i < keywords.length; i++) {
+            if (keccak256(bytes(keywords[i])) == keccak256(bytes(identifier))) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /// Sanitize identifier untuk menghindari reserved keywords
+    function sanitize_identifier(string memory identifier, string memory language) public view returns (string memory) {
+        if (is_reserved_keyword(identifier, language)) {
+            return string(abi.encodePacked(identifier, "_"));
+        }
+        return identifier;
+    }
+    
+    /// Generate unique identifier
+    function generate_unique_identifier(string memory base, uint counter) public pure returns (string memory) {
+        return string(abi.encodePacked(base, "_", uint_to_string(counter)));
+    }
+    
+    /// Convert uint to string
+    function uint_to_string(uint value) public pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint temp = value;
+        uint digits = 0;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    /// Join array of strings dengan separator
+    function join_strings(string[] memory strings, string memory separator) public pure returns (string memory) {
+        if (strings.length == 0) return "";
+        if (strings.length == 1) return strings[0];
+        
+        uint totalLength = 0;
+        bytes memory sepBytes = bytes(separator);
+        
+        for (uint i = 0; i < strings.length; i++) {
+            totalLength += bytes(strings[i]).length;
+            if (i < strings.length - 1) {
+                totalLength += sepBytes.length;
+            }
+        }
+        
+        bytes memory result = new bytes(totalLength);
+        uint resultIndex = 0;
+        
+        for (uint i = 0; i < strings.length; i++) {
+            bytes memory strBytes = bytes(strings[i]);
+            for (uint j = 0; j < strBytes.length; j++) {
+                result[resultIndex] = strBytes[j];
+                resultIndex++;
+            }
+            
+            if (i < strings.length - 1) {
+                for (uint j = 0; j < sepBytes.length; j++) {
+                    result[resultIndex] = sepBytes[j];
+                    resultIndex++;
+                }
+            }
+        }
+        
+        return string(result);
+    }
+    
+    /// Format template string dengan replacements
+    function format_template(string memory template, mapping(string => string) storage replacements) public view returns (string memory) {
+        // Simple template formatting - in real implementation would be more sophisticated
+        return template;
+    }
+    
+    /// Generate comment block
+    function generate_comment_block(string memory content, string memory style) public pure returns (string memory) {
+        if (keccak256(bytes(style)) == keccak256(bytes("c_style"))) {
+            return string(abi.encodePacked("/*\n * ", content, "\n */\n"));
+        } else if (keccak256(bytes(style)) == keccak256(bytes("line"))) {
+            return string(abi.encodePacked("// ", content, "\n"));
+        } else if (keccak256(bytes(style)) == keccak256(bytes("hash"))) {
+            return string(abi.encodePacked("# ", content, "\n"));
+        }
+        
+        return string(abi.encodePacked("// ", content, "\n"));
+    }
+    
+    /// Generate file header comment
+    function generate_file_header(string memory filename, string memory description, string memory author) public pure returns (string memory) {
+        string memory header = "/**\n";
+        header = string(abi.encodePacked(header, " * File: ", filename, "\n"));
+        header = string(abi.encodePacked(header, " * Description: ", description, "\n"));
+        header = string(abi.encodePacked(header, " * Generated by OMEGA Compiler\n"));
+        if (bytes(author).length > 0) {
+            header = string(abi.encodePacked(header, " * Author: ", author, "\n"));
+        }
+        header = string(abi.encodePacked(header, " * DO NOT EDIT - This file is auto-generated\n"));
+        header = string(abi.encodePacked(header, " */\n\n"));
+        
+        return header;
+    }
+    
+    /// Validate generated code syntax (basic check)
+    function validate_syntax(string memory code, string memory language) public pure returns (bool) {
+        bytes memory codeBytes = bytes(code);
+        
+        // Basic bracket matching
+        uint openBraces = 0;
+        uint openParens = 0;
+        uint openBrackets = 0;
+        
+        for (uint i = 0; i < codeBytes.length; i++) {
+            if (codeBytes[i] == '{') openBraces++;
+            else if (codeBytes[i] == '}') {
+                if (openBraces == 0) return false;
+                openBraces--;
+            }
+            else if (codeBytes[i] == '(') openParens++;
+            else if (codeBytes[i] == ')') {
+                if (openParens == 0) return false;
+                openParens--;
+            }
+            else if (codeBytes[i] == '[') openBrackets++;
+            else if (codeBytes[i] == ']') {
+                if (openBrackets == 0) return false;
+                openBrackets--;
+            }
+        }
+        
+        return openBraces == 0 && openParens == 0 && openBrackets == 0;
+    }
+    
+    /// Calculate code complexity metrics
+    function calculate_complexity(string memory code) public pure returns (uint) {
+        bytes memory codeBytes = bytes(code);
+        uint complexity = 1; // Base complexity
+        
+        // Count decision points
+        for (uint i = 0; i < codeBytes.length - 2; i++) {
+            // Check for if statements
+            if (codeBytes[i] == 'i' && codeBytes[i+1] == 'f' && codeBytes[i+2] == ' ') {
+                complexity++;
+            }
+            // Check for while loops
+            if (i < codeBytes.length - 4 && 
+                codeBytes[i] == 'w' && codeBytes[i+1] == 'h' && 
+                codeBytes[i+2] == 'i' && codeBytes[i+3] == 'l' && 
+                codeBytes[i+4] == 'e') {
+                complexity++;
+            }
+            // Check for for loops
+            if (i < codeBytes.length - 2 &&
+                codeBytes[i] == 'f' && codeBytes[i+1] == 'o' && 
+                codeBytes[i+2] == 'r') {
+                complexity++;
+            }
+        }
+        
+        return complexity;
+    }
+    
+    /// Reset cache dan state
+    function reset() public {
+        // Clear caches
+        delete string_cache;
+        delete indentation_levels;
+    }
+}

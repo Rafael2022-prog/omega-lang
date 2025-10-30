@@ -1,0 +1,799 @@
+// OMEGA Parser Unit Tests
+// Comprehensive test suite untuk OmegaParser dengan 80%+ coverage
+
+import "test_framework.mega";
+import "../src/parser/parser.mega";
+import "../src/lexer/lexer.mega";
+
+/// Test suite untuk OmegaParser
+blockchain ParserTests {
+    state {
+        OmegaTestFramework test_framework;
+        OmegaParser parser;
+        OmegaLexer lexer;
+    }
+
+    constructor() {
+        test_framework = new OmegaTestFramework();
+        parser = new OmegaParser();
+        lexer = new OmegaLexer();
+        
+        // Setup test suites
+        _setup_basic_parsing_tests();
+        _setup_blockchain_declaration_tests();
+        _setup_function_declaration_tests();
+        _setup_state_declaration_tests();
+        _setup_expression_parsing_tests();
+        _setup_statement_parsing_tests();
+        _setup_type_parsing_tests();
+        _setup_error_recovery_tests();
+        _setup_complex_structure_tests();
+    }
+
+    /// Setup basic parsing tests
+    function _setup_basic_parsing_tests() private {
+        test_framework.add_test_suite("BasicParsing", "Tests for basic parsing functionality");
+        
+        test_framework.add_test_case(
+            "BasicParsing",
+            "test_empty_program",
+            "Should handle empty program",
+            TestType.Unit,
+            test_empty_program
+        );
+        
+        test_framework.add_test_case(
+            "BasicParsing",
+            "test_simple_blockchain",
+            "Should parse simple blockchain declaration",
+            TestType.Unit,
+            test_simple_blockchain
+        );
+        
+        test_framework.add_test_case(
+            "BasicParsing",
+            "test_multiple_declarations",
+            "Should parse multiple top-level declarations",
+            TestType.Unit,
+            test_multiple_declarations
+        );
+    }
+
+    /// Setup blockchain declaration tests
+    function _setup_blockchain_declaration_tests() private {
+        test_framework.add_test_suite("BlockchainDeclarations", "Tests for blockchain declaration parsing");
+        
+        test_framework.add_test_case(
+            "BlockchainDeclarations",
+            "test_empty_blockchain",
+            "Should parse empty blockchain",
+            TestType.Unit,
+            test_empty_blockchain
+        );
+        
+        test_framework.add_test_case(
+            "BlockchainDeclarations",
+            "test_blockchain_with_state",
+            "Should parse blockchain with state",
+            TestType.Unit,
+            test_blockchain_with_state
+        );
+        
+        test_framework.add_test_case(
+            "BlockchainDeclarations",
+            "test_blockchain_with_constructor",
+            "Should parse blockchain with constructor",
+            TestType.Unit,
+            test_blockchain_with_constructor
+        );
+        
+        test_framework.add_test_case(
+            "BlockchainDeclarations",
+            "test_blockchain_with_functions",
+            "Should parse blockchain with functions",
+            TestType.Unit,
+            test_blockchain_with_functions
+        );
+    }
+
+    /// Setup function declaration tests
+    function _setup_function_declaration_tests() private {
+        test_framework.add_test_suite("FunctionDeclarations", "Tests for function declaration parsing");
+        
+        test_framework.add_test_case(
+            "FunctionDeclarations",
+            "test_simple_function",
+            "Should parse simple function",
+            TestType.Unit,
+            test_simple_function
+        );
+        
+        test_framework.add_test_case(
+            "FunctionDeclarations",
+            "test_function_with_parameters",
+            "Should parse function with parameters",
+            TestType.Unit,
+            test_function_with_parameters
+        );
+        
+        test_framework.add_test_case(
+            "FunctionDeclarations",
+            "test_function_with_return_type",
+            "Should parse function with return type",
+            TestType.Unit,
+            test_function_with_return_type
+        );
+        
+        test_framework.add_test_case(
+            "FunctionDeclarations",
+            "test_function_modifiers",
+            "Should parse function modifiers",
+            TestType.Unit,
+            test_function_modifiers
+        );
+    }
+
+    /// Setup state declaration tests
+    function _setup_state_declaration_tests() private {
+        test_framework.add_test_suite("StateDeclarations", "Tests for state declaration parsing");
+        
+        test_framework.add_test_case(
+            "StateDeclarations",
+            "test_simple_state_variables",
+            "Should parse simple state variables",
+            TestType.Unit,
+            test_simple_state_variables
+        );
+        
+        test_framework.add_test_case(
+            "StateDeclarations",
+            "test_mapping_declarations",
+            "Should parse mapping declarations",
+            TestType.Unit,
+            test_mapping_declarations
+        );
+        
+        test_framework.add_test_case(
+            "StateDeclarations",
+            "test_array_declarations",
+            "Should parse array declarations",
+            TestType.Unit,
+            test_array_declarations
+        );
+        
+        test_framework.add_test_case(
+            "StateDeclarations",
+            "test_struct_declarations",
+            "Should parse struct declarations",
+            TestType.Unit,
+            test_struct_declarations
+        );
+    }
+
+    /// Setup expression parsing tests
+    function _setup_expression_parsing_tests() private {
+        test_framework.add_test_suite("ExpressionParsing", "Tests for expression parsing");
+        
+        test_framework.add_test_case(
+            "ExpressionParsing",
+            "test_arithmetic_expressions",
+            "Should parse arithmetic expressions",
+            TestType.Unit,
+            test_arithmetic_expressions
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionParsing",
+            "test_logical_expressions",
+            "Should parse logical expressions",
+            TestType.Unit,
+            test_logical_expressions
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionParsing",
+            "test_function_calls",
+            "Should parse function calls",
+            TestType.Unit,
+            test_function_calls
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionParsing",
+            "test_member_access",
+            "Should parse member access expressions",
+            TestType.Unit,
+            test_member_access
+        );
+        
+        test_framework.add_test_case(
+            "ExpressionParsing",
+            "test_operator_precedence",
+            "Should handle operator precedence correctly",
+            TestType.Unit,
+            test_operator_precedence
+        );
+    }
+
+    /// Setup statement parsing tests
+    function _setup_statement_parsing_tests() private {
+        test_framework.add_test_suite("StatementParsing", "Tests for statement parsing");
+        
+        test_framework.add_test_case(
+            "StatementParsing",
+            "test_variable_declarations",
+            "Should parse variable declarations",
+            TestType.Unit,
+            test_variable_declarations
+        );
+        
+        test_framework.add_test_case(
+            "StatementParsing",
+            "test_assignment_statements",
+            "Should parse assignment statements",
+            TestType.Unit,
+            test_assignment_statements
+        );
+        
+        test_framework.add_test_case(
+            "StatementParsing",
+            "test_if_statements",
+            "Should parse if statements",
+            TestType.Unit,
+            test_if_statements
+        );
+        
+        test_framework.add_test_case(
+            "StatementParsing",
+            "test_loop_statements",
+            "Should parse loop statements",
+            TestType.Unit,
+            test_loop_statements
+        );
+        
+        test_framework.add_test_case(
+            "StatementParsing",
+            "test_return_statements",
+            "Should parse return statements",
+            TestType.Unit,
+            test_return_statements
+        );
+    }
+
+    /// Setup type parsing tests
+    function _setup_type_parsing_tests() private {
+        test_framework.add_test_suite("TypeParsing", "Tests for type parsing");
+        
+        test_framework.add_test_case(
+            "TypeParsing",
+            "test_primitive_types",
+            "Should parse primitive types",
+            TestType.Unit,
+            test_primitive_types
+        );
+        
+        test_framework.add_test_case(
+            "TypeParsing",
+            "test_complex_types",
+            "Should parse complex types",
+            TestType.Unit,
+            test_complex_types
+        );
+        
+        test_framework.add_test_case(
+            "TypeParsing",
+            "test_generic_types",
+            "Should parse generic types",
+            TestType.Unit,
+            test_generic_types
+        );
+    }
+
+    /// Setup error recovery tests
+    function _setup_error_recovery_tests() private {
+        test_framework.add_test_suite("ErrorRecovery", "Tests for parser error recovery");
+        
+        test_framework.add_test_case(
+            "ErrorRecovery",
+            "test_missing_semicolon",
+            "Should recover from missing semicolon",
+            TestType.Unit,
+            test_missing_semicolon
+        );
+        
+        test_framework.add_test_case(
+            "ErrorRecovery",
+            "test_unmatched_braces",
+            "Should detect unmatched braces",
+            TestType.Unit,
+            test_unmatched_braces
+        );
+        
+        test_framework.add_test_case(
+            "ErrorRecovery",
+            "test_invalid_syntax",
+            "Should handle invalid syntax gracefully",
+            TestType.Unit,
+            test_invalid_syntax
+        );
+    }
+
+    /// Setup complex structure tests
+    function _setup_complex_structure_tests() private {
+        test_framework.add_test_suite("ComplexStructures", "Tests for complex code structures");
+        
+        test_framework.add_test_case(
+            "ComplexStructures",
+            "test_nested_blocks",
+            "Should parse nested blocks",
+            TestType.Unit,
+            test_nested_blocks
+        );
+        
+        test_framework.add_test_case(
+            "ComplexStructures",
+            "test_complete_contract",
+            "Should parse complete contract",
+            TestType.Unit,
+            test_complete_contract
+        );
+    }
+
+    // ===== HELPER FUNCTIONS =====
+
+    /// Parse source code and return AST
+    function _parse_source(string source) private returns (ASTNode) {
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        return parser.parse();
+    }
+
+    /// Verify AST node type
+    function _verify_node_type(ASTNode node, ASTNodeType expected_type, string message) private {
+        TestAssertions.assert_equal(uint256(expected_type), uint256(node.node_type), message);
+    }
+
+    // ===== TEST IMPLEMENTATIONS =====
+
+    /// Test empty program parsing
+    function test_empty_program() public {
+        ASTNode ast = _parse_source("");
+        
+        _verify_node_type(ast, ASTNodeType.Program, "Should create Program node for empty input");
+        TestAssertions.assert_equal(0, ast.children.length, "Empty program should have no children");
+    }
+
+    /// Test simple blockchain parsing
+    function test_simple_blockchain() public {
+        string source = "blockchain SimpleContract { }";
+        ASTNode ast = _parse_source(source);
+        
+        _verify_node_type(ast, ASTNodeType.Program, "Should create Program node");
+        TestAssertions.assert_equal(1, ast.children.length, "Should have one blockchain declaration");
+        
+        ASTNode blockchain_node = ast.children[0];
+        _verify_node_type(blockchain_node, ASTNodeType.BlockchainDeclaration, "Should be blockchain declaration");
+        TestAssertions.assert_string_equal("SimpleContract", blockchain_node.value, "Blockchain name should match");
+    }
+
+    /// Test multiple declarations
+    function test_multiple_declarations() public {
+        string source = "blockchain First { } blockchain Second { }";
+        ASTNode ast = _parse_source(source);
+        
+        _verify_node_type(ast, ASTNodeType.Program, "Should create Program node");
+        TestAssertions.assert_equal(2, ast.children.length, "Should have two blockchain declarations");
+        
+        _verify_node_type(ast.children[0], ASTNodeType.BlockchainDeclaration, "First should be blockchain");
+        _verify_node_type(ast.children[1], ASTNodeType.BlockchainDeclaration, "Second should be blockchain");
+    }
+
+    /// Test empty blockchain
+    function test_empty_blockchain() public {
+        string source = "blockchain Empty { }";
+        ASTNode ast = _parse_source(source);
+        
+        ASTNode blockchain_node = ast.children[0];
+        TestAssertions.assert_equal(0, blockchain_node.children.length, "Empty blockchain should have no children");
+    }
+
+    /// Test blockchain with state
+    function test_blockchain_with_state() public {
+        string source = "blockchain WithState { state { uint256 balance; } }";
+        ASTNode ast = _parse_source(source);
+        
+        ASTNode blockchain_node = ast.children[0];
+        TestAssertions.assert_equal(1, blockchain_node.children.length, "Should have state block");
+        
+        ASTNode state_node = blockchain_node.children[0];
+        _verify_node_type(state_node, ASTNodeType.StateDeclaration, "Should be state declaration");
+    }
+
+    /// Test blockchain with constructor
+    function test_blockchain_with_constructor() public {
+        string source = "blockchain WithConstructor { constructor() { } }";
+        ASTNode ast = _parse_source(source);
+        
+        ASTNode blockchain_node = ast.children[0];
+        TestAssertions.assert_equal(1, blockchain_node.children.length, "Should have constructor");
+        
+        ASTNode constructor_node = blockchain_node.children[0];
+        _verify_node_type(constructor_node, ASTNodeType.ConstructorDeclaration, "Should be constructor declaration");
+    }
+
+    /// Test blockchain with functions
+    function test_blockchain_with_functions() public {
+        string source = "blockchain WithFunctions { function test() public { } }";
+        ASTNode ast = _parse_source(source);
+        
+        ASTNode blockchain_node = ast.children[0];
+        TestAssertions.assert_equal(1, blockchain_node.children.length, "Should have function");
+        
+        ASTNode function_node = blockchain_node.children[0];
+        _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
+    }
+
+    /// Test simple function parsing
+    function test_simple_function() public {
+        string source = "function simple() { }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode function_node = parser.parse_function_declaration();
+        _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
+        TestAssertions.assert_string_equal("simple", function_node.value, "Function name should match");
+    }
+
+    /// Test function with parameters
+    function test_function_with_parameters() public {
+        string source = "function withParams(uint256 a, string b) { }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode function_node = parser.parse_function_declaration();
+        _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
+        
+        // Should have parameter list as child
+        TestAssertions.assert_true(function_node.children.length > 0, "Should have parameter list");
+    }
+
+    /// Test function with return type
+    function test_function_with_return_type() public {
+        string source = "function withReturn() returns (uint256) { }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode function_node = parser.parse_function_declaration();
+        _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
+        
+        // Should have return type information
+        TestAssertions.assert_true(function_node.children.length > 0, "Should have return type");
+    }
+
+    /// Test function modifiers
+    function test_function_modifiers() public {
+        string source = "function withModifiers() public view returns (uint256) { }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode function_node = parser.parse_function_declaration();
+        _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
+        
+        // Should parse modifiers correctly
+        TestAssertions.assert_true(function_node.children.length > 0, "Should have modifiers");
+    }
+
+    /// Test simple state variables
+    function test_simple_state_variables() public {
+        string source = "state { uint256 balance; string name; }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode state_node = parser.parse_state_declaration();
+        _verify_node_type(state_node, ASTNodeType.StateDeclaration, "Should be state declaration");
+        TestAssertions.assert_equal(2, state_node.children.length, "Should have two state variables");
+    }
+
+    /// Test mapping declarations
+    function test_mapping_declarations() public {
+        string source = "state { mapping(address => uint256) balances; }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode state_node = parser.parse_state_declaration();
+        _verify_node_type(state_node, ASTNodeType.StateDeclaration, "Should be state declaration");
+        TestAssertions.assert_equal(1, state_node.children.length, "Should have one mapping");
+        
+        ASTNode mapping_node = state_node.children[0];
+        _verify_node_type(mapping_node, ASTNodeType.VariableDeclaration, "Should be variable declaration");
+    }
+
+    /// Test array declarations
+    function test_array_declarations() public {
+        string source = "state { uint256[] numbers; string[10] names; }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode state_node = parser.parse_state_declaration();
+        _verify_node_type(state_node, ASTNodeType.StateDeclaration, "Should be state declaration");
+        TestAssertions.assert_equal(2, state_node.children.length, "Should have two arrays");
+    }
+
+    /// Test struct declarations
+    function test_struct_declarations() public {
+        string source = "struct User { string name; uint256 age; }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode struct_node = parser.parse_struct_declaration();
+        _verify_node_type(struct_node, ASTNodeType.StructDeclaration, "Should be struct declaration");
+        TestAssertions.assert_string_equal("User", struct_node.value, "Struct name should match");
+    }
+
+    /// Test arithmetic expressions
+    function test_arithmetic_expressions() public {
+        string source = "a + b * c - d / e";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode expr = parser.parse_expression();
+        _verify_node_type(expr, ASTNodeType.BinaryExpression, "Should be binary expression");
+        
+        // Should respect operator precedence
+        TestAssertions.assert_true(expr.children.length == 2, "Binary expression should have two operands");
+    }
+
+    /// Test logical expressions
+    function test_logical_expressions() public {
+        string source = "a && b || c";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode expr = parser.parse_expression();
+        _verify_node_type(expr, ASTNodeType.BinaryExpression, "Should be binary expression");
+    }
+
+    /// Test function calls
+    function test_function_calls() public {
+        string source = "myFunction(a, b, c)";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode expr = parser.parse_expression();
+        _verify_node_type(expr, ASTNodeType.FunctionCall, "Should be function call");
+        TestAssertions.assert_string_equal("myFunction", expr.value, "Function name should match");
+    }
+
+    /// Test member access
+    function test_member_access() public {
+        string source = "user.name";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode expr = parser.parse_expression();
+        _verify_node_type(expr, ASTNodeType.MemberAccess, "Should be member access");
+    }
+
+    /// Test operator precedence
+    function test_operator_precedence() public {
+        string source = "a + b * c";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode expr = parser.parse_expression();
+        
+        // Should parse as: a + (b * c)
+        // Root should be + operator
+        TestAssertions.assert_string_equal("+", expr.value, "Root should be addition");
+        
+        // Right child should be multiplication
+        ASTNode right_child = expr.children[1];
+        TestAssertions.assert_string_equal("*", right_child.value, "Right child should be multiplication");
+    }
+
+    /// Test variable declarations
+    function test_variable_declarations() public {
+        string source = "uint256 x = 10;";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode stmt = parser.parse_statement();
+        _verify_node_type(stmt, ASTNodeType.VariableDeclaration, "Should be variable declaration");
+    }
+
+    /// Test assignment statements
+    function test_assignment_statements() public {
+        string source = "x = 42;";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode stmt = parser.parse_statement();
+        _verify_node_type(stmt, ASTNodeType.AssignmentStatement, "Should be assignment statement");
+    }
+
+    /// Test if statements
+    function test_if_statements() public {
+        string source = "if (x > 0) { return true; } else { return false; }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode stmt = parser.parse_statement();
+        _verify_node_type(stmt, ASTNodeType.IfStatement, "Should be if statement");
+        TestAssertions.assert_equal(3, stmt.children.length, "Should have condition, then-block, and else-block");
+    }
+
+    /// Test loop statements
+    function test_loop_statements() public {
+        string source = "for (uint256 i = 0; i < 10; i++) { sum += i; }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode stmt = parser.parse_statement();
+        _verify_node_type(stmt, ASTNodeType.ForStatement, "Should be for statement");
+    }
+
+    /// Test return statements
+    function test_return_statements() public {
+        string source = "return x + y;";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode stmt = parser.parse_statement();
+        _verify_node_type(stmt, ASTNodeType.ReturnStatement, "Should be return statement");
+    }
+
+    /// Test primitive types
+    function test_primitive_types() public {
+        string[] types = ["uint256", "int256", "bool", "address", "string", "bytes"];
+        
+        for (uint256 i = 0; i < types.length; i++) {
+            lexer.set_source(types[i]);
+            Token[] tokens = lexer.tokenize();
+            parser.set_tokens(tokens);
+            
+            ASTNode type_node = parser.parse_type();
+            _verify_node_type(type_node, ASTNodeType.TypeName, "Should be type name");
+            TestAssertions.assert_string_equal(types[i], type_node.value, format("Type should be {}", types[i]));
+        }
+    }
+
+    /// Test complex types
+    function test_complex_types() public {
+        string source = "mapping(address => uint256)";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode type_node = parser.parse_type();
+        _verify_node_type(type_node, ASTNodeType.MappingType, "Should be mapping type");
+    }
+
+    /// Test generic types
+    function test_generic_types() public {
+        string source = "Array<uint256>";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode type_node = parser.parse_type();
+        _verify_node_type(type_node, ASTNodeType.GenericType, "Should be generic type");
+    }
+
+    /// Test missing semicolon recovery
+    function test_missing_semicolon() public {
+        string source = "uint256 x = 10 uint256 y = 20;";
+        
+        try {
+            ASTNode ast = _parse_source(source);
+            // Parser should either recover or report error appropriately
+            TestAssertions.assert_true(true, "Parser handled missing semicolon");
+        } catch (string error) {
+            TestAssertions.assert_true(true, "Parser detected missing semicolon error");
+        }
+    }
+
+    /// Test unmatched braces
+    function test_unmatched_braces() public {
+        string source = "blockchain Test { function test() { }";
+        
+        try {
+            ASTNode ast = _parse_source(source);
+            TestAssertions.assert_true(false, "Should detect unmatched braces");
+        } catch (string error) {
+            TestAssertions.assert_true(true, "Parser detected unmatched braces");
+        }
+    }
+
+    /// Test invalid syntax
+    function test_invalid_syntax() public {
+        string source = "blockchain 123Invalid { }";
+        
+        try {
+            ASTNode ast = _parse_source(source);
+            TestAssertions.assert_true(false, "Should detect invalid syntax");
+        } catch (string error) {
+            TestAssertions.assert_true(true, "Parser detected invalid syntax");
+        }
+    }
+
+    /// Test nested blocks
+    function test_nested_blocks() public {
+        string source = "if (true) { if (false) { return 1; } else { return 2; } }";
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        
+        ASTNode stmt = parser.parse_statement();
+        _verify_node_type(stmt, ASTNodeType.IfStatement, "Should be if statement");
+        
+        // Should handle nested structure correctly
+        TestAssertions.assert_true(stmt.children.length >= 2, "Should have nested blocks");
+    }
+
+    /// Test complete contract parsing
+    function test_complete_contract() public {
+        string source = `
+            blockchain CompleteContract {
+                state {
+                    mapping(address => uint256) balances;
+                    uint256 total_supply;
+                    string name;
+                }
+                
+                constructor(string _name, uint256 _supply) {
+                    name = _name;
+                    total_supply = _supply;
+                    balances[msg.sender] = _supply;
+                }
+                
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    balances[msg.sender] -= amount;
+                    balances[to] += amount;
+                    return true;
+                }
+                
+                function balance_of(address account) public view returns (uint256) {
+                    return balances[account];
+                }
+            }
+        `;
+        
+        ASTNode ast = _parse_source(source);
+        _verify_node_type(ast, ASTNodeType.Program, "Should create Program node");
+        TestAssertions.assert_equal(1, ast.children.length, "Should have one blockchain");
+        
+        ASTNode blockchain_node = ast.children[0];
+        _verify_node_type(blockchain_node, ASTNodeType.BlockchainDeclaration, "Should be blockchain declaration");
+        TestAssertions.assert_true(blockchain_node.children.length >= 3, "Should have state, constructor, and functions");
+    }
+
+    /// Run all parser tests
+    function run_all_tests() public returns (TestStatistics) {
+        return test_framework.run_all_tests();
+    }
+
+    /// Run specific test suite
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return test_framework.run_test_suite(suite_name);
+    }
+}

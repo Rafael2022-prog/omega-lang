@@ -1,0 +1,1434 @@
+// OMEGA Semantic Analyzer - Self-hosted implementation in MEGA
+// Replaces the Rust-based semantic analyzer with native MEGA code
+
+import "./parser.mega" as Parser;
+import "./error/error.mega";
+
+/// Semantic Analyzer untuk bahasa OMEGA
+/// Melakukan analisis semantik dalam tiga tahap:
+/// 1. Pengumpulan definisi (types, functions, dll)
+/// 2. Type checking dan symbol resolution
+/// 3. Validasi aturan khusus blockchain
+blockchain OmegaSemanticAnalyzer {
+    state {
+        SymbolTable symbol_table;        // Tabel simbol untuk tracking identifiers
+        string current_function;         // Nama fungsi yang sedang dianalisis
+        string current_blockchain;       // Nama blockchain yang sedang dianalisis
+        SemanticError[] errors;          // Array error yang ditemukan
+        TypeEnvironment type_env;        // Environment untuk type checking
+        ScopeStack scope_stack;          // Stack untuk tracking scope nesting
+        OmegaErrorHandler error_handler; // Integrated error handling system
+        string current_file;             // Current file being analyzed
+        uint256 error_count;             // Count of errors found
+        uint256 warning_count;           // Count of warnings found
+    }
+    
+    /// Konstruktor untuk inisialisasi semantic analyzer
+    /// Menginisialisasi symbol table, type environment, dan scope stack
+    constructor() {
+        symbol_table = SymbolTable({
+            symbols: new mapping(string => Symbol),
+            scopes: new Scope[],
+            current_scope: 0
+        });
+        
+        // Inisialisasi type environment dengan built-in types
+        type_env = TypeEnvironment({
+            builtin_types: initialize_builtin_types(),
+            user_types: new mapping(string => UserType)
+        });
+        
+        // Inisialisasi scope stack untuk tracking nested scopes
+        scope_stack = ScopeStack({
+            scopes: new Scope[],
+            current_depth: 0
+        });
+        
+        // Inisialisasi error handling system
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+        error_count = 0;
+        warning_count = 0;
+    }
+    
+    /// Fungsi utama untuk melakukan analisis semantik program
+    /// Menggunakan three-pass analysis untuk completeness
+    /// @param program Program AST yang akan dianalisis
+    /// @return AnalysisResult berisi hasil analisis dan error (jika ada)
+    function analyze(Program memory program) public returns (AnalysisResult memory) {
+        // Three-pass analysis untuk analisis yang komprehensif
+        
+        // Pass 1: Collect all definitions (types, functions, etc.)
+        collect_definitions(program);
+        
+        // Pass 2: Type checking and symbol resolution
+        type_check_program(program);
+        
+        // Pass 3: Validate blockchain-specific rules
+        validate_blockchain_rules(program);
+        
+        return AnalysisResult({
+            symbol_table: symbol_table,
+            type_environment: type_env,
+            errors: errors,
+            success: errors.length == 0
+        });
+    }
+    
+    /// Pass 1: Mengumpulkan semua definisi dalam program
+    /// Mendaftarkan semua blockchain, struct, enum, function, dan constant
+    /// @param program Program AST untuk dianalisis
+    function collect_definitions(Program memory program) private {
+        push_scope("global");
+        
+        // Iterasi semua item dalam program
+        for (uint256 i = 0; i < program.items.length; i++) {
+            Item memory item = program.items[i];
+            
+            // Dispatch berdasarkan tipe item
+            if (item.item_type == ItemType.Blockchain) {
+                collect_blockchain_definition(item.blockchain_item);
+            } else if (item.item_type == ItemType.Struct) {
+                collect_struct_definition(item.struct_item);
+            } else if (item.item_type == ItemType.Enum) {
+                collect_enum_definition(item.enum_item);
+            } else if (item.item_type == ItemType.Function) {
+                collect_function_definition(item.function_item);
+            } else if (item.item_type == ItemType.Constant) {
+                collect_constant_definition(item.constant_item);
+            }
+        }
+        
+        pop_scope();
+    }
+    
+    /// Mengumpulkan definisi blockchain dan semua komponennya
+    /// @param blockchain Blockchain AST node untuk dianalisis
+    function collect_blockchain_definition(Blockchain memory blockchain) private {
+        current_blockchain = blockchain.name;
+        
+        // Register blockchain sebagai tipe custom
+        Symbol memory blockchain_symbol = Symbol({
+            name: blockchain.name,
+            symbol_type: SymbolType.Blockchain,
+            data_type: Type({
+                type_kind: TypeKind.Custom,
+                name: blockchain.name
+            }),
+            scope_depth: scope_stack.current_depth,
+            is_mutable: false,
+            visibility: Visibility.Public
+        });
+        
+        define_symbol(blockchain.name, blockchain_symbol);
+        
+        // Masuk ke scope blockchain
+        push_scope(blockchain.name);
+        
+        // Collect state variables jika ada state block
+        if (blockchain.has_state_block) {
+            for (uint256 i = 0; i < blockchain.state_block.variables.length; i++) {
+                collect_state_variable(blockchain.state_block.variables[i]);
+            }
+        }
+        
+        // Collect semua event definitions
+        for (uint256 i = 0; i < blockchain.events.length; i++) {
+            collect_event_definition(blockchain.events[i]);
+        }
+        
+        // Collect semua function definitions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            collect_function_definition(blockchain.functions[i]);
+        }
+        
+        // Collect semua modifier definitions
+        for (uint256 i = 0; i < blockchain.modifiers.length; i++) {
+            collect_modifier_definition(blockchain.modifiers[i]);
+        }
+        
+        pop_scope();
+        current_blockchain = "";
+    }
+    
+    /// Mengumpulkan definisi state variable
+    /// @param var StateVariable AST node untuk didaftarkan
+    function collect_state_variable(StateVariable memory var) private {
+        Symbol memory var_symbol = Symbol({
+            name: var.name,
+            symbol_type: SymbolType.StateVariable,
+            data_type: var.var_type,
+            scope_depth: scope_stack.current_depth,
+            is_mutable: true,  // State variables selalu mutable
+            visibility: var.visibility
+        });
+        
+        define_symbol(var.name, var_symbol);
+    }
+    
+    /// Mengumpulkan definisi event
+    /// @param event Event AST node untuk didaftarkan
+    function collect_event_definition(Event memory event) private {
+        Symbol memory event_symbol = Symbol({
+            name: event.name,
+            symbol_type: SymbolType.Event,
+            data_type: Type({
+                type_kind: TypeKind.Custom,
+                name: event.name
+            }),
+            scope_depth: scope_stack.current_depth,
+            is_mutable: false,  // Events tidak mutable
+            visibility: Visibility.Public  // Events selalu public
+        });
+        
+        define_symbol(event.name, event_symbol);
+    }
+    
+    /// Mengumpulkan definisi function dengan signature lengkap
+    /// @param func Function AST node untuk didaftarkan
+    function collect_function_definition(Function memory func) private {
+        // Buat function type dengan parameter dan return type
+        FunctionType memory func_type = FunctionType({
+            parameters: new Type[](func.parameters.length),
+            return_type: func.return_type,
+            has_return_type: func.has_return_type,
+            visibility: func.visibility,
+            mutability: func.mutability
+        });
+        
+        // Copy semua parameter types
+        for (uint256 i = 0; i < func.parameters.length; i++) {
+            func_type.parameters[i] = func.parameters[i].param_type;
+        }
+        
+        Symbol memory func_symbol = Symbol({
+            name: func.name,
+            symbol_type: SymbolType.Function,
+            data_type: Type({
+                type_kind: TypeKind.Function,
+                function_type: func_type
+            }),
+            scope_depth: scope_stack.current_depth,
+            is_mutable: false,  // Function definitions tidak mutable
+            visibility: func.visibility
+        });
+        
+        define_symbol(func.name, func_symbol);
+    }
+    
+    /// Mengumpulkan definisi modifier
+    /// @param modifier Modifier AST node untuk didaftarkan
+    function collect_modifier_definition(Modifier memory modifier) private {
+        Symbol memory modifier_symbol = Symbol({
+            name: modifier.name,
+            symbol_type: SymbolType.Modifier,
+            data_type: Type({
+                type_kind: TypeKind.Custom,
+                name: modifier.name
+            }),
+            scope_depth: scope_stack.current_depth,
+            is_mutable: false,  // Modifiers tidak mutable
+            visibility: Visibility.Public  // Modifiers selalu public dalam scope
+        });
+        
+        define_symbol(modifier.name, modifier_symbol);
+    }
+    
+    /// Mengumpulkan definisi struct dengan semua fields
+    /// @param struct_def Struct AST node untuk didaftarkan
+    function collect_struct_definition(Struct memory struct_def) private {
+        StructType memory struct_type = StructType({
+            name: struct_def.name,
+            fields: new StructField[](struct_def.fields.length)
+        });
+
+        // Copy semua field dari struct definition
+        for (uint256 i = 0; i < struct_def.fields.length; i++) {
+            struct_type.fields[i] = struct_def.fields[i];
+        }
+        
+        // Daftarkan struct type ke type environment
+        type_env.user_types[struct_def.name] = UserType({
+            name: struct_def.name,
+            type_kind: UserTypeKind.Struct,
+            struct_type: struct_type
+        });
+        
+        // Buat symbol untuk struct type
+        Symbol memory struct_symbol = Symbol({
+            name: struct_def.name,
+            symbol_type: SymbolType.Type,
+            data_type: Type({
+                type_kind: TypeKind.Custom,
+                name: struct_def.name
+            }),
+            scope_depth: scope_stack.current_depth,
+            is_mutable: false,  // Type definitions tidak mutable
+            visibility: Visibility.Public
+        });
+        
+        define_symbol(struct_def.name, struct_symbol);
+    }
+    
+    /// Mengumpulkan definisi enum dengan semua variants
+    /// @param enum_def Enum AST node untuk didaftarkan
+    function collect_enum_definition(Enum memory enum_def) private {
+        EnumType memory enum_type = EnumType({
+            name: enum_def.name,
+            variants: new EnumVariant[](enum_def.variants.length)
+        });
+        
+        // Copy semua variant dari enum definition
+        for (uint256 i = 0; i < enum_def.variants.length; i++) {
+            enum_type.variants[i] = enum_def.variants[i];
+        }
+        
+        // Daftarkan enum type ke type environment
+        type_env.user_types[enum_def.name] = UserType({
+            name: enum_def.name,
+            type_kind: UserTypeKind.Enum,
+            enum_type: enum_type
+        });
+        
+        // Buat symbol untuk enum type
+        Symbol memory enum_symbol = Symbol({
+            name: enum_def.name,
+            symbol_type: SymbolType.Type,
+            data_type: Type({
+                type_kind: TypeKind.Custom,
+                name: enum_def.name
+            }),
+            scope_depth: scope_stack.current_depth,
+            is_mutable: false,  // Type definitions tidak mutable
+            visibility: Visibility.Public
+        });
+        
+        define_symbol(enum_def.name, enum_symbol);
+    }
+    
+    /// Mengumpulkan definisi constant dengan type checking
+    /// @param constant Constant AST node untuk didaftarkan
+    function collect_constant_definition(Constant memory constant) private {
+        Symbol memory const_symbol = Symbol({
+            name: constant.name,
+            symbol_type: SymbolType.Constant,
+            data_type: constant.const_type,
+            scope_depth: scope_stack.current_depth,
+            is_mutable: false,  // Constants tidak pernah mutable
+            visibility: Visibility.Public  // Constants biasanya public
+        });
+        
+        define_symbol(constant.name, const_symbol);
+    }
+    
+    /// Pass 2: Type checking untuk seluruh program
+    /// Melakukan type checking pada semua item dalam program
+    /// @param program Program AST untuk di-type check
+    function type_check_program(Program memory program) private {
+        for (uint256 i = 0; i < program.items.length; i++) {
+            Item memory item = program.items[i];
+            
+            // Type check berdasarkan tipe item
+            if (item.item_type == ItemType.Blockchain) {
+                type_check_blockchain(item.blockchain_item);
+            } else if (item.item_type == ItemType.Function) {
+                type_check_function(item.function_item);
+            } else if (item.item_type == ItemType.Constant) {
+                type_check_constant(item.constant_item);
+            }
+        }
+    }
+    
+    /// Type checking untuk blockchain dan semua komponennya
+    /// @param blockchain Blockchain AST node untuk di-type check
+    function type_check_blockchain(Blockchain memory blockchain) private {
+        current_blockchain = blockchain.name;
+        push_scope(blockchain.name);
+        
+        // Type check state variables jika ada
+        if (blockchain.has_state_block) {
+            for (uint256 i = 0; i < blockchain.state_block.variables.length; i++) {
+                type_check_state_variable(blockchain.state_block.variables[i]);
+            }
+        }
+        
+        // Type check semua functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            type_check_function(blockchain.functions[i]);
+        }
+        
+        // Type check semua modifiers
+        for (uint256 i = 0; i < blockchain.modifiers.length; i++) {
+            type_check_modifier(blockchain.modifiers[i]);
+        }
+        
+        pop_scope();
+        current_blockchain = "";
+    }
+    
+    /// Type checking untuk state variable
+    /// Memvalidasi tipe dan initial value (jika ada)
+    /// @param var StateVariable AST node untuk di-type check
+    function type_check_state_variable(StateVariable memory var) private {
+        // Validasi bahwa tipe variable valid
+        if (!is_valid_type(var.var_type)) {
+            add_error(string.concat("Unknown type: ", type_to_string(var.var_type)));
+            return;
+        }
+        
+        // Type check initial value jika ada
+        if (var.has_initial_value) {
+            Type memory expr_type = type_check_expression(var.initial_value);
+            if (!types_compatible(var.var_type, expr_type)) {
+                add_error(string.concat(
+                    "Type mismatch in state variable initialization: expected ",
+                    type_to_string(var.var_type),
+                    ", got ",
+                    type_to_string(expr_type)
+                ));
+            }
+        }
+    }
+    
+    /// Type checking untuk function
+    /// Memvalidasi parameter types, body, dan return type consistency
+    /// @param func Function AST node untuk di-type check
+    function type_check_function(Function memory func) private {
+        current_function = func.name;
+        push_scope(func.name);
+        
+        // Tambahkan parameters ke scope dan validasi types
+        for (uint256 i = 0; i < func.parameters.length; i++) {
+            Parameter memory param = func.parameters[i];
+            
+            if (!is_valid_type(param.param_type)) {
+                add_error(string.concat("Unknown parameter type: ", type_to_string(param.param_type)));
+                continue;
+            }
+            
+            // Buat symbol untuk parameter
+            Symbol memory param_symbol = Symbol({
+                name: param.name,
+                symbol_type: SymbolType.Parameter,
+                data_type: param.param_type,
+                scope_depth: scope_stack.current_depth,
+                is_mutable: true,  // Parameters bisa dimodifikasi dalam function
+                visibility: Visibility.Private
+            });
+            
+            define_symbol(param.name, param_symbol);
+        }
+        
+        // Type check function body
+        type_check_block(func.body);
+        
+        // Validasi return type consistency jika function memiliki return type
+        if (func.has_return_type) {
+            validate_return_paths(func.body, func.return_type);
+        }
+        
+        pop_scope();
+        current_function = "";
+    }
+    
+    /// Type checking untuk modifier
+    /// Memvalidasi parameter types dan body
+    /// @param modifier Modifier AST node untuk di-type check
+    function type_check_modifier(Modifier memory modifier) private {
+        push_scope(modifier.name);
+        
+        // Tambahkan parameters ke scope
+        for (uint256 i = 0; i < modifier.parameters.length; i++) {
+            Parameter memory param = modifier.parameters[i];
+            
+            Symbol memory param_symbol = Symbol({
+                name: param.name,
+                symbol_type: SymbolType.Parameter,
+                data_type: param.param_type,
+                scope_depth: scope_stack.current_depth,
+                is_mutable: true,  // Modifier parameters bisa dimodifikasi
+                visibility: Visibility.Private
+            });
+            
+            define_symbol(param.name, param_symbol);
+        }
+        
+        // Type check modifier body
+        type_check_block(modifier.body);
+        
+        pop_scope();
+    }
+    
+    /// Type checking untuk constant declaration
+    /// Memvalidasi tipe dan value compatibility
+    /// @param constant Constant AST node untuk di-type check
+    function type_check_constant(Constant memory constant) private {
+        if (!is_valid_type(constant.const_type)) {
+            add_error(string.concat("Unknown constant type: ", type_to_string(constant.const_type)));
+            return;
+        }
+        
+        // Type check constant value
+        Type memory expr_type = type_check_expression(constant.value);
+        if (!types_compatible(constant.const_type, expr_type)) {
+            add_error(string.concat(
+                "Type mismatch in constant declaration: expected ",
+                type_to_string(constant.const_type),
+                ", got ",
+                type_to_string(expr_type)
+            ));
+        }
+    }
+    
+    /// Type checking untuk block statement
+    /// Membuat scope baru dan type check semua statements
+    /// @param block Block AST node untuk di-type check
+    function type_check_block(Block memory block) private {
+        push_scope("block");
+        
+        // Type check setiap statement dalam block
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            type_check_statement(block.statements[i]);
+        }
+        
+        pop_scope();
+    }
+    
+    /// Type checking untuk statement
+    /// Dispatch ke function yang sesuai berdasarkan statement type
+    /// @param stmt Statement AST node untuk di-type check
+    function type_check_statement(Statement memory stmt) private {
+        if (stmt.stmt_type == StatementType.VariableDeclaration) {
+            type_check_variable_declaration(stmt);
+        } else if (stmt.stmt_type == StatementType.Expression) {
+            type_check_expression(stmt.expression);
+        } else if (stmt.stmt_type == StatementType.If) {
+            type_check_if_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.While) {
+            type_check_while_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.For) {
+            type_check_for_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Return) {
+            type_check_return_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Emit) {
+            type_check_emit_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Require) {
+            type_check_require_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Assert) {
+            type_check_assert_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Revert) {
+            type_check_revert_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Block) {
+            type_check_block(stmt.block);
+        }
+    }
+    
+    /// Type checking untuk variable declaration
+    /// Memvalidasi tipe dan initializer (jika ada)
+    /// @param stmt Variable declaration statement untuk di-type check
+    function type_check_variable_declaration(Statement memory stmt) private {
+        if (!is_valid_type(stmt.var_type)) {
+            add_error(string.concat("Unknown variable type: ", type_to_string(stmt.var_type)));
+            return;
+        }
+        
+        // Type check initializer jika ada
+        if (stmt.has_initializer) {
+            Type memory expr_type = type_check_expression(stmt.initializer);
+            if (!types_compatible(stmt.var_type, expr_type)) {
+                add_error(string.concat(
+                    "Type mismatch in variable declaration: expected ",
+                    type_to_string(stmt.var_type),
+                    ", got ",
+                    type_to_string(expr_type)
+                ));
+            }
+        }
+        
+        // Tambahkan variable ke current scope
+        Symbol memory var_symbol = Symbol({
+            name: stmt.var_name,
+            symbol_type: SymbolType.LocalVariable,
+            data_type: stmt.var_type,
+            scope_depth: scope_stack.current_depth,
+            is_mutable: true,  // Local variables bisa dimodifikasi
+            visibility: Visibility.Private
+        });
+        
+        define_symbol(stmt.var_name, var_symbol);
+    }
+    
+    /// Type checking untuk if statement
+    /// Memvalidasi bahwa condition adalah boolean
+    /// @param stmt If statement untuk di-type check
+    function type_check_if_statement(Statement memory stmt) private {
+        Type memory condition_type = type_check_expression(stmt.condition);
+        if (!is_boolean_type(condition_type)) {
+            add_error("If condition must be boolean");
+        }
+        
+        // Type check then branch
+        type_check_statement(stmt.then_branch);
+        
+        // Type check else branch jika ada
+        if (stmt.has_else_branch) {
+            type_check_statement(stmt.else_branch);
+        }
+    }
+    
+    /// Type checking untuk while statement
+    /// Memvalidasi bahwa condition adalah boolean
+    /// @param stmt While statement untuk di-type check
+    function type_check_while_statement(Statement memory stmt) private {
+        Type memory condition_type = type_check_expression(stmt.condition);
+        if (!is_boolean_type(condition_type)) {
+            add_error("While condition must be boolean");
+        }
+        
+        // Type check loop body
+        type_check_statement(stmt.body);
+    }
+    
+    /// Type checking untuk for statement
+    /// Memvalidasi init, condition, dan update expressions
+    /// @param stmt For statement untuk di-type check
+    function type_check_for_statement(Statement memory stmt) private {
+        push_scope("for");  // For loop memiliki scope sendiri
+        
+        // Type check init statement jika ada
+        if (stmt.has_init) {
+            type_check_statement(stmt.init);
+        }
+        
+        // Type check condition jika ada (harus boolean)
+        if (stmt.has_condition) {
+            Type memory condition_type = type_check_expression(stmt.condition);
+            if (!is_boolean_type(condition_type)) {
+                add_error("For condition must be boolean");
+            }
+        }
+        
+        // Type check update expression jika ada
+        if (stmt.has_update) {
+            type_check_expression(stmt.update);
+        }
+        
+        // Type check loop body
+        type_check_statement(stmt.body);
+        
+        pop_scope();
+    }
+    
+    /// Type checking untuk return statement
+    /// Memvalidasi bahwa return value sesuai dengan function return type
+    /// @param stmt Return statement untuk di-type check
+    function type_check_return_statement(Statement memory stmt) private {
+        if (bytes(current_function).length == 0) {
+            add_error("Return statement outside function");
+            return;
+        }
+        
+        // Type check return value jika ada
+        if (stmt.has_return_value) {
+            Type memory return_type = type_check_expression(stmt.return_value);
+            // TODO: Check against function's declared return type
+        }
+    }
+    
+    /// Type checking untuk emit statement
+    /// Memvalidasi bahwa event exists dan arguments sesuai
+    /// @param stmt Emit statement untuk di-type check
+    function type_check_emit_statement(Statement memory stmt) private {
+        Symbol memory event_symbol = lookup_symbol(stmt.event_name);
+        if (event_symbol.symbol_type != SymbolType.Event) {
+            add_error(string.concat("Unknown event: ", stmt.event_name));
+            return;
+        }
+        
+        // TODO: Type check event arguments terhadap event definition
+        for (uint256 i = 0; i < stmt.arguments.length; i++) {
+            type_check_expression(stmt.arguments[i]);
+        }
+    }
+    
+    /// Type checking untuk require statement
+    /// Memvalidasi bahwa condition boolean dan message string
+    /// @param stmt Require statement untuk di-type check
+    function type_check_require_statement(Statement memory stmt) private {
+        Type memory condition_type = type_check_expression(stmt.condition);
+        if (!is_boolean_type(condition_type)) {
+            add_error("Require condition must be boolean");
+        }
+        
+        // Type check message jika ada (harus string)
+        if (stmt.has_message) {
+            Type memory message_type = type_check_expression(stmt.message);
+            if (!is_string_type(message_type)) {
+                add_error("Require message must be string");
+            }
+        }
+    }
+    
+    /// Type checking untuk assert statement
+    /// Memvalidasi bahwa condition boolean dan message string
+    /// @param stmt Assert statement untuk di-type check
+    function type_check_assert_statement(Statement memory stmt) private {
+        Type memory condition_type = type_check_expression(stmt.condition);
+        if (!is_boolean_type(condition_type)) {
+            add_error("Assert condition must be boolean");
+        }
+        
+        // Type check message jika ada (harus string)
+        if (stmt.has_message) {
+            Type memory message_type = type_check_expression(stmt.message);
+            if (!is_string_type(message_type)) {
+                add_error("Assert message must be string");
+            }
+        }
+    }
+    
+    /// Type checking untuk revert statement
+    /// Memvalidasi bahwa message adalah string
+    /// @param stmt Revert statement untuk di-type check
+    function type_check_revert_statement(Statement memory stmt) private {
+        // Type check message jika ada (harus string)
+        if (stmt.has_message) {
+            Type memory message_type = type_check_expression(stmt.message);
+            if (!is_string_type(message_type)) {
+                add_error("Revert message must be string");
+            }
+        }
+    }
+    
+    /// Type checking untuk expression
+    /// Dispatch ke function yang sesuai dan return type dari expression
+    /// @param expr Expression AST node untuk di-type check
+    /// @return Type dari expression
+    function type_check_expression(Expression memory expr) private returns (Type memory) {
+        if (expr.expr_type == ExpressionType.Literal) {
+            return type_of_literal(expr.literal);
+        } else if (expr.expr_type == ExpressionType.Identifier) {
+            return type_check_identifier(expr.name);
+        } else if (expr.expr_type == ExpressionType.Binary) {
+            return type_check_binary_expression(expr);
+        } else if (expr.expr_type == ExpressionType.Unary) {
+            return type_check_unary_expression(expr);
+        } else if (expr.expr_type == ExpressionType.Assignment) {
+            return type_check_assignment_expression(expr);
+        } else if (expr.expr_type == ExpressionType.FunctionCall) {
+            return type_check_function_call(expr);
+        } else if (expr.expr_type == ExpressionType.MemberAccess) {
+            return type_check_member_access(expr);
+        } else if (expr.expr_type == ExpressionType.IndexAccess) {
+            return type_check_index_access(expr);
+        } else {
+            add_error("Unknown expression type");
+            return get_error_type();
+        }
+    }
+    
+    function type_of_literal(Literal memory literal) private pure returns (Type memory) {
+        if (literal.literal_type == LiteralType.Bool) {
+            return Type({ type_kind: TypeKind.Bool });
+        } else if (literal.literal_type == LiteralType.Integer) {
+            return Type({ type_kind: TypeKind.Uint, size: 256 });
+        } else if (literal.literal_type == LiteralType.String) {
+            return Type({ type_kind: TypeKind.String });
+        } else if (literal.literal_type == LiteralType.Address) {
+            return Type({ type_kind: TypeKind.Address });
+        } else if (literal.literal_type == LiteralType.Bytes) {
+            return Type({ type_kind: TypeKind.DynamicBytes });
+        } else {
+            return get_error_type();
+        }
+    }
+    
+    function type_check_identifier(string memory name) private returns (Type memory) {
+        Symbol memory symbol = lookup_symbol(name);
+        if (symbol.symbol_type == SymbolType.Unknown) {
+            add_error(string.concat("Undefined identifier: ", name));
+            return get_error_type();
+        }
+        
+        return symbol.data_type;
+    }
+    
+    function type_check_binary_expression(Expression memory expr) private returns (Type memory) {
+        Type memory left_type = type_check_expression(expr.left);
+        Type memory right_type = type_check_expression(expr.right);
+        
+        // Arithmetic operators
+        if (expr.operator == TokenType.Plus || expr.operator == TokenType.Minus ||
+            expr.operator == TokenType.Star || expr.operator == TokenType.Slash ||
+            expr.operator == TokenType.Percent) {
+            
+            if (is_numeric_type(left_type) && is_numeric_type(right_type)) {
+                return promote_numeric_types(left_type, right_type);
+            } else {
+                add_error("Arithmetic operators require numeric types");
+                return get_error_type();
+            }
+        }
+        
+        // Comparison operators
+        if (expr.operator == TokenType.Less || expr.operator == TokenType.LessEqual ||
+            expr.operator == TokenType.Greater || expr.operator == TokenType.GreaterEqual) {
+            
+            if (types_comparable(left_type, right_type)) {
+                return Type({ type_kind: TypeKind.Bool });
+            } else {
+                add_error("Comparison operators require comparable types");
+                return get_error_type();
+            }
+        }
+        
+        // Equality operators
+        if (expr.operator == TokenType.EqualEqual || expr.operator == TokenType.BangEqual) {
+            if (types_comparable(left_type, right_type)) {
+                return Type({ type_kind: TypeKind.Bool });
+            } else {
+                add_error("Equality operators require comparable types");
+                return get_error_type();
+            }
+        }
+        
+        // Logical operators
+        if (expr.operator == TokenType.AmpersandAmpersand || expr.operator == TokenType.PipePipe) {
+            if (is_boolean_type(left_type) && is_boolean_type(right_type)) {
+                return Type({ type_kind: TypeKind.Bool });
+            } else {
+                add_error("Logical operators require boolean types");
+                return get_error_type();
+            }
+        }
+        
+        add_error("Unknown binary operator");
+        return get_error_type();
+    }
+    
+    function type_check_unary_expression(Expression memory expr) private returns (Type memory) {
+        Type memory operand_type = type_check_expression(expr.operand);
+        
+        if (expr.operator == TokenType.Minus) {
+            if (is_numeric_type(operand_type)) {
+                return operand_type;
+            } else {
+                add_error("Unary minus requires numeric type");
+                return get_error_type();
+            }
+        }
+        
+        if (expr.operator == TokenType.Bang) {
+            if (is_boolean_type(operand_type)) {
+                return Type({ type_kind: TypeKind.Bool });
+            } else {
+                add_error("Logical not requires boolean type");
+                return get_error_type();
+            }
+        }
+        
+        if (expr.operator == TokenType.Tilde) {
+            if (is_integer_type(operand_type)) {
+                return operand_type;
+            } else {
+                add_error("Bitwise not requires integer type");
+                return get_error_type();
+            }
+        }
+        
+        add_error("Unknown unary operator");
+        return get_error_type();
+    }
+    
+    function type_check_assignment_expression(Expression memory expr) private returns (Type memory) {
+        Type memory left_type = type_check_expression(expr.left);
+        Type memory right_type = type_check_expression(expr.right);
+        
+        if (!is_lvalue(expr.left)) {
+            add_error("Left side of assignment must be assignable");
+            return get_error_type();
+        }
+        
+        if (!types_compatible(left_type, right_type)) {
+            add_error(string.concat(
+                "Type mismatch in assignment: cannot assign ",
+                type_to_string(right_type),
+                " to ",
+                type_to_string(left_type)
+            ));
+            return get_error_type();
+        }
+        
+        return left_type;
+    }
+    
+    function type_check_function_call(Expression memory expr) private returns (Type memory) {
+        Type memory function_type = type_check_expression(expr.function);
+        
+        if (function_type.type_kind != TypeKind.Function) {
+            add_error("Expression is not callable");
+            return get_error_type();
+        }
+        
+        // Type check arguments
+        FunctionType memory func_type = function_type.function_type;
+        if (expr.arguments.length != func_type.parameters.length) {
+            add_error("Argument count mismatch");
+            return get_error_type();
+        }
+        
+        for (uint256 i = 0; i < expr.arguments.length; i++) {
+            Type memory arg_type = type_check_expression(expr.arguments[i]);
+            if (!types_compatible(func_type.parameters[i], arg_type)) {
+                add_error(string.concat(
+                    "Argument type mismatch at position ",
+                    uint_to_string(i)
+                ));
+            }
+        }
+        
+        if (func_type.has_return_type) {
+            return func_type.return_type;
+        } else {
+            return Type({ type_kind: TypeKind.Void });
+        }
+    }
+    
+    function type_check_member_access(Expression memory expr) private returns (Type memory) {
+        Type memory object_type = type_check_expression(expr.object);
+        
+        if (object_type.type_kind == TypeKind.Custom) {
+            // Check if it's a struct
+            UserType memory user_type = type_env.user_types[object_type.name];
+            if (user_type.type_kind == UserTypeKind.Struct) {
+                StructType memory struct_type = user_type.struct_type;
+                
+                for (uint256 i = 0; i < struct_type.fields.length; i++) {
+                    if (string_equal(struct_type.fields[i].name, expr.member)) {
+                        return struct_type.fields[i].field_type;
+                    }
+                }
+                
+                add_error(string.concat(
+                    "Struct ",
+                    object_type.name,
+                    " has no field ",
+                    expr.member
+                ));
+                return get_error_type();
+            }
+        }
+        
+        add_error("Member access on non-struct type");
+        return get_error_type();
+    }
+    
+    function type_check_index_access(Expression memory expr) private returns (Type memory) {
+        Type memory object_type = type_check_expression(expr.object);
+        Type memory index_type = type_check_expression(expr.index);
+        
+        if (object_type.type_kind == TypeKind.Array) {
+            if (!is_integer_type(index_type)) {
+                add_error("Array index must be integer");
+                return get_error_type();
+            }
+            return object_type.element_type;
+        }
+        
+        if (object_type.type_kind == TypeKind.Mapping) {
+            if (!types_compatible(object_type.key_type, index_type)) {
+                add_error("Mapping key type mismatch");
+                return get_error_type();
+            }
+            return object_type.value_type;
+        }
+        
+        add_error("Index access on non-indexable type");
+        return get_error_type();
+    }
+    
+    function validate_blockchain_rules(Program memory program) private {
+        for (uint256 i = 0; i < program.items.length; i++) {
+            Item memory item = program.items[i];
+            
+            if (item.item_type == ItemType.Blockchain) {
+                validate_blockchain_specific_rules(item.blockchain_item);
+            }
+        }
+    }
+    
+    function validate_blockchain_specific_rules(Blockchain memory blockchain) private {
+        // Validate constructor rules
+        uint256 constructor_count = 0;
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            if (blockchain.functions[i].is_constructor) {
+                constructor_count++;
+            }
+        }
+        
+        if (constructor_count > 1) {
+            add_error("Blockchain can have at most one constructor");
+        }
+        
+        // Validate state variable access patterns
+        // Validate event emission rules
+        // Validate modifier usage
+        // etc.
+    }
+    
+    function validate_return_paths(Block memory block, Type memory expected_type) private {
+        // TODO: Implement return path analysis
+        // Check that all code paths return a value of the correct type
+    }
+    
+    // Symbol table operations
+    function define_symbol(string memory name, Symbol memory symbol) private {
+        if (symbol_exists_in_current_scope(name)) {
+            add_error(string.concat("Symbol already defined: ", name));
+            return;
+        }
+        
+        symbol_table.symbols[name] = symbol;
+    }
+    
+    function lookup_symbol(string memory name) private view returns (Symbol memory) {
+        if (symbol_table.symbols[name].symbol_type != SymbolType.Unknown) {
+            return symbol_table.symbols[name];
+        }
+        
+        return Symbol({
+            name: "",
+            symbol_type: SymbolType.Unknown,
+            data_type: get_error_type(),
+            scope_depth: 0,
+            is_mutable: false,
+            visibility: Visibility.Private
+        });
+    }
+    
+    function symbol_exists_in_current_scope(string memory name) private view returns (bool) {
+        Symbol memory symbol = symbol_table.symbols[name];
+        return symbol.symbol_type != SymbolType.Unknown && 
+               symbol.scope_depth == scope_stack.current_depth;
+    }
+    
+    // Scope management
+    function push_scope(string memory name) private {
+        scope_stack.current_depth++;
+        
+        Scope memory new_scope = Scope({
+            name: name,
+            depth: scope_stack.current_depth,
+            parent_depth: scope_stack.current_depth - 1
+        });
+        
+        scope_stack.scopes.push(new_scope);
+    }
+    
+    function pop_scope() private {
+        if (scope_stack.current_depth > 0) {
+            scope_stack.current_depth--;
+            scope_stack.scopes.pop();
+        }
+    }
+    
+    // Type checking utilities
+    function is_valid_type(Type memory type_def) private view returns (bool) {
+        if (type_def.type_kind == TypeKind.Custom) {
+            return type_env.user_types[type_def.name].name.length > 0;
+        }
+        return true; // Built-in types are always valid
+    }
+    
+    function types_compatible(Type memory expected, Type memory actual) private pure returns (bool) {
+        if (expected.type_kind != actual.type_kind) {
+            return false;
+        }
+        
+        if (expected.type_kind == TypeKind.Custom) {
+            return string_equal(expected.name, actual.name);
+        }
+        
+        if (expected.type_kind == TypeKind.Uint || expected.type_kind == TypeKind.Int) {
+            return expected.size == actual.size;
+        }
+        
+        return true;
+    }
+    
+    function types_comparable(Type memory left, Type memory right) private pure returns (bool) {
+        return types_compatible(left, right);
+    }
+    
+    function is_numeric_type(Type memory type_def) private pure returns (bool) {
+        return type_def.type_kind == TypeKind.Uint || type_def.type_kind == TypeKind.Int;
+    }
+    
+    function is_integer_type(Type memory type_def) private pure returns (bool) {
+        return type_def.type_kind == TypeKind.Uint || type_def.type_kind == TypeKind.Int;
+    }
+    
+    function is_boolean_type(Type memory type_def) private pure returns (bool) {
+        return type_def.type_kind == TypeKind.Bool;
+    }
+    
+    function is_string_type(Type memory type_def) private pure returns (bool) {
+        return type_def.type_kind == TypeKind.String;
+    }
+    
+    function is_lvalue(Expression memory expr) private pure returns (bool) {
+        return expr.expr_type == ExpressionType.Identifier ||
+               expr.expr_type == ExpressionType.MemberAccess ||
+               expr.expr_type == ExpressionType.IndexAccess;
+    }
+    
+    function promote_numeric_types(Type memory left, Type memory right) private pure returns (Type memory) {
+        // Simple promotion: return the larger type
+        if (left.type_kind == TypeKind.Uint && right.type_kind == TypeKind.Uint) {
+            return left.size >= right.size ? left : right;
+        }
+        
+        if (left.type_kind == TypeKind.Int && right.type_kind == TypeKind.Int) {
+            return left.size >= right.size ? left : right;
+        }
+        
+        // Mixed int/uint - promote to larger signed type
+        if ((left.type_kind == TypeKind.Int && right.type_kind == TypeKind.Uint) ||
+            (left.type_kind == TypeKind.Uint && right.type_kind == TypeKind.Int)) {
+            uint16 max_size = left.size >= right.size ? left.size : right.size;
+            return Type({
+                type_kind: TypeKind.Int,
+                size: max_size
+            });
+        }
+        
+        return left; // fallback
+    }
+    
+    function get_error_type() private pure returns (Type memory) {
+        return Type({
+            type_kind: TypeKind.Error
+        });
+    }
+    
+    function type_to_string(Type memory type_def) private pure returns (string memory) {
+        if (type_def.type_kind == TypeKind.Bool) {
+            return "bool";
+        } else if (type_def.type_kind == TypeKind.String) {
+            return "string";
+        } else if (type_def.type_kind == TypeKind.Address) {
+            return "address";
+        } else if (type_def.type_kind == TypeKind.Uint) {
+            return string.concat("uint", uint_to_string(type_def.size));
+        } else if (type_def.type_kind == TypeKind.Int) {
+            return string.concat("int", uint_to_string(type_def.size));
+        } else if (type_def.type_kind == TypeKind.Custom) {
+            return type_def.name;
+        } else {
+            return "unknown";
+        }
+    }
+    
+    function uint_to_string(uint256 value) private pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        
+        uint256 temp = value;
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    function string_equal(string memory a, string memory b) private pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
+    
+    function add_error(string memory message) private {
+        errors.push(SemanticError({
+            message: message,
+            line: 0, // TODO: Add line number tracking
+            column: 0
+        }));
+    }
+    
+    function initialize_builtin_types() private pure returns (mapping(string => Type)) {
+        mapping(string => Type) memory builtins;
+        
+        builtins["bool"] = Type({ type_kind: TypeKind.Bool });
+        builtins["string"] = Type({ type_kind: TypeKind.String });
+        builtins["address"] = Type({ type_kind: TypeKind.Address });
+        builtins["uint256"] = Type({ type_kind: TypeKind.Uint, size: 256 });
+        builtins["int256"] = Type({ type_kind: TypeKind.Int, size: 256 });
+        builtins["bytes"] = Type({ type_kind: TypeKind.DynamicBytes });
+        
+        return builtins;
+    }
+}
+
+// Data structures for semantic analysis
+struct SymbolTable {
+    mapping(string => Symbol) symbols;
+    Scope[] scopes;
+    uint256 current_scope;
+}
+
+struct Symbol {
+    string name;
+    SymbolType symbol_type;
+    Type data_type;
+    uint256 scope_depth;
+    bool is_mutable;
+    Visibility visibility;
+}
+
+enum SymbolType {
+    Unknown,
+    Blockchain,
+    StateVariable,
+    LocalVariable,
+    Parameter,
+    Function,
+    Event,
+    Modifier,
+    Type,
+    Constant
+}
+
+struct TypeEnvironment {
+    mapping(string => Type) builtin_types;
+    mapping(string => UserType) user_types;
+}
+
+struct UserType {
+    string name;
+    UserTypeKind type_kind;
+    StructType struct_type;
+    EnumType enum_type;
+}
+
+enum UserTypeKind {
+    Struct,
+    Enum
+}
+
+struct StructType {
+    string name;
+    StructField[] fields;
+}
+
+struct EnumType {
+    string name;
+    EnumVariant[] variants;
+}
+
+struct FunctionType {
+    Type[] parameters;
+    Type return_type;
+    bool has_return_type;
+    Visibility visibility;
+    Mutability mutability;
+}
+
+struct ScopeStack {
+    Scope[] scopes;
+    uint256 current_depth;
+}
+
+struct Scope {
+    string name;
+    uint256 depth;
+    uint256 parent_depth;
+}
+
+struct AnalysisResult {
+    SymbolTable symbol_table;
+    TypeEnvironment type_environment;
+    SemanticError[] errors;
+    bool success;
+}
+
+struct SemanticError {
+    string message;
+    uint256 line;
+    uint256 column;
+}
+
+// Extended type system
+enum TypeKind {
+    Bool,
+    String,
+    Address,
+    Uint,
+    Int,
+    FixedBytes,
+    DynamicBytes,
+    Array,
+    Mapping,
+    Function,
+    Custom,
+    Void,
+    Error
+}
+
+/// Enhanced error handling functions for semantic analyzer
+impl OmegaSemanticAnalyzer {
+    /// Set current file being analyzed
+    function set_current_file(string file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Report semantic error with context
+    function report_semantic_error(string message, uint256 line, uint256 column, ErrorSeverity severity) private {
+        let location = SourceLocation {
+            file: current_file,
+            line: line,
+            column: column,
+            position: 0 // Will be calculated if needed
+        };
+        
+        let context = ErrorContext {
+            context_type: ContextType.Semantic,
+            source_code: get_source_line(line),
+            additional_info: format("Function: {}, Blockchain: {}", current_function, current_blockchain)
+        };
+        
+        let error_code = determine_error_code(message);
+        let error_type = severity == ErrorSeverity.Warning ? ErrorType.Warning : ErrorType.SemanticError;
+        
+        let error = OmegaError {
+            error_type: error_type,
+            severity: severity,
+            code: error_code,
+            message: message,
+            location: location,
+            context: context,
+            suggestions: generate_semantic_suggestions(message, error_code)
+        };
+        
+        error_handler.report_error(error);
+        
+        if (severity == ErrorSeverity.Error) {
+            error_count++;
+        } else if (severity == ErrorSeverity.Warning) {
+            warning_count++;
+        }
+    }
+    
+    /// Determine error code based on message content
+    function determine_error_code(string message) private pure returns (ErrorCode) {
+        if (message.contains("undefined")) {
+            return ErrorCode.UndefinedSymbol;
+        } else if (message.contains("type mismatch") || message.contains("incompatible")) {
+            return ErrorCode.TypeMismatch;
+        } else if (message.contains("redefinition") || message.contains("already defined")) {
+            return ErrorCode.DuplicateDefinition;
+        } else if (message.contains("visibility")) {
+            return ErrorCode.VisibilityViolation;
+        } else if (message.contains("immutable") || message.contains("constant")) {
+            return ErrorCode.ImmutabilityViolation;
+        } else {
+            return ErrorCode.SemanticError;
+        }
+    }
+    
+    /// Generate suggestions for semantic errors
+    function generate_semantic_suggestions(string error_message, ErrorCode error_code) private pure returns (string[]) {
+        string[] suggestions = [];
+        
+        if (error_code == ErrorCode.UndefinedSymbol) {
+            suggestions.push("Check if the symbol is declared in the current scope");
+            suggestions.push("Verify import statements");
+            suggestions.push("Check for typos in the symbol name");
+        } else if (error_code == ErrorCode.TypeMismatch) {
+            suggestions.push("Cast the value to the expected type");
+            suggestions.push("Check function parameter types");
+            suggestions.push("Verify return type matches function signature");
+        } else if (error_code == ErrorCode.DuplicateDefinition) {
+            suggestions.push("Use a different name for the symbol");
+            suggestions.push("Check for conflicting imports");
+        } else if (error_code == ErrorCode.VisibilityViolation) {
+            suggestions.push("Change function visibility to public or external");
+            suggestions.push("Access the function from within the same contract");
+        }
+        
+        return suggestions;
+    }
+    
+    /// Get source line for error context
+    function get_source_line(uint256 line_number) private view returns (string) {
+        // This would need to be implemented with access to source code
+        return format("Line {}: [source code would be shown here]", line_number);
+    }
+    
+    /// Report type mismatch error
+    function report_type_mismatch(string expected_type, string actual_type, uint256 line, uint256 column) public {
+        string message = format("Type mismatch: expected '{}', found '{}'", expected_type, actual_type);
+        report_semantic_error(message, line, column, ErrorSeverity.Error);
+    }
+    
+    /// Report undefined symbol error
+    function report_undefined_symbol(string symbol_name, uint256 line, uint256 column) public {
+        string message = format("Undefined symbol: '{}'", symbol_name);
+        report_semantic_error(message, line, column, ErrorSeverity.Error);
+    }
+    
+    /// Report duplicate definition error
+    function report_duplicate_definition(string symbol_name, uint256 line, uint256 column) public {
+        string message = format("Symbol '{}' is already defined", symbol_name);
+        report_semantic_error(message, line, column, ErrorSeverity.Error);
+    }
+    
+    /// Report visibility violation
+    function report_visibility_violation(string symbol_name, string required_visibility, uint256 line, uint256 column) public {
+        string message = format("Cannot access '{}': requires {} visibility", symbol_name, required_visibility);
+        report_semantic_error(message, line, column, ErrorSeverity.Error);
+    }
+    
+    /// Report warning
+    function report_warning(string message, uint256 line, uint256 column) public {
+        report_semantic_error(message, line, column, ErrorSeverity.Warning);
+    }
+    
+    /// Check if analyzer has encountered errors
+    function has_errors() public view returns (bool) {
+        return error_count > 0 || error_handler.has_errors();
+    }
+    
+    /// Check if analyzer has warnings
+    function has_warnings() public view returns (bool) {
+        return warning_count > 0;
+    }
+    
+    /// Get error and warning counts
+    function get_error_counts() public view returns (uint256, uint256) {
+        return (error_count, warning_count);
+    }
+    
+    /// Get error statistics
+    function get_error_stats() public view returns (ErrorStatistics) {
+        return error_handler.get_statistics();
+    }
+    
+    /// Clear all errors (for testing)
+    function clear_errors() public {
+        errors = [];
+        error_handler.clear_errors();
+        error_count = 0;
+        warning_count = 0;
+    }
+}
+}

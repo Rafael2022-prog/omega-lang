@@ -1,0 +1,435 @@
+// OMEGA Peephole Optimization Pass
+// Melakukan optimasi pada pola instruksi kecil (peephole optimizations)
+
+import "../ir/ir.mega";
+import "./base_optimizer.mega";
+
+/// Peephole optimization pass
+blockchain PeepholeOptimizerPass {
+    state {
+        string pass_name;
+        string description;
+        uint256 patterns_matched;
+        uint256 instructions_optimized;
+        mapping(string => uint256) pattern_counts;
+        OptimizationPattern[] patterns;
+        bool initialized;
+    }
+    
+    /// Struktur untuk optimization pattern
+    struct OptimizationPattern {
+        string name;
+        string description;
+        IROpcode[] match_sequence;
+        IROpcode[] replacement_sequence;
+        bool enabled;
+        uint256 priority;
+    }
+    
+    /// Constructor
+    constructor() {
+        pass_name = "peephole_optimization";
+        description = "Applies local optimizations on small instruction sequences";
+        patterns_matched = 0;
+        instructions_optimized = 0;
+        _initialize_patterns();
+        initialized = true;
+    }
+    
+    /// Initialize optimization patterns
+    function _initialize_patterns() private {
+        // Pattern 1: Load constant then store -> Direct store
+        _add_pattern(
+            "load_store_elimination",
+            "Eliminates unnecessary load before store",
+            _create_sequence([IROpcode.LOAD_CONST, IROpcode.STORE]),
+            _create_sequence([IROpcode.STORE_CONST]),
+            true,
+            100
+        );
+        
+        // Pattern 2: Move to same location -> NOP
+        _add_pattern(
+            "redundant_move",
+            "Eliminates moves to same location",
+            _create_sequence([IROpcode.MOVE]),
+            _create_sequence([IROpcode.NOP]),
+            true,
+            90
+        );
+        
+        // Pattern 3: Add 0 -> NOP
+        _add_pattern(
+            "add_zero",
+            "Eliminates addition of zero",
+            _create_sequence([IROpcode.LOAD_CONST, IROpcode.ADD]),
+            _create_sequence([IROpcode.NOP]),
+            true,
+            80
+        );
+        
+        // Pattern 4: Multiply by 1 -> NOP
+        _add_pattern(
+            "mul_one",
+            "Eliminates multiplication by one",
+            _create_sequence([IROpcode.LOAD_CONST, IROpcode.MUL]),
+            _create_sequence([IROpcode.NOP]),
+            true,
+            80
+        );
+        
+        // Pattern 5: Double negation -> NOP
+        _add_pattern(
+            "double_negation",
+            "Eliminates double negation",
+            _create_sequence([IROpcode.NEG, IROpcode.NEG]),
+            _create_sequence([IROpcode.NOP]),
+            true,
+            70
+        );
+        
+        // Pattern 6: Load then immediate use -> Direct operation
+        _add_pattern(
+            "load_use_fusion",
+            "Fuses load with immediate use",
+            _create_sequence([IROpcode.LOAD, IROpcode.ADD]),
+            _create_sequence([IROpcode.ADD_MEM]),
+            true,
+            60
+        );
+        
+        // Pattern 7: Branch to next instruction -> NOP
+        _add_pattern(
+            "branch_next",
+            "Eliminates branch to next instruction",
+            _create_sequence([IROpcode.BRANCH_UNCONDITIONAL]),
+            _create_sequence([IROpcode.NOP]),
+            true,
+            50
+        );
+    }
+    
+    /// Add optimization pattern
+    function _add_pattern(
+        string memory name,
+        string memory description,
+        IROpcode[] memory match_seq,
+        IROpcode[] memory replacement_seq,
+        bool enabled,
+        uint256 priority
+    ) private {
+        patterns.push(OptimizationPattern({
+            name: name,
+            description: description,
+            match_sequence: match_seq,
+            replacement_sequence: replacement_seq,
+            enabled: enabled,
+            priority: priority
+        }));
+        
+        pattern_counts[name] = 0;
+    }
+    
+    /// Create opcode sequence
+    function _create_sequence(IROpcode[] memory opcodes) private pure returns (IROpcode[] memory) {
+        return opcodes;
+    }
+    
+    /// Implementasi OptimizationPass trait
+    function run(IRModule memory module) public returns (IRModule memory) {
+        require(initialized, "PeepholeOptimizerPass not initialized");
+        
+        patterns_matched = 0;
+        instructions_optimized = 0;
+        
+        // Apply peephole optimizations to all functions
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            module.functions[i] = optimize_function(module.functions[i]);
+        }
+        
+        return module;
+    }
+    
+    /// Get pass name
+    function get_name() public view returns (string memory) {
+        return pass_name;
+    }
+    
+    /// Get pass description
+    function get_description() public view returns (string memory) {
+        return description;
+    }
+    
+    /// Check if pass can run on module
+    function can_run(IRModule memory module) public pure returns (bool) {
+        return module.functions.length > 0;
+    }
+    
+    /// Estimate improvement
+    function estimate_improvement(IRModule memory module) public pure returns (uint256) {
+        uint256 total_instructions = 0;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            total_instructions += count_instructions_in_function(module.functions[i]);
+        }
+        // Estimate 5-10% of instructions can be optimized with peephole
+        return (total_instructions * 7) / 100;
+    }
+    
+    /// Optimize function
+    function optimize_function(IRFunction memory func) private returns (IRFunction memory) {
+        func.body = optimize_block(func.body);
+        return func;
+    }
+    
+    /// Optimize block
+    function optimize_block(IRBlock memory block) private returns (IRBlock memory) {
+        bool changed = true;
+        uint256 iterations = 0;
+        uint256 max_iterations = 10; // Prevent infinite loops
+        
+        while (changed && iterations < max_iterations) {
+            changed = false;
+            iterations++;
+            
+            // Apply all enabled patterns
+            for (uint256 i = 0; i < patterns.length; i++) {
+                if (patterns[i].enabled) {
+                    bool pattern_applied = apply_pattern(block, patterns[i]);
+                    if (pattern_applied) {
+                        changed = true;
+                        pattern_counts[patterns[i].name]++;
+                        patterns_matched++;
+                    }
+                }
+            }
+        }
+        
+        return block;
+    }
+    
+    /// Apply optimization pattern to block
+    function apply_pattern(IRBlock memory block, OptimizationPattern memory pattern) private returns (bool) {
+        bool applied = false;
+        
+        // Scan through instructions looking for pattern matches
+        for (uint256 i = 0; i <= block.instructions.length - pattern.match_sequence.length; i++) {
+            if (matches_pattern(block.instructions, i, pattern.match_sequence)) {
+                // Apply replacement
+                block = replace_instructions(block, i, pattern.match_sequence.length, pattern.replacement_sequence);
+                applied = true;
+                instructions_optimized += pattern.match_sequence.length;
+                break; // Apply one pattern at a time to avoid conflicts
+            }
+        }
+        
+        return applied;
+    }
+    
+    /// Check if instructions match pattern starting at index
+    function matches_pattern(
+        IRInstruction[] memory instructions,
+        uint256 start_index,
+        IROpcode[] memory pattern
+    ) private pure returns (bool) {
+        if (start_index + pattern.length > instructions.length) {
+            return false;
+        }
+        
+        for (uint256 i = 0; i < pattern.length; i++) {
+            if (instructions[start_index + i].opcode != pattern[i]) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Replace instructions with optimized sequence
+    function replace_instructions(
+        IRBlock memory block,
+        uint256 start_index,
+        uint256 match_length,
+        IROpcode[] memory replacement
+    ) private pure returns (IRBlock memory) {
+        // Calculate new instruction array size
+        uint256 new_size = block.instructions.length - match_length + replacement.length;
+        IRInstruction[] memory new_instructions = new IRInstruction[](new_size);
+        
+        // Copy instructions before match
+        for (uint256 i = 0; i < start_index; i++) {
+            new_instructions[i] = block.instructions[i];
+        }
+        
+        // Insert replacement instructions
+        for (uint256 i = 0; i < replacement.length; i++) {
+            new_instructions[start_index + i] = create_instruction(replacement[i]);
+        }
+        
+        // Copy instructions after match
+        uint256 copy_start = start_index + match_length;
+        uint256 new_index = start_index + replacement.length;
+        for (uint256 i = copy_start; i < block.instructions.length; i++) {
+            new_instructions[new_index] = block.instructions[i];
+            new_index++;
+        }
+        
+        block.instructions = new_instructions;
+        return block;
+    }
+    
+    /// Create instruction from opcode
+    function create_instruction(IROpcode opcode) private pure returns (IRInstruction memory) {
+        return IRInstruction({
+            opcode: opcode,
+            operands: new IROperand[](0),
+            result: IROperand({
+                type: IROperandType.NONE,
+                value: "",
+                data_type: IRDataType.VOID
+            }),
+            metadata: ""
+        });
+    }
+    
+    /// Specialized pattern matching functions
+    
+    /// Check for redundant move (move to same location)
+    function is_redundant_move(IRInstruction memory instr) private pure returns (bool) {
+        if (instr.opcode != IROpcode.MOVE || instr.operands.length != 2) {
+            return false;
+        }
+        
+        IROperand memory src = instr.operands[0];
+        IROperand memory dst = instr.operands[1];
+        
+        return keccak256(bytes(src.value)) == keccak256(bytes(dst.value)) &&
+               src.type == dst.type;
+    }
+    
+    /// Check for add zero pattern
+    function is_add_zero(IRInstruction[] memory instructions, uint256 index) private pure returns (bool) {
+        if (index + 1 >= instructions.length) return false;
+        
+        IRInstruction memory load_instr = instructions[index];
+        IRInstruction memory add_instr = instructions[index + 1];
+        
+        if (load_instr.opcode != IROpcode.LOAD_CONST || add_instr.opcode != IROpcode.ADD) {
+            return false;
+        }
+        
+        // Check if loaded constant is zero
+        if (load_instr.operands.length > 0) {
+            return keccak256(bytes(load_instr.operands[0].value)) == keccak256(bytes("0"));
+        }
+        
+        return false;
+    }
+    
+    /// Check for multiply by one pattern
+    function is_mul_one(IRInstruction[] memory instructions, uint256 index) private pure returns (bool) {
+        if (index + 1 >= instructions.length) return false;
+        
+        IRInstruction memory load_instr = instructions[index];
+        IRInstruction memory mul_instr = instructions[index + 1];
+        
+        if (load_instr.opcode != IROpcode.LOAD_CONST || mul_instr.opcode != IROpcode.MUL) {
+            return false;
+        }
+        
+        // Check if loaded constant is one
+        if (load_instr.operands.length > 0) {
+            return keccak256(bytes(load_instr.operands[0].value)) == keccak256(bytes("1"));
+        }
+        
+        return false;
+    }
+    
+    /// Check for branch to next instruction
+    function is_branch_to_next(IRInstruction memory instr, uint256 current_index) private pure returns (bool) {
+        if (instr.opcode != IROpcode.BRANCH_UNCONDITIONAL || instr.operands.length == 0) {
+            return false;
+        }
+        
+        // Simplified check - in real implementation would check actual target
+        string memory target = instr.operands[0].value;
+        string memory next_label = string(abi.encodePacked("L", current_index + 1));
+        
+        return keccak256(bytes(target)) == keccak256(bytes(next_label));
+    }
+    
+    /// Enable/disable pattern
+    function set_pattern_enabled(string memory pattern_name, bool enabled) public {
+        for (uint256 i = 0; i < patterns.length; i++) {
+            if (keccak256(bytes(patterns[i].name)) == keccak256(bytes(pattern_name))) {
+                patterns[i].enabled = enabled;
+                break;
+            }
+        }
+    }
+    
+    /// Set pattern priority
+    function set_pattern_priority(string memory pattern_name, uint256 priority) public {
+        for (uint256 i = 0; i < patterns.length; i++) {
+            if (keccak256(bytes(patterns[i].name)) == keccak256(bytes(pattern_name))) {
+                patterns[i].priority = priority;
+                break;
+            }
+        }
+    }
+    
+    /// Get pattern statistics
+    function get_pattern_stats(string memory pattern_name) public view returns (uint256) {
+        return pattern_counts[pattern_name];
+    }
+    
+    /// Get all patterns
+    function get_patterns() public view returns (OptimizationPattern[] memory) {
+        return patterns;
+    }
+    
+    /// Count instructions in function
+    function count_instructions_in_function(IRFunction memory func) private pure returns (uint256) {
+        return func.body.instructions.length;
+    }
+    
+    /// Get optimization statistics
+    function get_stats() public view returns (uint256, uint256) {
+        return (patterns_matched, instructions_optimized);
+    }
+    
+    /// Reset statistics
+    function reset_stats() public {
+        patterns_matched = 0;
+        instructions_optimized = 0;
+        
+        // Reset pattern counts
+        for (uint256 i = 0; i < patterns.length; i++) {
+            pattern_counts[patterns[i].name] = 0;
+        }
+    }
+    
+    /// Add custom pattern
+    function add_custom_pattern(
+        string memory name,
+        string memory description,
+        IROpcode[] memory match_seq,
+        IROpcode[] memory replacement_seq,
+        uint256 priority
+    ) public {
+        _add_pattern(name, description, match_seq, replacement_seq, true, priority);
+    }
+    
+    /// Remove pattern
+    function remove_pattern(string memory pattern_name) public {
+        for (uint256 i = 0; i < patterns.length; i++) {
+            if (keccak256(bytes(patterns[i].name)) == keccak256(bytes(pattern_name))) {
+                // Shift remaining patterns
+                for (uint256 j = i; j < patterns.length - 1; j++) {
+                    patterns[j] = patterns[j + 1];
+                }
+                patterns.pop();
+                break;
+            }
+        }
+    }
+}

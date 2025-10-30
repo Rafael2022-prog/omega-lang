@@ -1,0 +1,45 @@
+{
+  "name": "tree-sitter-omega",
+  "version": "1.0.0",
+  "description": "Tree-sitter grammar for OMEGA blockchain programming language",
+  "main": "bindings/node",
+  "keywords": [
+    "tree-sitter",
+    "omega",
+    "blockchain",
+    "parser",
+    "syntax-highlighting"
+  ],
+  "author": "OMEGA Team",
+  "license": "MIT",
+  "dependencies": {
+    "nan": "^2.17.0"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.20.8"
+  },
+  "scripts": {
+    "build": "tree-sitter generate && node-gyp build",
+    "test": "tree-sitter test",
+    "parse": "tree-sitter parse",
+    "highlight": "tree-sitter highlight"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.omega",
+      "file-types": ["mega"],
+      "injection-regex": "omega",
+      "highlights": "queries/highlights.scm",
+      "locals": "queries/locals.scm",
+      "tags": "queries/tags.scm"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rafael2022-prog/omega-lang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rafael2022-prog/omega-lang/issues"
+  },
+  "homepage": "https://www.omegalang.xyz"
+}

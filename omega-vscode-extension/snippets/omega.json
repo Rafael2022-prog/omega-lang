@@ -1,0 +1,119 @@
+{
+    "Blockchain Contract": {
+        "prefix": "blockchain",
+        "body": [
+            "blockchain ${1:ContractName} {",
+            "    state {",
+            "        ${2:// State variables}",
+            "    }",
+            "",
+            "    constructor(${3:// Constructor parameters}) {",
+            "        ${4:// Constructor logic}",
+            "    }",
+            "",
+            "    function ${5:functionName}(${6:// Parameters}) public returns (${7:// Return type}) {",
+            "        ${8:// Function logic}",
+            "    }",
+            "}"
+        ],
+        "description": "Create a new OMEGA blockchain contract"
+    },
+    "Function": {
+        "prefix": "function",
+        "body": [
+            "function ${1:functionName}(${2:// Parameters}) ${3:public} ${4:view} returns (${5:// Return type}) {",
+            "    ${6:// Function body}",
+            "}"
+        ],
+        "description": "Create a function"
+    },
+    "Constructor": {
+        "prefix": "constructor",
+        "body": [
+            "constructor(${1:// Parameters}) {",
+            "    ${2:// Constructor logic}",
+            "}"
+        ],
+        "description": "Create a constructor"
+    },
+    "State Variable": {
+        "prefix": "state",
+        "body": [
+            "state {",
+            "    ${1:// State variables}",
+            "}"
+        ],
+        "description": "Create state block"
+    },
+    "Mapping": {
+        "prefix": "mapping",
+        "body": [
+            "mapping(${1:address} => ${2:uint256}) ${3:variableName};"
+        ],
+        "description": "Create a mapping"
+    },
+    "Event": {
+        "prefix": "event",
+        "body": [
+            "event ${1:EventName}(${2:// Parameters});"
+        ],
+        "description": "Create an event"
+    },
+    "Emit Event": {
+        "prefix": "emit",
+        "body": [
+            "emit ${1:EventName}(${2:// Arguments});"
+        ],
+        "description": "Emit an event"
+    },
+    "Require": {
+        "prefix": "require",
+        "body": [
+            "require(${1:condition}, \"${2:Error message}\");"
+        ],
+        "description": "Add a require statement"
+    },
+    "Import": {
+        "prefix": "import",
+        "body": [
+            "import \"${1:std/tokens/ERC20.mega}\";"
+        ],
+        "description": "Import a module"
+    },
+    "Cross-Chain Function": {
+        "prefix": "crosschain",
+        "body": [
+            "@cross_chain(target = \"${1:solana}\")",
+            "function ${2:functionName}(${3:// Parameters}) public {",
+            "    ${4:// Cross-chain logic}",
+            "}"
+        ],
+        "description": "Create a cross-chain function"
+    },
+    "ERC20 Token": {
+        "prefix": "erc20",
+        "body": [
+            "import \"std/tokens/ERC20.mega\";",
+            "",
+            "blockchain ${1:TokenName} extends ERC20 {",
+            "    constructor(string _name, string _symbol, uint256 _initialSupply) {",
+            "        name = _name;",
+            "        symbol = _symbol;",
+            "        total_supply = _initialSupply;",
+            "        balances[msg.sender] = _initialSupply;",
+            "    }",
+            "}"
+        ],
+        "description": "Create an ERC20 token contract"
+    },
+    "Access Control": {
+        "prefix": "onlyowner",
+        "body": [
+            "modifier onlyOwner() {",
+            "    require(msg.sender == owner, \"Not the owner\");",
+            "    _;",
+            "}"
+        ],
+        "description": "Create onlyOwner modifier"
+    }
+}

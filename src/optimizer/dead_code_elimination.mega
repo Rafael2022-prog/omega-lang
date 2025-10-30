@@ -1,0 +1,390 @@
+// OMEGA Dead Code Elimination Optimization Pass
+// Menghapus kode yang tidak pernah dieksekusi atau tidak dapat dijangkau
+
+import "../ir/ir.mega";
+import "./base_optimizer.mega";
+
+/// Dead code elimination optimization pass
+blockchain DeadCodeEliminationPass {
+    state {
+        string pass_name;
+        string description;
+        uint256 instructions_removed;
+        uint256 functions_removed;
+        uint256 variables_removed;
+        mapping(string => bool) reachable_functions;
+        mapping(string => bool) used_variables;
+        mapping(string => bool) reachable_blocks;
+        bool initialized;
+    }
+    
+    /// Constructor
+    constructor() {
+        pass_name = "dead_code_elimination";
+        description = "Removes unreachable code and unused variables";
+        instructions_removed = 0;
+        functions_removed = 0;
+        variables_removed = 0;
+        initialized = true;
+    }
+    
+    /// Implementasi OptimizationPass trait
+    function run(IRModule memory module) public returns (IRModule memory) {
+        require(initialized, "DeadCodeEliminationPass not initialized");
+        
+        instructions_removed = 0;
+        functions_removed = 0;
+        variables_removed = 0;
+        
+        // Phase 1: Mark reachable functions
+        mark_reachable_functions(module);
+        
+        // Phase 2: Mark used variables
+        mark_used_variables(module);
+        
+        // Phase 3: Mark reachable blocks
+        mark_reachable_blocks(module);
+        
+        // Phase 4: Remove dead code
+        module = remove_dead_functions(module);
+        module = remove_dead_variables(module);
+        module = remove_dead_instructions(module);
+        
+        return module;
+    }
+    
+    /// Get pass name
+    function get_name() public view returns (string memory) {
+        return pass_name;
+    }
+    
+    /// Get pass description
+    function get_description() public view returns (string memory) {
+        return description;
+    }
+    
+    /// Check if pass can run on module
+    function can_run(IRModule memory module) public pure returns (bool) {
+        return module.functions.length > 0;
+    }
+    
+    /// Estimate improvement
+    function estimate_improvement(IRModule memory module) public pure returns (uint256) {
+        uint256 total_instructions = 0;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            total_instructions += count_instructions_in_function(module.functions[i]);
+        }
+        // Estimate 5-15% of code might be dead
+        return (total_instructions * 10) / 100;
+    }
+    
+    /// Mark reachable functions starting from entry points
+    function mark_reachable_functions(IRModule memory module) private {
+        // Clear previous marks
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            reachable_functions[module.functions[i].name] = false;
+        }
+        
+        // Mark entry points as reachable
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            IRFunction memory func = module.functions[i];
+            if (is_entry_point(func)) {
+                mark_function_reachable(func.name, module);
+            }
+        }
+        
+        // Mark exported functions as reachable
+        for (uint256 i = 0; i < module.exported_functions.length; i++) {
+            mark_function_reachable(module.exported_functions[i], module);
+        }
+    }
+    
+    /// Mark function and its dependencies as reachable
+    function mark_function_reachable(string memory func_name, IRModule memory module) private {
+        if (reachable_functions[func_name]) return; // Already marked
+        
+        reachable_functions[func_name] = true;
+        
+        // Find function and mark its dependencies
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            if (keccak256(bytes(module.functions[i].name)) == keccak256(bytes(func_name))) {
+                mark_function_dependencies(module.functions[i], module);
+                break;
+            }
+        }
+    }
+    
+    /// Mark dependencies of a function
+    function mark_function_dependencies(IRFunction memory func, IRModule memory module) private {
+        // Analyze function calls in the function body
+        analyze_block_for_calls(func.body, module);
+    }
+    
+    /// Analyze block for function calls
+    function analyze_block_for_calls(IRBlock memory block, IRModule memory module) private {
+        for (uint256 i = 0; i < block.instructions.length; i++) {
+            IRInstruction memory instr = block.instructions[i];
+            
+            if (instr.opcode == IROpcode.CALL) {
+                // Mark called function as reachable
+                if (instr.operands.length > 0) {
+                    string memory called_func = instr.operands[0].value;
+                    mark_function_reachable(called_func, module);
+                }
+            } else if (instr.opcode == IROpcode.BRANCH_CONDITIONAL || instr.opcode == IROpcode.BRANCH_UNCONDITIONAL) {
+                // Handle control flow - mark target blocks
+                if (instr.operands.length > 0) {
+                    reachable_blocks[instr.operands[0].value] = true;
+                }
+            }
+        }
+    }
+    
+    /// Mark used variables
+    function mark_used_variables(IRModule memory module) private {
+        // Clear previous marks
+        for (uint256 i = 0; i < module.global_variables.length; i++) {
+            used_variables[module.global_variables[i].name] = false;
+        }
+        
+        // Analyze all reachable functions for variable usage
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            IRFunction memory func = module.functions[i];
+            if (reachable_functions[func.name]) {
+                mark_variables_in_function(func);
+            }
+        }
+    }
+    
+    /// Mark variables used in function
+    function mark_variables_in_function(IRFunction memory func) private {
+        // Mark function parameters as used
+        for (uint256 i = 0; i < func.parameters.length; i++) {
+            used_variables[func.parameters[i].name] = true;
+        }
+        
+        // Mark local variables that are used
+        mark_variables_in_block(func.body);
+    }
+    
+    /// Mark variables used in block
+    function mark_variables_in_block(IRBlock memory block) private {
+        for (uint256 i = 0; i < block.instructions.length; i++) {
+            IRInstruction memory instr = block.instructions[i];
+            
+            // Check operands for variable references
+            for (uint256 j = 0; j < instr.operands.length; j++) {
+                IROperand memory operand = instr.operands[j];
+                if (operand.type == IROperandType.VARIABLE || operand.type == IROperandType.GLOBAL) {
+                    used_variables[operand.value] = true;
+                }
+            }
+        }
+    }
+    
+    /// Mark reachable blocks within functions
+    function mark_reachable_blocks(IRModule memory module) private {
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            IRFunction memory func = module.functions[i];
+            if (reachable_functions[func.name]) {
+                mark_reachable_blocks_in_function(func);
+            }
+        }
+    }
+    
+    /// Mark reachable blocks in function using control flow analysis
+    function mark_reachable_blocks_in_function(IRFunction memory func) private {
+        // Start from entry block
+        string memory entry_block = "entry";
+        reachable_blocks[entry_block] = true;
+        
+        // Use worklist algorithm to find all reachable blocks
+        string[] memory worklist = new string[](100); // Simplified fixed size
+        uint256 worklist_size = 1;
+        worklist[0] = entry_block;
+        
+        while (worklist_size > 0) {
+            // Pop from worklist
+            worklist_size--;
+            string memory current_block = worklist[worklist_size];
+            
+            // Find successors of current block
+            string[] memory successors = get_block_successors(current_block, func);
+            
+            for (uint256 i = 0; i < successors.length; i++) {
+                if (!reachable_blocks[successors[i]]) {
+                    reachable_blocks[successors[i]] = true;
+                    worklist[worklist_size] = successors[i];
+                    worklist_size++;
+                }
+            }
+        }
+    }
+    
+    /// Get successors of a block
+    function get_block_successors(string memory block_name, IRFunction memory func) private pure returns (string[] memory) {
+        // Simplified implementation - in real version would analyze control flow
+        string[] memory successors = new string[](2);
+        uint256 count = 0;
+        
+        // This is a simplified version - real implementation would analyze
+        // the actual control flow instructions in the block
+        
+        return successors;
+    }
+    
+    /// Remove dead functions
+    function remove_dead_functions(IRModule memory module) private returns (IRModule memory) {
+        IRFunction[] memory alive_functions = new IRFunction[](module.functions.length);
+        uint256 alive_count = 0;
+        
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            IRFunction memory func = module.functions[i];
+            if (reachable_functions[func.name]) {
+                alive_functions[alive_count] = func;
+                alive_count++;
+            } else {
+                functions_removed++;
+            }
+        }
+        
+        // Resize array to actual size
+        IRFunction[] memory final_functions = new IRFunction[](alive_count);
+        for (uint256 i = 0; i < alive_count; i++) {
+            final_functions[i] = alive_functions[i];
+        }
+        
+        module.functions = final_functions;
+        return module;
+    }
+    
+    /// Remove dead global variables
+    function remove_dead_variables(IRModule memory module) private returns (IRModule memory) {
+        IRGlobalVariable[] memory alive_variables = new IRGlobalVariable[](module.global_variables.length);
+        uint256 alive_count = 0;
+        
+        for (uint256 i = 0; i < module.global_variables.length; i++) {
+            IRGlobalVariable memory var = module.global_variables[i];
+            if (used_variables[var.name]) {
+                alive_variables[alive_count] = var;
+                alive_count++;
+            } else {
+                variables_removed++;
+            }
+        }
+        
+        // Resize array
+        IRGlobalVariable[] memory final_variables = new IRGlobalVariable[](alive_count);
+        for (uint256 i = 0; i < alive_count; i++) {
+            final_variables[i] = alive_variables[i];
+        }
+        
+        module.global_variables = final_variables;
+        return module;
+    }
+    
+    /// Remove dead instructions
+    function remove_dead_instructions(IRModule memory module) private returns (IRModule memory) {
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            module.functions[i] = remove_dead_instructions_in_function(module.functions[i]);
+        }
+        return module;
+    }
+    
+    /// Remove dead instructions in function
+    function remove_dead_instructions_in_function(IRFunction memory func) private returns (IRFunction memory) {
+        func.body = remove_dead_instructions_in_block(func.body);
+        return func;
+    }
+    
+    /// Remove dead instructions in block
+    function remove_dead_instructions_in_block(IRBlock memory block) private returns (IRBlock memory) {
+        IRInstruction[] memory alive_instructions = new IRInstruction[](block.instructions.length);
+        uint256 alive_count = 0;
+        
+        for (uint256 i = 0; i < block.instructions.length; i++) {
+            IRInstruction memory instr = block.instructions[i];
+            
+            if (!is_dead_instruction(instr)) {
+                alive_instructions[alive_count] = instr;
+                alive_count++;
+            } else {
+                instructions_removed++;
+            }
+        }
+        
+        // Resize array
+        IRInstruction[] memory final_instructions = new IRInstruction[](alive_count);
+        for (uint256 i = 0; i < alive_count; i++) {
+            final_instructions[i] = alive_instructions[i];
+        }
+        
+        block.instructions = final_instructions;
+        return block;
+    }
+    
+    /// Check if instruction is dead
+    function is_dead_instruction(IRInstruction memory instr) private view returns (bool) {
+        // Instructions with side effects are never dead
+        if (has_side_effects(instr)) {
+            return false;
+        }
+        
+        // Instructions that define variables that are never used are dead
+        if (instr.opcode == IROpcode.ASSIGN || instr.opcode == IROpcode.LOAD_CONST) {
+            if (instr.operands.length > 0) {
+                IROperand memory target = instr.operands[0];
+                if (target.type == IROperandType.VARIABLE) {
+                    return !used_variables[target.value];
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /// Check if instruction has side effects
+    function has_side_effects(IRInstruction memory instr) private pure returns (bool) {
+        return instr.opcode == IROpcode.CALL ||
+               instr.opcode == IROpcode.STORE ||
+               instr.opcode == IROpcode.BRANCH_CONDITIONAL ||
+               instr.opcode == IROpcode.BRANCH_UNCONDITIONAL ||
+               instr.opcode == IROpcode.RETURN ||
+               instr.opcode == IROpcode.EMIT_EVENT;
+    }
+    
+    /// Check if function is entry point
+    function is_entry_point(IRFunction memory func) private pure returns (bool) {
+        return keccak256(bytes(func.name)) == keccak256(bytes("main")) ||
+               keccak256(bytes(func.name)) == keccak256(bytes("constructor")) ||
+               func.is_public;
+    }
+    
+    /// Count instructions in function
+    function count_instructions_in_function(IRFunction memory func) private pure returns (uint256) {
+        return func.body.instructions.length;
+    }
+    
+    /// Get optimization statistics
+    function get_stats() public view returns (uint256, uint256, uint256) {
+        return (instructions_removed, functions_removed, variables_removed);
+    }
+    
+    /// Reset statistics
+    function reset_stats() public {
+        instructions_removed = 0;
+        functions_removed = 0;
+        variables_removed = 0;
+    }
+    
+    /// Clear analysis data
+    function clear_analysis() public {
+        // Clear reachability maps
+        for (uint256 i = 0; i < 1000; i++) { // Simplified cleanup
+            string memory key = string(abi.encodePacked("func_", i));
+            reachable_functions[key] = false;
+            used_variables[key] = false;
+            reachable_blocks[key] = false;
+        }
+    }
+}

@@ -1,0 +1,39 @@
+{
+  "fileAssociations": {
+    "*.mega": {
+      "language": "omega",
+      "icon": {
+        "path": "./temp-logo.svg",
+        "type": "svg"
+      },
+      "description": "OMEGA Blockchain Source File",
+      "mimeType": "text/x-omega",
+      "category": "source"
+    }
+  },
+  "languageConfiguration": {
+    "omega": {
+      "displayName": "OMEGA",
+      "extensions": [".mega"],
+      "icon": {
+        "light": "./temp-logo.svg",
+        "dark": "./temp-logo.svg"
+      },
+      "syntaxHighlighting": {
+        "enabled": true,
+        "theme": "omega-dark"
+      }
+    }
+  },
+  "iconTheme": {
+    "name": "omega-icons",
+    "version": "1.0.0",
+    "icons": {
+      "mega-file": {
+        "iconPath": "./temp-logo.svg",
+        "fileExtensions": ["mega"],
+        "fileNames": []
+      }
+    }
+  }
+}

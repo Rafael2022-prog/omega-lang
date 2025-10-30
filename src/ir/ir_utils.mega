@@ -1,0 +1,474 @@
+// OMEGA IR Utilities - Fungsi utilitas untuk IR
+// Modul khusus untuk fungsi-fungsi pembantu dan utilitas IR
+
+import "../ast/ast_nodes.mega";
+import "../error/error.mega";
+
+/// Blockchain untuk utilitas IR
+blockchain IRUtils {
+    state {
+        uint256 temp_var_counter;                           // Counter untuk variabel temporary
+        uint256 label_counter;                              // Counter untuk label
+        mapping(string => string) string_cache;             // Cache untuk string operations
+        IRContext current_context;                          // Konteks IR saat ini
+    }
+    
+    /// Konstruktor untuk inisialisasi utilities
+    constructor() {
+        temp_var_counter = 0;
+        label_counter = 0;
+        current_context = create_default_context();
+    }
+    
+    /// Generate variabel temporary yang unik
+    function generate_temp_var() public returns (string memory) {
+        temp_var_counter++;
+        return string(abi.encodePacked("_temp_", uint_to_string(temp_var_counter)));
+    }
+    
+    /// Generate label yang unik
+    function generate_label(string memory prefix) public returns (string memory) {
+        label_counter++;
+        return string(abi.encodePacked(prefix, "_", uint_to_string(label_counter)));
+    }
+    
+    /// Generate label untuk loop
+    function generate_loop_labels() public returns (LoopLabels memory) {
+        LoopLabels memory labels;
+        labels.start_label = generate_label("loop_start");
+        labels.end_label = generate_label("loop_end");
+        labels.continue_label = generate_label("loop_continue");
+        return labels;
+    }
+    
+    /// Generate label untuk conditional
+    function generate_conditional_labels() public returns (ConditionalLabels memory) {
+        ConditionalLabels memory labels;
+        labels.true_label = generate_label("if_true");
+        labels.false_label = generate_label("if_false");
+        labels.end_label = generate_label("if_end");
+        return labels;
+    }
+    
+    /// Konversi uint ke string
+    function uint_to_string(uint256 value) public pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        
+        uint256 temp = value;
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    /// Konversi int ke string
+    function int_to_string(int256 value) public pure returns (string memory) {
+        if (value >= 0) {
+            return uint_to_string(uint256(value));
+        } else {
+            return string(abi.encodePacked("-", uint_to_string(uint256(-value))));
+        }
+    }
+    
+    /// Escape string untuk IR output
+    function escape_string(string memory input) public pure returns (string memory) {
+        bytes memory input_bytes = bytes(input);
+        bytes memory result = new bytes(input_bytes.length * 2); // Worst case
+        uint result_length = 0;
+        
+        for (uint i = 0; i < input_bytes.length; i++) {
+            bytes1 char = input_bytes[i];
+            
+            if (char == '"') {
+                result[result_length++] = '\\';
+                result[result_length++] = '"';
+            } else if (char == '\\') {
+                result[result_length++] = '\\';
+                result[result_length++] = '\\';
+            } else if (char == '\n') {
+                result[result_length++] = '\\';
+                result[result_length++] = 'n';
+            } else if (char == '\r') {
+                result[result_length++] = '\\';
+                result[result_length++] = 'r';
+            } else if (char == '\t') {
+                result[result_length++] = '\\';
+                result[result_length++] = 't';
+            } else {
+                result[result_length++] = char;
+            }
+        }
+        
+        // Resize result to actual length
+        bytes memory final_result = new bytes(result_length);
+        for (uint i = 0; i < result_length; i++) {
+            final_result[i] = result[i];
+        }
+        
+        return string(final_result);
+    }
+    
+    /// Sanitize identifier untuk IR
+    function sanitize_identifier(string memory identifier) public pure returns (string memory) {
+        bytes memory input_bytes = bytes(identifier);
+        bytes memory result = new bytes(input_bytes.length);
+        uint result_length = 0;
+        
+        for (uint i = 0; i < input_bytes.length; i++) {
+            bytes1 char = input_bytes[i];
+            
+            // Allow alphanumeric and underscore
+            if ((char >= 'a' && char <= 'z') ||
+                (char >= 'A' && char <= 'Z') ||
+                (char >= '0' && char <= '9') ||
+                char == '_') {
+                result[result_length++] = char;
+            } else {
+                // Replace invalid characters with underscore
+                result[result_length++] = '_';
+            }
+        }
+        
+        // Resize result to actual length
+        bytes memory final_result = new bytes(result_length);
+        for (uint i = 0; i < result_length; i++) {
+            final_result[i] = result[i];
+        }
+        
+        return string(final_result);
+    }
+    
+    /// Format IR instruction
+    function format_ir_instruction(string memory opcode, string[] memory operands) public pure returns (string memory) {
+        string memory result = opcode;
+        
+        if (operands.length > 0) {
+            result = string(abi.encodePacked(result, " "));
+            
+            for (uint i = 0; i < operands.length; i++) {
+                if (i > 0) {
+                    result = string(abi.encodePacked(result, ", "));
+                }
+                result = string(abi.encodePacked(result, operands[i]));
+            }
+        }
+        
+        return result;
+    }
+    
+    /// Format IR comment
+    function format_ir_comment(string memory comment) public pure returns (string memory) {
+        return string(abi.encodePacked("; ", comment));
+    }
+    
+    /// Format IR label
+    function format_ir_label(string memory label) public pure returns (string memory) {
+        return string(abi.encodePacked(label, ":"));
+    }
+    
+    /// Indent IR code
+    function indent_ir_code(string memory code, uint256 level) public pure returns (string memory) {
+        string memory indent = "";
+        for (uint i = 0; i < level; i++) {
+            indent = string(abi.encodePacked(indent, "  "));
+        }
+        return string(abi.encodePacked(indent, code));
+    }
+    
+    /// Join strings dengan separator
+    function join_strings(string[] memory strings, string memory separator) public pure returns (string memory) {
+        if (strings.length == 0) {
+            return "";
+        }
+        
+        string memory result = strings[0];
+        for (uint i = 1; i < strings.length; i++) {
+            result = string(abi.encodePacked(result, separator, strings[i]));
+        }
+        
+        return result;
+    }
+    
+    /// Split string berdasarkan delimiter
+    function split_string(string memory input, string memory delimiter) public pure returns (string[] memory) {
+        bytes memory input_bytes = bytes(input);
+        bytes memory delimiter_bytes = bytes(delimiter);
+        
+        // Count occurrences
+        uint count = 1;
+        for (uint i = 0; i <= input_bytes.length - delimiter_bytes.length; i++) {
+            bool match = true;
+            for (uint j = 0; j < delimiter_bytes.length; j++) {
+                if (input_bytes[i + j] != delimiter_bytes[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                count++;
+                i += delimiter_bytes.length - 1;
+            }
+        }
+        
+        // Split into array
+        string[] memory result = new string[](count);
+        uint result_index = 0;
+        uint start = 0;
+        
+        for (uint i = 0; i <= input_bytes.length - delimiter_bytes.length; i++) {
+            bool match = true;
+            for (uint j = 0; j < delimiter_bytes.length; j++) {
+                if (input_bytes[i + j] != delimiter_bytes[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            
+            if (match) {
+                // Extract substring
+                bytes memory substring = new bytes(i - start);
+                for (uint k = 0; k < i - start; k++) {
+                    substring[k] = input_bytes[start + k];
+                }
+                result[result_index++] = string(substring);
+                
+                start = i + delimiter_bytes.length;
+                i += delimiter_bytes.length - 1;
+            }
+        }
+        
+        // Add last part
+        bytes memory last_part = new bytes(input_bytes.length - start);
+        for (uint k = 0; k < input_bytes.length - start; k++) {
+            last_part[k] = input_bytes[start + k];
+        }
+        result[result_index] = string(last_part);
+        
+        return result;
+    }
+    
+    /// Check if string starts with prefix
+    function starts_with(string memory str, string memory prefix) public pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory prefix_bytes = bytes(prefix);
+        
+        if (prefix_bytes.length > str_bytes.length) {
+            return false;
+        }
+        
+        for (uint i = 0; i < prefix_bytes.length; i++) {
+            if (str_bytes[i] != prefix_bytes[i]) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Check if string ends with suffix
+    function ends_with(string memory str, string memory suffix) public pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory suffix_bytes = bytes(suffix);
+        
+        if (suffix_bytes.length > str_bytes.length) {
+            return false;
+        }
+        
+        uint start_index = str_bytes.length - suffix_bytes.length;
+        for (uint i = 0; i < suffix_bytes.length; i++) {
+            if (str_bytes[start_index + i] != suffix_bytes[i]) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Check if string contains substring
+    function contains(string memory str, string memory substring) public pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory sub_bytes = bytes(substring);
+        
+        if (sub_bytes.length > str_bytes.length) {
+            return false;
+        }
+        
+        for (uint i = 0; i <= str_bytes.length - sub_bytes.length; i++) {
+            bool match = true;
+            for (uint j = 0; j < sub_bytes.length; j++) {
+                if (str_bytes[i + j] != sub_bytes[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /// Trim whitespace dari string
+    function trim(string memory str) public pure returns (string memory) {
+        bytes memory str_bytes = bytes(str);
+        
+        if (str_bytes.length == 0) {
+            return str;
+        }
+        
+        // Find start
+        uint start = 0;
+        while (start < str_bytes.length && is_whitespace(str_bytes[start])) {
+            start++;
+        }
+        
+        // Find end
+        uint end = str_bytes.length;
+        while (end > start && is_whitespace(str_bytes[end - 1])) {
+            end--;
+        }
+        
+        // Extract trimmed string
+        bytes memory result = new bytes(end - start);
+        for (uint i = 0; i < end - start; i++) {
+            result[i] = str_bytes[start + i];
+        }
+        
+        return string(result);
+    }
+    
+    /// Check if character is whitespace
+    function is_whitespace(bytes1 char) private pure returns (bool) {
+        return char == ' ' || char == '\t' || char == '\n' || char == '\r';
+    }
+    
+    /// Calculate hash untuk string
+    function calculate_string_hash(string memory str) public pure returns (bytes32) {
+        return keccak256(bytes(str));
+    }
+    
+    /// Compare strings
+    function strings_equal(string memory a, string memory b) public pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
+    
+    /// Get string length
+    function string_length(string memory str) public pure returns (uint256) {
+        return bytes(str).length;
+    }
+    
+    /// Substring extraction
+    function substring(string memory str, uint256 start, uint256 length) public pure returns (string memory) {
+        bytes memory str_bytes = bytes(str);
+        
+        if (start >= str_bytes.length) {
+            return "";
+        }
+        
+        if (start + length > str_bytes.length) {
+            length = str_bytes.length - start;
+        }
+        
+        bytes memory result = new bytes(length);
+        for (uint i = 0; i < length; i++) {
+            result[i] = str_bytes[start + i];
+        }
+        
+        return string(result);
+    }
+    
+    /// Manage IR context
+    function push_context(IRContextType context_type, string memory name) public {
+        current_context.context_stack.push(IRContextFrame({
+            context_type: context_type,
+            name: name,
+            temp_vars: new string[](0),
+            labels: new string[](0)
+        }));
+    }
+    
+    function pop_context() public returns (IRContextFrame memory) {
+        require(current_context.context_stack.length > 0, "Context stack is empty");
+        return current_context.context_stack.pop();
+    }
+    
+    function get_current_context() public view returns (IRContextFrame memory) {
+        require(current_context.context_stack.length > 0, "No current context");
+        return current_context.context_stack[current_context.context_stack.length - 1];
+    }
+    
+    /// Reset utilities state
+    function reset() public {
+        temp_var_counter = 0;
+        label_counter = 0;
+        current_context = create_default_context();
+    }
+    
+    /// Create default context
+    function create_default_context() private pure returns (IRContext memory) {
+        IRContext memory context;
+        context.context_stack = new IRContextFrame[](0);
+        return context;
+    }
+    
+    /// Get counters for debugging
+    function get_temp_var_counter() public view returns (uint256) {
+        return temp_var_counter;
+    }
+    
+    function get_label_counter() public view returns (uint256) {
+        return label_counter;
+    }
+}
+
+/// Struktur untuk loop labels
+struct LoopLabels {
+    string start_label;
+    string end_label;
+    string continue_label;
+}
+
+/// Struktur untuk conditional labels
+struct ConditionalLabels {
+    string true_label;
+    string false_label;
+    string end_label;
+}
+
+/// Struktur untuk IR context
+struct IRContext {
+    IRContextFrame[] context_stack;
+}
+
+/// Frame untuk context stack
+struct IRContextFrame {
+    IRContextType context_type;
+    string name;
+    string[] temp_vars;
+    string[] labels;
+}
+
+/// Enum untuk tipe context
+enum IRContextType {
+    Global,
+    Blockchain,
+    Function,
+    Block,
+    Loop,
+    Conditional
+}

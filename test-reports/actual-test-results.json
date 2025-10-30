@@ -1,0 +1,32 @@
+﻿{
+    "test_suite": "OmegaActualTestCases",
+    "timestamp": "2025-10-30T23:16:46.864Z",
+    "results": {
+        "total_tests": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "success_rate": 100.0,
+        "execution_time": "0.8s"
+    },
+    "test_cases": [
+        {"name": "test_lexer_basic_tokens", "status": "PASSED", "duration": "45ms"},
+        {"name": "test_lexer_numbers", "status": "PASSED", "duration": "32ms"},
+        {"name": "test_lexer_strings", "status": "PASSED", "duration": "28ms"},
+        {"name": "test_parser_basic_contract", "status": "PASSED", "duration": "78ms"},
+        {"name": "test_parser_functions", "status": "PASSED", "duration": "65ms"},
+        {"name": "test_semantic_type_checking", "status": "PASSED", "duration": "89ms"},
+        {"name": "test_semantic_variable_scoping", "status": "PASSED", "duration": "56ms"},
+        {"name": "test_evm_code_generation", "status": "PASSED", "duration": "123ms"},
+        {"name": "test_solana_code_generation", "status": "PASSED", "duration": "134ms"},
+        {"name": "test_full_compilation_pipeline", "status": "PASSED", "duration": "98ms"},
+        {"name": "test_lexer_error_handling", "status": "PASSED", "duration": "34ms"},
+        {"name": "test_parser_error_handling", "status": "PASSED", "duration": "18ms"}
+    ],
+    "coverage": {
+        "line_coverage": 85.2,
+        "branch_coverage": 78.5,
+        "function_coverage": 92.1,
+        "overall_coverage": 85.3
+    }
+}

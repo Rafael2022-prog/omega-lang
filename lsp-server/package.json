@@ -1,0 +1,43 @@
+{
+  "name": "omega-language-server",
+  "version": "1.0.0",
+  "description": "Language Server Protocol implementation for OMEGA blockchain programming language",
+  "main": "omega-language-server.js",
+  "bin": {
+    "omega-language-server": "./omega-language-server.js"
+  },
+  "scripts": {
+    "start": "node omega-language-server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p .",
+    "watch": "tsc -w -p ."
+  },
+  "keywords": [
+    "omega",
+    "blockchain",
+    "language-server",
+    "lsp",
+    "smart-contracts"
+  ],
+  "author": "OMEGA Team",
+  "license": "MIT",
+  "dependencies": {
+    "vscode-languageserver": "^8.1.0",
+    "vscode-languageserver-textdocument": "^1.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "typescript": "^4.9.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rafael2022-prog/omega-lang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rafael2022-prog/omega-lang/issues"
+  },
+  "homepage": "https://www.omegalang.xyz"
+}

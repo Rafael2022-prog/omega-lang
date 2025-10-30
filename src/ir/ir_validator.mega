@@ -1,0 +1,596 @@
+// OMEGA IR Validator - Validasi dan verifikasi IR
+// Modul khusus untuk memvalidasi struktur dan konsistensi IR
+
+import "../ast/ast_nodes.mega";
+import "../error/error.mega";
+
+/// Blockchain untuk validasi IR
+blockchain IRValidator {
+    state {
+        OmegaErrorHandler error_handler;                    // Error handler untuk validasi
+        uint256 validation_count;                           // Counter untuk tracking validasi
+        mapping(string => bool) validated_modules;          // Cache modul yang sudah divalidasi
+        ValidationRules validation_rules;                   // Aturan validasi
+    }
+    
+    /// Konstruktor untuk inisialisasi validator
+    constructor() {
+        error_handler = OmegaErrorHandler::new();
+        validation_count = 0;
+        validation_rules = create_default_validation_rules();
+    }
+    
+    /// Validasi modul IR secara keseluruhan
+    function validate_ir_module(IRModule memory module) public returns (bool) {
+        validation_count++;
+        
+        // Check if already validated
+        if (validated_modules[module.name]) {
+            return true;
+        }
+        
+        bool is_valid = true;
+        
+        // Validate module structure
+        if (!validate_module_structure(module)) {
+            is_valid = false;
+        }
+        
+        // Validate imports
+        if (!validate_imports(module.imports)) {
+            is_valid = false;
+        }
+        
+        // Validate blockchain declarations
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            if (!validate_blockchain_ir(module.blockchains[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Validate global constants
+        for (uint i = 0; i < module.constants.length; i++) {
+            if (!validate_constant_ir(module.constants[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Cache validation result
+        validated_modules[module.name] = is_valid;
+        
+        return is_valid;
+    }
+    
+    /// Validasi struktur dasar modul
+    function validate_module_structure(IRModule memory module) private returns (bool) {
+        // Check module name
+        if (bytes(module.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Module name cannot be empty",
+                0, 0
+            );
+            return false;
+        }
+        
+        // Check version compatibility
+        if (!is_version_compatible(module.version)) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                string(abi.encodePacked("Incompatible IR version: ", module.version)),
+                0, 0
+            );
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Validasi imports
+    function validate_imports(ImportIR[] memory imports) private returns (bool) {
+        for (uint i = 0; i < imports.length; i++) {
+            if (bytes(imports[i].module_name).length == 0) {
+                error_handler.report_error(
+                    ErrorType.ValidationError,
+                    "Import module name cannot be empty",
+                    imports[i].line_number, 0
+                );
+                return false;
+            }
+            
+            // Check for circular imports
+            if (has_circular_import(imports[i].module_name)) {
+                error_handler.report_error(
+                    ErrorType.ValidationError,
+                    string(abi.encodePacked("Circular import detected: ", imports[i].module_name)),
+                    imports[i].line_number, 0
+                );
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Validasi blockchain IR
+    function validate_blockchain_ir(BlockchainIR memory blockchain) private returns (bool) {
+        bool is_valid = true;
+        
+        // Validate blockchain name
+        if (bytes(blockchain.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Blockchain name cannot be empty",
+                blockchain.line_number, 0
+            );
+            is_valid = false;
+        }
+        
+        // Validate state variables
+        for (uint i = 0; i < blockchain.state_variables.length; i++) {
+            if (!validate_state_variable_ir(blockchain.state_variables[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Validate functions
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            if (!validate_function_ir(blockchain.functions[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Validate events
+        for (uint i = 0; i < blockchain.events.length; i++) {
+            if (!validate_event_ir(blockchain.events[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Validate modifiers
+        for (uint i = 0; i < blockchain.modifiers.length; i++) {
+            if (!validate_modifier_ir(blockchain.modifiers[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Check for required functions
+        if (!has_required_functions(blockchain)) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Missing required functions (constructor, etc.)",
+                blockchain.line_number, 0
+            );
+            is_valid = false;
+        }
+        
+        return is_valid;
+    }
+    
+    /// Validasi state variable IR
+    function validate_state_variable_ir(StateVariableIR memory state_var) private returns (bool) {
+        // Check name
+        if (bytes(state_var.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "State variable name cannot be empty",
+                state_var.line_number, 0
+            );
+            return false;
+        }
+        
+        // Check type validity
+        if (!validate_type_ir(state_var.type_info)) {
+            return false;
+        }
+        
+        // Check visibility
+        if (!is_valid_visibility(state_var.visibility)) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Invalid visibility for state variable",
+                state_var.line_number, 0
+            );
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Validasi function IR
+    function validate_function_ir(FunctionIR memory func) private returns (bool) {
+        bool is_valid = true;
+        
+        // Check function name
+        if (bytes(func.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Function name cannot be empty",
+                func.line_number, 0
+            );
+            is_valid = false;
+        }
+        
+        // Validate parameters
+        for (uint i = 0; i < func.parameters.length; i++) {
+            if (!validate_parameter_ir(func.parameters[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Validate return types
+        for (uint i = 0; i < func.return_types.length; i++) {
+            if (!validate_type_ir(func.return_types[i])) {
+                is_valid = false;
+            }
+        }
+        
+        // Validate function body
+        if (!validate_block_ir(func.body)) {
+            is_valid = false;
+        }
+        
+        // Check visibility and mutability compatibility
+        if (!is_compatible_visibility_mutability(func.visibility, func.mutability)) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Incompatible visibility and mutability combination",
+                func.line_number, 0
+            );
+            is_valid = false;
+        }
+        
+        return is_valid;
+    }
+    
+    /// Validasi event IR
+    function validate_event_ir(EventIR memory event) private returns (bool) {
+        // Check event name
+        if (bytes(event.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Event name cannot be empty",
+                event.line_number, 0
+            );
+            return false;
+        }
+        
+        // Validate parameters
+        for (uint i = 0; i < event.parameters.length; i++) {
+            if (!validate_parameter_ir(event.parameters[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Validasi modifier IR
+    function validate_modifier_ir(ModifierIR memory modifier) private returns (bool) {
+        // Check modifier name
+        if (bytes(modifier.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Modifier name cannot be empty",
+                modifier.line_number, 0
+            );
+            return false;
+        }
+        
+        // Validate parameters
+        for (uint i = 0; i < modifier.parameters.length; i++) {
+            if (!validate_parameter_ir(modifier.parameters[i])) {
+                return false;
+            }
+        }
+        
+        // Validate body
+        if (!validate_block_ir(modifier.body)) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Validasi parameter IR
+    function validate_parameter_ir(ParameterIR memory param) private returns (bool) {
+        // Check parameter name
+        if (bytes(param.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Parameter name cannot be empty",
+                param.line_number, 0
+            );
+            return false;
+        }
+        
+        // Check type validity
+        if (!validate_type_ir(param.type_info)) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Validasi constant IR
+    function validate_constant_ir(ConstantIR memory constant) private returns (bool) {
+        // Check constant name
+        if (bytes(constant.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Constant name cannot be empty",
+                constant.line_number, 0
+            );
+            return false;
+        }
+        
+        // Check type validity
+        if (!validate_type_ir(constant.type_info)) {
+            return false;
+        }
+        
+        // Check if value is compatible with type
+        if (!is_value_compatible_with_type(constant.value, constant.type_info)) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Constant value incompatible with declared type",
+                constant.line_number, 0
+            );
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Validasi block IR
+    function validate_block_ir(BlockIR memory block) private returns (bool) {
+        for (uint i = 0; i < block.statements.length; i++) {
+            if (!validate_statement_ir(block.statements[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /// Validasi statement IR
+    function validate_statement_ir(StatementIR memory stmt) private returns (bool) {
+        if (stmt.statement_type == StatementType.VariableDeclaration) {
+            return validate_variable_declaration_ir(stmt);
+        } else if (stmt.statement_type == StatementType.Assignment) {
+            return validate_assignment_ir(stmt);
+        } else if (stmt.statement_type == StatementType.FunctionCall) {
+            return validate_function_call_ir(stmt);
+        } else if (stmt.statement_type == StatementType.If) {
+            return validate_if_statement_ir(stmt);
+        } else if (stmt.statement_type == StatementType.While) {
+            return validate_while_statement_ir(stmt);
+        } else if (stmt.statement_type == StatementType.For) {
+            return validate_for_statement_ir(stmt);
+        } else if (stmt.statement_type == StatementType.Return) {
+            return validate_return_statement_ir(stmt);
+        } else if (stmt.statement_type == StatementType.Emit) {
+            return validate_emit_statement_ir(stmt);
+        } else if (stmt.statement_type == StatementType.Require) {
+            return validate_require_statement_ir(stmt);
+        } else if (stmt.statement_type == StatementType.Assert) {
+            return validate_assert_statement_ir(stmt);
+        } else if (stmt.statement_type == StatementType.Revert) {
+            return validate_revert_statement_ir(stmt);
+        }
+        
+        return true;
+    }
+    
+    /// Validasi tipe IR
+    function validate_type_ir(TypeIR memory type_info) private returns (bool) {
+        // Check type kind
+        if (type_info.type_kind == TypeKind.Unknown) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Unknown type encountered",
+                0, 0
+            );
+            return false;
+        }
+        
+        // Check type name
+        if (bytes(type_info.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Type name cannot be empty",
+                0, 0
+            );
+            return false;
+        }
+        
+        // Validate specific type constraints
+        if (type_info.type_kind == TypeKind.Elementary) {
+            return validate_elementary_type_constraints(type_info);
+        } else if (type_info.type_kind == TypeKind.Array) {
+            return validate_array_type_constraints(type_info);
+        } else if (type_info.type_kind == TypeKind.Mapping) {
+            return validate_mapping_type_constraints(type_info);
+        }
+        
+        return true;
+    }
+    
+    /// Helper functions untuk validasi spesifik
+    function validate_variable_declaration_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for variable declaration validation
+        return true;
+    }
+    
+    function validate_assignment_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for assignment validation
+        return true;
+    }
+    
+    function validate_function_call_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for function call validation
+        return true;
+    }
+    
+    function validate_if_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for if statement validation
+        return true;
+    }
+    
+    function validate_while_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for while statement validation
+        return true;
+    }
+    
+    function validate_for_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for for statement validation
+        return true;
+    }
+    
+    function validate_return_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for return statement validation
+        return true;
+    }
+    
+    function validate_emit_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for emit statement validation
+        return true;
+    }
+    
+    function validate_require_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for require statement validation
+        return true;
+    }
+    
+    function validate_assert_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for assert statement validation
+        return true;
+    }
+    
+    function validate_revert_statement_ir(StatementIR memory stmt) private returns (bool) {
+        // Implementation for revert statement validation
+        return true;
+    }
+    
+    function validate_elementary_type_constraints(TypeIR memory type_info) private returns (bool) {
+        // Check size constraints for elementary types
+        if (starts_with(type_info.name, "uint") || starts_with(type_info.name, "int")) {
+            if (type_info.size == 0 || type_info.size > 256 || type_info.size % 8 != 0) {
+                error_handler.report_error(
+                    ErrorType.ValidationError,
+                    "Invalid integer type size",
+                    0, 0
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    function validate_array_type_constraints(TypeIR memory type_info) private returns (bool) {
+        // Validate array element type
+        if (type_info.element_type.type_kind == TypeKind.Unknown) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Array element type cannot be unknown",
+                0, 0
+            );
+            return false;
+        }
+        return true;
+    }
+    
+    function validate_mapping_type_constraints(TypeIR memory type_info) private returns (bool) {
+        // Validate mapping key and value types
+        if (type_info.key_type.type_kind == TypeKind.Unknown || 
+            type_info.value_type.type_kind == TypeKind.Unknown) {
+            error_handler.report_error(
+                ErrorType.ValidationError,
+                "Mapping key and value types cannot be unknown",
+                0, 0
+            );
+            return false;
+        }
+        return true;
+    }
+    
+    /// Utility functions
+    function is_version_compatible(string memory version) private pure returns (bool) {
+        // Check if IR version is compatible
+        return true; // Simplified implementation
+    }
+    
+    function has_circular_import(string memory module_name) private view returns (bool) {
+        // Check for circular imports
+        return false; // Simplified implementation
+    }
+    
+    function has_required_functions(BlockchainIR memory blockchain) private pure returns (bool) {
+        // Check if blockchain has required functions
+        return true; // Simplified implementation
+    }
+    
+    function is_valid_visibility(VisibilityIR visibility) private pure returns (bool) {
+        return visibility != VisibilityIR.Unknown;
+    }
+    
+    function is_compatible_visibility_mutability(VisibilityIR visibility, MutabilityIR mutability) private pure returns (bool) {
+        // Check compatibility between visibility and mutability
+        return true; // Simplified implementation
+    }
+    
+    function is_value_compatible_with_type(string memory value, TypeIR memory type_info) private pure returns (bool) {
+        // Check if constant value is compatible with its type
+        return true; // Simplified implementation
+    }
+    
+    function starts_with(string memory str, string memory prefix) private pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory prefix_bytes = bytes(prefix);
+        
+        if (prefix_bytes.length > str_bytes.length) return false;
+        
+        for (uint i = 0; i < prefix_bytes.length; i++) {
+            if (str_bytes[i] != prefix_bytes[i]) return false;
+        }
+        return true;
+    }
+    
+    function create_default_validation_rules() private pure returns (ValidationRules memory) {
+        ValidationRules memory rules;
+        rules.strict_type_checking = true;
+        rules.require_constructor = true;
+        rules.allow_empty_functions = false;
+        rules.max_function_parameters = 16;
+        rules.max_nesting_depth = 10;
+        return rules;
+    }
+    
+    /// Reset validator state
+    function reset() public {
+        validation_count = 0;
+        // Clear validated modules cache
+    }
+    
+    /// Get validation statistics
+    function get_validation_count() public view returns (uint256) {
+        return validation_count;
+    }
+    
+    /// Configure validation rules
+    function set_validation_rules(ValidationRules memory rules) public {
+        validation_rules = rules;
+    }
+    
+    function get_validation_rules() public view returns (ValidationRules memory) {
+        return validation_rules;
+    }
+}
+
+/// Struktur untuk aturan validasi
+struct ValidationRules {
+    bool strict_type_checking;
+    bool require_constructor;
+    bool allow_empty_functions;
+    uint256 max_function_parameters;
+    uint256 max_nesting_depth;
+}

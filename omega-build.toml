@@ -1,0 +1,227 @@
+# OMEGA Build Configuration
+# Self-hosting build system configuration
+
+[project]
+name = "omega"
+version = "1.0.0"
+description = "Universal Blockchain Programming Language"
+authors = ["Emylton Leunufna <emylton@omegalang.xyz>"]
+license = "MIT"
+repository = "https://github.com/Rafael2022-prog/omega-lang"
+homepage = "https://www.omegalang.xyz"
+documentation = "https://docs.omegalang.xyz"
+keywords = ["blockchain", "smart-contracts", "compiler", "cross-chain"]
+categories = ["development-tools", "compilers"]
+
+[build]
+# Main source file
+main_file = "src/main.mega"
+# Source directories
+source_dirs = ["src", "lib"]
+# Include patterns
+include = ["*.mega", "*.toml", "*.md"]
+# Exclude patterns  
+exclude = ["target/**", "build/**", ".git/**", "*.tmp"]
+
+[compiler]
+# Compiler executable name
+name = "omega"
+# Optimization level (0=none, 1=basic, 2=full, 3=aggressive)
+optimization_level = 2
+# Debug information
+debug_info = false
+# Verbose output
+verbose = false
+# Parallel compilation
+parallel = true
+# Maximum parallel jobs
+max_jobs = 8
+
+[targets]
+# Default target
+default = "native"
+
+# Native executable
+[targets.native]
+type = "executable"
+output_name = "omega"
+platform = "auto"  # auto-detect platform
+architecture = "auto"  # auto-detect architecture
+
+# WebAssembly target
+[targets.wasm]
+type = "wasm"
+output_name = "omega.wasm"
+optimize_size = true
+
+# EVM bytecode target (for blockchain deployment)
+[targets.evm-bytecode]
+type = "evm"
+output_name = "omega.evm"
+evm_version = "london"
+
+# Solana BPF target
+[targets.solana-bpf]
+type = "solana"
+output_name = "omega.so"
+solana_version = "1.14"
+
+[dependencies]
+# OMEGA standard library
+omega-std = { version = "1.0.0", path = "lib/std" }
+# OMEGA compiler infrastructure
+omega-compiler = { version = "1.0.0", path = "lib/compiler" }
+# Cross-chain communication
+omega-cross-chain = { version = "1.0.0", path = "lib/cross-chain" }
+# Blockchain integrations
+omega-evm = { version = "1.0.0", path = "lib/evm" }
+omega-solana = { version = "1.0.0", path = "lib/solana" }
+omega-cosmos = { version = "1.0.0", path = "lib/cosmos" }
+
+[dev-dependencies]
+# Testing framework
+omega-test = { version = "1.0.0", path = "lib/test" }
+# Benchmarking
+omega-bench = { version = "1.0.0", path = "lib/bench" }
+
+[features]
+# Default features
+default = ["std", "compiler", "evm", "solana"]
+# Standard library
+std = ["omega-std"]
+# Full compiler suite
+compiler = ["omega-compiler"]
+# EVM support
+evm = ["omega-evm"]
+# Solana support  
+solana = ["omega-solana"]
+# Cosmos support
+cosmos = ["omega-cosmos"]
+# Cross-chain features
+cross-chain = ["omega-cross-chain"]
+# All blockchain targets
+all-targets = ["evm", "solana", "cosmos", "cross-chain"]
+
+[testing]
+# Test directories
+test_dirs = ["tests", "src/tests"]
+# Test patterns
+test_patterns = ["*_test.mega", "test_*.mega"]
+# Integration test directory
+integration_tests = "tests/integration"
+# Unit test inline in source
+unit_tests_inline = true
+# Cross-chain test configuration
+cross_chain_tests = "tests/cross-chain"
+
+[benchmarking]
+# Benchmark directory
+bench_dir = "benches"
+# Benchmark patterns
+bench_patterns = ["*_bench.mega", "bench_*.mega"]
+# Performance targets
+performance_targets = [
+    { name = "compile_time", target = "< 5s" },
+    { name = "binary_size", target = "< 10MB" },
+    { name = "runtime_startup", target = "< 100ms" }
+]
+
+[documentation]
+# Documentation source
+doc_src = "docs"
+# Generated documentation output
+doc_output = "docs/generated"
+# Include private items
+include_private = false
+# Generate examples
+generate_examples = true
+
+[packaging]
+# Package output directory
+output_dir = "dist"
+# Include files in package
+include_files = [
+    "README.md",
+    "LICENSE", 
+    "CHANGELOG.md",
+    "docs/**/*.md"
+]
+# Exclude files from package
+exclude_files = [
+    "target/**",
+    "build/**", 
+    ".git/**",
+    "*.tmp",
+    "*.log"
+]
+
+[installation]
+# Installation prefix
+prefix = "/usr/local"
+# Binary installation directory
+bin_dir = "bin"
+# Library installation directory  
+lib_dir = "lib/omega"
+# Documentation installation directory
+doc_dir = "share/doc/omega"
+# Configuration installation directory
+config_dir = "etc/omega"
+
+[environment]
+# Environment variables
+OMEGA_HOME = "${prefix}/lib/omega"
+OMEGA_PATH = "${prefix}/bin"
+OMEGA_CONFIG = "${prefix}/etc/omega"
+OMEGA_CACHE = "${HOME}/.omega/cache"
+
+[cache]
+# Cache directory
+cache_dir = ".omega/cache"
+# Cache compilation artifacts
+cache_artifacts = true
+# Cache dependency resolution
+cache_dependencies = true
+# Cache expiration (in days)
+cache_expiration = 30
+
+[security]
+# Enable security checks
+security_checks = true
+# Vulnerability scanning
+vulnerability_scan = true
+# Code signing (for releases)
+code_signing = false
+# Checksum verification
+checksum_verification = true
+
+[cross_compilation]
+# Enable cross-compilation
+enabled = true
+# Supported target platforms
+targets = [
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu", 
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "wasm32-unknown-unknown"
+]
+
+[plugins]
+# Plugin directory
+plugin_dir = "plugins"
+# Enabled plugins
+enabled_plugins = [
+    "omega-formatter",
+    "omega-linter", 
+    "omega-analyzer"
+]
+
+[logging]
+# Log level (error, warn, info, debug, trace)
+level = "info"
+# Log output
+output = "stderr"
+# Log format
+format = "compact"
+# Log file (optional)
+file = "omega.log"

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension point="org.eclipse.ui.editors">
+      <editor
+            name="OMEGA Editor"
+            extensions="mega"
+            icon="icons/omega-file-icon.png"
+            contributorClass="com.omega.lang.eclipse.OmegaActionContributor"
+            class="com.omega.lang.eclipse.OmegaEditor"
+            id="com.omega.lang.eclipse.OmegaEditor">
+      </editor>
+   </extension>
+   
+   <extension point="org.eclipse.core.contentTypes">
+      <content-type
+            id="com.omega.lang.eclipse.omegaContentType"
+            name="OMEGA Source File"
+            base-type="org.eclipse.core.runtime.text"
+            file-extensions="mega"
+            priority="high">
+      </content-type>
+   </extension>
+   
+   <extension point="org.eclipse.ui.workbench.texteditor.hyperlinkDetectors">
+      <hyperlinkDetector
+            id="com.omega.lang.eclipse.hyperlinkDetector"
+            name="OMEGA Hyperlink Detector"
+            description="Detects hyperlinks in OMEGA source files"
+            class="com.omega.lang.eclipse.OmegaHyperlinkDetector"
+            targetId="com.omega.lang.eclipse.OmegaEditor">
+      </hyperlinkDetector>
+   </extension>
+   
+   <extension point="org.eclipse.ui.ide.resourceFilters">
+      <filter
+            pattern="*.mega"
+            selected="false">
+      </filter>
+   </extension>
+   
+   <extension point="org.eclipse.ui.navigator.navigatorContent">
+      <navigatorContent
+            id="com.omega.lang.eclipse.navigatorContent"
+            name="OMEGA Files"
+            contentProvider="com.omega.lang.eclipse.OmegaContentProvider"
+            labelProvider="com.omega.lang.eclipse.OmegaLabelProvider"
+            icon="icons/omega-file-icon.png"
+            priority="high">
+         <triggerPoints>
+            <or>
+               <instanceof value="org.eclipse.core.resources.IFile"/>
+            </or>
+         </triggerPoints>
+         <possibleChildren>
+            <or>
+               <instanceof value="org.eclipse.core.resources.IFile"/>
+            </or>
+         </possibleChildren>
+      </navigatorContent>
+   </extension>
+</plugin>

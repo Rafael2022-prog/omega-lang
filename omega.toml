@@ -1,0 +1,274 @@
+# OMEGA Build Configuration
+# Self-hosting build system untuk compiler MEGA
+
+[package]
+name = "omega"
+version = "1.0.0"
+edition = "2025"
+authors = ["Emylton Leunufna <emylton@omegalang.xyz>"]
+description = "OMEGA - Universal Blockchain Programming Language (Self-Hosting)"
+license = "MIT"
+repository = "https://github.com/omega-lang/omega"
+keywords = ["blockchain", "compiler", "evm", "solana", "cosmos", "self-hosting", "mega"]
+categories = ["development-tools", "compilers", "blockchain"]
+
+[compiler]
+# Main compiler executable
+name = "omega"
+main = "src/main.mega"
+target_dir = "target"
+output_dir = "build"
+
+# Compiler settings
+optimization_level = "O2"
+debug_info = true
+parallel_compilation = true
+max_threads = 8
+
+[targets]
+# Supported compilation targets
+default = ["native"]
+available = [
+    "native",           # Native executable
+    "wasm",            # WebAssembly for browser
+    "evm-bytecode",    # Direct EVM bytecode generation
+    "solana-bpf",      # Solana BPF
+]
+
+[dependencies]
+# Core MEGA standard library
+mega-std = { version = "1.0.0", path = "lib/mega-std" }
+mega-blockchain = { version = "1.0.0", path = "lib/mega-blockchain" }
+mega-crypto = { version = "1.0.0", path = "lib/mega-crypto" }
+
+# Compiler infrastructure
+mega-lexer = { version = "1.0.0", path = "src/lexer" }
+mega-parser = { version = "1.0.0", path = "src/parser" }
+mega-semantic = { version = "1.0.0", path = "src/semantic" }
+mega-ir = { version = "1.0.0", path = "src/ir" }
+mega-codegen = { version = "1.0.0", path = "src/codegen" }
+
+# External blockchain libraries (for code generation)
+evm-abi = { version = "2.0.0", optional = true }
+solana-program = { version = "1.17.0", optional = true }
+cosmwasm-std = { version = "1.5.0", optional = true }
+
+[dev-dependencies]
+mega-test = { version = "1.0.0", path = "lib/mega-test" }
+mega-benchmark = { version = "1.0.0", path = "lib/mega-benchmark" }
+
+[features]
+default = ["evm", "solana", "parallel"]
+
+# Blockchain targets
+evm = ["evm-abi"]
+solana = ["solana-program"]
+cosmos = ["cosmwasm-std"]
+substrate = []
+move = []
+near = []
+
+# Compiler features
+parallel = []
+debug = []
+profiling = []
+cross-chain = ["evm", "solana", "cosmos"]
+
+# Optimization features
+aggressive-optimization = []
+size-optimization = []
+gas-optimization = ["evm"]
+
+[build]
+# Build scripts and hooks
+pre-build = ["scripts/pre-build.mega"]
+post-build = ["scripts/post-build.mega"]
+test-runner = "scripts/test-runner.mega"
+
+# Build profiles
+[profiles.dev]
+optimization_level = "O0"
+debug_info = true
+assertions = true
+overflow_checks = true
+parallel_compilation = false
+
+[profiles.release]
+optimization_level = "O3"
+debug_info = false
+assertions = false
+overflow_checks = false
+parallel_compilation = true
+lto = true
+strip_symbols = true
+
+[profiles.test]
+optimization_level = "O1"
+debug_info = true
+assertions = true
+overflow_checks = true
+test_coverage = true
+
+[profiles.benchmark]
+optimization_level = "O3"
+debug_info = false
+assertions = false
+overflow_checks = false
+profiling = true
+
+# Platform-specific configurations
+[platform.windows]
+linker = "link.exe"
+additional_flags = ["/SUBSYSTEM:CONSOLE"]
+
+[platform.linux]
+linker = "ld"
+additional_flags = ["-static"]
+
+[platform.macos]
+linker = "ld64"
+additional_flags = ["-macosx_version_min", "10.15"]
+
+# Blockchain network configurations
+[networks.ethereum]
+mainnet = { rpc = "https://mainnet.infura.io/v3/", chain_id = 1 }
+sepolia = { rpc = "https://sepolia.infura.io/v3/", chain_id = 11155111 }
+goerli = { rpc = "https://goerli.infura.io/v3/", chain_id = 5 }
+
+[networks.solana]
+mainnet = { rpc = "https://api.mainnet-beta.solana.com", cluster = "mainnet-beta" }
+devnet = { rpc = "https://api.devnet.solana.com", cluster = "devnet" }
+testnet = { rpc = "https://api.testnet.solana.com", cluster = "testnet" }
+
+[networks.polygon]
+mainnet = { rpc = "https://polygon-rpc.com", chain_id = 137 }
+mumbai = { rpc = "https://rpc-mumbai.maticvigil.com", chain_id = 80001 }
+
+# Testing configuration
+[testing]
+test_dir = "tests"
+integration_tests = true
+unit_tests = true
+benchmark_tests = true
+cross_chain_tests = false
+
+# Test frameworks
+frameworks = ["mega-test", "property-based", "fuzzing"]
+
+# Coverage settings
+coverage = {
+    enabled = true,
+    threshold = 80,
+    exclude = ["tests/*", "examples/*"]
+}
+
+# Documentation generation
+[docs]
+output_dir = "docs/api"
+format = ["html", "markdown"]
+include_examples = true
+include_benchmarks = true
+
+# Deployment configuration
+[deployment]
+default_gas_limit = 3000000
+default_gas_price = "20gwei"
+
+# Contract verification
+verify_contracts = true
+etherscan_api_key = "${ETHERSCAN_API_KEY}"
+polygonscan_api_key = "${POLYGONSCAN_API_KEY}"
+
+# Security settings
+[security]
+audit_mode = false
+formal_verification = false
+static_analysis = true
+dependency_scanning = true
+
+# Linting and formatting
+[linting]
+enabled = true
+strict_mode = false
+custom_rules = ["rules/omega-style.toml"]
+
+[formatting]
+enabled = true
+line_length = 100
+indent_size = 4
+use_tabs = false
+
+# Package management
+[registry]
+default = "https://registry.omegalang.xyz"
+mirrors = [
+    "https://mirror1.omegalang.xyz",
+    "https://mirror2.omegalang.xyz"
+]
+
+# Cache settings
+[cache]
+enabled = true
+max_size = "1GB"
+ttl = "7d"
+compression = true
+
+# Workspace configuration (for multi-package projects)
+[workspace]
+members = [
+    "lib/mega-std",
+    "lib/mega-blockchain", 
+    "lib/mega-crypto",
+    "lib/mega-test",
+    "examples/*"
+]
+
+exclude = [
+    "target",
+    "build",
+    "node_modules"
+]
+
+# Custom build scripts
+[scripts]
+clean = "rm -rf target build"
+format = "omega fmt src/**/*.mega"
+lint = "omega lint src/**/*.mega"
+test-all = "omega test --all-features"
+benchmark = "omega bench --all"
+docs = "omega doc --open"
+
+# Environment variables
+[env]
+OMEGA_LOG_LEVEL = "info"
+OMEGA_CACHE_DIR = "${HOME}/.omega/cache"
+OMEGA_CONFIG_DIR = "${HOME}/.omega/config"
+
+# IDE Integration
+[ide]
+# File associations for various IDEs
+file_associations = {
+    "*.mega" = "omega"
+}
+
+# File icons configuration
+file_icons = {
+    "mega" = {
+        "icon_path" = "./temp-logo.svg",
+        "description" = "OMEGA Source File"
+    }
+}
+
+# Language server configuration
+language_server = {
+    enabled = true,
+    port = 9257,
+    features = ["completion", "diagnostics", "hover", "formatting"]
+}
+
+# Trae AI IDE specific configuration
+[ide.trae]
+enabled = true
+file_icon_theme = "omega-icons"
+syntax_highlighting = true
+auto_completion = true

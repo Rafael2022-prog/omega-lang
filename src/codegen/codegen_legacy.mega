@@ -1,0 +1,794 @@
+// OMEGA Code Generator - Multi-Target Code Generation
+// Menghasilkan kode untuk berbagai platform blockchain dari OMEGA IR
+
+import "./error/error.mega";
+
+/// Blockchain utama untuk menghasilkan kode multi-target dari OMEGA IR
+/// Mendukung berbagai platform blockchain seperti EVM, Solana, Cosmos, dll
+blockchain OmegaCodeGenerator {
+    state {
+        mapping(string => CodeGenerator) generators;     // Mapping target platform ke generator instance
+        IRContext context;                               // Context untuk IR processing
+        GenerationConfig config;                         // Konfigurasi generation
+        mapping(string => string) generated_code;        // Cache kode yang telah digenerate
+        string[] supported_targets;                      // Daftar target platform yang didukung
+        
+        // Error handling integration
+        OmegaErrorHandler error_handler;                 // Integrated error handling system
+        string current_file;                             // Current file being processed
+        uint256 error_count;                             // Count of generation errors
+        uint256 warning_count;                           // Count of generation warnings
+    }
+
+    /// Enum untuk mendefinisikan target platform yang didukung
+    enum TargetPlatform {
+        EVM,        // Ethereum Virtual Machine (Solidity)
+        Solana,     // Solana runtime (Rust)
+        Cosmos,     // Cosmos SDK (Go)
+        Substrate,  // Substrate framework (Rust)
+        Move,       // Move VM (Move language)
+        Near        // NEAR Protocol (Rust/AssemblyScript)
+    }
+
+    /// Konfigurasi untuk code generation dengan berbagai opsi optimasi
+    struct GenerationConfig {
+        OptimizationLevel optimization_level;           // Level optimasi (None, Basic, Aggressive)
+        bool debug_info;                                // Include debug information
+        bool gas_optimization;                          // Enable gas optimization untuk EVM
+        mapping(string => string) custom_options;       // Custom options per target
+    }
+
+    /// Base trait untuk semua code generators
+    /// Setiap target platform harus mengimplementasikan trait ini
+    trait CodeGenerator {
+        function generate(IRModule module) public returns (string);              // Generate kode dari IR module
+        function get_platform() public view returns (TargetPlatform);           // Return target platform
+        function get_file_extension() public view returns (string);             // Return ekstensi file output
+        function supports_feature(string feature) public view returns (bool);   // Check feature support
+    }
+
+    /// Konstruktor untuk inisialisasi code generator
+    constructor() {
+        // Initialize error handling system
+        error_handler = new OmegaErrorHandler();
+        current_file = "";
+        error_count = 0;
+        warning_count = 0;
+        
+        // Inisialisasi daftar target platform yang didukung
+        supported_targets = ["evm", "solana", "cosmos", "substrate", "move", "near"];
+        _initialize_generators();  // Setup semua generator instances
+    }
+
+    /// Fungsi utama untuk generate code ke target platform tertentu
+    /// @param module IR module yang akan digenerate
+    /// @param target Target platform (evm, solana, cosmos, dll)
+    /// @return String berisi kode yang dihasilkan
+    function generate_code(IRModule module, string target) public returns (string) {
+        require(generators[target] != address(0), "Unsupported target platform");
+        
+        // Ambil generator untuk target platform
+        CodeGenerator generator = generators[target];
+        
+        // Generate kode menggunakan generator yang sesuai
+        string generated = generator.generate(module);
+        
+        // Cache hasil generation untuk performa
+        generated_code[target] = generated;
+        
+        // Emit event untuk monitoring dan logging
+        emit CodeGenerated(target, module.name, generated.length);
+        return generated;
+    }
+
+    /// Generate untuk multiple targets sekaligus untuk cross-chain deployment
+    /// @param module IR module yang akan digenerate
+    /// @param targets Array target platforms
+    /// @return Mapping target ke kode yang dihasilkan
+    function generate_multi_target(IRModule module, string[] targets) public returns (mapping(string => string)) {
+        mapping(string => string) results;
+        
+        // Generate untuk setiap target platform
+        for (uint i = 0; i < targets.length; i++) {
+            string target = targets[i];
+            results[target] = generate_code(module, target);
+        }
+        
+        return results;
+    }
+
+    /// Inisialisasi semua generators untuk berbagai target platform
+    function _initialize_generators() private {
+        generators["evm"] = new EVMCodeGenerator();          // Solidity code generator
+        generators["solana"] = new SolanaCodeGenerator();    // Rust/Anchor code generator
+        generators["cosmos"] = new CosmosCodeGenerator();    // Go/CosmWasm code generator
+        generators["substrate"] = new SubstrateCodeGenerator(); // Rust/ink! code generator
+        generators["move"] = new MoveCodeGenerator();        // Move language code generator
+        generators["near"] = new NearCodeGenerator();        // NEAR contract generator
+    }
+
+    /// Getter untuk mendapatkan daftar target platform yang didukung
+    /// @return Array string berisi nama target platforms
+    function get_supported_targets() public view returns (string[]) {
+        return supported_targets;
+    }
+
+    /// Getter untuk mendapatkan kode yang telah digenerate untuk target tertentu
+    /// @param target Target platform
+    /// @return String berisi kode yang telah digenerate (dari cache)
+    function get_generated_code(string target) public view returns (string) {
+        return generated_code[target];
+    }
+
+    /// Event yang dipancarkan setelah berhasil generate kode
+    event CodeGenerated(string indexed target, string indexed module_name, uint256 code_size);
+}
+
+/// EVM Code Generator - Menghasilkan Solidity code dari OMEGA IR
+/// Mendukung berbagai fitur EVM seperti gas optimization, proxy patterns, dll
+blockchain EVMCodeGenerator : CodeGenerator {
+    state {
+        mapping(string => string) type_mappings;         // Mapping OMEGA types ke Solidity types
+        string[] solidity_imports;                       // Daftar imports yang diperlukan
+        uint256 current_indent_level;                    // Level indentasi untuk formatting
+    }
+
+    /// Konstruktor untuk inisialisasi EVM code generator
+    constructor() {
+        _initialize_type_mappings();  // Setup mapping types OMEGA ke Solidity
+        _initialize_imports();        // Setup default imports
+    }
+
+    /// Generate Solidity code dari IR module
+    /// @param module IR module yang berisi blockchain definitions
+    /// @return String berisi kode Solidity lengkap
+    function generate(IRModule module) public override returns (string) {
+        string code = "";
+        
+        // Generate SPDX license dan pragma directive
+        code = string.concat(code, "// SPDX-License-Identifier: MIT\n");
+        code = string.concat(code, "pragma solidity ^0.8.19;\n\n");
+        
+        // Generate imports untuk dependencies
+        code = string.concat(code, _generate_imports(module.imports));
+        
+        // Generate main contract dari blockchain definitions
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            code = string.concat(code, _generate_blockchain(module.blockchains[i]));
+        }
+        
+        // Generate structs untuk custom data types
+        for (uint i = 0; i < module.structs.length; i++) {
+            code = string.concat(code, _generate_struct(module.structs[i]));
+        }
+        
+        // Generate enums untuk enumerated types
+        for (uint i = 0; i < module.enums.length; i++) {
+            code = string.concat(code, _generate_enum(module.enums[i]));
+        }
+        
+        return code;
+    }
+
+    /// Generate Solidity contract dari blockchain IR
+    /// @param blockchain BlockchainIR yang berisi definisi blockchain
+    /// @return String berisi kode contract Solidity
+    function _generate_blockchain(BlockchainIR blockchain) private returns (string) {
+        string code = string.concat("contract ", blockchain.name, " {\n");
+        current_indent_level = 1;  // Set indentasi untuk isi contract
+        
+        // Generate state variables dengan proper visibility
+        for (uint i = 0; i < blockchain.state_variables.length; i++) {
+            code = string.concat(code, _generate_state_variable(blockchain.state_variables[i]));
+        }
+        
+        // Generate events untuk logging dan monitoring
+        for (uint i = 0; i < blockchain.events.length; i++) {
+            code = string.concat(code, _generate_event(blockchain.events[i]));
+        }
+        
+        // Generate constructor jika ada
+        if (blockchain.constructor.name != "") {
+            code = string.concat(code, _generate_constructor(blockchain.constructor));
+        }
+        
+        // Generate semua functions dengan proper signatures
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            code = string.concat(code, _generate_function(blockchain.functions[i]));
+        }
+        
+        code = string.concat(code, "}\n\n");
+        current_indent_level = 0;  // Reset indentasi
+        return code;
+    }
+
+    /// Generate state variable declaration dalam Solidity
+    /// @param var StateVariableIR yang berisi informasi variabel
+    /// @return String berisi deklarasi state variable
+    function _generate_state_variable(StateVariableIR var) private returns (string) {
+        string code = _get_indent();  // Tambahkan indentasi yang sesuai
+        
+        // Add visibility modifier
+        if (var.visibility == Visibility.Public) {
+            code = string.concat(code, "public ");
+        } else if (var.visibility == Visibility.Private) {
+            code = string.concat(code, "private ");
+        }
+        
+        // Add type dengan konversi dari OMEGA type ke Solidity type
+        code = string.concat(code, _convert_type(var.var_type), " ");
+        
+        // Add variable name
+        code = string.concat(code, var.name);
+        
+        // Add initial value jika ada
+        if (var.initial_value.value_type != ValueType.None) {
+            code = string.concat(code, " = ", _convert_value(var.initial_value));
+        }
+        
+        code = string.concat(code, ";\n");
+        return code;
+    }
+
+    /// Generate function declaration dan implementation dalam Solidity
+    /// @param func FunctionIR yang berisi informasi function
+    /// @return String berisi deklarasi dan implementasi function
+    function _generate_function(FunctionIR func) private returns (string) {
+        string code = _get_indent();
+        code = string.concat(code, "function ", func.name, "(");
+        
+        // Generate parameters dengan types dan memory/storage qualifiers
+        for (uint i = 0; i < func.parameters.length; i++) {
+            if (i > 0) code = string.concat(code, ", ");  // Separator antar parameter
+            ParameterIR param = func.parameters[i];
+            code = string.concat(code, _convert_type(param.param_type), " ");
+            if (param.is_memory) code = string.concat(code, "memory ");  // Memory qualifier
+            code = string.concat(code, param.name);
+        }
+        
+        code = string.concat(code, ")");
+        
+        // Add visibility dan modifiers
+        if (func.visibility == Visibility.Public) {
+
+            code = string.concat(code, " public");
+        } else if (func.visibility == Visibility.External) {
+            code = string.concat(code, " external");
+        } else if (func.visibility == Visibility.Internal) {
+            code = string.concat(code, " internal");
+        }
+        
+        if (func.is_view) {
+            code = string.concat(code, " view");
+        } else if (func.is_pure) {
+            code = string.concat(code, " pure");
+        }
+        
+        // Return type
+        if (func.return_type.type_name != "void") {
+            code = string.concat(code, " returns (", _convert_type(func.return_type), ")");
+        }
+        
+        code = string.concat(code, " {\n");
+        current_indent_level++;
+        
+        // Function body
+        code = string.concat(code, _generate_block(func.body));
+        
+        current_indent_level--;
+        code = string.concat(code, _get_indent(), "}\n\n");
+        
+        return code;
+    }
+
+    function _convert_type(TypeIR omega_type) private view returns (string) {
+        string type_name = omega_type.type_name;
+        
+        if (type_mappings[type_name] != "") {
+            return type_mappings[type_name];
+        }
+        
+        // Handle complex types
+        if (omega_type.is_array) {
+            return string.concat(_convert_type_base(type_name), "[]");
+        }
+        
+        if (omega_type.is_mapping) {
+            return string.concat("mapping(", 
+                _convert_type_base(omega_type.key_type), 
+                " => ", 
+                _convert_type_base(omega_type.value_type), 
+                ")");
+        }
+        
+        return _convert_type_base(type_name);
+    }
+
+    function _convert_type_base(string omega_type) private view returns (string) {
+        if (string.compare(omega_type, "uint256") == 0) return "uint256";
+        if (string.compare(omega_type, "int256") == 0) return "int256";
+        if (string.compare(omega_type, "bool") == 0) return "bool";
+        if (string.compare(omega_type, "string") == 0) return "string";
+        if (string.compare(omega_type, "address") == 0) return "address";
+        if (string.compare(omega_type, "bytes") == 0) return "bytes";
+        if (string.compare(omega_type, "bytes32") == 0) return "bytes32";
+        
+        return omega_type; // Default fallback
+    }
+
+    function _initialize_type_mappings() private {
+        type_mappings["uint"] = "uint256";
+        type_mappings["int"] = "int256";
+        type_mappings["u8"] = "uint8";
+        type_mappings["u16"] = "uint16";
+        type_mappings["u32"] = "uint32";
+        type_mappings["u64"] = "uint64";
+        type_mappings["u128"] = "uint128";
+        type_mappings["i8"] = "int8";
+        type_mappings["i16"] = "int16";
+        type_mappings["i32"] = "int32";
+        type_mappings["i64"] = "int64";
+        type_mappings["i128"] = "int128";
+    }
+
+    function _initialize_imports() private {
+        solidity_imports.push("@openzeppelin/contracts/security/ReentrancyGuard.sol");
+        solidity_imports.push("@openzeppelin/contracts/access/Ownable.sol");
+        solidity_imports.push("@openzeppelin/contracts/security/Pausable.sol");
+    }
+
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.EVM;
+    }
+
+    function get_file_extension() public pure override returns (string) {
+        return ".sol";
+    }
+
+    function supports_feature(string feature) public pure override returns (bool) {
+        return string.compare(feature, "inheritance") == 0 ||
+               string.compare(feature, "events") == 0 ||
+               string.compare(feature, "modifiers") == 0 ||
+               string.compare(feature, "fallback") == 0;
+    }
+
+    // Helper functions
+    function _get_indent() private view returns (string) {
+        string indent = "";
+        for (uint i = 0; i < current_indent_level; i++) {
+            indent = string.concat(indent, "    ");
+        }
+        return indent;
+    }
+}
+
+// Solana Code Generator - Menghasilkan Rust code untuk Solana
+blockchain SolanaCodeGenerator : CodeGenerator {
+    state {
+        mapping(string => string) type_mappings;
+        string[] rust_dependencies;
+        uint256 current_indent_level;
+    }
+
+    constructor() {
+        _initialize_solana_mappings();
+        _initialize_dependencies();
+    }
+
+    function generate(IRModule module) public override returns (string) {
+        string code = "";
+        
+        // Generate Cargo.toml dependencies comment
+        code = string.concat(code, "// Generated Solana program from OMEGA\n");
+        code = string.concat(code, "// Add these dependencies to Cargo.toml:\n");
+        for (uint i = 0; i < rust_dependencies.length; i++) {
+            code = string.concat(code, "// ", rust_dependencies[i], "\n");
+        }
+        code = string.concat(code, "\n");
+        
+        // Generate use statements
+        code = string.concat(code, _generate_solana_imports());
+        
+        // Generate program ID
+        code = string.concat(code, "declare_id!(\"", _generate_program_id(), "\");\n\n");
+        
+        // Generate main program
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            code = string.concat(code, _generate_solana_program(module.blockchains[i]));
+        }
+        
+        return code;
+    }
+
+    function _generate_solana_program(BlockchainIR blockchain) private returns (string) {
+        string code = "#[program]\n";
+        code = string.concat(code, "pub mod ", _to_snake_case(blockchain.name), " {\n");
+        current_indent_level = 1;
+        
+        code = string.concat(code, _get_indent(), "use super::*;\n\n");
+        
+        // Generate instruction handlers
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            if (blockchain.functions[i].visibility == Visibility.Public) {
+                code = string.concat(code, _generate_solana_instruction(blockchain.functions[i]));
+            }
+        }
+        
+        current_indent_level = 0;
+        code = string.concat(code, "}\n\n");
+        
+        // Generate account structures
+        code = string.concat(code, _generate_solana_accounts(blockchain));
+        
+        return code;
+    }
+
+    function _generate_solana_instruction(FunctionIR func) private returns (string) {
+        string code = _get_indent();
+        code = string.concat(code, "pub fn ", _to_snake_case(func.name));
+        code = string.concat(code, "(ctx: Context<", _to_pascal_case(func.name), ">");
+        
+        // Add parameters
+        for (uint i = 0; i < func.parameters.length; i++) {
+            code = string.concat(code, ", ", func.parameters[i].name, ": ");
+            code = string.concat(code, _convert_solana_type(func.parameters[i].param_type));
+        }
+        
+        code = string.concat(code, ") -> Result<()> {\n");
+        current_indent_level++;
+        
+        // Function body (simplified)
+        code = string.concat(code, _get_indent(), "// Implementation here\n");
+        code = string.concat(code, _get_indent(), "Ok(())\n");
+        
+        current_indent_level--;
+        code = string.concat(code, _get_indent(), "}\n\n");
+        
+        return code;
+    }
+
+    function _convert_solana_type(TypeIR omega_type) private view returns (string) {
+        string type_name = omega_type.type_name;
+        
+        if (string.compare(type_name, "uint256") == 0) return "u64"; // Solana uses u64
+        if (string.compare(type_name, "int256") == 0) return "i64";
+        if (string.compare(type_name, "bool") == 0) return "bool";
+        if (string.compare(type_name, "string") == 0) return "String";
+        if (string.compare(type_name, "address") == 0) return "Pubkey";
+        
+        return type_name;
+    }
+
+    function _initialize_solana_mappings() private {
+        type_mappings["uint"] = "u64";
+        type_mappings["int"] = "i64";
+        type_mappings["address"] = "Pubkey";
+        type_mappings["bytes"] = "Vec<u8>";
+    }
+
+    function _initialize_dependencies() private {
+        rust_dependencies.push("anchor-lang = \"0.28.0\"");
+        rust_dependencies.push("anchor-spl = \"0.28.0\"");
+    }
+
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Solana;
+    }
+
+    function get_file_extension() public pure override returns (string) {
+        return ".rs";
+    }
+
+    function supports_feature(string feature) public pure override returns (bool) {
+        return string.compare(feature, "accounts") == 0 ||
+               string.compare(feature, "instructions") == 0 ||
+               string.compare(feature, "pda") == 0;
+    }
+
+    // Helper functions
+    function _to_snake_case(string input) private pure returns (string) {
+        // Simplified snake_case conversion
+        return string.toLowerCase(input);
+    }
+
+    function _to_pascal_case(string input) private pure returns (string) {
+        // Simplified PascalCase conversion
+        return string.concat(string.toUpperCase(string.slice(input, 0, 1)), 
+                           string.slice(input, 1, string.length(input)));
+    }
+
+    function _generate_program_id() private pure returns (string) {
+        return "11111111111111111111111111111112"; // Placeholder
+    }
+
+    function _generate_solana_imports() private pure returns (string) {
+        return "use anchor_lang::prelude::*;\nuse anchor_spl::token::{self, Token, TokenAccount};\n\n";
+    }
+
+    function _generate_solana_accounts(BlockchainIR blockchain) private returns (string) {
+        // Generate account structures for Solana
+        return "// Account structures would be generated here\n\n";
+    }
+
+    function _get_indent() private view returns (string) {
+        string indent = "";
+        for (uint i = 0; i < current_indent_level; i++) {
+            indent = string.concat(indent, "    ");
+        }
+        return indent;
+    }
+}
+
+// Placeholder generators untuk platform lain
+blockchain CosmosCodeGenerator : CodeGenerator {
+    function generate(IRModule module) public override returns (string) {
+        return "// Cosmos SDK code generation - Coming soon\n";
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Cosmos;
+    }
+    
+    function get_file_extension() public pure override returns (string) {
+        return ".go";
+    }
+    
+    function supports_feature(string feature) public pure override returns (bool) {
+        return false;
+    }
+}
+
+blockchain SubstrateCodeGenerator : CodeGenerator {
+    function generate(IRModule module) public override returns (string) {
+        return "// Substrate pallet code generation - Coming soon\n";
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Substrate;
+    }
+    
+    function get_file_extension() public pure override returns (string) {
+        return ".rs";
+    }
+    
+    function supports_feature(string feature) public pure override returns (bool) {
+        return false;
+    }
+}
+
+/// Enhanced error handling functions for code generator
+impl OmegaCodeGenerator {
+    /// Set current file being processed
+    function set_current_file(string file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Report code generation error with context
+    function report_codegen_error(string message, string target_platform, string context_info, ErrorSeverity severity) private {
+        let location = SourceLocation {
+            file: current_file,
+            line: 0, // Code generation errors may not have specific line numbers
+            column: 0,
+            position: 0
+        };
+        
+        let context = ErrorContext {
+            context_type: ContextType.CodeGeneration,
+            source_code: context_info,
+            additional_info: format("Target Platform: {}, Optimization: {}", target_platform, config.optimization_level)
+        };
+        
+        let error_code = determine_codegen_error_code(message);
+        
+        let error = OmegaError {
+            error_type: ErrorType.CodeGenError,
+            severity: severity,
+            code: error_code,
+            message: message,
+            location: location,
+            context: context,
+            suggestions: generate_codegen_suggestions(message, error_code, target_platform)
+        };
+        
+        error_handler.report_error(error);
+        
+        if (severity == ErrorSeverity.Error) {
+            error_count++;
+        } else if (severity == ErrorSeverity.Warning) {
+            warning_count++;
+        }
+    }
+    
+    /// Determine error code for code generation errors
+    function determine_codegen_error_code(string message) private pure returns (ErrorCode) {
+        if (message.contains("unsupported")) {
+            return ErrorCode.UnsupportedFeature;
+        } else if (message.contains("target")) {
+            return ErrorCode.TargetError;
+        } else if (message.contains("generation")) {
+            return ErrorCode.CodeGenError;
+        } else if (message.contains("platform")) {
+            return ErrorCode.PlatformError;
+        } else if (message.contains("optimization")) {
+            return ErrorCode.OptimizationError;
+        } else {
+            return ErrorCode.CodeGenError;
+        }
+    }
+    
+    /// Generate suggestions for code generation errors
+    function generate_codegen_suggestions(string error_message, ErrorCode error_code, string target_platform) private pure returns (string[]) {
+        string[] suggestions = [];
+        
+        if (error_code == ErrorCode.UnsupportedFeature) {
+            suggestions.push(format("Check if the feature is supported on {} platform", target_platform));
+            suggestions.push("Consider using alternative implementation");
+            suggestions.push("Review platform-specific documentation");
+        } else if (error_code == ErrorCode.TargetError) {
+            suggestions.push("Verify target platform configuration");
+            suggestions.push("Check if target platform is properly initialized");
+        } else if (error_code == ErrorCode.PlatformError) {
+            suggestions.push("Review platform-specific requirements");
+            suggestions.push("Check platform compatibility matrix");
+        } else if (error_code == ErrorCode.OptimizationError) {
+            suggestions.push("Try different optimization level");
+            suggestions.push("Check for optimization conflicts");
+        }
+        
+        return suggestions;
+    }
+    
+    /// Report unsupported target platform error
+    function report_unsupported_target(string target_platform) public {
+        string message = format("Target platform '{}' is not supported", target_platform);
+        report_codegen_error(message, target_platform, "Platform validation", ErrorSeverity.Error);
+    }
+    
+    /// Report feature not supported on target platform
+    function report_unsupported_feature_on_target(string feature_name, string target_platform) public {
+        string message = format("Feature '{}' is not supported on target platform '{}'", feature_name, target_platform);
+        report_codegen_error(message, target_platform, format("Feature: {}", feature_name), ErrorSeverity.Error);
+    }
+    
+    /// Report code generation warning
+    function report_codegen_warning(string message, string target_platform, string context) public {
+        report_codegen_error(message, target_platform, context, ErrorSeverity.Warning);
+    }
+    
+    /// Report optimization issue
+    function report_optimization_issue(string optimization_name, string target_platform, string issue) public {
+        string message = format("Optimization '{}' issue on {}: {}", optimization_name, target_platform, issue);
+        report_codegen_error(message, target_platform, format("Optimization: {}", optimization_name), ErrorSeverity.Warning);
+    }
+    
+    /// Check if code generator has encountered errors
+    function has_errors() public view returns (bool) {
+        return error_count > 0 || error_handler.has_errors();
+    }
+    
+    /// Check if code generator has warnings
+    function has_warnings() public view returns (bool) {
+        return warning_count > 0;
+    }
+    
+    /// Get error and warning counts
+    function get_error_counts() public view returns (uint256, uint256) {
+        return (error_count, warning_count);
+    }
+    
+    /// Get error statistics
+    function get_error_stats() public view returns (ErrorStatistics) {
+        return error_handler.get_statistics();
+    }
+    
+    /// Clear all errors (for testing)
+    function clear_errors() public {
+        error_handler.clear_errors();
+        error_count = 0;
+        warning_count = 0;
+    }
+    
+    /// Validate target platform before code generation
+    function validate_target_platform(string target_platform) public returns (bool) {
+        bool is_supported = false;
+        
+        for (uint256 i = 0; i < supported_targets.length; i++) {
+            if (supported_targets[i] == target_platform) {
+                is_supported = true;
+                break;
+            }
+        }
+        
+        if (!is_supported) {
+            report_unsupported_target(target_platform);
+            return false;
+        }
+        
+        // Check if generator is properly initialized
+        if (generators[target_platform] == address(0)) {
+            report_codegen_error(
+                format("Generator for target '{}' is not initialized", target_platform),
+                target_platform,
+                "Generator initialization",
+                ErrorSeverity.Error
+            );
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Validate IR module before code generation
+    function validate_ir_module_for_codegen(IRModule module, string target_platform) public returns (bool) {
+        bool is_valid = true;
+        
+        // Check basic module structure
+        if (module.name.length == 0) {
+            report_codegen_error("IR module must have a name", target_platform, "Module validation", ErrorSeverity.Error);
+            is_valid = false;
+        }
+        
+        // Check platform-specific requirements
+        CodeGenerator generator = generators[target_platform];
+        if (generator != address(0)) {
+            // Validate features used in module against platform support
+            for (uint256 i = 0; i < module.functions.length; i++) {
+                if (!validate_function_for_target(module.functions[i], target_platform, generator)) {
+                    is_valid = false;
+                }
+            }
+        }
+        
+        return is_valid;
+    }
+    
+    /// Validate function compatibility with target platform
+    function validate_function_for_target(IRFunction func, string target_platform, CodeGenerator generator) private returns (bool) {
+        bool is_valid = true;
+        
+        // Check if function uses features supported by target platform
+        // This is a simplified check - in real implementation, would analyze IR instructions
+        if (func.name.contains("cross_chain") && !generator.supports_feature("cross_chain")) {
+            report_unsupported_feature_on_target("cross_chain", target_platform);
+            is_valid = false;
+        }
+        
+        return is_valid;
+    }
+}
+
+blockchain MoveCodeGenerator : CodeGenerator {
+    function generate(IRModule module) public override returns (string) {
+        return "// Move language code generation - Coming soon\n";
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Move;
+    }
+    
+    function get_file_extension() public pure override returns (string) {
+        return ".move";
+    }
+    
+    function supports_feature(string feature) public pure override returns (bool) {
+        return false;
+    }
+}
+
+blockchain NearCodeGenerator : CodeGenerator {
+    function generate(IRModule module) public override returns (string) {
+        return "// NEAR Protocol code generation - Coming soon\n";
+    }
+    
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.Near;
+    }
+    
+    function get_file_extension() public pure override returns (string) {
+        return ".rs";
+    }
+    
+    function supports_feature(string feature) public pure override returns (bool) {
+        return false;
+    }
+}

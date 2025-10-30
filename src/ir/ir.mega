@@ -1,0 +1,419 @@
+// OMEGA IR Core - Modul inti untuk Intermediate Representation
+// Mengintegrasikan semua komponen IR yang telah dimodularisasi
+
+import "../ast/ast_nodes.mega";
+import "../semantic/analyzer.mega";
+import "../error/error.mega";
+import "ir_generator.mega";
+import "type_converter.mega";
+import "ir_validator.mega";
+import "ir_utils.mega";
+
+/// Blockchain utama untuk IR OMEGA
+blockchain OmegaIR {
+    state {
+        IRModule current_module;                            // Modul IR saat ini
+        IRMetadata metadata;                                // Metadata IR
+        OptimizationLevel optimization_level;               // Level optimasi
+        TargetPlatform target_platform;                     // Platform target
+        OmegaErrorHandler error_handler;                    // Error handler
+        
+        // Sub-modules
+        IRGenerator ir_generator;                           // Generator IR
+        TypeConverter type_converter;                       // Converter tipe
+        IRValidator ir_validator;                           // Validator IR
+        IRUtils ir_utils;                                   // Utilities IR
+        
+        // Configuration
+        IRConfig config;                                    // Konfigurasi IR
+        bool debug_mode;                                    // Mode debug
+        uint256 generation_count;                           // Counter generasi
+    }
+    
+    /// Konstruktor untuk inisialisasi IR
+    constructor() {
+        error_handler = OmegaErrorHandler::new();
+        
+        // Initialize sub-modules
+        ir_generator = IRGenerator::new();
+        type_converter = TypeConverter::new();
+        ir_validator = IRValidator::new();
+        ir_utils = IRUtils::new();
+        
+        // Default configuration
+        optimization_level = OptimizationLevel.O1;
+        target_platform = TargetPlatform.EVM;
+        debug_mode = false;
+        generation_count = 0;
+        
+        config = create_default_config();
+        metadata = create_default_metadata();
+    }
+    
+    /// Fungsi utama untuk generate IR dari AST yang sudah dianalisis
+    function generate_ir(AnalyzedAST memory analyzed_ast) public returns (IRModule memory) {
+        generation_count++;
+        
+        // Reset state untuk generasi baru
+        reset_generation_state();
+        
+        // Validate input
+        if (!validate_analyzed_ast(analyzed_ast)) {
+            error_handler.report_error(
+                ErrorType.IRGenerationError,
+                "Invalid analyzed AST provided",
+                0, 0
+            );
+            return create_empty_ir_module();
+        }
+        
+        // Initialize IR module
+        current_module = create_ir_module(analyzed_ast.program.name);
+        
+        // Set context untuk generation
+        ir_utils.push_context(IRContextType.Global, analyzed_ast.program.name);
+        
+        // Generate IR untuk program
+        if (!ir_generator.generate_program_ir(analyzed_ast.program, current_module)) {
+            error_handler.report_error(
+                ErrorType.IRGenerationError,
+                "Failed to generate IR for program",
+                0, 0
+            );
+            return create_empty_ir_module();
+        }
+        
+        // Validate generated IR
+        if (config.validate_ir && !ir_validator.validate_ir_module(current_module)) {
+            error_handler.report_error(
+                ErrorType.IRValidationError,
+                "Generated IR failed validation",
+                0, 0
+            );
+            return create_empty_ir_module();
+        }
+        
+        // Apply optimizations jika diperlukan
+        if (optimization_level != OptimizationLevel.O0) {
+            current_module = apply_optimizations(current_module);
+        }
+        
+        // Update metadata
+        update_metadata();
+        
+        // Pop context
+        ir_utils.pop_context();
+        
+        return current_module;
+    }
+    
+    /// Generate IR untuk import statement
+    function generate_import_ir(ImportNode memory import_node) public returns (ImportIR memory) {
+        return ir_generator.generate_import_ir(import_node);
+    }
+    
+    /// Generate IR untuk blockchain declaration
+    function generate_blockchain_ir(BlockchainNode memory blockchain_node) public returns (BlockchainIR memory) {
+        return ir_generator.generate_blockchain_ir(blockchain_node);
+    }
+    
+    /// Generate IR untuk function
+    function generate_function_ir(FunctionNode memory function_node) public returns (FunctionIR memory) {
+        return ir_generator.generate_function_ir(function_node);
+    }
+    
+    /// Generate IR untuk expression
+    function generate_expression_ir(ExpressionNode memory expr_node) public returns (ExpressionIR memory) {
+        return ir_generator.generate_expression_ir(expr_node);
+    }
+    
+    /// Generate IR untuk statement
+    function generate_statement_ir(StatementNode memory stmt_node) public returns (StatementIR memory) {
+        return ir_generator.generate_statement_ir(stmt_node);
+    }
+    
+    /// Convert tipe dari AST ke IR
+    function convert_type_to_ir(TypeNode memory type_node) public returns (TypeIR memory) {
+        return type_converter.convert_type_to_ir(type_node);
+    }
+    
+    /// Convert visibility
+    function convert_visibility_to_ir(Visibility visibility) public returns (VisibilityIR memory) {
+        return type_converter.convert_visibility_to_ir(visibility);
+    }
+    
+    /// Convert mutability
+    function convert_mutability_to_ir(Mutability mutability) public returns (MutabilityIR memory) {
+        return type_converter.convert_mutability_to_ir(mutability);
+    }
+    
+    /// Validate IR module
+    function validate_ir_module(IRModule memory module) public returns (bool) {
+        return ir_validator.validate_ir_module(module);
+    }
+    
+    /// Apply optimizations ke IR module
+    function apply_optimizations(IRModule memory module) private returns (IRModule memory) {
+        if (optimization_level == OptimizationLevel.O1) {
+            return apply_basic_optimizations(module);
+        } else if (optimization_level == OptimizationLevel.O2) {
+            module = apply_basic_optimizations(module);
+            return apply_advanced_optimizations(module);
+        } else if (optimization_level == OptimizationLevel.O3) {
+            module = apply_basic_optimizations(module);
+            module = apply_advanced_optimizations(module);
+            return apply_aggressive_optimizations(module);
+        }
+        
+        return module; // O0 - no optimizations
+    }
+    
+    /// Apply basic optimizations
+    function apply_basic_optimizations(IRModule memory module) private returns (IRModule memory) {
+        // Dead code elimination
+        module = eliminate_dead_code(module);
+        
+        // Constant folding
+        module = fold_constants(module);
+        
+        // Common subexpression elimination
+        module = eliminate_common_subexpressions(module);
+        
+        return module;
+    }
+    
+    /// Apply advanced optimizations
+    function apply_advanced_optimizations(IRModule memory module) private returns (IRModule memory) {
+        // Loop optimizations
+        module = optimize_loops(module);
+        
+        // Function inlining
+        module = inline_functions(module);
+        
+        // Register allocation optimization
+        module = optimize_register_allocation(module);
+        
+        return module;
+    }
+    
+    /// Apply aggressive optimizations
+    function apply_aggressive_optimizations(IRModule memory module) private returns (IRModule memory) {
+        // Whole program optimization
+        module = optimize_whole_program(module);
+        
+        // Advanced loop transformations
+        module = transform_loops(module);
+        
+        // Interprocedural optimizations
+        module = optimize_interprocedural(module);
+        
+        return module;
+    }
+    
+    /// Optimization implementations (simplified)
+    function eliminate_dead_code(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for dead code elimination
+        return module;
+    }
+    
+    function fold_constants(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for constant folding
+        return module;
+    }
+    
+    function eliminate_common_subexpressions(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for CSE
+        return module;
+    }
+    
+    function optimize_loops(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for loop optimization
+        return module;
+    }
+    
+    function inline_functions(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for function inlining
+        return module;
+    }
+    
+    function optimize_register_allocation(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for register allocation
+        return module;
+    }
+    
+    function optimize_whole_program(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for whole program optimization
+        return module;
+    }
+    
+    function transform_loops(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for loop transformations
+        return module;
+    }
+    
+    function optimize_interprocedural(IRModule memory module) private returns (IRModule memory) {
+        // Implementation for interprocedural optimization
+        return module;
+    }
+    
+    /// Utility functions
+    function validate_analyzed_ast(AnalyzedAST memory analyzed_ast) private pure returns (bool) {
+        return bytes(analyzed_ast.program.name).length > 0;
+    }
+    
+    function create_empty_ir_module() private pure returns (IRModule memory) {
+        IRModule memory empty_module;
+        empty_module.name = "";
+        empty_module.version = "1.0.0";
+        return empty_module;
+    }
+    
+    function create_ir_module(string memory name) private view returns (IRModule memory) {
+        IRModule memory module;
+        module.name = name;
+        module.version = "1.0.0";
+        module.target_platform = target_platform;
+        module.optimization_level = optimization_level;
+        module.debug_info = debug_mode;
+        module.generation_timestamp = block.timestamp;
+        return module;
+    }
+    
+    function reset_generation_state() private {
+        // Reset sub-modules
+        ir_generator.reset();
+        type_converter.reset();
+        ir_validator.reset();
+        ir_utils.reset();
+    }
+    
+    function update_metadata() private {
+        metadata.last_generation_time = block.timestamp;
+        metadata.generation_count = generation_count;
+        metadata.target_platform = target_platform;
+        metadata.optimization_level = optimization_level;
+    }
+    
+    function create_default_config() private pure returns (IRConfig memory) {
+        IRConfig memory config;
+        config.validate_ir = true;
+        config.generate_debug_info = false;
+        config.optimize_for_size = false;
+        config.enable_warnings = true;
+        config.max_optimization_passes = 10;
+        return config;
+    }
+    
+    function create_default_metadata() private view returns (IRMetadata memory) {
+        IRMetadata memory metadata;
+        metadata.version = "1.0.0";
+        metadata.creation_time = block.timestamp;
+        metadata.last_generation_time = 0;
+        metadata.generation_count = 0;
+        return metadata;
+    }
+    
+    /// Configuration functions
+    function set_optimization_level(OptimizationLevel level) public {
+        optimization_level = level;
+    }
+    
+    function set_target_platform(TargetPlatform platform) public {
+        target_platform = platform;
+    }
+    
+    function set_debug_mode(bool enabled) public {
+        debug_mode = enabled;
+        config.generate_debug_info = enabled;
+    }
+    
+    function set_config(IRConfig memory new_config) public {
+        config = new_config;
+    }
+    
+    /// Getter functions
+    function get_optimization_level() public view returns (OptimizationLevel) {
+        return optimization_level;
+    }
+    
+    function get_target_platform() public view returns (TargetPlatform) {
+        return target_platform;
+    }
+    
+    function get_debug_mode() public view returns (bool) {
+        return debug_mode;
+    }
+    
+    function get_config() public view returns (IRConfig memory) {
+        return config;
+    }
+    
+    function get_metadata() public view returns (IRMetadata memory) {
+        return metadata;
+    }
+    
+    function get_current_module() public view returns (IRModule memory) {
+        return current_module;
+    }
+    
+    function get_generation_count() public view returns (uint256) {
+        return generation_count;
+    }
+    
+    /// Error handling
+    function get_error_count() public view returns (uint256) {
+        return error_handler.get_error_count();
+    }
+    
+    function get_errors() public view returns (OmegaError[] memory) {
+        return error_handler.get_errors();
+    }
+    
+    function clear_errors() public {
+        error_handler.clear_errors();
+    }
+    
+    /// Reset IR state
+    function reset() public {
+        generation_count = 0;
+        reset_generation_state();
+        error_handler.clear_errors();
+        metadata = create_default_metadata();
+    }
+}
+
+/// Struktur untuk konfigurasi IR
+struct IRConfig {
+    bool validate_ir;
+    bool generate_debug_info;
+    bool optimize_for_size;
+    bool enable_warnings;
+    uint256 max_optimization_passes;
+}
+
+/// Struktur untuk metadata IR
+struct IRMetadata {
+    string version;
+    uint256 creation_time;
+    uint256 last_generation_time;
+    uint256 generation_count;
+    TargetPlatform target_platform;
+    OptimizationLevel optimization_level;
+}
+
+/// Enum untuk level optimasi
+enum OptimizationLevel {
+    O0,  // No optimization
+    O1,  // Basic optimization
+    O2,  // Advanced optimization
+    O3   // Aggressive optimization
+}
+
+/// Enum untuk platform target
+enum TargetPlatform {
+    EVM,        // Ethereum Virtual Machine
+    Solana,     // Solana Runtime
+    Cosmos,     // Cosmos SDK
+    Substrate,  // Substrate Framework
+    Move        // Move VM
+}

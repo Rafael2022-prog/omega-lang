@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+    <mime-type type="application/x-omega-source">
+        <comment>OMEGA Blockchain Source File</comment>
+        <comment xml:lang="en">OMEGA Blockchain Source File</comment>
+        <comment xml:lang="id">File Sumber OMEGA Blockchain</comment>
+        
+        <icon name="application-x-omega-source"/>
+        
+        <glob-deleteall/>
+        <glob pattern="*.mega"/>
+        
+        <magic priority="50">
+            <match value="contract " type="string" offset="0:64"/>
+            <match value="function " type="string" offset="0:64"/>
+            <match value="struct " type="string" offset="0:64"/>
+            <match value="enum " type="string" offset="0:64"/>
+            <match value="impl " type="string" offset="0:64"/>
+        </magic>
+        
+        <sub-class-of type="text/plain"/>
+        
+        <alias type="text/x-omega"/>
+        <alias type="application/omega"/>
+        
+        <root-XML namespaceURI="" localName=""/>
+        
+        <generic-icon name="text-x-generic"/>
+        
+        <expanded-acronym>OMEGA Blockchain Programming Language</expanded-acronym>
+        
+        <acronym>OMEGA</acronym>
+    </mime-type>
+</mime-info>

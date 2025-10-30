@@ -1,0 +1,387 @@
+// OMEGA AST Nodes - Definisi struktur AST untuk parser
+// Memisahkan definisi AST nodes dari logic parsing untuk maintainability
+
+/// Enum untuk tipe item top-level
+enum ItemType {
+    Import,
+    Blockchain,
+    Struct,
+    Enum,
+    Function,
+    Constant,
+    Modifier
+}
+
+/// Struct untuk merepresentasikan program OMEGA
+struct Program {
+    Item[] items;
+}
+
+/// Struct untuk item top-level dalam program
+struct Item {
+    ItemType item_type;
+    Import import_item;
+    Blockchain blockchain_item;
+    Struct struct_item;
+    Enum enum_item;
+    Function function_item;
+    Constant constant_item;
+    Modifier modifier_item;
+}
+
+/// Struct untuk import statement
+struct Import {
+    string path;
+    string alias;
+    bool is_wildcard;
+    string[] specific_imports;
+}
+
+/// Struct untuk blockchain declaration
+struct Blockchain {
+    string name;
+    Annotation[] annotations;
+    StateBlock state_block;
+    Function[] functions;
+    Event[] events;
+    Modifier[] modifiers;
+}
+
+/// Struct untuk state block
+struct StateBlock {
+    StateVariable[] variables;
+}
+
+/// Struct untuk state variable
+struct StateVariable {
+    string name;
+    Type variable_type;
+    Visibility visibility;
+    Mutability mutability;
+    Expression default_value;
+}
+
+/// Struct untuk event declaration
+struct Event {
+    string name;
+    Annotation[] annotations;
+    EventParameter[] parameters;
+}
+
+/// Struct untuk event parameter
+struct EventParameter {
+    string name;
+    Type parameter_type;
+    bool indexed;
+}
+
+/// Struct untuk function declaration
+struct Function {
+    string name;
+    Annotation[] annotations;
+    Parameter[] parameters;
+    Type return_type;
+    Visibility visibility;
+    Mutability mutability;
+    Block body;
+}
+
+/// Struct untuk function parameter
+struct Parameter {
+    string name;
+    Type parameter_type;
+    bool is_memory;
+    bool is_storage;
+    bool is_calldata;
+}
+
+/// Struct untuk type information
+struct Type {
+    TypeKind kind;
+    string name;
+    Type[] generic_args;
+    uint256 array_size;
+    bool is_array;
+    bool is_mapping;
+    Type key_type;
+    Type value_type;
+}
+
+/// Enum untuk type kinds
+enum TypeKind {
+    Primitive,
+    Array,
+    Mapping,
+    Struct,
+    Enum,
+    Function,
+    Address,
+    String,
+    Bytes
+}
+
+/// Struct untuk code block
+struct Block {
+    Statement[] statements;
+}
+
+/// Enum untuk statement types
+enum StatementType {
+    Expression,
+    VariableDeclaration,
+    If,
+    While,
+    For,
+    Return,
+    Emit,
+    Require,
+    Assert,
+    Revert,
+    Block
+}
+
+/// Struct untuk statements
+struct Statement {
+    StatementType statement_type;
+    Expression expression_stmt;
+    VariableDeclaration var_decl;
+    IfStatement if_stmt;
+    WhileStatement while_stmt;
+    ForStatement for_stmt;
+    ReturnStatement return_stmt;
+    EmitStatement emit_stmt;
+    RequireStatement require_stmt;
+    AssertStatement assert_stmt;
+    RevertStatement revert_stmt;
+    Block block_stmt;
+}
+
+/// Struct untuk if statement
+struct IfStatement {
+    Expression condition;
+    Statement then_branch;
+    Statement else_branch;
+}
+
+/// Struct untuk while statement
+struct WhileStatement {
+    Expression condition;
+    Statement body;
+}
+
+/// Struct untuk for statement
+struct ForStatement {
+    Statement initializer;
+    Expression condition;
+    Expression increment;
+    Statement body;
+}
+
+/// Struct untuk return statement
+struct ReturnStatement {
+    Expression value;
+}
+
+/// Struct untuk emit statement
+struct EmitStatement {
+    string event_name;
+    Expression[] arguments;
+}
+
+/// Struct untuk require statement
+struct RequireStatement {
+    Expression condition;
+    string message;
+}
+
+/// Struct untuk assert statement
+struct AssertStatement {
+    Expression condition;
+    string message;
+}
+
+/// Struct untuk revert statement
+struct RevertStatement {
+    string message;
+}
+
+/// Struct untuk variable declaration
+struct VariableDeclaration {
+    string name;
+    Type variable_type;
+    Expression initializer;
+    bool is_memory;
+    bool is_storage;
+    bool is_calldata;
+}
+
+/// Enum untuk expression types
+enum ExpressionType {
+    Binary,
+    Unary,
+    Call,
+    Literal,
+    Identifier,
+    Assignment,
+    ArrayAccess,
+    MemberAccess
+}
+
+/// Struct untuk expressions
+struct Expression {
+    ExpressionType expression_type;
+    BinaryExpression binary;
+    UnaryExpression unary;
+    CallExpression call;
+    Literal literal;
+    string identifier;
+    AssignmentExpression assignment;
+    ArrayAccessExpression array_access;
+    MemberAccessExpression member_access;
+}
+
+/// Struct untuk binary expressions
+struct BinaryExpression {
+    Expression left;
+    BinaryOperator operator;
+    Expression right;
+}
+
+/// Enum untuk binary operators
+enum BinaryOperator {
+    Add, Sub, Mul, Div, Mod,
+    Equal, NotEqual, Less, LessEqual, Greater, GreaterEqual,
+    LogicalAnd, LogicalOr,
+    BitwiseAnd, BitwiseOr, BitwiseXor
+}
+
+/// Struct untuk unary expressions
+struct UnaryExpression {
+    UnaryOperator operator;
+    Expression operand;
+}
+
+/// Enum untuk unary operators
+enum UnaryOperator {
+    Not, Minus, Plus, BitwiseNot
+}
+
+/// Struct untuk call expressions
+struct CallExpression {
+    Expression callee;
+    Expression[] arguments;
+}
+
+/// Struct untuk assignment expressions
+struct AssignmentExpression {
+    Expression left;
+    AssignmentOperator operator;
+    Expression right;
+}
+
+/// Enum untuk assignment operators
+enum AssignmentOperator {
+    Assign, AddAssign, SubAssign, MulAssign, DivAssign, ModAssign
+}
+
+/// Struct untuk array access expressions
+struct ArrayAccessExpression {
+    Expression array;
+    Expression index;
+}
+
+/// Struct untuk member access expressions
+struct MemberAccessExpression {
+    Expression object;
+    string member;
+}
+
+/// Enum untuk literal types
+enum LiteralType {
+    Integer,
+    String,
+    Boolean,
+    Address,
+    Bytes
+}
+
+/// Struct untuk literals
+struct Literal {
+    LiteralType literal_type;
+    uint256 integer_value;
+    string string_value;
+    bool boolean_value;
+    address address_value;
+    bytes bytes_value;
+}
+
+/// Struct untuk annotations
+struct Annotation {
+    string name;
+    AnnotationArg[] args;
+}
+
+/// Struct untuk annotation arguments
+struct AnnotationArg {
+    string name;
+    string value;
+}
+
+/// Struct untuk struct declaration
+struct Struct {
+    string name;
+    Annotation[] annotations;
+    StructField[] fields;
+}
+
+/// Struct untuk struct field
+struct StructField {
+    string name;
+    Type field_type;
+    Visibility visibility;
+}
+
+/// Struct untuk enum declaration
+struct Enum {
+    string name;
+    Annotation[] annotations;
+    EnumVariant[] variants;
+}
+
+/// Struct untuk enum variant
+struct EnumVariant {
+    string name;
+    uint256 value;
+}
+
+/// Struct untuk constant declaration
+struct Constant {
+    string name;
+    Annotation[] annotations;
+    Type constant_type;
+    Expression value;
+}
+
+/// Struct untuk modifier declaration
+struct Modifier {
+    string name;
+    Annotation[] annotations;
+    Parameter[] parameters;
+    Block body;
+}
+
+/// Enum untuk visibility levels
+enum Visibility {
+    Public,
+    Private,
+    Internal,
+    External
+}
+
+/// Enum untuk mutability levels
+enum Mutability {
+    Pure,
+    View,
+    Payable,
+    NonPayable
+}

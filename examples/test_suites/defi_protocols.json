@@ -1,0 +1,155 @@
+{
+  "name": "DeFi Protocols Test Suite",
+  "description": "Comprehensive test suite for DeFi protocol implementations in OMEGA",
+  "test_cases": [
+    {
+      "id": "liquidity_pool_amm",
+      "name": "Automated Market Maker Liquidity Pool",
+      "description": "Test AMM liquidity pool with swap functionality",
+      "targets": ["evm", "solana"],
+      "source_code": "blockchain LiquidityPool {\n    state {\n        mapping(address => uint256) token_a_balance;\n        mapping(address => uint256) token_b_balance;\n        mapping(address => uint256) lp_tokens;\n        uint256 total_lp_supply;\n        uint256 reserve_a;\n        uint256 reserve_b;\n        uint256 fee_rate; // basis points (e.g., 30 = 0.3%)\n        address token_a_address;\n        address token_b_address;\n    }\n    \n    constructor(address _token_a, address _token_b, uint256 _fee_rate) {\n        token_a_address = _token_a;\n        token_b_address = _token_b;\n        fee_rate = _fee_rate;\n        total_lp_supply = 0;\n        reserve_a = 0;\n        reserve_b = 0;\n    }\n    \n    function add_liquidity(uint256 amount_a, uint256 amount_b) public returns (uint256) {\n        require(amount_a > 0 && amount_b > 0, \"Invalid amounts\");\n        \n        uint256 lp_amount;\n        if (total_lp_supply == 0) {\n            lp_amount = sqrt(amount_a * amount_b);\n            require(lp_amount > 1000, \"Insufficient liquidity\"); // Minimum liquidity\n            lp_amount -= 1000; // Burn minimum liquidity\n        } else {\n            lp_amount = min(\n                (amount_a * total_lp_supply) / reserve_a,\n                (amount_b * total_lp_supply) / reserve_b\n            );\n        }\n        \n        require(lp_amount > 0, \"Insufficient LP amount\");\n        \n        // Transfer tokens (simplified - in real implementation would use token contracts)\n        token_a_balance[msg.sender] += amount_a;\n        token_b_balance[msg.sender] += amount_b;\n        lp_tokens[msg.sender] += lp_amount;\n        total_lp_supply += lp_amount;\n        reserve_a += amount_a;\n        reserve_b += amount_b;\n        \n        emit LiquidityAdded(msg.sender, amount_a, amount_b, lp_amount);\n        return lp_amount;\n    }\n    \n    function remove_liquidity(uint256 lp_amount) public returns (uint256, uint256) {\n        require(lp_amount > 0, \"Invalid LP amount\");\n        require(lp_tokens[msg.sender] >= lp_amount, \"Insufficient LP tokens\");\n        \n        uint256 amount_a = (lp_amount * reserve_a) / total_lp_supply;\n        uint256 amount_b = (lp_amount * reserve_b) / total_lp_supply;\n        \n        require(amount_a > 0 && amount_b > 0, \"Insufficient liquidity\");\n        \n        lp_tokens[msg.sender] -= lp_amount;\n        total_lp_supply -= lp_amount;\n        reserve_a -= amount_a;\n        reserve_b -= amount_b;\n        \n        // Transfer tokens back (simplified)\n        token_a_balance[msg.sender] -= amount_a;\n        token_b_balance[msg.sender] -= amount_b;\n        \n        emit LiquidityRemoved(msg.sender, amount_a, amount_b, lp_amount);\n        return (amount_a, amount_b);\n    }\n    \n    function swap_a_for_b(uint256 amount_a) public returns (uint256) {\n        require(amount_a > 0, \"Invalid amount\");\n        require(reserve_a > 0 && reserve_b > 0, \"Insufficient liquidity\");\n        \n        uint256 fee = (amount_a * fee_rate) / 10000;\n        uint256 amount_a_after_fee = amount_a - fee;\n        \n        uint256 amount_b = (amount_a_after_fee * reserve_b) / (reserve_a + amount_a_after_fee);\n        \n        require(amount_b > 0 && amount_b < reserve_b, \"Invalid swap\");\n        \n        reserve_a += amount_a;\n        reserve_b -= amount_b;\n        \n        emit Swap(msg.sender, amount_a, amount_b, true);\n        return amount_b;\n    }\n    \n    function swap_b_for_a(uint256 amount_b) public returns (uint256) {\n        require(amount_b > 0, \"Invalid amount\");\n        require(reserve_a > 0 && reserve_b > 0, \"Insufficient liquidity\");\n        \n        uint256 fee = (amount_b * fee_rate) / 10000;\n        uint256 amount_b_after_fee = amount_b - fee;\n        \n        uint256 amount_a = (amount_b_after_fee * reserve_a) / (reserve_b + amount_b_after_fee);\n        \n        require(amount_a > 0 && amount_a < reserve_a, \"Invalid swap\");\n        \n        reserve_b += amount_b;\n        reserve_a -= amount_a;\n        \n        emit Swap(msg.sender, amount_b, amount_a, false);\n        return amount_a;\n    }\n    \n    function get_reserves() public view returns (uint256, uint256) {\n        return (reserve_a, reserve_b);\n    }\n    \n    function get_lp_balance(address account) public view returns (uint256) {\n        return lp_tokens[account];\n    }\n    \n    function quote(uint256 amount_a, uint256 reserve_a_quote, uint256 reserve_b_quote) public pure returns (uint256) {\n        require(amount_a > 0, \"Invalid amount\");\n        require(reserve_a_quote > 0 && reserve_b_quote > 0, \"Invalid reserves\");\n        return (amount_a * reserve_b_quote) / reserve_a_quote;\n    }\n    \n    // Helper functions\n    function sqrt(uint256 x) internal pure returns (uint256) {\n        if (x == 0) return 0;\n        uint256 z = (x + 1) / 2;\n        uint256 y = x;\n        while (z < y) {\n            y = z;\n            z = (x / z + z) / 2;\n        }\n        return y;\n    }\n    \n    function min(uint256 a, uint256 b) internal pure returns (uint256) {\n        return a < b ? a : b;\n    }\n    \n    event LiquidityAdded(address indexed provider, uint256 amount_a, uint256 amount_b, uint256 lp_amount);\n    event LiquidityRemoved(address indexed provider, uint256 amount_a, uint256 amount_b, uint256 lp_amount);\n    event Swap(address indexed user, uint256 amount_in, uint256 amount_out, bool a_for_b);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["LiquidityPool.sol"],
+          "gas_usage": {
+            "compilation_gas": null,
+            "deployment_gas": 2000000,
+            "execution_gas": 150000
+          },
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 30000,
+      "dependencies": []
+    },
+    {
+      "id": "lending_protocol",
+      "name": "Lending and Borrowing Protocol",
+      "description": "Test lending protocol with collateralization",
+      "targets": ["evm", "solana"],
+      "source_code": "blockchain LendingProtocol {\n    state {\n        struct Market {\n            address asset;\n            uint256 total_supply;\n            uint256 total_borrows;\n            uint256 supply_rate;\n            uint256 borrow_rate;\n            uint256 collateral_factor; // percentage (e.g., 75 = 75%)\n            bool is_active;\n        }\n        \n        struct UserAccount {\n            mapping(address => uint256) supplied;\n            mapping(address => uint256) borrowed;\n            uint256 total_collateral_value;\n            uint256 total_borrow_value;\n        }\n        \n        mapping(address => Market) markets;\n        mapping(address => UserAccount) user_accounts;\n        mapping(address => bool) supported_assets;\n        address[] asset_list;\n        address admin;\n        uint256 liquidation_threshold; // percentage\n    }\n    \n    constructor(address _admin, uint256 _liquidation_threshold) {\n        admin = _admin;\n        liquidation_threshold = _liquidation_threshold;\n    }\n    \n    function add_market(address asset, uint256 collateral_factor) public {\n        require(msg.sender == admin, \"Only admin\");\n        require(!supported_assets[asset], \"Market already exists\");\n        require(collateral_factor <= 100, \"Invalid collateral factor\");\n        \n        markets[asset] = Market({\n            asset: asset,\n            total_supply: 0,\n            total_borrows: 0,\n            supply_rate: 0,\n            borrow_rate: 0,\n            collateral_factor: collateral_factor,\n            is_active: true\n        });\n        \n        supported_assets[asset] = true;\n        asset_list.push(asset);\n        \n        emit MarketAdded(asset, collateral_factor);\n    }\n    \n    function supply(address asset, uint256 amount) public {\n        require(supported_assets[asset], \"Unsupported asset\");\n        require(markets[asset].is_active, \"Market inactive\");\n        require(amount > 0, \"Invalid amount\");\n        \n        // Transfer tokens (simplified)\n        user_accounts[msg.sender].supplied[asset] += amount;\n        markets[asset].total_supply += amount;\n        \n        // Update collateral value\n        uint256 asset_value = get_asset_value(asset, amount);\n        user_accounts[msg.sender].total_collateral_value += asset_value;\n        \n        emit Supply(msg.sender, asset, amount);\n    }\n    \n    function borrow(address asset, uint256 amount) public {\n        require(supported_assets[asset], \"Unsupported asset\");\n        require(markets[asset].is_active, \"Market inactive\");\n        require(amount > 0, \"Invalid amount\");\n        require(markets[asset].total_supply >= amount, \"Insufficient liquidity\");\n        \n        uint256 borrow_value = get_asset_value(asset, amount);\n        uint256 new_total_borrow = user_accounts[msg.sender].total_borrow_value + borrow_value;\n        \n        // Check collateralization\n        uint256 max_borrow = (user_accounts[msg.sender].total_collateral_value * liquidation_threshold) / 100;\n        require(new_total_borrow <= max_borrow, \"Insufficient collateral\");\n        \n        user_accounts[msg.sender].borrowed[asset] += amount;\n        user_accounts[msg.sender].total_borrow_value += borrow_value;\n        markets[asset].total_borrows += amount;\n        \n        emit Borrow(msg.sender, asset, amount);\n    }\n    \n    function repay(address asset, uint256 amount) public {\n        require(supported_assets[asset], \"Unsupported asset\");\n        require(amount > 0, \"Invalid amount\");\n        require(user_accounts[msg.sender].borrowed[asset] >= amount, \"Repay amount exceeds debt\");\n        \n        user_accounts[msg.sender].borrowed[asset] -= amount;\n        markets[asset].total_borrows -= amount;\n        \n        uint256 repay_value = get_asset_value(asset, amount);\n        user_accounts[msg.sender].total_borrow_value -= repay_value;\n        \n        emit Repay(msg.sender, asset, amount);\n    }\n    \n    function withdraw(address asset, uint256 amount) public {\n        require(supported_assets[asset], \"Unsupported asset\");\n        require(amount > 0, \"Invalid amount\");\n        require(user_accounts[msg.sender].supplied[asset] >= amount, \"Insufficient supply\");\n        \n        uint256 withdraw_value = get_asset_value(asset, amount);\n        uint256 new_collateral = user_accounts[msg.sender].total_collateral_value - withdraw_value;\n        \n        // Check if withdrawal maintains collateralization\n        uint256 max_borrow = (new_collateral * liquidation_threshold) / 100;\n        require(user_accounts[msg.sender].total_borrow_value <= max_borrow, \"Would under-collateralize\");\n        \n        user_accounts[msg.sender].supplied[asset] -= amount;\n        user_accounts[msg.sender].total_collateral_value -= withdraw_value;\n        markets[asset].total_supply -= amount;\n        \n        emit Withdraw(msg.sender, asset, amount);\n    }\n    \n    function liquidate(address borrower, address collateral_asset, address debt_asset, uint256 debt_amount) public {\n        require(supported_assets[collateral_asset] && supported_assets[debt_asset], \"Unsupported asset\");\n        require(debt_amount > 0, \"Invalid amount\");\n        require(user_accounts[borrower].borrowed[debt_asset] >= debt_amount, \"Insufficient debt\");\n        \n        // Check if borrower is under-collateralized\n        uint256 max_borrow = (user_accounts[borrower].total_collateral_value * liquidation_threshold) / 100;\n        require(user_accounts[borrower].total_borrow_value > max_borrow, \"Account not liquidatable\");\n        \n        // Calculate collateral to seize\n        uint256 debt_value = get_asset_value(debt_asset, debt_amount);\n        uint256 collateral_amount = (debt_value * 110) / 100; // 10% liquidation bonus\n        collateral_amount = collateral_amount / get_asset_price(collateral_asset);\n        \n        require(user_accounts[borrower].supplied[collateral_asset] >= collateral_amount, \"Insufficient collateral\");\n        \n        // Transfer debt from liquidator to protocol\n        // Transfer collateral from borrower to liquidator\n        user_accounts[borrower].borrowed[debt_asset] -= debt_amount;\n        user_accounts[borrower].supplied[collateral_asset] -= collateral_amount;\n        \n        uint256 debt_value_removed = get_asset_value(debt_asset, debt_amount);\n        uint256 collateral_value_removed = get_asset_value(collateral_asset, collateral_amount);\n        \n        user_accounts[borrower].total_borrow_value -= debt_value_removed;\n        user_accounts[borrower].total_collateral_value -= collateral_value_removed;\n        \n        emit Liquidation(msg.sender, borrower, collateral_asset, debt_asset, collateral_amount, debt_amount);\n    }\n    \n    function get_user_account_info(address user) public view returns (uint256, uint256, uint256) {\n        UserAccount storage account = user_accounts[user];\n        uint256 health_factor = 0;\n        if (account.total_borrow_value > 0) {\n            health_factor = (account.total_collateral_value * liquidation_threshold) / (account.total_borrow_value * 100);\n        }\n        return (account.total_collateral_value, account.total_borrow_value, health_factor);\n    }\n    \n    function get_market_info(address asset) public view returns (uint256, uint256, uint256, uint256, bool) {\n        Market storage market = markets[asset];\n        return (market.total_supply, market.total_borrows, market.supply_rate, market.borrow_rate, market.is_active);\n    }\n    \n    // Mock price oracle functions (in real implementation, would use external oracles)\n    function get_asset_price(address asset) internal pure returns (uint256) {\n        // Mock prices for testing\n        return 1000; // $1000 per unit\n    }\n    \n    function get_asset_value(address asset, uint256 amount) internal pure returns (uint256) {\n        return amount * get_asset_price(asset);\n    }\n    \n    event MarketAdded(address indexed asset, uint256 collateral_factor);\n    event Supply(address indexed user, address indexed asset, uint256 amount);\n    event Borrow(address indexed user, address indexed asset, uint256 amount);\n    event Repay(address indexed user, address indexed asset, uint256 amount);\n    event Withdraw(address indexed user, address indexed asset, uint256 amount);\n    event Liquidation(address indexed liquidator, address indexed borrower, address collateral_asset, address debt_asset, uint256 collateral_amount, uint256 debt_amount);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["LendingProtocol.sol"],
+          "gas_usage": {
+            "compilation_gas": null,
+            "deployment_gas": 3000000,
+            "execution_gas": 200000
+          },
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 45000,
+      "dependencies": []
+    },
+    {
+      "id": "yield_farming",
+      "name": "Yield Farming Protocol",
+      "description": "Test yield farming with reward distribution",
+      "targets": ["evm", "solana"],
+      "source_code": "blockchain YieldFarm {\n    state {\n        struct Pool {\n            address lp_token;\n            address reward_token;\n            uint256 total_staked;\n            uint256 reward_rate; // rewards per second\n            uint256 last_update_time;\n            uint256 reward_per_token_stored;\n            bool is_active;\n        }\n        \n        struct UserInfo {\n            uint256 staked_amount;\n            uint256 reward_per_token_paid;\n            uint256 rewards;\n        }\n        \n        mapping(uint256 => Pool) pools;\n        mapping(uint256 => mapping(address => UserInfo)) user_info;\n        uint256 pool_count;\n        address admin;\n        uint256 total_reward_budget;\n    }\n    \n    constructor(address _admin, uint256 _total_reward_budget) {\n        admin = _admin;\n        total_reward_budget = _total_reward_budget;\n        pool_count = 0;\n    }\n    \n    function create_pool(address lp_token, address reward_token, uint256 reward_rate) public {\n        require(msg.sender == admin, \"Only admin\");\n        require(lp_token != address(0) && reward_token != address(0), \"Invalid addresses\");\n        require(reward_rate > 0, \"Invalid reward rate\");\n        \n        pools[pool_count] = Pool({\n            lp_token: lp_token,\n            reward_token: reward_token,\n            total_staked: 0,\n            reward_rate: reward_rate,\n            last_update_time: block.timestamp,\n            reward_per_token_stored: 0,\n            is_active: true\n        });\n        \n        emit PoolCreated(pool_count, lp_token, reward_token, reward_rate);\n        pool_count += 1;\n    }\n    \n    function stake(uint256 pool_id, uint256 amount) public {\n        require(pool_id < pool_count, \"Invalid pool\");\n        require(pools[pool_id].is_active, \"Pool inactive\");\n        require(amount > 0, \"Invalid amount\");\n        \n        update_reward(pool_id, msg.sender);\n        \n        user_info[pool_id][msg.sender].staked_amount += amount;\n        pools[pool_id].total_staked += amount;\n        \n        emit Staked(msg.sender, pool_id, amount);\n    }\n    \n    function unstake(uint256 pool_id, uint256 amount) public {\n        require(pool_id < pool_count, \"Invalid pool\");\n        require(amount > 0, \"Invalid amount\");\n        require(user_info[pool_id][msg.sender].staked_amount >= amount, \"Insufficient stake\");\n        \n        update_reward(pool_id, msg.sender);\n        \n        user_info[pool_id][msg.sender].staked_amount -= amount;\n        pools[pool_id].total_staked -= amount;\n        \n        emit Unstaked(msg.sender, pool_id, amount);\n    }\n    \n    function claim_rewards(uint256 pool_id) public {\n        require(pool_id < pool_count, \"Invalid pool\");\n        \n        update_reward(pool_id, msg.sender);\n        \n        uint256 reward = user_info[pool_id][msg.sender].rewards;\n        require(reward > 0, \"No rewards to claim\");\n        \n        user_info[pool_id][msg.sender].rewards = 0;\n        \n        // Transfer reward tokens (simplified)\n        emit RewardsClaimed(msg.sender, pool_id, reward);\n    }\n    \n    function compound(uint256 pool_id) public {\n        require(pool_id < pool_count, \"Invalid pool\");\n        \n        update_reward(pool_id, msg.sender);\n        \n        uint256 reward = user_info[pool_id][msg.sender].rewards;\n        require(reward > 0, \"No rewards to compound\");\n        \n        user_info[pool_id][msg.sender].rewards = 0;\n        \n        // Convert rewards to LP tokens and stake (simplified)\n        uint256 lp_amount = convert_reward_to_lp(pool_id, reward);\n        user_info[pool_id][msg.sender].staked_amount += lp_amount;\n        pools[pool_id].total_staked += lp_amount;\n        \n        emit Compounded(msg.sender, pool_id, reward, lp_amount);\n    }\n    \n    function update_reward(uint256 pool_id, address user) internal {\n        Pool storage pool = pools[pool_id];\n        \n        pool.reward_per_token_stored = reward_per_token(pool_id);\n        pool.last_update_time = block.timestamp;\n        \n        if (user != address(0)) {\n            user_info[pool_id][user].rewards = earned(pool_id, user);\n            user_info[pool_id][user].reward_per_token_paid = pool.reward_per_token_stored;\n        }\n    }\n    \n    function reward_per_token(uint256 pool_id) public view returns (uint256) {\n        Pool storage pool = pools[pool_id];\n        \n        if (pool.total_staked == 0) {\n            return pool.reward_per_token_stored;\n        }\n        \n        return pool.reward_per_token_stored + \n               ((block.timestamp - pool.last_update_time) * pool.reward_rate * 1e18) / pool.total_staked;\n    }\n    \n    function earned(uint256 pool_id, address user) public view returns (uint256) {\n        UserInfo storage info = user_info[pool_id][user];\n        \n        return (info.staked_amount * (reward_per_token(pool_id) - info.reward_per_token_paid)) / 1e18 + info.rewards;\n    }\n    \n    function get_pool_info(uint256 pool_id) public view returns (address, address, uint256, uint256, bool) {\n        require(pool_id < pool_count, \"Invalid pool\");\n        Pool storage pool = pools[pool_id];\n        return (pool.lp_token, pool.reward_token, pool.total_staked, pool.reward_rate, pool.is_active);\n    }\n    \n    function get_user_info(uint256 pool_id, address user) public view returns (uint256, uint256) {\n        UserInfo storage info = user_info[pool_id][user];\n        return (info.staked_amount, earned(pool_id, user));\n    }\n    \n    function set_pool_status(uint256 pool_id, bool is_active) public {\n        require(msg.sender == admin, \"Only admin\");\n        require(pool_id < pool_count, \"Invalid pool\");\n        \n        pools[pool_id].is_active = is_active;\n        emit PoolStatusChanged(pool_id, is_active);\n    }\n    \n    function update_reward_rate(uint256 pool_id, uint256 new_rate) public {\n        require(msg.sender == admin, \"Only admin\");\n        require(pool_id < pool_count, \"Invalid pool\");\n        \n        update_reward(pool_id, address(0));\n        pools[pool_id].reward_rate = new_rate;\n        \n        emit RewardRateUpdated(pool_id, new_rate);\n    }\n    \n    // Mock function to convert rewards to LP tokens\n    function convert_reward_to_lp(uint256 pool_id, uint256 reward_amount) internal pure returns (uint256) {\n        // Simplified conversion - in real implementation would use DEX\n        return reward_amount / 2; // Assume 2:1 conversion rate\n    }\n    \n    event PoolCreated(uint256 indexed pool_id, address lp_token, address reward_token, uint256 reward_rate);\n    event Staked(address indexed user, uint256 indexed pool_id, uint256 amount);\n    event Unstaked(address indexed user, uint256 indexed pool_id, uint256 amount);\n    event RewardsClaimed(address indexed user, uint256 indexed pool_id, uint256 reward);\n    event Compounded(address indexed user, uint256 indexed pool_id, uint256 reward, uint256 lp_amount);\n    event PoolStatusChanged(uint256 indexed pool_id, bool is_active);\n    event RewardRateUpdated(uint256 indexed pool_id, uint256 new_rate);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["YieldFarm.sol"],
+          "gas_usage": {
+            "compilation_gas": null,
+            "deployment_gas": 2500000,
+            "execution_gas": 180000
+          },
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 40000,
+      "dependencies": []
+    }
+  ],
+  "setup": {
+    "commands": [
+      "echo 'Setting up DeFi protocol tests'",
+      "mkdir -p defi_test_output",
+      "echo 'Initializing test tokens and accounts'"
+    ],
+    "environment": {
+      "OMEGA_TEST_MODE": "defi",
+      "OMEGA_LOG_LEVEL": "info",
+      "OMEGA_GAS_OPTIMIZATION": "true"
+    },
+    "accounts": [
+      {
+        "name": "admin",
+        "address": "0x1111111111111111111111111111111111111111",
+        "private_key": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "balance": "10000000000000000000000"
+      },
+      {
+        "name": "liquidity_provider",
+        "address": "0x2222222222222222222222222222222222222222",
+        "private_key": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "balance": "5000000000000000000000"
+      },
+      {
+        "name": "trader",
+        "address": "0x3333333333333333333333333333333333333333",
+        "private_key": "0x3333333333333333333333333333333333333333333333333333333333333333",
+        "balance": "2000000000000000000000"
+      },
+      {
+        "name": "borrower",
+        "address": "0x4444444444444444444444444444444444444444",
+        "private_key": "0x4444444444444444444444444444444444444444444444444444444444444444",
+        "balance": "1000000000000000000000"
+      },
+      {
+        "name": "farmer",
+        "address": "0x5555555555555555555555555555555555555555",
+        "private_key": "0x5555555555555555555555555555555555555555555555555555555555555555",
+        "balance": "3000000000000000000000"
+      }
+    ]
+  },
+  "teardown": {
+    "commands": [
+      "echo 'Cleaning up DeFi protocol tests'",
+      "echo 'Generating test report'"
+    ],
+    "cleanup_files": [
+      "defi_test_output"
+    ]
+  }
+}

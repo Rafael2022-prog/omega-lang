@@ -1,0 +1,37 @@
+{
+  "name": "OMEGA Project Configuration",
+  "version": "1.0.0",
+  "fileTypes": {
+    ".mega": {
+      "language": "omega",
+      "displayName": "OMEGA Source File",
+      "icon": {
+        "path": "./temp-logo.svg",
+        "size": "16x16"
+      },
+      "syntax": "omega",
+      "category": "source-code"
+    }
+  },
+  "languages": {
+    "omega": {
+      "name": "OMEGA",
+      "extensions": [".mega"],
+      "icon": "./temp-logo.svg",
+      "description": "OMEGA Universal Blockchain Programming Language"
+    }
+  },
+  "icons": {
+    "fileIcons": {
+      "mega": {
+        "iconPath": "./temp-logo.svg",
+        "extensions": [".mega"]
+      }
+    }
+  },
+  "editor": {
+    "fileAssociations": {
+      "*.mega": "omega"
+    }
+  }
+}

@@ -1,0 +1,301 @@
+// OMEGA Symbol Table - Modul untuk manajemen symbol table dan scope
+// Menangani definisi simbol, lookup, dan scope management
+
+import "../parser/ast_nodes.mega";
+import "../error/error.mega";
+
+/// Symbol table untuk tracking identifiers dan scope
+blockchain SymbolTableManager {
+    state {
+        SymbolTable symbol_table;
+        ScopeStack scope_stack;
+        OmegaErrorHandler error_handler;
+        string current_file;
+    }
+    
+    constructor() {
+        symbol_table = SymbolTable({
+            symbols: new mapping(string => Symbol),
+            scopes: new Scope[],
+            current_scope: 0
+        });
+        
+        scope_stack = ScopeStack({
+            scopes: new Scope[],
+            current_depth: 0
+        });
+        
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+    }
+    
+    /// Define a new symbol in current scope
+    function define_symbol(string memory name, Symbol memory symbol) public {
+        if (symbol_exists_in_current_scope(name)) {
+            error_handler.report_error(
+                OmegaError({
+                    error_type: ErrorType.SemanticError,
+                    message: string(abi.encodePacked("Symbol '", name, "' already defined in current scope")),
+                    location: SourceLocation({
+                        file: current_file,
+                        line: symbol.location.line,
+                        column: symbol.location.column,
+                        length: name.length
+                    }),
+                    context: ErrorContext.SemanticAnalysis,
+                    severity: ErrorSeverity.Error,
+                    error_code: "S001",
+                    suggestions: new string[](0)
+                })
+            );
+            return;
+        }
+        
+        symbol_table.symbols[name] = symbol;
+    }
+    
+    /// Lookup symbol in symbol table (searches all scopes)
+    function lookup_symbol(string memory name) public view returns (Symbol memory) {
+        // Search from current scope upwards
+        for (uint256 i = scope_stack.current_depth; i >= 0; i--) {
+            Scope memory scope = scope_stack.scopes[i];
+            
+            for (uint256 j = 0; j < scope.symbols.length; j++) {
+                if (string_equal(scope.symbols[j], name)) {
+                    return symbol_table.symbols[name];
+                }
+            }
+            
+            if (i == 0) break; // Prevent underflow
+        }
+        
+        // Return error symbol if not found
+        return Symbol({
+            name: name,
+            symbol_type: SymbolType.Error,
+            type_info: Type({
+                type_kind: TypeKind.Error,
+                name: "error",
+                size: 0,
+                is_array: false,
+                array_size: 0,
+                is_mapping: false,
+                key_type: Type({}),
+                value_type: Type({})
+            }),
+            visibility: Visibility.Private,
+            mutability: Mutability.NonPayable,
+            location: SourceLocation({
+                file: current_file,
+                line: 0,
+                column: 0,
+                length: 0
+            }),
+            is_defined: false,
+            is_used: false
+        });
+    }
+    
+    /// Check if symbol exists in current scope only
+    function symbol_exists_in_current_scope(string memory name) public view returns (bool) {
+        if (scope_stack.current_depth >= scope_stack.scopes.length) return false;
+        
+        Scope memory current_scope = scope_stack.scopes[scope_stack.current_depth];
+        
+        for (uint256 i = 0; i < current_scope.symbols.length; i++) {
+            if (string_equal(current_scope.symbols[i], name)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /// Push new scope onto scope stack
+    function push_scope(string memory name) public {
+        Scope memory new_scope = Scope({
+            name: name,
+            symbols: new string[](0),
+            parent_scope: scope_stack.current_depth > 0 ? scope_stack.current_depth - 1 : 0,
+            depth: scope_stack.current_depth + 1
+        });
+        
+        scope_stack.scopes.push(new_scope);
+        scope_stack.current_depth++;
+    }
+    
+    /// Pop current scope from scope stack
+    function pop_scope() public {
+        require(scope_stack.current_depth > 0, "Cannot pop global scope");
+        
+        scope_stack.scopes.pop();
+        scope_stack.current_depth--;
+    }
+    
+    /// Get current scope depth
+    function get_current_depth() public view returns (uint256) {
+        return scope_stack.current_depth;
+    }
+    
+    /// Get current scope name
+    function get_current_scope_name() public view returns (string memory) {
+        if (scope_stack.current_depth >= scope_stack.scopes.length) return "global";
+        return scope_stack.scopes[scope_stack.current_depth].name;
+    }
+    
+    /// Check if we're in global scope
+    function is_global_scope() public view returns (bool) {
+        return scope_stack.current_depth == 0;
+    }
+    
+    /// Get all symbols in current scope
+    function get_current_scope_symbols() public view returns (string[] memory) {
+        if (scope_stack.current_depth >= scope_stack.scopes.length) {
+            return new string[](0);
+        }
+        
+        return scope_stack.scopes[scope_stack.current_depth].symbols;
+    }
+    
+    /// Mark symbol as used
+    function mark_symbol_used(string memory name) public {
+        Symbol memory symbol = lookup_symbol(name);
+        if (symbol.symbol_type != SymbolType.Error) {
+            symbol.is_used = true;
+            symbol_table.symbols[name] = symbol;
+        }
+    }
+    
+    /// Get unused symbols in current scope
+    function get_unused_symbols() public view returns (string[] memory) {
+        string[] memory unused;
+        uint256 unused_count = 0;
+        
+        if (scope_stack.current_depth >= scope_stack.scopes.length) {
+            return unused;
+        }
+        
+        Scope memory current_scope = scope_stack.scopes[scope_stack.current_depth];
+        
+        for (uint256 i = 0; i < current_scope.symbols.length; i++) {
+            string memory symbol_name = current_scope.symbols[i];
+            Symbol memory symbol = symbol_table.symbols[symbol_name];
+            
+            if (!symbol.is_used) {
+                unused[unused_count] = symbol_name;
+                unused_count++;
+            }
+        }
+        
+        return unused;
+    }
+    
+    /// Clear all symbols and scopes
+    function clear() public {
+        // Reset symbol table
+        delete symbol_table.symbols;
+        delete symbol_table.scopes;
+        symbol_table.current_scope = 0;
+        
+        // Reset scope stack
+        delete scope_stack.scopes;
+        scope_stack.current_depth = 0;
+    }
+    
+    /// Get symbol table statistics
+    function get_statistics() public view returns (SymbolTableStats memory) {
+        uint256 total_symbols = 0;
+        uint256 used_symbols = 0;
+        uint256 total_scopes = scope_stack.scopes.length;
+        
+        // Count symbols across all scopes
+        for (uint256 i = 0; i < scope_stack.scopes.length; i++) {
+            Scope memory scope = scope_stack.scopes[i];
+            total_symbols += scope.symbols.length;
+            
+            for (uint256 j = 0; j < scope.symbols.length; j++) {
+                string memory symbol_name = scope.symbols[j];
+                Symbol memory symbol = symbol_table.symbols[symbol_name];
+                
+                if (symbol.is_used) {
+                    used_symbols++;
+                }
+            }
+        }
+        
+        return SymbolTableStats({
+            total_symbols: total_symbols,
+            used_symbols: used_symbols,
+            unused_symbols: total_symbols - used_symbols,
+            total_scopes: total_scopes,
+            current_depth: scope_stack.current_depth
+        });
+    }
+    
+    /// Set current file for error reporting
+    function set_current_file(string memory file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Helper function to compare strings
+    function string_equal(string memory a, string memory b) private pure returns (bool) {
+        return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+    }
+}
+
+/// Symbol representation
+struct Symbol {
+    string name;
+    SymbolType symbol_type;
+    Type type_info;
+    Visibility visibility;
+    Mutability mutability;
+    SourceLocation location;
+    bool is_defined;
+    bool is_used;
+}
+
+/// Symbol types
+enum SymbolType {
+    Variable,
+    Function,
+    Blockchain,
+    Struct,
+    Enum,
+    Constant,
+    Parameter,
+    StateVariable,
+    Event,
+    Modifier,
+    Error
+}
+
+/// Symbol table structure
+struct SymbolTable {
+    mapping(string => Symbol) symbols;
+    Scope[] scopes;
+    uint256 current_scope;
+}
+
+/// Scope representation
+struct Scope {
+    string name;
+    string[] symbols;
+    uint256 parent_scope;
+    uint256 depth;
+}
+
+/// Scope stack for nested scopes
+struct ScopeStack {
+    Scope[] scopes;
+    uint256 current_depth;
+}
+
+/// Symbol table statistics
+struct SymbolTableStats {
+    uint256 total_symbols;
+    uint256 used_symbols;
+    uint256 unused_symbols;
+    uint256 total_scopes;
+    uint256 current_depth;
+}

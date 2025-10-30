@@ -1,0 +1,137 @@
+{
+  "name": "omega-vscode",
+  "displayName": "OMEGA Language Support",
+  "description": "Language support for OMEGA blockchain programming language",
+  "version": "1.0.0",
+  "publisher": "omega-lang",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Themes"
+  ],
+  "keywords": [
+    "omega",
+    "blockchain",
+    "smart contracts",
+    "solidity",
+    "rust",
+    "cross-chain"
+  ],
+  "icon": "images/omega-icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rafael2022-prog/omega-lang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rafael2022-prog/omega-lang/issues"
+  },
+  "homepage": "https://www.omegalang.xyz",
+  "activationEvents": [
+    "onLanguage:omega"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "omega",
+        "aliases": [
+          "OMEGA",
+          "omega"
+        ],
+        "extensions": [
+          ".mega"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/omega-file-icon-mega.svg",
+          "dark": "./images/omega-file-icon-mega.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "omega",
+        "scopeName": "source.omega",
+        "path": "./syntaxes/omega.tmLanguage.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "OMEGA Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/omega-dark-color-theme.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "omega",
+        "path": "./snippets/omega.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "omega.compile",
+        "title": "Compile OMEGA Contract",
+        "category": "OMEGA"
+      },
+      {
+        "command": "omega.deploy",
+        "title": "Deploy Contract",
+        "category": "OMEGA"
+      },
+      {
+        "command": "omega.test",
+        "title": "Run Tests",
+        "category": "OMEGA"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "omega.compile",
+        "key": "ctrl+shift+b",
+        "when": "editorLangId == omega"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "OMEGA Configuration",
+      "properties": {
+        "omega.compilerPath": {
+          "type": "string",
+          "default": "omega",
+          "description": "Path to OMEGA compiler executable"
+        },
+        "omega.enableLinting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable OMEGA linting"
+        },
+        "omega.targetChains": {
+          "type": "array",
+          "default": ["evm", "solana"],
+          "description": "Target blockchain platforms"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

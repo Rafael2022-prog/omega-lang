@@ -1,0 +1,520 @@
+// OMEGA Statement Parser - Modul khusus untuk parsing statements
+// Menangani semua jenis statement dalam bahasa OMEGA
+
+import "./ast_nodes.mega";
+import "./expression_parser.mega";
+import "../lexer/lexer.mega" as Lexer;
+import "../error/error.mega";
+
+/// Parser khusus untuk statements
+blockchain StatementParser {
+    state {
+        Token[] tokens;
+        uint256 current;
+        ExpressionParser expression_parser;
+        OmegaErrorHandler error_handler;
+        string current_file;
+    }
+    
+    constructor() {
+        current = 0;
+        expression_parser = ExpressionParser::new();
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+    }
+    
+    /// Set tokens untuk parsing
+    function set_tokens(Token[] memory input_tokens, uint256 start_index) public {
+        tokens = input_tokens;
+        current = start_index;
+        expression_parser.set_tokens(input_tokens, start_index);
+    }
+    
+    /// Get current token index
+    function get_current_index() public view returns (uint256) {
+        return current;
+    }
+    
+    /// Parse statement berdasarkan token type
+    function parse_statement() public returns (Statement memory) {
+        TokenType token_type = peek().token_type;
+        
+        if (token_type == TokenType.If) {
+            return parse_if_statement();
+        } else if (token_type == TokenType.While) {
+            return parse_while_statement();
+        } else if (token_type == TokenType.For) {
+            return parse_for_statement();
+        } else if (token_type == TokenType.Return) {
+            return parse_return_statement();
+        } else if (token_type == TokenType.Emit) {
+            return parse_emit_statement();
+        } else if (token_type == TokenType.Require) {
+            return parse_require_statement();
+        } else if (token_type == TokenType.Assert) {
+            return parse_assert_statement();
+        } else if (token_type == TokenType.Revert) {
+            return parse_revert_statement();
+        } else if (token_type == TokenType.LeftBrace) {
+            return parse_block_statement();
+        } else if (is_type_keyword(token_type) || token_type == TokenType.Var) {
+            return parse_variable_declaration();
+        } else {
+            return parse_expression_statement();
+        }
+    }
+    
+    /// Parse if statement
+    function parse_if_statement() private returns (Statement memory) {
+        consume(TokenType.If, "Expected 'if'");
+        consume(TokenType.LeftParen, "Expected '(' after 'if'");
+        
+        expression_parser.set_tokens(tokens, current);
+        Expression memory condition = expression_parser.parse_expression();
+        current = expression_parser.get_current_index();
+        
+        consume(TokenType.RightParen, "Expected ')' after if condition");
+        
+        Statement memory then_branch = parse_statement();
+        Statement memory else_branch;
+        
+        if (match(TokenType.Else)) {
+            else_branch = parse_statement();
+        }
+        
+        return Statement({
+            statement_type: StatementType.If,
+            if_stmt: IfStatement({
+                condition: condition,
+                then_branch: then_branch,
+                else_branch: else_branch
+            })
+        });
+    }
+    
+    /// Parse while statement
+    function parse_while_statement() private returns (Statement memory) {
+        consume(TokenType.While, "Expected 'while'");
+        consume(TokenType.LeftParen, "Expected '(' after 'while'");
+        
+        expression_parser.set_tokens(tokens, current);
+        Expression memory condition = expression_parser.parse_expression();
+        current = expression_parser.get_current_index();
+        
+        consume(TokenType.RightParen, "Expected ')' after while condition");
+        
+        Statement memory body = parse_statement();
+        
+        return Statement({
+            statement_type: StatementType.While,
+            while_stmt: WhileStatement({
+                condition: condition,
+                body: body
+            })
+        });
+    }
+    
+    /// Parse for statement
+    function parse_for_statement() private returns (Statement memory) {
+        consume(TokenType.For, "Expected 'for'");
+        consume(TokenType.LeftParen, "Expected '(' after 'for'");
+        
+        Statement memory initializer;
+        if (match(TokenType.Semicolon)) {
+            // No initializer
+        } else if (is_type_keyword(peek().token_type) || peek().token_type == TokenType.Var) {
+            initializer = parse_variable_declaration();
+        } else {
+            initializer = parse_expression_statement();
+        }
+        
+        Expression memory condition;
+        if (!check(TokenType.Semicolon)) {
+            expression_parser.set_tokens(tokens, current);
+            condition = expression_parser.parse_expression();
+            current = expression_parser.get_current_index();
+        }
+        consume(TokenType.Semicolon, "Expected ';' after for loop condition");
+        
+        Expression memory increment;
+        if (!check(TokenType.RightParen)) {
+            expression_parser.set_tokens(tokens, current);
+            increment = expression_parser.parse_expression();
+            current = expression_parser.get_current_index();
+        }
+        consume(TokenType.RightParen, "Expected ')' after for clauses");
+        
+        Statement memory body = parse_statement();
+        
+        return Statement({
+            statement_type: StatementType.For,
+            for_stmt: ForStatement({
+                initializer: initializer,
+                condition: condition,
+                increment: increment,
+                body: body
+            })
+        });
+    }
+    
+    /// Parse return statement
+    function parse_return_statement() private returns (Statement memory) {
+        consume(TokenType.Return, "Expected 'return'");
+        
+        Expression memory value;
+        if (!check(TokenType.Semicolon)) {
+            expression_parser.set_tokens(tokens, current);
+            value = expression_parser.parse_expression();
+            current = expression_parser.get_current_index();
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after return value");
+        
+        return Statement({
+            statement_type: StatementType.Return,
+            return_stmt: ReturnStatement({
+                value: value
+            })
+        });
+    }
+    
+    /// Parse emit statement
+    function parse_emit_statement() private returns (Statement memory) {
+        consume(TokenType.Emit, "Expected 'emit'");
+        
+        Token memory event_name = consume(TokenType.Identifier, "Expected event name");
+        consume(TokenType.LeftParen, "Expected '(' after event name");
+        
+        Expression[] memory arguments;
+        uint256 arg_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                expression_parser.set_tokens(tokens, current);
+                arguments[arg_count] = expression_parser.parse_expression();
+                current = expression_parser.get_current_index();
+                arg_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after event arguments");
+        consume(TokenType.Semicolon, "Expected ';' after emit statement");
+        
+        return Statement({
+            statement_type: StatementType.Emit,
+            emit_stmt: EmitStatement({
+                event_name: event_name.lexeme,
+                arguments: arguments
+            })
+        });
+    }
+    
+    /// Parse require statement
+    function parse_require_statement() private returns (Statement memory) {
+        consume(TokenType.Require, "Expected 'require'");
+        consume(TokenType.LeftParen, "Expected '(' after 'require'");
+        
+        expression_parser.set_tokens(tokens, current);
+        Expression memory condition = expression_parser.parse_expression();
+        current = expression_parser.get_current_index();
+        
+        string memory message = "";
+        if (match(TokenType.Comma)) {
+            Token memory msg_token = consume(TokenType.String, "Expected string message");
+            message = msg_token.lexeme;
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after require arguments");
+        consume(TokenType.Semicolon, "Expected ';' after require statement");
+        
+        return Statement({
+            statement_type: StatementType.Require,
+            require_stmt: RequireStatement({
+                condition: condition,
+                message: message
+            })
+        });
+    }
+    
+    /// Parse assert statement
+    function parse_assert_statement() private returns (Statement memory) {
+        consume(TokenType.Assert, "Expected 'assert'");
+        consume(TokenType.LeftParen, "Expected '(' after 'assert'");
+        
+        expression_parser.set_tokens(tokens, current);
+        Expression memory condition = expression_parser.parse_expression();
+        current = expression_parser.get_current_index();
+        
+        string memory message = "";
+        if (match(TokenType.Comma)) {
+            Token memory msg_token = consume(TokenType.String, "Expected string message");
+            message = msg_token.lexeme;
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after assert arguments");
+        consume(TokenType.Semicolon, "Expected ';' after assert statement");
+        
+        return Statement({
+            statement_type: StatementType.Assert,
+            assert_stmt: AssertStatement({
+                condition: condition,
+                message: message
+            })
+        });
+    }
+    
+    /// Parse revert statement
+    function parse_revert_statement() private returns (Statement memory) {
+        consume(TokenType.Revert, "Expected 'revert'");
+        consume(TokenType.LeftParen, "Expected '(' after 'revert'");
+        
+        string memory message = "";
+        if (!check(TokenType.RightParen)) {
+            Token memory msg_token = consume(TokenType.String, "Expected string message");
+            message = msg_token.lexeme;
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after revert message");
+        consume(TokenType.Semicolon, "Expected ';' after revert statement");
+        
+        return Statement({
+            statement_type: StatementType.Revert,
+            revert_stmt: RevertStatement({
+                message: message
+            })
+        });
+    }
+    
+    /// Parse block statement
+    function parse_block_statement() private returns (Statement memory) {
+        Block memory block = parse_block();
+        
+        return Statement({
+            statement_type: StatementType.Block,
+            block_stmt: block
+        });
+    }
+    
+    /// Parse code block
+    function parse_block() public returns (Block memory) {
+        consume(TokenType.LeftBrace, "Expected '{'");
+        
+        Statement[] memory statements;
+        uint256 stmt_count = 0;
+        
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            statements[stmt_count] = parse_statement();
+            stmt_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}'");
+        
+        return Block({
+            statements: statements
+        });
+    }
+    
+    /// Parse variable declaration
+    function parse_variable_declaration() private returns (Statement memory) {
+        Type memory var_type;
+        bool is_var_keyword = false;
+        
+        if (match(TokenType.Var)) {
+            is_var_keyword = true;
+            // Type akan di-infer dari initializer
+        } else {
+            var_type = parse_type();
+        }
+        
+        Token memory name = consume(TokenType.Identifier, "Expected variable name");
+        
+        bool is_memory = false;
+        bool is_storage = false;
+        bool is_calldata = false;
+        
+        if (match(TokenType.Memory)) {
+            is_memory = true;
+        } else if (match(TokenType.Storage)) {
+            is_storage = true;
+        } else if (match(TokenType.Calldata)) {
+            is_calldata = true;
+        }
+        
+        Expression memory initializer;
+        if (match(TokenType.Equal)) {
+            expression_parser.set_tokens(tokens, current);
+            initializer = expression_parser.parse_expression();
+            current = expression_parser.get_current_index();
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after variable declaration");
+        
+        return Statement({
+            statement_type: StatementType.VariableDeclaration,
+            var_decl: VariableDeclaration({
+                name: name.lexeme,
+                variable_type: var_type,
+                initializer: initializer,
+                is_memory: is_memory,
+                is_storage: is_storage,
+                is_calldata: is_calldata
+            })
+        });
+    }
+    
+    /// Parse expression statement
+    function parse_expression_statement() private returns (Statement memory) {
+        expression_parser.set_tokens(tokens, current);
+        Expression memory expr = expression_parser.parse_expression();
+        current = expression_parser.get_current_index();
+        
+        consume(TokenType.Semicolon, "Expected ';' after expression");
+        
+        return Statement({
+            statement_type: StatementType.Expression,
+            expression_stmt: expr
+        });
+    }
+    
+    /// Parse type information
+    function parse_type() public returns (Type memory) {
+        TokenType token_type = peek().token_type;
+        
+        if (token_type == TokenType.Uint256 || token_type == TokenType.Int256 ||
+            token_type == TokenType.Bool || token_type == TokenType.Address ||
+            token_type == TokenType.String || token_type == TokenType.Bytes) {
+            
+            Token memory type_token = advance();
+            
+            // Check for array
+            if (match(TokenType.LeftBracket)) {
+                uint256 array_size = 0;
+                if (!check(TokenType.RightBracket)) {
+                    Token memory size_token = consume(TokenType.Number, "Expected array size");
+                    array_size = parse_integer_from_string(size_token.lexeme);
+                }
+                consume(TokenType.RightBracket, "Expected ']' after array size");
+                
+                return Type({
+                    kind: TypeKind.Array,
+                    name: type_token.lexeme,
+                    is_array: true,
+                    array_size: array_size
+                });
+            }
+            
+            return Type({
+                kind: TypeKind.Primitive,
+                name: type_token.lexeme,
+                is_array: false,
+                array_size: 0
+            });
+        } else if (token_type == TokenType.Mapping) {
+            return parse_mapping_type();
+        } else if (token_type == TokenType.Identifier) {
+            Token memory type_name = advance();
+            return Type({
+                kind: TypeKind.Struct,
+                name: type_name.lexeme,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        revert("Expected type");
+    }
+    
+    /// Parse mapping type
+    function parse_mapping_type() private returns (Type memory) {
+        consume(TokenType.Mapping, "Expected 'mapping'");
+        consume(TokenType.LeftParen, "Expected '(' after 'mapping'");
+        
+        Type memory key_type = parse_type();
+        consume(TokenType.Arrow, "Expected '=>' in mapping type");
+        Type memory value_type = parse_type();
+        
+        consume(TokenType.RightParen, "Expected ')' after mapping type");
+        
+        return Type({
+            kind: TypeKind.Mapping,
+            name: "mapping",
+            is_mapping: true,
+            key_type: key_type,
+            value_type: value_type
+        });
+    }
+    
+    // Helper functions
+    function is_type_keyword(TokenType token_type) private pure returns (bool) {
+        return token_type == TokenType.Uint256 || token_type == TokenType.Int256 ||
+               token_type == TokenType.Bool || token_type == TokenType.Address ||
+               token_type == TokenType.String || token_type == TokenType.Bytes ||
+               token_type == TokenType.Mapping;
+    }
+    
+    function match(TokenType token_type) private returns (bool) {
+        if (check(token_type)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+    
+    function check(TokenType token_type) private view returns (bool) {
+        if (is_at_end()) return false;
+        return peek().token_type == token_type;
+    }
+    
+    function advance() private returns (Token memory) {
+        if (!is_at_end()) current++;
+        return previous();
+    }
+    
+    function is_at_end() private view returns (bool) {
+        return peek().token_type == TokenType.EOF;
+    }
+    
+    function peek() private view returns (Token memory) {
+        return tokens[current];
+    }
+    
+    function previous() private view returns (Token memory) {
+        return tokens[current - 1];
+    }
+    
+    function consume(TokenType token_type, string memory message) private returns (Token memory) {
+        if (check(token_type)) return advance();
+        
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.ParseError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: peek().line,
+                    column: peek().column,
+                    length: peek().lexeme.length
+                }),
+                context: ErrorContext.Parser,
+                severity: ErrorSeverity.Error,
+                error_code: "P002",
+                suggestions: new string[](0)
+            })
+        );
+        
+        revert(message);
+    }
+    
+    function parse_integer_from_string(string memory str) private pure returns (uint256) {
+        bytes memory b = bytes(str);
+        uint256 result = 0;
+        
+        for (uint256 i = 0; i < b.length; i++) {
+            uint8 digit = uint8(b[i]) - 48; // ASCII '0' = 48
+            require(digit <= 9, "Invalid digit in number");
+            result = result * 10 + digit;
+        }
+        
+        return result;
+    }
+}

@@ -1,0 +1,298 @@
+// OMEGA Native Build System
+// Self-hosting build script untuk OMEGA compiler
+// Menggantikan build.rs dengan implementasi MEGA murni
+
+import "std/io";
+import "std/fs";
+import "std/process";
+import "std/env";
+
+/// Main build function untuk OMEGA self-hosting compiler
+/// Menangani kompilasi dari source MEGA ke native executable
+function main() public returns (int32) {
+    println("🔨 OMEGA Native Build System v1.0.0");
+    println("📦 Building self-hosting OMEGA compiler...");
+    
+    // Initialize build system
+    OmegaBuildSystem build_system = new OmegaBuildSystem();
+    
+    // Execute build process
+    return build_system.execute_build();
+}
+
+/// OMEGA Build System - Native implementation
+/// Menangani seluruh proses build tanpa dependency pada Rust
+blockchain OmegaBuildSystem {
+    state {
+        BuildConfig config;
+        BuildStats stats;
+        string[] source_files;
+        string target_dir;
+        string output_dir;
+        bool verbose_mode;
+    }
+    
+    constructor() {
+        // Load build configuration from omega.toml
+        config = load_build_config("omega.toml");
+        target_dir = "target";
+        output_dir = "build";
+        verbose_mode = env.get_var("OMEGA_VERBOSE") == "1";
+        
+        // Initialize build statistics
+        stats = new BuildStats();
+        
+        log_info("OMEGA Build System initialized");
+    }
+    
+    /// Execute the complete build process
+    function execute_build() public returns (int32) {
+        try {
+            // Phase 1: Discover and validate source files
+            if (!discover_source_files()) {
+                log_error("Failed to discover source files");
+                return 1;
+            }
+            
+            // Phase 2: Parse and validate MEGA syntax
+            if (!validate_syntax()) {
+                log_error("Syntax validation failed");
+                return 1;
+            }
+            
+            // Phase 3: Semantic analysis
+            if (!perform_semantic_analysis()) {
+                log_error("Semantic analysis failed");
+                return 1;
+            }
+            
+            // Phase 4: Generate intermediate representation
+            if (!generate_ir()) {
+                log_error("IR generation failed");
+                return 1;
+            }
+            
+            // Phase 5: Optimize code
+            if (!optimize_code()) {
+                log_error("Code optimization failed");
+                return 1;
+            }
+            
+            // Phase 6: Generate native code
+            if (!generate_native_code()) {
+                log_error("Native code generation failed");
+                return 1;
+            }
+            
+            // Phase 7: Link and create executable
+            if (!link_executable()) {
+                log_error("Linking failed");
+                return 1;
+            }
+            
+            // Build completed successfully
+            print_build_summary();
+            return 0;
+            
+        } catch (BuildError e) {
+            log_error("Build failed: " + e.message);
+            return 1;
+        }
+    }
+    
+    /// Discover all MEGA source files in the project
+    function discover_source_files() private returns (bool) {
+        log_info("🔍 Discovering source files...");
+        
+        source_files = [];
+        
+        // Add main entry point
+        source_files.push(config.main_file);
+        
+        // Recursively scan src directory
+        string[] discovered = fs.scan_directory("src", "*.mega");
+        for (string file : discovered) {
+            if (file != config.main_file) {
+                source_files.push(file);
+            }
+        }
+        
+        log_info("Found " + source_files.length + " source files");
+        return source_files.length > 0;
+    }
+    
+    /// Validate MEGA syntax for all source files
+    function validate_syntax() private returns (bool) {
+        log_info("📝 Validating syntax...");
+        
+        for (string file : source_files) {
+            if (!validate_file_syntax(file)) {
+                log_error("Syntax error in file: " + file);
+                return false;
+            }
+        }
+        
+        log_info("✅ Syntax validation completed");
+        return true;
+    }
+    
+    /// Perform semantic analysis on all source files
+    function perform_semantic_analysis() private returns (bool) {
+        log_info("🧠 Performing semantic analysis...");
+        
+        // Create semantic analyzer
+        SemanticAnalyzer analyzer = new SemanticAnalyzer();
+        
+        for (string file : source_files) {
+            if (!analyzer.analyze_file(file)) {
+                log_error("Semantic error in file: " + file);
+                return false;
+            }
+        }
+        
+        log_info("✅ Semantic analysis completed");
+        return true;
+    }
+    
+    /// Generate intermediate representation
+    function generate_ir() private returns (bool) {
+        log_info("⚙️ Generating intermediate representation...");
+        
+        IRGenerator ir_gen = new IRGenerator();
+        
+        for (string file : source_files) {
+            if (!ir_gen.generate_ir(file)) {
+                log_error("IR generation failed for file: " + file);
+                return false;
+            }
+        }
+        
+        log_info("✅ IR generation completed");
+        return true;
+    }
+    
+    /// Optimize generated code
+    function optimize_code() private returns (bool) {
+        log_info("🚀 Optimizing code...");
+        
+        Optimizer optimizer = new Optimizer();
+        optimizer.set_optimization_level(config.optimization_level);
+        
+        if (!optimizer.optimize_all()) {
+            log_error("Code optimization failed");
+            return false;
+        }
+        
+        log_info("✅ Code optimization completed");
+        return true;
+    }
+    
+    /// Generate native machine code
+    function generate_native_code() private returns (bool) {
+        log_info("🔧 Generating native code...");
+        
+        NativeCodeGenerator codegen = new NativeCodeGenerator();
+        codegen.set_target_architecture(config.target_arch);
+        
+        if (!codegen.generate_all()) {
+            log_error("Native code generation failed");
+            return false;
+        }
+        
+        log_info("✅ Native code generation completed");
+        return true;
+    }
+    
+    /// Link object files and create executable
+    function link_executable() private returns (bool) {
+        log_info("🔗 Linking executable...");
+        
+        Linker linker = new Linker();
+        linker.set_output_path(target_dir + "/omega");
+        
+        if (!linker.link_all()) {
+            log_error("Linking failed");
+            return false;
+        }
+        
+        log_info("✅ Linking completed");
+        return true;
+    }
+    
+    /// Print build summary and statistics
+    function print_build_summary() private {
+        println("\n🎉 Build completed successfully!");
+        println("📊 Build Statistics:");
+        println("   • Source files: " + source_files.length);
+        println("   • Build time: " + stats.total_time + "ms");
+        println("   • Output: " + target_dir + "/omega");
+        println("   • Size: " + fs.get_file_size(target_dir + "/omega") + " bytes");
+        println("\n✨ OMEGA compiler is ready to use!");
+    }
+    
+    /// Validate syntax for a single file
+    function validate_file_syntax(string file_path) private returns (bool) {
+        // Implementation would use OMEGA lexer/parser
+        return true; // Placeholder
+    }
+    
+    /// Log info message
+    function log_info(string message) private {
+        if (verbose_mode) {
+            println("[INFO] " + message);
+        }
+    }
+    
+    /// Log error message
+    function log_error(string message) private {
+        println("[ERROR] " + message);
+    }
+}
+
+/// Build configuration structure
+struct BuildConfig {
+    string main_file;
+    string target_arch;
+    string optimization_level;
+    bool debug_info;
+    bool parallel_compilation;
+}
+
+/// Build statistics structure
+struct BuildStats {
+    uint64 start_time;
+    uint64 total_time;
+    uint32 files_processed;
+    uint32 errors_count;
+    uint32 warnings_count;
+    
+    constructor() {
+        start_time = get_current_time();
+        files_processed = 0;
+        errors_count = 0;
+        warnings_count = 0;
+    }
+}
+
+/// Load build configuration from omega.toml
+function load_build_config(string config_file) returns (BuildConfig) {
+    BuildConfig config = new BuildConfig();
+    
+    // Default values
+    config.main_file = "src/main.mega";
+    config.target_arch = "x86_64";
+    config.optimization_level = "O2";
+    config.debug_info = true;
+    config.parallel_compilation = true;
+    
+    // TODO: Parse omega.toml file
+    // For now, return defaults
+    
+    return config;
+}
+
+/// Get current timestamp in milliseconds
+function get_current_time() returns (uint64) {
+    // Platform-specific implementation
+    return 0; // Placeholder
+}

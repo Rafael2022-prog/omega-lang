@@ -1,0 +1,508 @@
+// OMEGA Loop Optimization Pass
+// Melakukan optimasi pada loop termasuk loop unrolling, invariant code motion, dan strength reduction
+
+import "../ir/ir.mega";
+import "./base_optimizer.mega";
+
+/// Loop optimization pass
+blockchain LoopOptimizerPass {
+    state {
+        string pass_name;
+        string description;
+        uint256 loops_optimized;
+        uint256 instructions_moved;
+        uint256 loops_unrolled;
+        uint256 strength_reductions;
+        LoopInfo[] detected_loops;
+        mapping(string => uint256) optimization_counts;
+        OptimizationConfig config;
+        bool initialized;
+    }
+    
+    /// Loop information structure
+    struct LoopInfo {
+        string loop_id;
+        uint256 header_block;
+        uint256 exit_block;
+        uint256[] body_blocks;
+        IRInstruction[] invariant_instructions;
+        IRInstruction[] induction_variables;
+        uint256 iteration_count;
+        bool is_simple_loop;
+        bool can_unroll;
+        uint256 unroll_factor;
+    }
+    
+    /// Loop optimization configuration
+    struct LoopOptConfig {
+        bool enable_unrolling;
+        bool enable_invariant_motion;
+        bool enable_strength_reduction;
+        uint256 max_unroll_factor;
+        uint256 max_loop_size;
+        uint256 min_iterations_for_unroll;
+    }
+    
+    /// Constructor
+    constructor() {
+        pass_name = "loop_optimization";
+        description = "Applies various loop optimizations including unrolling and invariant code motion";
+        loops_optimized = 0;
+        instructions_moved = 0;
+        loops_unrolled = 0;
+        strength_reductions = 0;
+        _initialize_config();
+        initialized = true;
+    }
+    
+    /// Initialize optimization configuration
+    function _initialize_config() private {
+        config = OptimizationConfig({
+            level: OptimizationLevel.O2,
+            target: OptimizationTarget.PERFORMANCE,
+            enable_aggressive: false,
+            preserve_debug_info: true
+        });
+    }
+    
+    /// Implementasi OptimizationPass trait
+    function run(IRModule memory module) public returns (IRModule memory) {
+        require(initialized, "LoopOptimizerPass not initialized");
+        
+        loops_optimized = 0;
+        instructions_moved = 0;
+        loops_unrolled = 0;
+        strength_reductions = 0;
+        
+        // Detect and optimize loops in all functions
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            module.functions[i] = optimize_function_loops(module.functions[i]);
+        }
+        
+        return module;
+    }
+    
+    /// Get pass name
+    function get_name() public view returns (string memory) {
+        return pass_name;
+    }
+    
+    /// Get pass description
+    function get_description() public view returns (string memory) {
+        return description;
+    }
+    
+    /// Check if pass can run on module
+    function can_run(IRModule memory module) public pure returns (bool) {
+        return module.functions.length > 0;
+    }
+    
+    /// Estimate improvement
+    function estimate_improvement(IRModule memory module) public pure returns (uint256) {
+        uint256 total_instructions = 0;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            total_instructions += count_instructions_in_function(module.functions[i]);
+        }
+        // Estimate 10-20% improvement for loop-heavy code
+        return (total_instructions * 15) / 100;
+    }
+    
+    /// Optimize loops in function
+    function optimize_function_loops(IRFunction memory func) private returns (IRFunction memory) {
+        // Detect loops in function
+        LoopInfo[] memory loops = detect_loops(func);
+        
+        // Apply optimizations to each loop
+        for (uint256 i = 0; i < loops.length; i++) {
+            func = optimize_loop(func, loops[i]);
+            loops_optimized++;
+        }
+        
+        return func;
+    }
+    
+    /// Detect loops in function
+    function detect_loops(IRFunction memory func) private pure returns (LoopInfo[] memory) {
+        // Simplified loop detection - in real implementation would use CFG analysis
+        LoopInfo[] memory loops = new LoopInfo[](0);
+        
+        // Scan for loop patterns in basic blocks
+        IRInstruction[] memory instructions = func.body.instructions;
+        
+        for (uint256 i = 0; i < instructions.length; i++) {
+            if (is_loop_header(instructions, i)) {
+                LoopInfo memory loop_info = analyze_loop(instructions, i);
+                if (loop_info.is_simple_loop) {
+                    loops = append_loop(loops, loop_info);
+                }
+            }
+        }
+        
+        return loops;
+    }
+    
+    /// Check if instruction is a loop header
+    function is_loop_header(IRInstruction[] memory instructions, uint256 index) private pure returns (bool) {
+        if (index >= instructions.length) return false;
+        
+        IRInstruction memory instr = instructions[index];
+        
+        // Look for conditional branch that could be loop condition
+        return instr.opcode == IROpcode.BRANCH_CONDITIONAL ||
+               instr.opcode == IROpcode.COMPARE;
+    }
+    
+    /// Analyze loop structure
+    function analyze_loop(IRInstruction[] memory instructions, uint256 header_index) private pure returns (LoopInfo memory) {
+        LoopInfo memory loop_info;
+        loop_info.loop_id = string(abi.encodePacked("loop_", header_index));
+        loop_info.header_block = header_index;
+        loop_info.is_simple_loop = true;
+        loop_info.can_unroll = true;
+        loop_info.unroll_factor = 4; // Default unroll factor
+        loop_info.iteration_count = estimate_iteration_count(instructions, header_index);
+        
+        // Detect loop body and exit
+        (loop_info.exit_block, loop_info.body_blocks) = find_loop_bounds(instructions, header_index);
+        
+        // Find invariant instructions
+        loop_info.invariant_instructions = find_loop_invariants(instructions, loop_info);
+        
+        // Find induction variables
+        loop_info.induction_variables = find_induction_variables(instructions, loop_info);
+        
+        return loop_info;
+    }
+    
+    /// Find loop bounds (exit block and body blocks)
+    function find_loop_bounds(
+        IRInstruction[] memory instructions,
+        uint256 header_index
+    ) private pure returns (uint256 exit_block, uint256[] memory body_blocks) {
+        // Simplified implementation - would use proper CFG analysis in real compiler
+        exit_block = header_index + 10; // Placeholder
+        body_blocks = new uint256[](1);
+        body_blocks[0] = header_index + 1;
+        return (exit_block, body_blocks);
+    }
+    
+    /// Find loop invariant instructions
+    function find_loop_invariants(
+        IRInstruction[] memory instructions,
+        LoopInfo memory loop_info
+    ) private pure returns (IRInstruction[] memory) {
+        IRInstruction[] memory invariants = new IRInstruction[](0);
+        
+        // Scan loop body for invariant instructions
+        for (uint256 i = 0; i < loop_info.body_blocks.length; i++) {
+            uint256 block_index = loop_info.body_blocks[i];
+            if (block_index < instructions.length) {
+                IRInstruction memory instr = instructions[block_index];
+                if (is_loop_invariant(instr, loop_info)) {
+                    invariants = append_instruction(invariants, instr);
+                }
+            }
+        }
+        
+        return invariants;
+    }
+    
+    /// Check if instruction is loop invariant
+    function is_loop_invariant(IRInstruction memory instr, LoopInfo memory loop_info) private pure returns (bool) {
+        // Simplified check - instruction is invariant if it doesn't depend on loop variables
+        if (instr.opcode == IROpcode.LOAD_CONST) {
+            return true; // Constants are always invariant
+        }
+        
+        if (instr.opcode == IROpcode.ADD || instr.opcode == IROpcode.MUL) {
+            // Check if operands are loop-independent
+            return !depends_on_loop_variables(instr, loop_info);
+        }
+        
+        return false;
+    }
+    
+    /// Check if instruction depends on loop variables
+    function depends_on_loop_variables(IRInstruction memory instr, LoopInfo memory loop_info) private pure returns (bool) {
+        // Simplified implementation - would check actual variable dependencies
+        for (uint256 i = 0; i < instr.operands.length; i++) {
+            string memory operand_name = instr.operands[i].value;
+            if (is_induction_variable_name(operand_name, loop_info)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /// Check if variable name is an induction variable
+    function is_induction_variable_name(string memory var_name, LoopInfo memory loop_info) private pure returns (bool) {
+        // Common induction variable names
+        return keccak256(bytes(var_name)) == keccak256(bytes("i")) ||
+               keccak256(bytes(var_name)) == keccak256(bytes("j")) ||
+               keccak256(bytes(var_name)) == keccak256(bytes("k")) ||
+               keccak256(bytes(var_name)) == keccak256(bytes("index")) ||
+               keccak256(bytes(var_name)) == keccak256(bytes("counter"));
+    }
+    
+    /// Find induction variables
+    function find_induction_variables(
+        IRInstruction[] memory instructions,
+        LoopInfo memory loop_info
+    ) private pure returns (IRInstruction[] memory) {
+        IRInstruction[] memory induction_vars = new IRInstruction[](0);
+        
+        // Look for increment/decrement patterns
+        for (uint256 i = 0; i < loop_info.body_blocks.length; i++) {
+            uint256 block_index = loop_info.body_blocks[i];
+            if (block_index < instructions.length) {
+                IRInstruction memory instr = instructions[block_index];
+                if (is_induction_variable_update(instr)) {
+                    induction_vars = append_instruction(induction_vars, instr);
+                }
+            }
+        }
+        
+        return induction_vars;
+    }
+    
+    /// Check if instruction updates an induction variable
+    function is_induction_variable_update(IRInstruction memory instr) private pure returns (bool) {
+        // Look for increment/decrement patterns
+        if (instr.opcode == IROpcode.ADD || instr.opcode == IROpcode.SUB) {
+            // Check if one operand is constant (increment/decrement amount)
+            if (instr.operands.length >= 2) {
+                return instr.operands[1].type == IROperandType.CONSTANT;
+            }
+        }
+        return false;
+    }
+    
+    /// Estimate loop iteration count
+    function estimate_iteration_count(IRInstruction[] memory instructions, uint256 header_index) private pure returns (uint256) {
+        // Simplified estimation - would analyze loop bounds in real implementation
+        return 10; // Default estimate
+    }
+    
+    /// Optimize individual loop
+    function optimize_loop(IRFunction memory func, LoopInfo memory loop_info) private returns (IRFunction memory) {
+        // Apply loop invariant code motion
+        if (loop_info.invariant_instructions.length > 0) {
+            func = apply_invariant_code_motion(func, loop_info);
+            instructions_moved += loop_info.invariant_instructions.length;
+        }
+        
+        // Apply loop unrolling if beneficial
+        if (should_unroll_loop(loop_info)) {
+            func = apply_loop_unrolling(func, loop_info);
+            loops_unrolled++;
+        }
+        
+        // Apply strength reduction
+        if (loop_info.induction_variables.length > 0) {
+            func = apply_strength_reduction(func, loop_info);
+            strength_reductions++;
+        }
+        
+        return func;
+    }
+    
+    /// Apply loop invariant code motion
+    function apply_invariant_code_motion(IRFunction memory func, LoopInfo memory loop_info) private pure returns (IRFunction memory) {
+        // Move invariant instructions before loop header
+        // Simplified implementation - would modify CFG in real compiler
+        
+        // Create new instruction array with invariants moved
+        IRInstruction[] memory new_instructions = new IRInstruction[](func.body.instructions.length);
+        uint256 new_index = 0;
+        
+        // Copy instructions before loop, inserting invariants before header
+        for (uint256 i = 0; i < func.body.instructions.length; i++) {
+            if (i == loop_info.header_block) {
+                // Insert invariant instructions before loop header
+                for (uint256 j = 0; j < loop_info.invariant_instructions.length; j++) {
+                    new_instructions[new_index] = loop_info.invariant_instructions[j];
+                    new_index++;
+                }
+            }
+            
+            // Skip invariant instructions in loop body
+            if (!is_invariant_instruction(func.body.instructions[i], loop_info)) {
+                new_instructions[new_index] = func.body.instructions[i];
+                new_index++;
+            }
+        }
+        
+        // Resize array to actual size
+        IRInstruction[] memory final_instructions = new IRInstruction[](new_index);
+        for (uint256 i = 0; i < new_index; i++) {
+            final_instructions[i] = new_instructions[i];
+        }
+        
+        func.body.instructions = final_instructions;
+        return func;
+    }
+    
+    /// Check if instruction is in invariant list
+    function is_invariant_instruction(IRInstruction memory instr, LoopInfo memory loop_info) private pure returns (bool) {
+        for (uint256 i = 0; i < loop_info.invariant_instructions.length; i++) {
+            if (instructions_equal(instr, loop_info.invariant_instructions[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /// Compare two instructions for equality
+    function instructions_equal(IRInstruction memory a, IRInstruction memory b) private pure returns (bool) {
+        return a.opcode == b.opcode && 
+               keccak256(bytes(a.result.value)) == keccak256(bytes(b.result.value));
+    }
+    
+    /// Check if loop should be unrolled
+    function should_unroll_loop(LoopInfo memory loop_info) private view returns (bool) {
+        return loop_info.can_unroll &&
+               loop_info.iteration_count <= 100 && // Don't unroll large loops
+               loop_info.body_blocks.length <= 20; // Don't unroll complex loops
+    }
+    
+    /// Apply loop unrolling
+    function apply_loop_unrolling(IRFunction memory func, LoopInfo memory loop_info) private pure returns (IRFunction memory) {
+        // Simplified loop unrolling - duplicate loop body
+        uint256 unroll_factor = loop_info.unroll_factor;
+        if (unroll_factor > loop_info.iteration_count) {
+            unroll_factor = loop_info.iteration_count;
+        }
+        
+        // Calculate new instruction array size
+        uint256 body_size = loop_info.body_blocks.length;
+        uint256 additional_instructions = body_size * (unroll_factor - 1);
+        uint256 new_size = func.body.instructions.length + additional_instructions;
+        
+        IRInstruction[] memory new_instructions = new IRInstruction[](new_size);
+        uint256 new_index = 0;
+        
+        // Copy instructions, duplicating loop body
+        for (uint256 i = 0; i < func.body.instructions.length; i++) {
+            new_instructions[new_index] = func.body.instructions[i];
+            new_index++;
+            
+            // If this is end of loop body, duplicate it
+            if (i == loop_info.exit_block - 1) {
+                for (uint256 unroll = 1; unroll < unroll_factor; unroll++) {
+                    for (uint256 j = 0; j < loop_info.body_blocks.length; j++) {
+                        uint256 body_instr_index = loop_info.body_blocks[j];
+                        if (body_instr_index < func.body.instructions.length) {
+                            new_instructions[new_index] = func.body.instructions[body_instr_index];
+                            new_index++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        func.body.instructions = new_instructions;
+        return func;
+    }
+    
+    /// Apply strength reduction
+    function apply_strength_reduction(IRFunction memory func, LoopInfo memory loop_info) private pure returns (IRFunction memory) {
+        // Replace expensive operations with cheaper ones
+        // Example: replace multiplication by constant with addition
+        
+        for (uint256 i = 0; i < func.body.instructions.length; i++) {
+            IRInstruction memory instr = func.body.instructions[i];
+            
+            if (instr.opcode == IROpcode.MUL && is_in_loop_body(i, loop_info)) {
+                // Check if multiplying by constant
+                if (instr.operands.length >= 2 && instr.operands[1].type == IROperandType.CONSTANT) {
+                    // Replace with repeated addition (simplified)
+                    func.body.instructions[i] = create_strength_reduced_instruction(instr);
+                }
+            }
+        }
+        
+        return func;
+    }
+    
+    /// Check if instruction index is in loop body
+    function is_in_loop_body(uint256 instr_index, LoopInfo memory loop_info) private pure returns (bool) {
+        for (uint256 i = 0; i < loop_info.body_blocks.length; i++) {
+            if (loop_info.body_blocks[i] == instr_index) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /// Create strength-reduced instruction
+    function create_strength_reduced_instruction(IRInstruction memory original) private pure returns (IRInstruction memory) {
+        // Simplified - replace MUL with ADD
+        return IRInstruction({
+            opcode: IROpcode.ADD,
+            operands: original.operands,
+            result: original.result,
+            metadata: string(abi.encodePacked(original.metadata, " [strength_reduced]"))
+        });
+    }
+    
+    /// Utility functions
+    
+    /// Append loop to array
+    function append_loop(LoopInfo[] memory loops, LoopInfo memory new_loop) private pure returns (LoopInfo[] memory) {
+        LoopInfo[] memory new_loops = new LoopInfo[](loops.length + 1);
+        for (uint256 i = 0; i < loops.length; i++) {
+            new_loops[i] = loops[i];
+        }
+        new_loops[loops.length] = new_loop;
+        return new_loops;
+    }
+    
+    /// Append instruction to array
+    function append_instruction(IRInstruction[] memory instructions, IRInstruction memory new_instr) private pure returns (IRInstruction[] memory) {
+        IRInstruction[] memory new_instructions = new IRInstruction[](instructions.length + 1);
+        for (uint256 i = 0; i < instructions.length; i++) {
+            new_instructions[i] = instructions[i];
+        }
+        new_instructions[instructions.length] = new_instr;
+        return new_instructions;
+    }
+    
+    /// Count instructions in function
+    function count_instructions_in_function(IRFunction memory func) private pure returns (uint256) {
+        return func.body.instructions.length;
+    }
+    
+    /// Get optimization statistics
+    function get_stats() public view returns (uint256, uint256, uint256, uint256) {
+        return (loops_optimized, instructions_moved, loops_unrolled, strength_reductions);
+    }
+    
+    /// Get detected loops
+    function get_detected_loops() public view returns (LoopInfo[] memory) {
+        return detected_loops;
+    }
+    
+    /// Set unroll factor for specific loop
+    function set_unroll_factor(string memory loop_id, uint256 factor) public {
+        for (uint256 i = 0; i < detected_loops.length; i++) {
+            if (keccak256(bytes(detected_loops[i].loop_id)) == keccak256(bytes(loop_id))) {
+                detected_loops[i].unroll_factor = factor;
+                break;
+            }
+        }
+    }
+    
+    /// Enable/disable specific optimization
+    function set_optimization_enabled(string memory opt_type, bool enabled) public {
+        // Implementation would set flags for different optimization types
+        optimization_counts[opt_type] = enabled ? 1 : 0;
+    }
+    
+    /// Reset statistics
+    function reset_stats() public {
+        loops_optimized = 0;
+        instructions_moved = 0;
+        loops_unrolled = 0;
+        strength_reductions = 0;
+    }
+}

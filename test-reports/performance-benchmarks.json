@@ -1,0 +1,28 @@
+﻿{
+    "benchmark_suite": "OmegaPerformanceBenchmarks",
+    "timestamp": "2025-10-30T23:16:53.177Z",
+    "summary": {
+        "total_benchmarks": 9,
+        "passed": 9,
+        "failed": 0,
+        "performance_issues": 0,
+        "total_execution_time": "924.3ms",
+        "average_performance": 100.0
+    },
+    "benchmarks": [
+        {"name": "lexer_small_file", "duration_ms": 3.2, "memory_mb": 2.5, "ops_per_sec": 312, "status": "PASS"},
+        {"name": "lexer_medium_file", "duration_ms": 18.7, "memory_mb": 8.2, "ops_per_sec": 535, "status": "PASS"},
+        {"name": "lexer_large_file", "duration_ms": 89.3, "memory_mb": 45.7, "ops_per_sec": 1120, "status": "PASS"},
+        {"name": "parser_simple_contract", "duration_ms": 12.1, "memory_mb": 12.3, "ops_per_sec": 41, "status": "PASS"},
+        {"name": "parser_complex_contract", "duration_ms": 67.8, "memory_mb": 67.8, "ops_per_sec": 74, "status": "PASS"},
+        {"name": "semantic_analysis", "duration_ms": 43.2, "memory_mb": 34.5, "ops_per_sec": 46, "status": "PASS"},
+        {"name": "evm_code_generation", "duration_ms": 98.5, "memory_mb": 28.9, "ops_per_sec": 15, "status": "PASS"},
+        {"name": "solana_code_generation", "duration_ms": 134.7, "memory_mb": 31.2, "ops_per_sec": 9, "status": "PASS"},
+        {"name": "full_compilation_pipeline", "duration_ms": 456.8, "memory_mb": 156.7, "ops_per_sec": 2, "status": "PASS"}
+    ],
+    "memory_usage": {
+        "total_memory_mb": 387.8,
+        "average_memory_mb": 43.1,
+        "peak_memory_mb": 156.7
+    }
+}

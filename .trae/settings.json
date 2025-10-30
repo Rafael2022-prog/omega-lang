@@ -1,0 +1,24 @@
+{
+  "trae.fileAssociations": {
+    "*.mega": "omega"
+  },
+  "trae.fileIcons": {
+    "mega": {
+      "iconPath": "./temp-logo.svg",
+      "theme": {
+        "light": "./temp-logo.svg",
+        "dark": "./temp-logo.svg"
+      }
+    }
+  },
+  "trae.languages": {
+    "omega": {
+      "extensions": [".mega"],
+      "displayName": "OMEGA Blockchain Language",
+      "icon": "./temp-logo.svg",
+      "mimeType": "text/x-omega"
+    }
+  },
+  "editor.fileIconTheme": "omega-icons",
+  "workbench.iconTheme": "omega-icons"
+}

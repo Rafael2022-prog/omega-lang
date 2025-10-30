@@ -1,0 +1,37 @@
+// Cross-Chain Bridge Example in OMEGA
+blockchain CrossChainBridge {
+    state {
+        mapping(bytes32 => bool) processed_transactions;
+        mapping(address => uint256) locked_balances;
+        address bridge_operator;
+    }
+    
+    constructor() {
+        bridge_operator = msg.sender;
+    }
+    
+    @cross_chain(target = "solana")
+    function bridge_to_solana(bytes32 recipient, uint256 amount) public {
+        require(amount > 0, "Invalid amount");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        
+        locked_balances[msg.sender] += amount;
+        balances[msg.sender] -= amount;
+        
+        emit TokensBridged(msg.sender, recipient, amount, "solana");
+    }
+    
+    @cross_chain(target = "ethereum")
+    function bridge_to_ethereum(address recipient, uint256 amount) public {
+        require(amount > 0, "Invalid amount");
+        require(locked_balances[msg.sender] >= amount, "Insufficient locked balance");
+        
+        locked_balances[msg.sender] -= amount;
+        balances[recipient] += amount;
+        
+        emit TokensUnbridged(msg.sender, recipient, amount, "ethereum");
+    }
+    
+    event TokensBridged(address indexed from, bytes32 indexed to, uint256 amount, string target_chain);
+    event TokensUnbridged(address indexed from, address indexed to, uint256 amount, string source_chain);
+}

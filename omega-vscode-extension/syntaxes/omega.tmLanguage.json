@@ -1,0 +1,127 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "OMEGA",
+  "scopeName": "source.omega",
+  "fileTypes": [
+    "mega"
+  ],
+  "patterns": [
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#functions"
+    },
+    {
+      "include": "#blockchain-specific"
+    }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.omega",
+          "match": "\\b(if|else|while|for|loop|break|continue|return|match|case|default)\\b"
+        },
+        {
+          "name": "keyword.declaration.omega",
+          "match": "\\b(blockchain|contract|interface|struct|enum|fn|let|mut|const|static|impl|trait|mod|use|pub|priv)\\b"
+        },
+        {
+          "name": "keyword.operator.omega",
+          "match": "\\b(and|or|not|in|is|as|typeof)\\b"
+        },
+        {
+          "name": "storage.modifier.omega",
+          "match": "\\b(public|private|internal|external|view|pure|payable|nonpayable|override|virtual|abstract)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.omega",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.omega",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.omega",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.omega",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.decimal.omega",
+          "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.hex.omega",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.omega",
+          "match": "\\b(bool|u8|u16|u32|u64|u128|u256|i8|i16|i32|i64|i128|i256|f32|f64|str|String|bytes|address|hash)\\b"
+        },
+        {
+          "name": "storage.type.collection.omega",
+          "match": "\\b(Vec|Array|Map|Set|Option|Result)\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "entity.name.function.omega",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    },
+    "blockchain-specific": {
+      "patterns": [
+        {
+          "name": "keyword.blockchain.omega",
+          "match": "\\b(evm|solana|cosmos|substrate|near|flow|cardano|tezos|algorand|avalanche|polygon|bsc|fantom|arbitrum|optimism)\\b"
+        },
+        {
+          "name": "support.function.builtin.omega",
+          "match": "\\b(msg|block|tx|now|sender|value|gas|origin|coinbase|difficulty|gaslimit|number|timestamp)\\b"
+        },
+        {
+          "name": "support.type.token.omega",
+          "match": "\\b(ERC20|ERC721|ERC1155|SPL|CW20|CW721)\\b"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.omega"
+}

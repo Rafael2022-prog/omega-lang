@@ -1,0 +1,612 @@
+// OMEGA Modular Integration Tests - Written in MEGA
+// Integration testing untuk modul-modul yang telah direfactor:
+// - IR Core Module
+// - Optimizer Module  
+// - Codegen Module
+// - Main Compiler Integration
+
+import "test_framework";
+import "../src/main";
+import "../src/ir/ir_core";
+import "../src/optimizer/optimizer_core";
+import "../src/codegen/codegen";
+
+blockchain ModularIntegrationTests {
+    state {
+        TestFramework framework;
+        OmegaCompiler compiler;
+        TestResults results;
+        uint256 total_tests;
+        uint256 passed_tests;
+        uint256 failed_tests;
+    }
+
+    constructor() {
+        framework = new TestFramework();
+        compiler = new OmegaCompiler();
+        results = new TestResults();
+        total_tests = 0;
+        passed_tests = 0;
+        failed_tests = 0;
+    }
+
+    /// Test IR Core Module Integration
+    function test_ir_core_integration() public returns (TestResult) {
+        TestResult result = framework.create_test("ir_core_integration");
+        
+        try {
+            // Test IR generation dari AST sederhana
+            string source_code = `
+blockchain SimpleContract {
+    state {
+        uint256 value;
+    }
+    
+    constructor(uint256 _value) {
+        value = _value;
+    }
+    
+    function get_value() public view returns (uint256) {
+        return value;
+    }
+    
+    function set_value(uint256 _value) public {
+        value = _value;
+    }
+}`;
+
+            // Parse dan generate AST
+            OmegaLexer lexer = new OmegaLexer();
+            Token[] tokens = lexer.tokenize_string(source_code);
+            
+            OmegaParser parser = new OmegaParser();
+            Program ast = parser.parse(tokens);
+            
+            // Test IR generation
+            OmegaIR ir_generator = new OmegaIR();
+            ir_generator.initialize();
+            
+            IRModule ir_module = ir_generator.generate_ir(ast);
+            
+            // Validasi IR module
+            framework.assert_not_null(ir_module, "IR module should not be null");
+            framework.assert_greater_than(ir_module.blockchains.length, 0, "Should have at least one blockchain");
+            framework.assert_equals(ir_module.blockchains[0].name, "SimpleContract", "Blockchain name should match");
+            
+            // Test IR validation
+            bool is_valid = ir_generator.validate_module(ir_module);
+            framework.assert_true(is_valid, "Generated IR should be valid");
+            
+            // Test IR statistics
+            IRStatistics stats = ir_generator.get_statistics();
+            framework.assert_greater_than(stats.total_instructions, 0, "Should have generated instructions");
+            framework.assert_greater_than(stats.total_functions, 0, "Should have generated functions");
+            
+            result.mark_passed();
+            
+        } catch (string error) {
+            result.mark_failed(string.concat("IR Core integration failed: ", error));
+        }
+        
+        return result;
+    }
+
+    /// Test Optimizer Module Integration
+    function test_optimizer_integration() public returns (TestResult) {
+        TestResult result = framework.create_test("optimizer_integration");
+        
+        try {
+            // Create sample IR module untuk optimasi
+            IRModule ir_module = _create_sample_ir_module();
+            
+            // Test optimizer initialization
+            OmegaOptimizer optimizer = new OmegaOptimizer();
+            optimizer.initialize();
+            
+            // Test optimization configuration
+            optimizer.set_optimization_level(OptimizationLevel.Basic);
+            optimizer.set_optimization_target(OptimizationTarget.All);
+            
+            OptimizationConfig config = optimizer.get_config();
+            framework.assert_equals(config.level, OptimizationLevel.Basic, "Optimization level should be Basic");
+            
+            // Test optimization passes
+            OptimizationResult opt_result = optimizer.optimize(ir_module);
+            
+            framework.assert_not_null(opt_result.optimized_module, "Optimized module should not be null");
+            framework.assert_true(opt_result.success, "Optimization should succeed");
+            
+            // Test optimization statistics
+            OptimizationStats stats = optimizer.get_global_stats();
+            framework.assert_greater_than_or_equal(stats.total_optimizations, 0, "Should track optimizations");
+            
+            // Test specific optimization passes
+            bool constant_folding_enabled = optimizer.is_pass_enabled("constant_folding");
+            bool dead_code_elimination_enabled = optimizer.is_pass_enabled("dead_code_elimination");
+            
+            framework.assert_true(constant_folding_enabled, "Constant folding should be enabled");
+            framework.assert_true(dead_code_elimination_enabled, "Dead code elimination should be enabled");
+            
+            result.mark_passed();
+            
+        } catch (string error) {
+            result.mark_failed(string.concat("Optimizer integration failed: ", error));
+        }
+        
+        return result;
+    }
+
+    /// Test Codegen Module Integration
+    function test_codegen_integration() public returns (TestResult) {
+        TestResult result = framework.create_test("codegen_integration");
+        
+        try {
+            // Create optimized IR module
+            IRModule ir_module = _create_optimized_ir_module();
+            
+            // Test code generator initialization
+            OmegaCodeGenerator codegen = new OmegaCodeGenerator();
+            codegen.initialize();
+            
+            // Test platform support
+            bool evm_supported = codegen.is_platform_supported("evm");
+            bool solana_supported = codegen.is_platform_supported("solana");
+            
+            framework.assert_true(evm_supported, "EVM should be supported");
+            framework.assert_true(solana_supported, "Solana should be supported");
+            
+            // Test single target generation
+            GenerationResult evm_result = codegen.generate_code(ir_module, "evm");
+            
+            framework.assert_true(evm_result.success, "EVM code generation should succeed");
+            framework.assert_greater_than(evm_result.generated_files.length, 0, "Should generate at least one file");
+            
+            // Test multi-target generation
+            string[] targets = ["evm", "solana"];
+            GenerationResult multi_result = codegen.generate_multi_target(ir_module, targets);
+            
+            framework.assert_true(multi_result.success, "Multi-target generation should succeed");
+            framework.assert_equals(multi_result.generated_files.length, 2, "Should generate files for both targets");
+            
+            // Test generated file content
+            GeneratedFile evm_file = multi_result.generated_files[0];
+            framework.assert_not_empty(evm_file.content, "Generated EVM file should not be empty");
+            framework.assert_contains(evm_file.content, "contract", "EVM file should contain contract keyword");
+            
+            // Test code generation statistics
+            CodeGenStatistics stats = codegen.get_statistics();
+            framework.assert_greater_than(stats.total_files_generated, 0, "Should track generated files");
+            
+            result.mark_passed();
+            
+        } catch (string error) {
+            result.mark_failed(string.concat("Codegen integration failed: ", error));
+        }
+        
+        return result;
+    }
+
+    /// Test Full Pipeline Integration
+    function test_full_pipeline_integration() public returns (TestResult) {
+        TestResult result = framework.create_test("full_pipeline_integration");
+        
+        try {
+            // Test complete compilation pipeline
+            string source_code = `
+blockchain TokenContract {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _supply;
+        balances[msg.sender] = _supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+}`;
+
+            // Initialize compiler dengan konfigurasi test
+            CompilerConfig config;
+            config.target_platforms = ["evm", "solana"];
+            config.optimization_level = OptimizationLevel.Basic;
+            config.debug_mode = true;
+            config.verbose = true;
+            
+            compiler.initialize(config);
+            
+            // Test lexical analysis
+            OmegaLexer lexer = compiler.lexer;
+            Token[] tokens = lexer.tokenize_string(source_code);
+            framework.assert_greater_than(tokens.length, 0, "Should generate tokens");
+            
+            // Test parsing
+            OmegaParser parser = compiler.parser;
+            Program ast = parser.parse(tokens);
+            framework.assert_not_null(ast, "Should generate AST");
+            
+            // Test semantic analysis
+            OmegaSemanticAnalyzer analyzer = compiler.semantic_analyzer;
+            analyzer.analyze(ast);
+            framework.assert_false(analyzer.has_errors(), "Semantic analysis should pass");
+            
+            // Test IR generation
+            OmegaIR ir_generator = compiler.ir_generator;
+            IRModule ir_module = ir_generator.generate_ir(ast);
+            framework.assert_not_null(ir_module, "Should generate IR module");
+            
+            // Test optimization
+            OmegaOptimizer optimizer = compiler.optimizer;
+            OptimizationResult opt_result = optimizer.optimize(ir_module);
+            framework.assert_true(opt_result.success, "Optimization should succeed");
+            
+            // Test code generation
+            OmegaCodeGenerator codegen = compiler.code_generator;
+            GenerationResult gen_result = codegen.generate_multi_target(
+                opt_result.optimized_module, 
+                config.target_platforms
+            );
+            framework.assert_true(gen_result.success, "Code generation should succeed");
+            framework.assert_equals(gen_result.generated_files.length, 2, "Should generate files for both targets");
+            
+            // Validate generated content
+            for (uint i = 0; i < gen_result.generated_files.length; i++) {
+                GeneratedFile file = gen_result.generated_files[i];
+                framework.assert_not_empty(file.content, "Generated file should not be empty");
+                framework.assert_not_empty(file.filename, "Generated file should have filename");
+                framework.assert_not_empty(file.platform, "Generated file should have platform");
+            }
+            
+            result.mark_passed();
+            
+        } catch (string error) {
+            result.mark_failed(string.concat("Full pipeline integration failed: ", error));
+        }
+        
+        return result;
+    }
+
+    /// Test Error Handling Integration
+    function test_error_handling_integration() public returns (TestResult) {
+        TestResult result = framework.create_test("error_handling_integration");
+        
+        try {
+            // Test error propagation through pipeline
+            string invalid_source = `
+blockchain InvalidContract {
+    state {
+        uint256 value
+    }
+    
+    function invalid_function( {
+        // Syntax errors
+    }
+}`;
+
+            CompilerConfig config;
+            config.target_platforms = ["evm"];
+            config.optimization_level = OptimizationLevel.Basic;
+            
+            compiler.initialize(config);
+            
+            // Test lexer error handling
+            OmegaLexer lexer = compiler.lexer;
+            Token[] tokens = lexer.tokenize_string(invalid_source);
+            
+            // Test parser error handling
+            OmegaParser parser = compiler.parser;
+            Program ast = parser.parse(tokens);
+            
+            // Should have errors at this point
+            framework.assert_true(parser.has_errors(), "Parser should detect syntax errors");
+            
+            // Test error aggregation
+            compiler.aggregate_phase_errors(lexer, parser, compiler.semantic_analyzer, 
+                                          compiler.ir_generator, compiler.optimizer, 
+                                          compiler.code_generator);
+            
+            framework.assert_true(compiler.has_compilation_errors(), "Should have compilation errors");
+            
+            uint256 error_count, warning_count;
+            (error_count, warning_count) = compiler.get_compilation_counts();
+            framework.assert_greater_than(error_count, 0, "Should have error count > 0");
+            
+            result.mark_passed();
+            
+        } catch (string error) {
+            result.mark_failed(string.concat("Error handling integration failed: ", error));
+        }
+        
+        return result;
+    }
+
+    /// Test Performance Integration
+    function test_performance_integration() public returns (TestResult) {
+        TestResult result = framework.create_test("performance_integration");
+        
+        try {
+            // Test performance dengan berbagai ukuran contract
+            string[] test_contracts = [
+                _generate_small_contract(),
+                _generate_medium_contract(),
+                _generate_large_contract()
+            ];
+            
+            uint256[] expected_max_times = [1000, 5000, 15000]; // milliseconds
+            
+            for (uint i = 0; i < test_contracts.length; i++) {
+                uint256 start_time = block.timestamp;
+                
+                // Compile contract
+                CompilerConfig config;
+                config.target_platforms = ["evm"];
+                config.optimization_level = OptimizationLevel.Basic;
+                
+                compiler.initialize(config);
+                
+                // Run compilation pipeline
+                OmegaLexer lexer = compiler.lexer;
+                Token[] tokens = lexer.tokenize_string(test_contracts[i]);
+                
+                OmegaParser parser = compiler.parser;
+                Program ast = parser.parse(tokens);
+                
+                if (!parser.has_errors()) {
+                    OmegaSemanticAnalyzer analyzer = compiler.semantic_analyzer;
+                    analyzer.analyze(ast);
+                    
+                    if (!analyzer.has_errors()) {
+                        OmegaIR ir_generator = compiler.ir_generator;
+                        IRModule ir_module = ir_generator.generate_ir(ast);
+                        
+                        OmegaOptimizer optimizer = compiler.optimizer;
+                        OptimizationResult opt_result = optimizer.optimize(ir_module);
+                        
+                        OmegaCodeGenerator codegen = compiler.code_generator;
+                        GenerationResult gen_result = codegen.generate_code(opt_result.optimized_module, "evm");
+                    }
+                }
+                
+                uint256 compilation_time = (block.timestamp - start_time) * 1000;
+                
+                framework.assert_less_than_or_equal(compilation_time, expected_max_times[i], 
+                    string.concat("Compilation time should be within limits for contract ", _to_string(i)));
+            }
+            
+            result.mark_passed();
+            
+        } catch (string error) {
+            result.mark_failed(string.concat("Performance integration failed: ", error));
+        }
+        
+        return result;
+    }
+
+    /// Run all modular integration tests
+    function run_all_modular_tests() public returns (TestResults) {
+        framework.start_test_suite("Modular Integration Tests");
+        
+        // Execute all test functions
+        TestResult[] test_results = [
+            test_ir_core_integration(),
+            test_optimizer_integration(),
+            test_codegen_integration(),
+            test_full_pipeline_integration(),
+            test_error_handling_integration(),
+            test_performance_integration()
+        ];
+        
+        // Aggregate results
+        for (uint i = 0; i < test_results.length; i++) {
+            total_tests++;
+            if (test_results[i].status == TestStatus.Passed) {
+                passed_tests++;
+            } else {
+                failed_tests++;
+            }
+            results.add_test_result(test_results[i]);
+        }
+        
+        // Print summary
+        framework.print_test_summary(total_tests, passed_tests, failed_tests);
+        
+        return results;
+    }
+
+    // Helper functions untuk testing
+    function _create_sample_ir_module() private returns (IRModule) {
+        IRModule module;
+        module.version = "1.0.0";
+        module.metadata.source_file = "test.omega";
+        
+        // Create simple blockchain dengan beberapa functions
+        IRBlockchain blockchain;
+        blockchain.name = "TestContract";
+        
+        // Add simple function
+        IRFunction func;
+        func.name = "test_function";
+        func.return_type = IRType.Uint256;
+        
+        // Add simple instruction
+        IRInstruction instr;
+        instr.opcode = IROpcode.Load;
+        instr.operands = [IROperand.create_constant("42")];
+        
+        func.instructions = [instr];
+        blockchain.functions = [func];
+        module.blockchains = [blockchain];
+        
+        return module;
+    }
+
+    function _create_optimized_ir_module() private returns (IRModule) {
+        IRModule module = _create_sample_ir_module();
+        
+        // Add more complex instructions untuk testing optimization
+        IRFunction func = module.blockchains[0].functions[0];
+        
+        IRInstruction add_instr;
+        add_instr.opcode = IROpcode.Add;
+        add_instr.operands = [
+            IROperand.create_constant("10"),
+            IROperand.create_constant("20")
+        ];
+        
+        func.instructions.push(add_instr);
+        
+        return module;
+    }
+
+    function _generate_small_contract() private pure returns (string) {
+        return `
+blockchain SmallContract {
+    state {
+        uint256 value;
+    }
+    
+    function get_value() public view returns (uint256) {
+        return value;
+    }
+}`;
+    }
+
+    function _generate_medium_contract() private pure returns (string) {
+        return `
+blockchain MediumContract {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+    }
+    
+    constructor(string _name, uint256 _supply) {
+        name = _name;
+        total_supply = _supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount);
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+}`;
+    }
+
+    function _generate_large_contract() private pure returns (string) {
+        return `
+blockchain LargeContract {
+    state {
+        mapping(address => uint256) balances;
+        mapping(address => mapping(address => uint256)) allowances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+        uint8 decimals;
+        address owner;
+        bool paused;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _supply) {
+        name = _name;
+        symbol = _symbol;
+        decimals = 18;
+        total_supply = _supply;
+        owner = msg.sender;
+        balances[msg.sender] = _supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(!paused, "Contract is paused");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function approve(address spender, uint256 amount) public returns (bool) {
+        require(!paused, "Contract is paused");
+        allowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+    
+    function transfer_from(address from, address to, uint256 amount) public returns (bool) {
+        require(!paused, "Contract is paused");
+        require(balances[from] >= amount, "Insufficient balance");
+        require(allowances[from][msg.sender] >= amount, "Insufficient allowance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[from] -= amount;
+        balances[to] += amount;
+        allowances[from][msg.sender] -= amount;
+        
+        emit Transfer(from, to, amount);
+        return true;
+    }
+    
+    function pause() public {
+        require(msg.sender == owner, "Only owner can pause");
+        paused = true;
+    }
+    
+    function unpause() public {
+        require(msg.sender == owner, "Only owner can unpause");
+        paused = false;
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+}`;
+    }
+
+    function _to_string(uint256 value) private pure returns (string) {
+        if (value == 0) return "0";
+        
+        uint256 temp = value;
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+}

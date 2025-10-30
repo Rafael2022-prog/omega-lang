@@ -1,0 +1,554 @@
+// OMEGA Error Handling System - Written in MEGA
+// Comprehensive error management untuk OMEGA compiler
+// Mendukung error types, error reporting, dan error recovery
+
+/// Main error handling blockchain yang mengatur semua error management
+/// Bertanggung jawab untuk error classification, reporting, dan recovery
+blockchain OmegaErrorHandler {
+    state {
+        ErrorRegistry registry;         // Registry untuk semua error types
+        ErrorReporter reporter;         // Reporter untuk error output
+        ErrorRecovery recovery;         // Recovery mechanism untuk error handling
+        ErrorContext[] error_stack;     // Stack untuk nested error contexts
+        ErrorStatistics statistics;     // Statistics untuk error tracking
+        bool panic_mode;               // Flag untuk panic mode recovery
+    }
+    
+    /// Constructor untuk inisialisasi error handling system
+    /// Mengatur default error types dan recovery strategies
+    constructor() {
+        registry = ErrorRegistry::new();       // Initialize error type registry
+        reporter = ErrorReporter::new();       // Initialize error reporter
+        recovery = ErrorRecovery::new();       // Initialize recovery system
+        error_stack = [];                      // Initialize empty error stack
+        statistics = ErrorStatistics::new();   // Initialize error statistics
+        panic_mode = false;                    // Start in normal mode
+    }
+    
+    /// Report error dengan context dan recovery suggestion
+    /// @param error_type Type dari error yang terjadi
+    /// @param message Error message yang descriptive
+    /// @param location Source location dimana error terjadi
+    /// @param severity Severity level dari error
+    function report_error(ErrorType error_type, string memory message, 
+                         SourceLocation location, ErrorSeverity severity) public {
+        // Create comprehensive error object
+        OmegaError error = OmegaError::new(error_type, message, location, severity);
+        
+        // Add error ke registry untuk tracking
+        registry.register_error(error);
+        
+        // Update statistics
+        statistics.increment_error_count(error_type, severity);
+        
+        // Report error melalui appropriate channel
+        reporter.report(error);
+        
+        // Attempt error recovery jika memungkinkan
+        if (severity != ErrorSeverity.Fatal) {
+            ErrorRecoveryStrategy strategy = recovery.get_strategy(error_type);
+            bool recovered = recovery.attempt_recovery(error, strategy);
+            
+            if (!recovered && severity == ErrorSeverity.Error) {
+                // Enter panic mode untuk error recovery
+                enter_panic_mode(error);
+            }
+        } else {
+            // Fatal error - terminate compilation
+            emit FatalError(error.message, error.location.file, error.location.line);
+            panic("Fatal error encountered: " + error.message);
+        }
+    }
+    
+    /// Enter panic mode untuk error recovery
+    /// @param trigger_error Error yang menyebabkan panic mode
+    function enter_panic_mode(OmegaError trigger_error) private {
+        panic_mode = true;
+        emit PanicModeEntered(trigger_error.message);
+        
+        // Attempt to recover dari panic mode
+        bool recovered = recovery.panic_recovery(trigger_error);
+        
+        if (recovered) {
+            exit_panic_mode();
+        }
+    }
+    
+    /// Exit panic mode setelah successful recovery
+    function exit_panic_mode() private {
+        panic_mode = false;
+        emit PanicModeExited();
+    }
+    
+    /// Push error context untuk nested error handling
+    /// @param context Context information untuk error scope
+    function push_context(ErrorContext context) public {
+        error_stack.push(context);
+    }
+    
+    /// Pop error context setelah selesai dengan scope
+    function pop_context() public {
+        if (error_stack.length > 0) {
+            error_stack.pop();
+        }
+    }
+    
+    /// Get current error context untuk error reporting
+    /// @return ErrorContext Current context atau empty jika tidak ada
+    function get_current_context() public view returns (ErrorContext) {
+        if (error_stack.length > 0) {
+            return error_stack[error_stack.length - 1];
+        }
+        return ErrorContext::empty();
+    }
+    
+    /// Check apakah compiler dalam panic mode
+    /// @return bool True jika dalam panic mode
+    function is_panic_mode() public view returns (bool) {
+        return panic_mode;
+    }
+    
+    /// Get error statistics untuk reporting
+    /// @return ErrorStatistics Current error statistics
+    function get_statistics() public view returns (ErrorStatistics) {
+        return statistics;
+    }
+    
+    /// Reset error handler untuk fresh compilation
+    function reset() public {
+        registry.clear();
+        error_stack = [];
+        statistics.reset();
+        panic_mode = false;
+    }
+}
+
+/// Comprehensive error object yang menyimpan semua error information
+/// Mendukung error chaining, context, dan recovery hints
+struct OmegaError {
+    ErrorType error_type;           // Type classification dari error
+    string message;                 // Human-readable error message
+    SourceLocation location;        // Source code location dari error
+    ErrorSeverity severity;         // Severity level dari error
+    ErrorCode code;                 // Unique error code untuk identification
+    string[] suggestions;           // Suggestions untuk fixing error
+    OmegaError[] related_errors;    // Related errors untuk context
+    ErrorContext context;           // Context dimana error terjadi
+    uint256 timestamp;              // Timestamp ketika error terjadi
+}
+
+/// Enum untuk error type classification
+/// Mengkategorikan errors berdasarkan compiler phase dan nature
+enum ErrorType {
+    // Lexical Analysis Errors
+    LexicalError,           // Invalid tokens, character sequences
+    UnterminatedString,     // String literals tidak ditutup
+    InvalidNumber,          // Invalid numeric literals
+    UnknownCharacter,       // Character yang tidak dikenali
+    
+    // Syntax Analysis Errors  
+    SyntaxError,            // Grammar violations
+    UnexpectedToken,        // Token yang tidak diharapkan
+    MissingToken,           // Expected token tidak ditemukan
+    MismatchedBraces,       // Unmatched brackets/braces
+    
+    // Semantic Analysis Errors
+    SemanticError,          // Semantic rule violations
+    UndefinedSymbol,        // Symbol tidak ditemukan
+    RedefinedSymbol,        // Symbol didefinisikan ulang
+    TypeMismatch,           // Type incompatibility
+    InvalidOperation,       // Operation tidak valid untuk type
+    
+    // Code Generation Errors
+    CodeGenError,           // Code generation failures
+    UnsupportedFeature,     // Feature tidak didukung untuk target
+    OptimizationError,      // Error dalam optimization pass
+    
+    // System Errors
+    IOError,                // File I/O errors
+    MemoryError,            // Memory allocation errors
+    InternalError           // Internal compiler errors
+}
+
+/// Enum untuk error severity levels
+/// Menentukan impact dan response terhadap error
+enum ErrorSeverity {
+    Info,       // Informational messages
+    Warning,    // Warnings yang tidak menghentikan compilation
+    Error,      // Errors yang menghentikan compilation
+    Fatal       // Fatal errors yang terminate compiler
+}
+
+/// Unique error codes untuk precise error identification
+/// Memungkinkan tooling integration dan automated error handling
+enum ErrorCode {
+    // Lexical Error Codes (1000-1999)
+    E1001_UNTERMINATED_STRING,
+    E1002_INVALID_NUMBER_FORMAT,
+    E1003_UNKNOWN_CHARACTER,
+    E1004_INVALID_ESCAPE_SEQUENCE,
+    
+    // Syntax Error Codes (2000-2999)
+    E2001_UNEXPECTED_TOKEN,
+    E2002_MISSING_SEMICOLON,
+    E2003_UNMATCHED_PARENTHESES,
+    E2004_INVALID_FUNCTION_DECLARATION,
+    E2005_MISSING_BLOCK_TERMINATOR,
+    
+    // Semantic Error Codes (3000-3999)
+    E3001_UNDEFINED_VARIABLE,
+    E3002_UNDEFINED_FUNCTION,
+    E3003_TYPE_MISMATCH,
+    E3004_INVALID_ASSIGNMENT,
+    E3005_DUPLICATE_DECLARATION,
+    E3006_INVALID_RETURN_TYPE,
+    
+    // Code Generation Error Codes (4000-4999)
+    E4001_UNSUPPORTED_TARGET,
+    E4002_OPTIMIZATION_FAILED,
+    E4003_RESOURCE_LIMIT_EXCEEDED,
+    
+    // System Error Codes (5000-5999)
+    E5001_FILE_NOT_FOUND,
+    E5002_PERMISSION_DENIED,
+    E5003_OUT_OF_MEMORY,
+    E5004_INTERNAL_COMPILER_ERROR
+}
+
+/// Source location information untuk precise error reporting
+/// Menyimpan file, line, column untuk accurate error positioning
+struct SourceLocation {
+    string file;                // Source file path
+    uint256 line;               // Line number (1-based)
+    uint256 column;             // Column number (1-based)
+    uint256 offset;             // Byte offset dalam file
+    uint256 length;             // Length dari error span
+}
+
+/// Error context untuk nested error scopes
+/// Menyediakan contextual information untuk better error messages
+struct ErrorContext {
+    string scope_name;          // Name dari current scope
+    ContextType context_type;   // Type dari context
+    SourceLocation location;    // Location dari context
+    string[] additional_info;   // Additional context information
+}
+
+/// Enum untuk context types
+enum ContextType {
+    Global,         // Global scope
+    Blockchain,     // Blockchain definition
+    Function,       // Function definition
+    Block,          // Code block
+    Expression,     // Expression evaluation
+    Statement       // Statement execution
+}
+
+/// Error statistics untuk tracking dan reporting
+/// Mengumpulkan metrics tentang error patterns dan frequency
+struct ErrorStatistics {
+    mapping(ErrorType => uint256) error_counts;     // Count per error type
+    mapping(ErrorSeverity => uint256) severity_counts; // Count per severity
+    uint256 total_errors;                           // Total error count
+    uint256 total_warnings;                         // Total warning count
+    uint256 compilation_start_time;                 // Start time untuk metrics
+    uint256 first_error_time;                       // Time dari first error
+}
+
+/// Error registry untuk tracking semua errors dalam compilation
+/// Menyimpan history dan patterns untuk analysis
+blockchain ErrorRegistry {
+    state {
+        OmegaError[] all_errors;            // All errors dalam compilation
+        mapping(ErrorType => OmegaError[]) errors_by_type; // Errors grouped by type
+        mapping(string => OmegaError[]) errors_by_file;    // Errors grouped by file
+    }
+    
+    /// Constructor untuk inisialisasi registry
+    constructor() {
+        all_errors = [];
+    }
+    
+    /// Register new error dalam registry
+    /// @param error Error object yang akan disimpan
+    function register_error(OmegaError error) public {
+        all_errors.push(error);
+        errors_by_type[error.error_type].push(error);
+        errors_by_file[error.location.file].push(error);
+    }
+    
+    /// Get all errors untuk reporting
+    /// @return OmegaError[] Array dari semua errors
+    function get_all_errors() public view returns (OmegaError[]) {
+        return all_errors;
+    }
+    
+    /// Get errors by type untuk analysis
+    /// @param error_type Type dari errors yang dicari
+    /// @return OmegaError[] Array dari errors dengan type tersebut
+    function get_errors_by_type(ErrorType error_type) public view returns (OmegaError[]) {
+        return errors_by_type[error_type];
+    }
+    
+    /// Get errors by file untuk file-specific reporting
+    /// @param file_path Path dari file yang dicari
+    /// @return OmegaError[] Array dari errors dalam file tersebut
+    function get_errors_by_file(string memory file_path) public view returns (OmegaError[]) {
+        return errors_by_file[file_path];
+    }
+    
+    /// Clear registry untuk fresh compilation
+    function clear() public {
+        all_errors = [];
+        // Clear mappings (implementation detail)
+    }
+}
+
+/// Error reporter untuk output generation
+/// Mendukung multiple output formats dan channels
+blockchain ErrorReporter {
+    state {
+        ReportFormat format;        // Output format untuk errors
+        bool colored_output;        // Enable colored terminal output
+        bool verbose_mode;          // Enable verbose error reporting
+        string output_file;         // File untuk error output (optional)
+    }
+    
+    /// Constructor dengan default configuration
+    constructor() {
+        format = ReportFormat.Console;
+        colored_output = true;
+        verbose_mode = false;
+        output_file = "";
+    }
+    
+    /// Report error dengan appropriate formatting
+    /// @param error Error object yang akan direport
+    function report(OmegaError error) public {
+        if (format == ReportFormat.Console) {
+            report_console(error);
+        } else if (format == ReportFormat.JSON) {
+            report_json(error);
+        } else if (format == ReportFormat.XML) {
+            report_xml(error);
+        }
+    }
+    
+    /// Report error ke console dengan formatting
+    /// @param error Error object untuk console output
+    function report_console(OmegaError error) private {
+        string memory severity_str = get_severity_string(error.severity);
+        string memory color_code = colored_output ? get_color_code(error.severity) : "";
+        string memory reset_code = colored_output ? "\033[0m" : "";
+        
+        // Format: [ERROR] file.mega:10:5: Type mismatch
+        string memory formatted = string.concat(
+            color_code,
+            "[", severity_str, "] ",
+            error.location.file, ":",
+            uint_to_string(error.location.line), ":",
+            uint_to_string(error.location.column), ": ",
+            error.message,
+            reset_code
+        );
+        
+        emit ErrorReported(formatted);
+        
+        // Show suggestions jika ada
+        if (error.suggestions.length > 0) {
+            for (uint256 i = 0; i < error.suggestions.length; i++) {
+                emit ErrorSuggestion(string.concat("  Suggestion: ", error.suggestions[i]));
+            }
+        }
+    }
+    
+    /// Get severity string untuk display
+    /// @param severity Error severity
+    /// @return string String representation dari severity
+    function get_severity_string(ErrorSeverity severity) private pure returns (string memory) {
+        if (severity == ErrorSeverity.Info) return "INFO";
+        if (severity == ErrorSeverity.Warning) return "WARNING";
+        if (severity == ErrorSeverity.Error) return "ERROR";
+        if (severity == ErrorSeverity.Fatal) return "FATAL";
+        return "UNKNOWN";
+    }
+    
+    /// Get ANSI color code untuk severity
+    /// @param severity Error severity
+    /// @return string ANSI color code
+    function get_color_code(ErrorSeverity severity) private pure returns (string memory) {
+        if (severity == ErrorSeverity.Info) return "\033[36m";      // Cyan
+        if (severity == ErrorSeverity.Warning) return "\033[33m";   // Yellow
+        if (severity == ErrorSeverity.Error) return "\033[31m";     // Red
+        if (severity == ErrorSeverity.Fatal) return "\033[35m";     // Magenta
+        return "";
+    }
+    
+    /// Set report format
+    /// @param new_format Format baru untuk reporting
+    function set_format(ReportFormat new_format) public {
+        format = new_format;
+    }
+    
+    /// Enable/disable colored output
+    /// @param enabled True untuk enable colors
+    function set_colored_output(bool enabled) public {
+        colored_output = enabled;
+    }
+}
+
+/// Error recovery system untuk handling dan recovery dari errors
+/// Implementasi berbagai recovery strategies
+blockchain ErrorRecovery {
+    state {
+        mapping(ErrorType => ErrorRecoveryStrategy) strategies; // Recovery strategies per error type
+        uint256 max_recovery_attempts;                          // Maximum recovery attempts
+        uint256 current_recovery_attempts;                      // Current attempt count
+    }
+    
+    /// Constructor dengan default recovery strategies
+    constructor() {
+        max_recovery_attempts = 3;
+        current_recovery_attempts = 0;
+        initialize_default_strategies();
+    }
+    
+    /// Initialize default recovery strategies untuk common errors
+    function initialize_default_strategies() private {
+        strategies[ErrorType.UnexpectedToken] = ErrorRecoveryStrategy.SkipToSemicolon;
+        strategies[ErrorType.MissingToken] = ErrorRecoveryStrategy.InsertToken;
+        strategies[ErrorType.MismatchedBraces] = ErrorRecoveryStrategy.BalanceBraces;
+        strategies[ErrorType.UndefinedSymbol] = ErrorRecoveryStrategy.SuggestSimilar;
+        strategies[ErrorType.TypeMismatch] = ErrorRecoveryStrategy.TypeCoercion;
+    }
+    
+    /// Attempt error recovery dengan given strategy
+    /// @param error Error yang akan di-recover
+    /// @param strategy Recovery strategy yang akan digunakan
+    /// @return bool True jika recovery berhasil
+    function attempt_recovery(OmegaError error, ErrorRecoveryStrategy strategy) public returns (bool) {
+        if (current_recovery_attempts >= max_recovery_attempts) {
+            return false;  // Too many recovery attempts
+        }
+        
+        current_recovery_attempts++;
+        
+        bool success = false;
+        
+        if (strategy == ErrorRecoveryStrategy.SkipToSemicolon) {
+            success = skip_to_semicolon_recovery(error);
+        } else if (strategy == ErrorRecoveryStrategy.InsertToken) {
+            success = insert_token_recovery(error);
+        } else if (strategy == ErrorRecoveryStrategy.BalanceBraces) {
+            success = balance_braces_recovery(error);
+        } else if (strategy == ErrorRecoveryStrategy.SuggestSimilar) {
+            success = suggest_similar_recovery(error);
+        } else if (strategy == ErrorRecoveryStrategy.TypeCoercion) {
+            success = type_coercion_recovery(error);
+        }
+        
+        if (success) {
+            current_recovery_attempts = 0;  // Reset counter pada successful recovery
+        }
+        
+        return success;
+    }
+    
+    /// Panic mode recovery untuk severe errors
+    /// @param trigger_error Error yang menyebabkan panic mode
+    /// @return bool True jika panic recovery berhasil
+    function panic_recovery(OmegaError trigger_error) public returns (bool) {
+        // Implement panic mode recovery logic
+        // Skip tokens until synchronization point
+        return skip_to_synchronization_point(trigger_error);
+    }
+    
+    /// Get recovery strategy untuk error type
+    /// @param error_type Type dari error
+    /// @return ErrorRecoveryStrategy Strategy untuk error type tersebut
+    function get_strategy(ErrorType error_type) public view returns (ErrorRecoveryStrategy) {
+        return strategies[error_type];
+    }
+    
+    // Recovery strategy implementations
+    function skip_to_semicolon_recovery(OmegaError error) private returns (bool) {
+        // Implementation untuk skip to semicolon
+        return true;  // Placeholder
+    }
+    
+    function insert_token_recovery(OmegaError error) private returns (bool) {
+        // Implementation untuk insert missing token
+        return true;  // Placeholder
+    }
+    
+    function balance_braces_recovery(OmegaError error) private returns (bool) {
+        // Implementation untuk balance braces
+        return true;  // Placeholder
+    }
+    
+    function suggest_similar_recovery(OmegaError error) private returns (bool) {
+        // Implementation untuk suggest similar symbols
+        return false;  // Suggestion only, tidak recovery
+    }
+    
+    function type_coercion_recovery(OmegaError error) private returns (bool) {
+        // Implementation untuk type coercion
+        return true;  // Placeholder
+    }
+    
+    function skip_to_synchronization_point(OmegaError error) private returns (bool) {
+        // Implementation untuk panic mode recovery
+        return true;  // Placeholder
+    }
+}
+
+/// Enum untuk recovery strategies
+enum ErrorRecoveryStrategy {
+    None,               // No recovery attempted
+    SkipToSemicolon,    // Skip tokens until semicolon
+    InsertToken,        // Insert missing token
+    BalanceBraces,      // Balance unmatched braces
+    SuggestSimilar,     // Suggest similar symbols
+    TypeCoercion,       // Attempt type coercion
+    Synchronize         // Synchronize to known state
+}
+
+/// Enum untuk report formats
+enum ReportFormat {
+    Console,    // Console text output
+    JSON,       // JSON format
+    XML,        // XML format
+    HTML        // HTML format
+}
+
+// Events untuk error reporting
+event ErrorReported(string formatted_error);
+event ErrorSuggestion(string suggestion);
+event FatalError(string message, string file, uint256 line);
+event PanicModeEntered(string trigger_message);
+event PanicModeExited();
+
+// Utility functions
+function uint_to_string(uint256 value) private pure returns (string memory) {
+    if (value == 0) {
+        return "0";
+    }
+    
+    uint256 temp = value;
+    uint256 digits;
+    
+    while (temp != 0) {
+        digits++;
+        temp /= 10;
+    }
+    
+    bytes memory buffer = new bytes(digits);
+    
+    while (value != 0) {
+        digits -= 1;
+        buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+        value /= 10;
+    }
+    
+    return string(buffer);
+}

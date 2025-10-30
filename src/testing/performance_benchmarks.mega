@@ -1,0 +1,946 @@
+// OMEGA Performance Benchmarking System - Written in MEGA
+// Comprehensive benchmarking untuk compiler performance, memory usage, dan optimization effectiveness
+// Mendukung regression testing dan performance tracking over time
+
+/// Main performance benchmarking blockchain
+/// Mengorganisir dan menjalankan berbagai benchmark tests
+blockchain OmegaPerformanceBenchmarks {
+    state {
+        BenchmarkSuite compilation_benchmarks;
+        BenchmarkSuite runtime_benchmarks;
+        BenchmarkSuite memory_benchmarks;
+        BenchmarkSuite optimization_benchmarks;
+        BenchmarkSuite regression_benchmarks;
+        
+        BenchmarkConfig config;
+        BenchmarkResults historical_results;
+        PerformanceMetrics baseline_metrics;
+    }
+    
+    /// Constructor untuk setup benchmark environment
+    constructor() {
+        config = BenchmarkConfig::default();
+        setup_compilation_benchmarks();
+        setup_runtime_benchmarks();
+        setup_memory_benchmarks();
+        setup_optimization_benchmarks();
+        setup_regression_benchmarks();
+        load_baseline_metrics();
+    }
+    
+    /// Run semua performance benchmarks
+    /// @return BenchmarkResults Comprehensive benchmark results
+    function run_all_benchmarks() public returns (BenchmarkResults) {
+        BenchmarkResults results = BenchmarkResults::new();
+        
+        // Warm up system
+        warmup_system();
+        
+        // Run benchmark suites
+        results.add_suite_result("compilation", run_compilation_benchmarks());
+        results.add_suite_result("runtime", run_runtime_benchmarks());
+        results.add_suite_result("memory", run_memory_benchmarks());
+        results.add_suite_result("optimization", run_optimization_benchmarks());
+        results.add_suite_result("regression", run_regression_benchmarks());
+        
+        // Analyze results dan detect regressions
+        analyze_performance_regressions(results);
+        
+        // Update historical data
+        update_historical_results(results);
+        
+        return results;
+    }
+    
+    /// Setup compilation performance benchmarks
+    function setup_compilation_benchmarks() public {
+        compilation_benchmarks = BenchmarkSuite::new("Compilation Performance");
+        
+        // Small file compilation
+        compilation_benchmarks.add_benchmark(create_small_file_compilation_benchmark());
+        
+        // Medium complexity compilation
+        compilation_benchmarks.add_benchmark(create_medium_complexity_compilation_benchmark());
+        
+        // Large project compilation
+        compilation_benchmarks.add_benchmark(create_large_project_compilation_benchmark());
+        
+        // Multi-target compilation
+        compilation_benchmarks.add_benchmark(create_multi_target_compilation_benchmark());
+        
+        // Incremental compilation
+        compilation_benchmarks.add_benchmark(create_incremental_compilation_benchmark());
+        
+        // Parallel compilation
+        compilation_benchmarks.add_benchmark(create_parallel_compilation_benchmark());
+        
+        // Cold vs warm compilation
+        compilation_benchmarks.add_benchmark(create_cold_warm_compilation_benchmark());
+    }
+    
+    /// Setup runtime performance benchmarks
+    function setup_runtime_benchmarks() public {
+        runtime_benchmarks = BenchmarkSuite::new("Runtime Performance");
+        
+        // Basic operations
+        runtime_benchmarks.add_benchmark(create_basic_operations_benchmark());
+        
+        // Complex calculations
+        runtime_benchmarks.add_benchmark(create_complex_calculations_benchmark());
+        
+        // Memory allocation/deallocation
+        runtime_benchmarks.add_benchmark(create_memory_operations_benchmark());
+        
+        // Cross-chain operations
+        runtime_benchmarks.add_benchmark(create_cross_chain_benchmark());
+        
+        // State management
+        runtime_benchmarks.add_benchmark(create_state_management_benchmark());
+        
+        // Gas optimization
+        runtime_benchmarks.add_benchmark(create_gas_optimization_benchmark());
+    }
+    
+    /// Setup memory usage benchmarks
+    function setup_memory_benchmarks() public {
+        memory_benchmarks = BenchmarkSuite::new("Memory Performance");
+        
+        // Compilation memory usage
+        memory_benchmarks.add_benchmark(create_compilation_memory_benchmark());
+        
+        // Runtime memory usage
+        memory_benchmarks.add_benchmark(create_runtime_memory_benchmark());
+        
+        // Memory leak detection
+        memory_benchmarks.add_benchmark(create_memory_leak_benchmark());
+        
+        // Peak memory usage
+        memory_benchmarks.add_benchmark(create_peak_memory_benchmark());
+        
+        // Memory fragmentation
+        memory_benchmarks.add_benchmark(create_memory_fragmentation_benchmark());
+    }
+    
+    /// Setup optimization effectiveness benchmarks
+    function setup_optimization_benchmarks() public {
+        optimization_benchmarks = BenchmarkSuite::new("Optimization Performance");
+        
+        // Constant folding effectiveness
+        optimization_benchmarks.add_benchmark(create_constant_folding_benchmark());
+        
+        // Dead code elimination
+        optimization_benchmarks.add_benchmark(create_dead_code_elimination_benchmark());
+        
+        // Loop optimization
+        optimization_benchmarks.add_benchmark(create_loop_optimization_benchmark());
+        
+        // Function inlining
+        optimization_benchmarks.add_benchmark(create_function_inlining_benchmark());
+        
+        // Register allocation
+        optimization_benchmarks.add_benchmark(create_register_allocation_benchmark());
+        
+        // Instruction scheduling
+        optimization_benchmarks.add_benchmark(create_instruction_scheduling_benchmark());
+    }
+    
+    /// Setup regression testing benchmarks
+    function setup_regression_benchmarks() public {
+        regression_benchmarks = BenchmarkSuite::new("Regression Testing");
+        
+        // Historical performance comparison
+        regression_benchmarks.add_benchmark(create_historical_comparison_benchmark());
+        
+        // Version-to-version comparison
+        regression_benchmarks.add_benchmark(create_version_comparison_benchmark());
+        
+        // Feature impact analysis
+        regression_benchmarks.add_benchmark(create_feature_impact_benchmark());
+    }
+    
+    // ========== COMPILATION BENCHMARKS ==========
+    
+    /// Benchmark untuk small file compilation
+    function create_small_file_compilation_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Small File Compilation");
+        benchmark.description = "Measure compilation time for small OMEGA files (< 100 lines)";
+        benchmark.category = BenchmarkCategory::Compilation;
+        
+        // Test data: simple token contract
+        benchmark.test_data = `
+            blockchain SimpleToken {
+                state {
+                    mapping(address => uint256) balances;
+                    uint256 totalSupply;
+                }
+                
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    require(balances[msg.sender] >= amount);
+                    balances[msg.sender] -= amount;
+                    balances[to] += amount;
+                    return true;
+                }
+            }
+        `;
+        
+        benchmark.expected_metrics = ExpectedMetrics {
+            max_compilation_time: Duration::from_millis(500),
+            max_memory_usage: MemorySize::from_mb(50),
+            target_performance: PerformanceTarget::Fast
+        };
+        
+        return benchmark;
+    }
+    
+    /// Benchmark untuk medium complexity compilation
+    function create_medium_complexity_compilation_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Medium Complexity Compilation");
+        benchmark.description = "Measure compilation time for medium complexity files (100-1000 lines)";
+        benchmark.category = BenchmarkCategory::Compilation;
+        
+        // Test data: DeFi protocol dengan multiple contracts
+        benchmark.test_data = generate_medium_complexity_contract();
+        
+        benchmark.expected_metrics = ExpectedMetrics {
+            max_compilation_time: Duration::from_millis(2000),
+            max_memory_usage: MemorySize::from_mb(150),
+            target_performance: PerformanceTarget::Medium
+        };
+        
+        return benchmark;
+    }
+    
+    /// Benchmark untuk large project compilation
+    function create_large_project_compilation_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Large Project Compilation");
+        benchmark.description = "Measure compilation time for large projects (1000+ lines, multiple files)";
+        benchmark.category = BenchmarkCategory::Compilation;
+        
+        // Test data: complex multi-file project
+        benchmark.test_data = generate_large_project_structure();
+        
+        benchmark.expected_metrics = ExpectedMetrics {
+            max_compilation_time: Duration::from_seconds(10),
+            max_memory_usage: MemorySize::from_mb(500),
+            target_performance: PerformanceTarget::Acceptable
+        };
+        
+        return benchmark;
+    }
+    
+    /// Benchmark untuk multi-target compilation
+    function create_multi_target_compilation_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Multi-target Compilation");
+        benchmark.description = "Measure compilation time for multiple targets (EVM, Solana, WASM, Native)";
+        benchmark.category = BenchmarkCategory::Compilation;
+        
+        benchmark.test_data = generate_cross_platform_contract();
+        benchmark.targets = [CompilationTarget::EVM, CompilationTarget::Solana, CompilationTarget::WASM, CompilationTarget::Native];
+        
+        benchmark.expected_metrics = ExpectedMetrics {
+            max_compilation_time: Duration::from_seconds(15),
+            max_memory_usage: MemorySize::from_mb(300),
+            target_performance: PerformanceTarget::Medium
+        };
+        
+        return benchmark;
+    }
+    
+    // ========== RUNTIME BENCHMARKS ==========
+    
+    /// Benchmark untuk basic operations
+    function create_basic_operations_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Basic Operations Performance");
+        benchmark.description = "Measure performance of basic arithmetic and logical operations";
+        benchmark.category = BenchmarkCategory::Runtime;
+        
+        benchmark.test_function = "benchmark_basic_operations";
+        benchmark.iterations = 1000000;
+        
+        benchmark.expected_metrics = ExpectedMetrics {
+            max_execution_time: Duration::from_micros(100),
+            max_memory_usage: MemorySize::from_kb(10),
+            target_performance: PerformanceTarget::Fast
+        };
+        
+        return benchmark;
+    }
+    
+    /// Benchmark untuk complex calculations
+    function create_complex_calculations_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Complex Calculations Performance");
+        benchmark.description = "Measure performance of complex mathematical operations";
+        benchmark.category = BenchmarkCategory::Runtime;
+        
+        benchmark.test_function = "benchmark_complex_calculations";
+        benchmark.iterations = 10000;
+        
+        benchmark.expected_metrics = ExpectedMetrics {
+            max_execution_time: Duration::from_millis(10),
+            max_memory_usage: MemorySize::from_kb(100),
+            target_performance: PerformanceTarget::Medium
+        };
+        
+        return benchmark;
+    }
+    
+    // ========== MEMORY BENCHMARKS ==========
+    
+    /// Benchmark untuk compilation memory usage
+    function create_compilation_memory_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Compilation Memory Usage");
+        benchmark.description = "Measure memory consumption during compilation";
+        benchmark.category = BenchmarkCategory::Memory;
+        
+        benchmark.test_data = generate_memory_intensive_contract();
+        benchmark.memory_tracking = true;
+        
+        benchmark.expected_metrics = ExpectedMetrics {
+            max_memory_usage: MemorySize::from_mb(200),
+            max_peak_memory: MemorySize::from_mb(250),
+            target_performance: PerformanceTarget::Efficient
+        };
+        
+        return benchmark;
+    }
+    
+    /// Benchmark untuk memory leak detection
+    function create_memory_leak_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Memory Leak Detection");
+        benchmark.description = "Detect memory leaks during repeated compilations";
+        benchmark.category = BenchmarkCategory::Memory;
+        
+        benchmark.test_function = "benchmark_memory_leaks";
+        benchmark.iterations = 100;
+        benchmark.memory_tracking = true;
+        benchmark.leak_detection = true;
+        
+        return benchmark;
+    }
+    
+    // ========== OPTIMIZATION BENCHMARKS ==========
+    
+    /// Benchmark untuk constant folding effectiveness
+    function create_constant_folding_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Constant Folding Optimization");
+        benchmark.description = "Measure effectiveness of constant folding optimization";
+        benchmark.category = BenchmarkCategory::Optimization;
+        
+        benchmark.test_data = `
+            function constantExpressions() public pure returns (uint256) {
+                uint256 a = 2 + 3 * 4;           // Should fold to 14
+                uint256 b = (10 - 5) ** 2;       // Should fold to 25
+                bool c = true && (false || true); // Should fold to true
+                return a + b + (c ? 1 : 0);       // Should fold to 40
+            }
+        `;
+        
+        benchmark.optimization_level = OptimizationLevel::Aggressive;
+        
+        return benchmark;
+    }
+    
+    /// Benchmark untuk dead code elimination
+    function create_dead_code_elimination_benchmark() public returns (Benchmark) {
+        Benchmark benchmark = Benchmark::new("Dead Code Elimination");
+        benchmark.description = "Measure effectiveness of dead code elimination";
+        benchmark.category = BenchmarkCategory::Optimization;
+        
+        benchmark.test_data = `
+            function deadCodeExample() public returns (uint256) {
+                uint256 x = 42;
+                uint256 y = 100;  // Dead code - y is never used
+                
+                if (false) {      // Dead code - condition is always false
+                    return y;
+                }
+                
+                return x;
+            }
+        `;
+        
+        benchmark.optimization_level = OptimizationLevel::Aggressive;
+        
+        return benchmark;
+    }
+    
+    // ========== BENCHMARK EXECUTION ==========
+    
+    /// Run compilation benchmarks
+    function run_compilation_benchmarks() public returns (BenchmarkSuiteResult) {
+        return BenchmarkRunner::execute_suite(compilation_benchmarks, config);
+    }
+    
+    /// Run runtime benchmarks
+    function run_runtime_benchmarks() public returns (BenchmarkSuiteResult) {
+        return BenchmarkRunner::execute_suite(runtime_benchmarks, config);
+    }
+    
+    /// Run memory benchmarks
+    function run_memory_benchmarks() public returns (BenchmarkSuiteResult) {
+        return BenchmarkRunner::execute_suite(memory_benchmarks, config);
+    }
+    
+    /// Run optimization benchmarks
+    function run_optimization_benchmarks() public returns (BenchmarkSuiteResult) {
+        return BenchmarkRunner::execute_suite(optimization_benchmarks, config);
+    }
+    
+    /// Run regression benchmarks
+    function run_regression_benchmarks() public returns (BenchmarkSuiteResult) {
+        return BenchmarkRunner::execute_suite(regression_benchmarks, config);
+    }
+    
+    /// Warm up system untuk consistent benchmarking
+    function warmup_system() public {
+        // Compile small test case multiple times untuk warm up caches
+        string warmup_code = `
+            blockchain WarmupContract {
+                function test() public pure returns (uint256) {
+                    return 42;
+                }
+            }
+        `;
+        
+        for (uint256 i = 0; i < 10; i++) {
+            OmegaCompiler::compile(warmup_code, CompilationTarget::EVM);
+        }
+    }
+    
+    /// Analyze performance regressions
+    function analyze_performance_regressions(BenchmarkResults results) public {
+        foreach (suite_name, suite_result in results.suite_results) {
+            foreach (benchmark_result in suite_result.benchmark_results) {
+                // Compare dengan baseline metrics
+                PerformanceComparison comparison = compare_with_baseline(
+                    benchmark_result.name,
+                    benchmark_result.metrics
+                );
+                
+                if (comparison.is_regression) {
+                    benchmark_result.add_warning(
+                        "Performance regression detected: " + comparison.description
+                    );
+                    
+                    // Log regression details
+                    log_performance_regression(benchmark_result.name, comparison);
+                }
+                
+                if (comparison.is_improvement) {
+                    benchmark_result.add_note(
+                        "Performance improvement: " + comparison.description
+                    );
+                }
+            }
+        }
+    }
+    
+    /// Compare benchmark result dengan baseline
+    function compare_with_baseline(string benchmark_name, PerformanceMetrics metrics) 
+        public view returns (PerformanceComparison) {
+        
+        PerformanceComparison comparison;
+        
+        if (!baseline_metrics.has_benchmark(benchmark_name)) {
+            comparison.status = ComparisonStatus::NoBaseline;
+            return comparison;
+        }
+        
+        PerformanceMetrics baseline = baseline_metrics.get_benchmark(benchmark_name);
+        
+        // Compare compilation time
+        if (metrics.compilation_time > baseline.compilation_time * 1.1) {
+            comparison.is_regression = true;
+            comparison.description += "Compilation time increased by " + 
+                calculate_percentage_change(baseline.compilation_time, metrics.compilation_time) + "%. ";
+        } else if (metrics.compilation_time < baseline.compilation_time * 0.9) {
+            comparison.is_improvement = true;
+            comparison.description += "Compilation time improved by " + 
+                calculate_percentage_change(baseline.compilation_time, metrics.compilation_time) + "%. ";
+        }
+        
+        // Compare memory usage
+        if (metrics.memory_usage > baseline.memory_usage * 1.15) {
+            comparison.is_regression = true;
+            comparison.description += "Memory usage increased by " + 
+                calculate_percentage_change(baseline.memory_usage, metrics.memory_usage) + "%. ";
+        } else if (metrics.memory_usage < baseline.memory_usage * 0.85) {
+            comparison.is_improvement = true;
+            comparison.description += "Memory usage improved by " + 
+                calculate_percentage_change(baseline.memory_usage, metrics.memory_usage) + "%. ";
+        }
+        
+        // Compare execution time
+        if (metrics.execution_time > baseline.execution_time * 1.1) {
+            comparison.is_regression = true;
+            comparison.description += "Execution time increased by " + 
+                calculate_percentage_change(baseline.execution_time, metrics.execution_time) + "%. ";
+        } else if (metrics.execution_time < baseline.execution_time * 0.9) {
+            comparison.is_improvement = true;
+            comparison.description += "Execution time improved by " + 
+                calculate_percentage_change(baseline.execution_time, metrics.execution_time) + "%. ";
+        }
+        
+        return comparison;
+    }
+    
+    /// Calculate percentage change between two values
+    function calculate_percentage_change(uint256 baseline, uint256 current) 
+        public pure returns (string) {
+        
+        if (baseline == 0) return "N/A";
+        
+        uint256 change = current > baseline ? current - baseline : baseline - current;
+        uint256 percentage = (change * 100) / baseline;
+        
+        return percentage.toString();
+    }
+    
+    /// Update historical results
+    function update_historical_results(BenchmarkResults results) public {
+        historical_results.add_result(block.timestamp, results);
+        
+        // Keep only last 100 results untuk avoid unbounded growth
+        if (historical_results.count() > 100) {
+            historical_results.remove_oldest();
+        }
+    }
+    
+    /// Load baseline metrics dari historical data
+    function load_baseline_metrics() public {
+        if (historical_results.count() > 0) {
+            // Use average of last 10 results as baseline
+            baseline_metrics = historical_results.calculate_baseline(10);
+        } else {
+            // Set default baseline metrics
+            baseline_metrics = PerformanceMetrics::default();
+        }
+    }
+    
+    /// Log performance regression untuk investigation
+    function log_performance_regression(string benchmark_name, PerformanceComparison comparison) public {
+        emit PerformanceRegression(
+            benchmark_name,
+            comparison.description,
+            block.timestamp
+        );
+    }
+    
+    // ========== HELPER FUNCTIONS ==========
+    
+    /// Generate medium complexity contract untuk testing
+    function generate_medium_complexity_contract() public pure returns (string) {
+        return `
+            blockchain DeFiProtocol {
+                state {
+                    mapping(address => uint256) balances;
+                    mapping(address => mapping(address => uint256)) allowances;
+                    mapping(address => LiquidityPosition) positions;
+                    
+                    uint256 totalSupply;
+                    uint256 totalLiquidity;
+                    address owner;
+                }
+                
+                struct LiquidityPosition {
+                    uint256 amount;
+                    uint256 timestamp;
+                    uint256 rewards;
+                }
+                
+                constructor(uint256 _initialSupply) {
+                    totalSupply = _initialSupply;
+                    owner = msg.sender;
+                    balances[msg.sender] = _initialSupply;
+                }
+                
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    require(to != address(0), "Invalid recipient");
+                    
+                    balances[msg.sender] -= amount;
+                    balances[to] += amount;
+                    
+                    emit Transfer(msg.sender, to, amount);
+                    return true;
+                }
+                
+                function addLiquidity(uint256 amount) public {
+                    require(amount > 0, "Invalid amount");
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    
+                    balances[msg.sender] -= amount;
+                    totalLiquidity += amount;
+                    
+                    positions[msg.sender] = LiquidityPosition({
+                        amount: positions[msg.sender].amount + amount,
+                        timestamp: block.timestamp,
+                        rewards: calculateRewards(msg.sender)
+                    });
+                    
+                    emit LiquidityAdded(msg.sender, amount);
+                }
+                
+                function calculateRewards(address user) public view returns (uint256) {
+                    LiquidityPosition memory position = positions[user];
+                    if (position.amount == 0) return 0;
+                    
+                    uint256 timeElapsed = block.timestamp - position.timestamp;
+                    uint256 rewardRate = (position.amount * timeElapsed) / (365 days);
+                    
+                    return rewardRate * 5 / 100; // 5% APY
+                }
+                
+                event Transfer(address indexed from, address indexed to, uint256 value);
+                event LiquidityAdded(address indexed user, uint256 amount);
+            }
+        `;
+    }
+    
+    /// Generate large project structure untuk testing
+    function generate_large_project_structure() public pure returns (string) {
+        // This would generate multiple files dengan complex dependencies
+        return "/* Large project structure with multiple contracts and dependencies */";
+    }
+    
+    /// Generate cross-platform contract untuk testing
+    function generate_cross_platform_contract() public pure returns (string) {
+        return `
+            blockchain CrossPlatformContract {
+                state {
+                    mapping(address => uint256) balances;
+                    uint256 totalSupply;
+                }
+                
+                @cross_chain(target = "solana")
+                function bridgeToSolana(bytes32 recipient, uint256 amount) public {
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    balances[msg.sender] -= amount;
+                    emit TokensBridged(msg.sender, recipient, amount, "solana");
+                }
+                
+                @cross_chain(target = "ethereum")
+                function bridgeToEthereum(address recipient, uint256 amount) public {
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    balances[msg.sender] -= amount;
+                    emit TokensBridged(msg.sender, bytes32(uint256(uint160(recipient))), amount, "ethereum");
+                }
+                
+                event TokensBridged(address indexed from, bytes32 indexed to, uint256 amount, string target);
+            }
+        `;
+    }
+    
+    /// Generate memory intensive contract untuk testing
+    function generate_memory_intensive_contract() public pure returns (string) {
+        return `
+            blockchain MemoryIntensiveContract {
+                state {
+                    mapping(uint256 => bytes) largeData;
+                    uint256[][] matrix;
+                    string[] stringArray;
+                }
+                
+                function processLargeData() public {
+                    for (uint256 i = 0; i < 1000; i++) {
+                        largeData[i] = new bytes(1024); // 1KB per entry
+                        matrix.push(new uint256[](100));
+                        stringArray.push("Large string data for memory testing");
+                    }
+                }
+            }
+        `;
+    }
+    
+    // Events
+    event PerformanceRegression(string indexed benchmark, string description, uint256 timestamp);
+}
+
+// ========== SUPPORTING STRUCTURES ==========
+
+/// Benchmark configuration
+struct BenchmarkConfig {
+    uint256 warmup_iterations;
+    uint256 measurement_iterations;
+    Duration timeout;
+    bool memory_tracking;
+    bool cpu_profiling;
+    OptimizationLevel optimization_level;
+}
+
+/// Individual benchmark definition
+struct Benchmark {
+    string name;
+    string description;
+    BenchmarkCategory category;
+    string test_data;
+    string test_function;
+    uint256 iterations;
+    bool memory_tracking;
+    bool leak_detection;
+    CompilationTarget[] targets;
+    OptimizationLevel optimization_level;
+    ExpectedMetrics expected_metrics;
+}
+
+/// Benchmark suite containing multiple benchmarks
+struct BenchmarkSuite {
+    string name;
+    Benchmark[] benchmarks;
+    BenchmarkConfig config;
+}
+
+/// Expected performance metrics untuk comparison
+struct ExpectedMetrics {
+    Duration max_compilation_time;
+    Duration max_execution_time;
+    MemorySize max_memory_usage;
+    MemorySize max_peak_memory;
+    PerformanceTarget target_performance;
+}
+
+/// Actual performance metrics measured
+struct PerformanceMetrics {
+    Duration compilation_time;
+    Duration execution_time;
+    MemorySize memory_usage;
+    MemorySize peak_memory;
+    uint256 cpu_usage;
+    uint256 cache_hits;
+    uint256 cache_misses;
+}
+
+/// Benchmark result untuk individual benchmark
+struct BenchmarkResult {
+    string name;
+    BenchmarkCategory category;
+    PerformanceMetrics metrics;
+    bool success;
+    string[] warnings;
+    string[] notes;
+    Duration total_time;
+}
+
+/// Benchmark suite result
+struct BenchmarkSuiteResult {
+    string suite_name;
+    BenchmarkResult[] benchmark_results;
+    uint256 total_benchmarks;
+    uint256 successful_benchmarks;
+    uint256 failed_benchmarks;
+    Duration total_time;
+}
+
+/// Overall benchmark results
+struct BenchmarkResults {
+    mapping(string => BenchmarkSuiteResult) suite_results;
+    uint256 timestamp;
+    string version;
+    PerformanceMetrics overall_metrics;
+}
+
+/// Performance comparison result
+struct PerformanceComparison {
+    ComparisonStatus status;
+    bool is_regression;
+    bool is_improvement;
+    string description;
+}
+
+/// Historical benchmark results
+struct HistoricalResults {
+    mapping(uint256 => BenchmarkResults) results;
+    uint256[] timestamps;
+    uint256 count;
+}
+
+// ========== ENUMS ==========
+
+enum BenchmarkCategory {
+    Compilation,
+    Runtime,
+    Memory,
+    Optimization,
+    Regression
+}
+
+enum PerformanceTarget {
+    Fast,
+    Medium,
+    Acceptable,
+    Efficient
+}
+
+enum OptimizationLevel {
+    None,
+    Basic,
+    Aggressive,
+    Maximum
+}
+
+enum ComparisonStatus {
+    NoBaseline,
+    Improved,
+    Stable,
+    Regressed
+}
+
+// ========== UTILITY TYPES ==========
+
+struct Duration {
+    uint256 nanoseconds;
+    
+    function from_millis(uint256 ms) public pure returns (Duration) {
+        return Duration(ms * 1_000_000);
+    }
+    
+    function from_seconds(uint256 s) public pure returns (Duration) {
+        return Duration(s * 1_000_000_000);
+    }
+    
+    function from_micros(uint256 us) public pure returns (Duration) {
+        return Duration(us * 1_000);
+    }
+}
+
+struct MemorySize {
+    uint256 bytes;
+    
+    function from_kb(uint256 kb) public pure returns (MemorySize) {
+        return MemorySize(kb * 1024);
+    }
+    
+    function from_mb(uint256 mb) public pure returns (MemorySize) {
+        return MemorySize(mb * 1024 * 1024);
+    }
+}
+
+/// Benchmark runner untuk executing benchmarks
+library BenchmarkRunner {
+    function execute_suite(BenchmarkSuite suite, BenchmarkConfig config) 
+        public returns (BenchmarkSuiteResult) {
+        
+        BenchmarkSuiteResult result;
+        result.suite_name = suite.name;
+        result.total_benchmarks = suite.benchmarks.length;
+        
+        uint256 start_time = block.timestamp;
+        
+        for (uint256 i = 0; i < suite.benchmarks.length; i++) {
+            BenchmarkResult benchmark_result = execute_benchmark(suite.benchmarks[i], config);
+            result.benchmark_results.push(benchmark_result);
+            
+            if (benchmark_result.success) {
+                result.successful_benchmarks++;
+            } else {
+                result.failed_benchmarks++;
+            }
+        }
+        
+        result.total_time = Duration::from_seconds(block.timestamp - start_time);
+        
+        return result;
+    }
+    
+    function execute_benchmark(Benchmark benchmark, BenchmarkConfig config) 
+        public returns (BenchmarkResult) {
+        
+        BenchmarkResult result;
+        result.name = benchmark.name;
+        result.category = benchmark.category;
+        
+        try {
+            // Execute benchmark based on category
+            if (benchmark.category == BenchmarkCategory::Compilation) {
+                result.metrics = execute_compilation_benchmark(benchmark, config);
+            } else if (benchmark.category == BenchmarkCategory::Runtime) {
+                result.metrics = execute_runtime_benchmark(benchmark, config);
+            } else if (benchmark.category == BenchmarkCategory::Memory) {
+                result.metrics = execute_memory_benchmark(benchmark, config);
+            }
+            
+            result.success = true;
+        } catch (string memory error) {
+            result.success = false;
+            result.warnings.push("Benchmark failed: " + error);
+        }
+        
+        return result;
+    }
+    
+    function execute_compilation_benchmark(Benchmark benchmark, BenchmarkConfig config) 
+        public returns (PerformanceMetrics) {
+        
+        PerformanceMetrics metrics;
+        
+        uint256 start_time = block.timestamp;
+        uint256 start_memory = get_memory_usage();
+        
+        // Compile test data
+        for (uint256 i = 0; i < config.measurement_iterations; i++) {
+            OmegaCompiler::compile(benchmark.test_data, CompilationTarget::EVM);
+        }
+        
+        uint256 end_time = block.timestamp;
+        uint256 end_memory = get_memory_usage();
+        
+        metrics.compilation_time = Duration::from_seconds((end_time - start_time) / config.measurement_iterations);
+        metrics.memory_usage = MemorySize(end_memory - start_memory);
+        
+        return metrics;
+    }
+    
+    function execute_runtime_benchmark(Benchmark benchmark, BenchmarkConfig config) 
+        public returns (PerformanceMetrics) {
+        
+        PerformanceMetrics metrics;
+        
+        // Execute runtime benchmark
+        uint256 start_time = block.timestamp;
+        
+        for (uint256 i = 0; i < benchmark.iterations; i++) {
+            // Execute test function
+            execute_test_function(benchmark.test_function);
+        }
+        
+        uint256 end_time = block.timestamp;
+        
+        metrics.execution_time = Duration::from_seconds((end_time - start_time) / benchmark.iterations);
+        
+        return metrics;
+    }
+    
+    function execute_memory_benchmark(Benchmark benchmark, BenchmarkConfig config) 
+        public returns (PerformanceMetrics) {
+        
+        PerformanceMetrics metrics;
+        
+        uint256 start_memory = get_memory_usage();
+        uint256 peak_memory = start_memory;
+        
+        // Execute memory-intensive operations
+        OmegaCompiler::compile(benchmark.test_data, CompilationTarget::EVM);
+        
+        uint256 current_memory = get_memory_usage();
+        if (current_memory > peak_memory) {
+            peak_memory = current_memory;
+        }
+        
+        uint256 end_memory = get_memory_usage();
+        
+        metrics.memory_usage = MemorySize(end_memory - start_memory);
+        metrics.peak_memory = MemorySize(peak_memory - start_memory);
+        
+        return metrics;
+    }
+    
+    function get_memory_usage() public view returns (uint256) {
+        // Platform-specific memory usage implementation
+        return 0; // Placeholder
+    }
+    
+    function execute_test_function(string memory function_name) public {
+        // Execute specific test function
+        // Implementation depends on function name
+    }
+}

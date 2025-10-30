@@ -1,0 +1,116 @@
+{
+  "overall_score": 24.0,
+  "code_documentation": null,
+  "deployment_approved": false,
+  "timestamp": "2025-10-30 18:44:06",
+  "documentation_quality": [
+    {
+      "character_count": 11557,
+      "has_title": true,
+      "section_count": 1,
+      "line_count": 445,
+      "quality_score": 70,
+      "has_examples": true,
+      "has_toc": true,
+      "path": "LANGUAGE_SPECIFICATION.md",
+      "code_block_count": 15.5,
+      "word_count": 1235,
+      "has_links": false,
+      "name": "LANGUAGE_SPECIFICATION.md"
+    },
+    {
+      "character_count": 13889,
+      "has_title": true,
+      "section_count": 1,
+      "line_count": 562,
+      "quality_score": 85,
+      "has_examples": true,
+      "has_toc": true,
+      "path": "docs/getting-started.md",
+      "code_block_count": 21.5,
+      "word_count": 1628,
+      "has_links": true,
+      "name": "docs/getting-started.md"
+    },
+    {
+      "character_count": 17354,
+      "has_title": true,
+      "section_count": 1,
+      "line_count": 672,
+      "quality_score": 70,
+      "has_examples": true,
+      "has_toc": false,
+      "path": "COMPILER_ARCHITECTURE.md",
+      "code_block_count": 13.5,
+      "word_count": 1608,
+      "has_links": false,
+      "name": "COMPILER_ARCHITECTURE.md"
+    }
+  ],
+  "grade": "F",
+  "project_root": "R:\\OMEGA",
+  "missing_documentation": [
+    {
+      "name": "CONTRIBUTING.md",
+      "critical": false,
+      "exists": false,
+      "description": "Contribution guidelines",
+      "path": "CONTRIBUTING.md"
+    },
+    {
+      "name": "README.md",
+      "critical": true,
+      "exists": false,
+      "description": "Main project documentation",
+      "path": "README.md"
+    },
+    {
+      "name": "LICENSE",
+      "critical": true,
+      "exists": false,
+      "description": "Project license",
+      "path": "LICENSE"
+    },
+    {
+      "name": "docs/examples/",
+      "critical": false,
+      "exists": false,
+      "description": "Code examples directory",
+      "path": "docs/examples"
+    }
+  ],
+  "recommendations": [
+    "Create missing critical documentation files",
+    "Add comprehensive documentation for better user experience",
+    "Add more inline documentation comments to code"
+  ],
+  "documentation_files": [
+    {
+      "path": "LANGUAGE_SPECIFICATION.md",
+      "name": "LANGUAGE_SPECIFICATION.md",
+      "exists": true,
+      "size": 11557,
+      "last_modified": "2025-10-30T04:46:55.3861538+07:00",
+      "description": "OMEGA language specification",
+      "critical": true
+    },
+    {
+      "path": "docs/getting-started.md",
+      "name": "docs/getting-started.md",
+      "exists": true,
+      "size": 14003,
+      "last_modified": "2025-10-30T18:07:32.9649103+07:00",
+      "description": "Getting started guide",
+      "critical": false
+    },
+    {
+      "path": "COMPILER_ARCHITECTURE.md",
+      "name": "COMPILER_ARCHITECTURE.md",
+      "exists": true,
+      "size": 17826,
+      "last_modified": "2025-10-30T18:07:24.9632937+07:00",
+      "description": "Compiler architecture documentation",
+      "critical": true
+    }
+  ]
+}

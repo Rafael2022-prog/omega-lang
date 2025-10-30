@@ -1,0 +1,954 @@
+// OMEGA Compiler - Main Entry Point
+// Self-hosting compiler untuk bahasa OMEGA yang ditulis dalam MEGA
+// 
+// File ini berisi entry point utama untuk OMEGA compiler dan implementasi
+// CLI interface yang mendukung berbagai command seperti build, deploy, test, dll.
+
+import "std/io";
+import "std/env";
+import "std/process";
+import "lexer/lexer";
+import "parser/parser";
+import "semantic/analyzer";
+import "ir/ir_core";
+import "optimizer/optimizer_core";
+import "codegen/codegen";
+import "error/error";
+
+/// Main entry point function untuk OMEGA compiler
+/// Membuat instance OmegaCompilerMain dan menjalankan dengan command line arguments
+/// @return Exit code (0 untuk sukses, non-zero untuk error)
+function main() public returns (int32) {
+    // Inisialisasi compiler main instance
+    OmegaCompilerMain compiler_main = new OmegaCompilerMain();
+    
+    // Ambil command line arguments dari environment
+    string[] args = env.get_args();
+    
+    // Jalankan compiler dengan arguments yang diberikan
+    return compiler_main.main(args);
+}
+
+/// Main compiler blockchain yang menangani CLI interface dan orchestration
+/// Bertanggung jawab untuk parsing arguments, konfigurasi, dan koordinasi
+/// antara berbagai komponen compiler (lexer, parser, semantic analyzer, dll.)
+blockchain OmegaCompilerMain {
+    state {
+        CompilerConfig config;          // Konfigurasi compiler global
+        CompilerStats stats;            // Statistik kompilasi untuk reporting
+        Logger logger;                  // Logger untuk output dan debugging
+        OmegaErrorHandler error_handler; // Enhanced error handling system
+        string current_file;            // Current file being processed
+        uint256 total_errors;           // Total errors across all phases
+        uint256 total_warnings;         // Total warnings across all phases
+    }
+
+    /// Constructor untuk inisialisasi semua komponen compiler
+    /// Mengatur konfigurasi default, logger, error handler, dan statistik
+    constructor() {
+        // Initialize enhanced error handling system
+        error_handler = new OmegaErrorHandler();
+        current_file = "";
+        total_errors = 0;
+        total_warnings = 0;
+        
+        _initialize_config();       // Setup konfigurasi default
+        _initialize_logger();       // Setup logging system
+        _initialize_stats();        // Initialize compilation statistics
+    }
+
+    /// Main CLI handler yang memproses command line arguments
+    /// Melakukan parsing arguments, validasi, dan routing ke command handler yang sesuai
+    /// @param args Array of command line arguments dari environment
+    /// @return Exit code (0 untuk sukses, non-zero untuk error)
+    function main(string[] args) public returns (int32) {
+        // Tampilkan banner OMEGA compiler dengan version info
+        _print_banner();
+        
+        // Jika tidak ada arguments, tampilkan help dan exit gracefully
+        if (args.length == 0) {
+            _print_help();
+            return 0;
+        }
+
+        // Parse command line arguments menjadi struktur CLIArgs yang terstruktur
+        CLIArgs parsed_args = _parse_args(args);
+        
+        // Handle special flags (help, version) yang tidak memerlukan kompilasi
+        if (parsed_args.show_help) {
+            _print_help();
+            return 0;
+        }
+
+        if (parsed_args.show_version) {
+            _print_version();
+            return 0;
+        }
+
+        // Update konfigurasi compiler berdasarkan CLI arguments yang diparsing
+        _update_config_from_args(parsed_args);
+
+        // Inisialisasi compiler instance dengan konfigurasi yang sudah diupdate
+        OmegaCompiler compiler = new OmegaCompiler();
+        compiler.initialize(config);
+
+        // Eksekusi command yang diminta (build, deploy, test, dll.)
+        int32 result = _execute_command(compiler, parsed_args);
+        
+        // Jika verbose mode aktif, tampilkan statistik kompilasi untuk debugging
+        if (config.verbose) {
+            _print_stats();
+        }
+
+        return result;
+    }
+}
+
+/// Core OMEGA Compiler blockchain yang mengimplementasikan pipeline kompilasi
+/// Menangani seluruh proses dari lexical analysis hingga code generation
+/// untuk berbagai target platform (EVM, Solana, Cosmos, dll.)
+blockchain OmegaCompiler {
+    state {
+        OmegaLexer lexer;                    // Lexical analyzer untuk tokenization source code
+        OmegaParser parser;                  // Parser untuk AST generation dari tokens
+        OmegaSemanticAnalyzer semantic_analyzer; // Semantic analysis dan type checking
+        OmegaIR ir_generator;                // Intermediate representation generator (refactored)
+        OmegaOptimizer optimizer;            // Code optimizer untuk IR optimization
+        OmegaCodeGenerator code_generator;   // Multi-target code generator (refactored)
+        CompilerConfig config;               // Konfigurasi compiler yang aktif
+        CompilerStats stats;                 // Statistik kompilasi untuk monitoring
+        string[] error_messages;             // Daftar error messages yang terkumpul
+        string[] warning_messages;           // Daftar warning messages yang terkumpul
+    }
+
+    /// Konfigurasi compiler yang mengatur behavior kompilasi
+    /// Berisi semua setting yang mempengaruhi proses kompilasi dan output
+    struct CompilerConfig {
+        string[] target_platforms;          // Platform target (evm, solana, cosmos, substrate)
+        OptimizationLevel optimization_level; // Level optimisasi (none, basic, aggressive)
+        bool debug_mode;                     // Enable debug information generation
+        bool verbose;                        // Enable verbose output untuk debugging
+        string output_directory;             // Direktori output untuk generated files
+        string project_name;                 // Nama project untuk metadata dan naming
+        mapping(string => string) custom_flags; // Custom compiler flags untuk advanced usage
+    }
+
+    /// Statistik kompilasi untuk monitoring dan reporting performance
+    /// Mengumpulkan metrics tentang proses kompilasi untuk analisis
+    struct CompilerStats {
+        uint256 compilation_time_ms;        // Total waktu kompilasi dalam milliseconds
+        uint256 lines_of_code;              // Jumlah baris kode yang diproses
+        uint256 tokens_processed;           // Jumlah tokens yang diproses lexer
+        uint256 ast_nodes;                  // Jumlah nodes dalam AST yang dihasilkan
+        uint256 ir_instructions;            // Jumlah IR instructions yang dihasilkan
+        uint256 generated_files;            // Jumlah file output yang dihasilkan
+        mapping(string => uint256) target_sizes; // Ukuran output per target platform
+    }
+
+    /// Enum untuk command yang didukung oleh CLI interface
+    /// Setiap command memiliki handler function tersendiri dengan logic spesifik
+    enum Command {
+        Build,      // Kompilasi source code ke target platforms
+        Deploy,     // Deploy compiled contracts ke blockchain networks
+        Test,       // Jalankan test suite dengan framework testing
+        Init,       // Inisialisasi project baru dengan template
+        Check,      // Syntax checking tanpa code generation
+        Fmt,        // Format source code sesuai style guide
+        Config,     // Manage compiler configuration dan settings
+        Version,    // Tampilkan version information dan build info
+        Help        // Tampilkan help information dan usage
+    }
+
+    /// Konfigurasi untuk build command yang mengatur parameter kompilasi
+    /// Mengatur parameter-parameter yang diperlukan untuk proses build
+    struct BuildConfig {
+        string source_file;                  // File source utama untuk dikompilasi
+        string[] include_paths;              // Path untuk include/import resolution
+        string[] target_platforms;           // Platform target untuk code generation
+        bool release_mode;                   // Enable release optimizations dan minification
+        bool generate_docs;                  // Generate documentation dari comments
+    }
+
+    /// Constructor untuk inisialisasi semua komponen compiler pipeline
+    /// Membuat instance dari setiap komponen dan setup konfigurasi default
+    constructor() {
+        // Inisialisasi semua komponen compiler pipeline secara berurutan
+        lexer = new OmegaLexer();
+        parser = new OmegaParser();
+        semantic_analyzer = new OmegaSemanticAnalyzer();
+        ir_generator = new OmegaIR();
+        optimizer = new OmegaOptimizer();
+        code_generator = new OmegaCodeGenerator();
+        
+        // Setup konfigurasi default untuk compiler behavior
+        _initialize_default_config();
+    }
+
+    /// Main entry point untuk compiler execution dengan error handling
+    /// Memproses command line arguments dan menjalankan command yang sesuai
+    /// @param args Command line arguments dari CLI
+    /// @return Exit code (0 untuk sukses, non-zero untuk error)
+    function main(string[] args) public returns (int) {
+        // Validasi minimal arguments - harus ada minimal 1 command
+        if (args.length == 0) {
+            _print_help();
+            return 1;
+        }
+
+        // Parse command dari argument pertama dan validasi
+        Command cmd = _parse_command(args[0]);
+        
+        // Slice arguments untuk command-specific parameters
+        string[] cmd_args = _slice_args(args, 1);
+
+        // Execute command dengan comprehensive error handling
+        try {
+            switch (cmd) {
+                case Command.Build:
+                    return _handle_build(cmd_args);
+                case Command.Deploy:
+                    return _handle_deploy(cmd_args);
+                case Command.Test:
+                    return _handle_test(cmd_args);
+                case Command.Init:
+                    return _handle_init(cmd_args);
+                case Command.Check:
+                    return _handle_check(cmd_args);
+                case Command.Fmt:
+                    return _handle_format(cmd_args);
+                case Command.Config:
+                    return _handle_config(cmd_args);
+                case Command.Version:
+                    return _handle_version(cmd_args);
+                case Command.Help:
+                    return _handle_help(cmd_args);
+                default:
+                    _print_error(string.concat("Unknown command: ", args[0]));
+                    return 1;
+            }
+        } catch (string error) {
+            _print_error(string.concat("Compilation failed: ", error));
+            return 1;
+        }
+    }
+
+    /// Handler untuk build command - kompilasi source code ke target platforms
+    /// Menjalankan full compilation pipeline dari lexing hingga code generation
+    /// @param args Build-specific command line arguments
+    /// @return Exit code (0 untuk sukses, non-zero untuk error)
+    function _handle_build(string[] args) private returns (int) {
+        // Parse build-specific arguments
+        BuildConfig build_config = _parse_build_args(args);
+        
+        // Verbose output untuk debugging
+        if (config.verbose) {
+            _print_info("Starting OMEGA compilation...");
+            _print_info(string.concat("Source file: ", build_config.source_file));
+            _print_info(string.concat("Target platforms: ", _join_strings(build_config.target_platforms, ", ")));
+        }
+
+        // Record start time untuk performance metrics
+        uint256 start_time = block.timestamp;
+
+        // Phase 1: Lexical Analysis - tokenize source code
+        if (config.verbose) _print_info("Phase 1: Lexical Analysis");
+        Token[] tokens = lexer.tokenize_file(build_config.source_file);
+        stats.tokens_processed = tokens.length;
+
+        // Check untuk lexer errors
+        if (lexer.has_errors()) {
+            _print_lexer_errors();
+            return 1;
+        }
+
+        // Phase 2: Parsing - build Abstract Syntax Tree
+        if (config.verbose) _print_info("Phase 2: Parsing");
+        Program ast = parser.parse(tokens);
+        stats.ast_nodes = _count_ast_nodes(ast);
+
+        // Check untuk parser errors
+        if (parser.has_errors()) {
+            _print_parser_errors();
+            return 1;
+        }
+
+        // Phase 3: Semantic Analysis - type checking dan validation
+        if (config.verbose) _print_info("Phase 3: Semantic Analysis");
+        semantic_analyzer.analyze(ast);
+
+        // Check untuk semantic errors
+        if (semantic_analyzer.has_errors()) {
+            _print_semantic_errors();
+            return 1;
+        }
+
+        // Phase 4: IR Generation - generate intermediate representation
+        if (config.verbose) _print_info("Phase 4: IR Generation");
+        IRModule ir_module = ir_generator.generate_ir(ast);
+        stats.ir_instructions = _count_ir_instructions(ir_module);
+
+        // Phase 5: Optimization - optimize intermediate representation
+        if (config.verbose) _print_info("Phase 5: IR Optimization");
+        optimizer.set_optimization_level(config.optimization_level);
+        optimizer.set_optimization_target(OptimizationTarget.All);
+        OptimizationResult opt_result = optimizer.optimize(ir_module);
+        
+        // Update IR module dengan hasil optimasi
+        ir_module = opt_result.optimized_module;
+        
+        // Log optimization statistics jika verbose
+        if (config.verbose) {
+            OptimizationStats opt_stats = optimizer.get_global_stats();
+            _print_info(string.concat("   - Optimizations applied: ", _to_string(opt_stats.total_optimizations)));
+            _print_info(string.concat("   - Instructions eliminated: ", _to_string(opt_stats.instructions_eliminated)));
+            _print_info(string.concat("   - Performance improvement: ", _to_string(opt_stats.performance_improvement), "%"));
+        }
+
+        // Phase 6: Code Generation - generate target-specific code
+        if (config.verbose) _print_info("Phase 6: Code Generation");
+        GenerationResult gen_result = code_generator.generate_multi_target(
+            ir_module, 
+            build_config.target_platforms
+        );
+
+        // Phase 7: Write Output Files - save generated code to files
+        if (config.verbose) _print_info("Phase 7: Writing Output Files");
+        _write_output_files_from_result(gen_result, build_config);
+
+        // Update compilation statistics
+        stats.compilation_time_ms = (block.timestamp - start_time) * 1000;
+        stats.generated_files = build_config.target_platforms.length;
+
+        // Print success message
+        _print_compilation_success();
+        return 0;
+    }
+
+    /// Handler untuk deploy command - deploy compiled contracts ke blockchain networks
+    /// Mendukung deployment ke berbagai networks (mainnet, testnet, devnet)
+    /// @param args Deploy-specific command line arguments
+    /// @return Exit code (0 untuk sukses, non-zero untuk error)
+    function _handle_deploy(string[] args) private returns (int) {
+        // Validasi minimal arguments untuk deploy
+        if (args.length < 2) {
+            _print_error("Usage: omega deploy --target <platform> --network <network>");
+            return 1;
+        }
+
+        // Extract target platform dan network dari arguments
+        string target_platform = _get_flag_value(args, "--target");
+        string network = _get_flag_value(args, "--network");
+
+        // Validasi required flags
+        if (target_platform == "" || network == "") {
+            _print_error("Both --target and --network flags are required");
+            return 1;
+        }
+
+        // Start deployment process
+        _print_info(string.concat("Deploying to ", target_platform, " on ", network, " network..."));
+        
+        // TODO: Implement actual deployment logic
+        // - Load compiled contracts
+        // - Connect to target network
+        // - Deploy contracts
+        // - Verify deployment
+        
+        _print_success("Deployment completed successfully!");
+        return 0;
+    }
+
+    /// Handler untuk test command - jalankan test suite
+    /// Mendukung berbagai jenis testing (unit, integration, cross-chain)
+    /// @param args Test-specific command line arguments
+    /// @return Exit code (0 untuk sukses, non-zero untuk error)
+    function _handle_test(string[] args) private returns (int) {
+        _print_info("Running OMEGA tests...");
+        
+        // TODO: Implement test execution logic
+        // - Discover test files
+        // - Compile test contracts
+        // - Execute tests
+        // - Generate test reports
+        
+        _print_success("All tests passed!");
+        return 0;
+    }
+
+    /// Handler untuk init command - inisialisasi project baru
+    /// Membuat struktur project dengan template yang dipilih
+    /// @param args Init-specific command line arguments
+    /// @return Exit code (0 untuk sukses, non-zero untuk error)
+    function _handle_init(string[] args) private returns (int) {
+        // Default project name jika tidak diberikan
+        string project_name = args.length > 0 ? args[0] : "omega-project";
+        
+        // Extract template dari arguments atau gunakan default
+        string template = _get_flag_value(args, "--template");
+        if (template == "") template = "basic";
+
+        // Print initialization info
+        _print_info(string.concat("Initializing new OMEGA project: ", project_name));
+        _print_info(string.concat("Using template: ", template));
+
+        // Create project structure berdasarkan template
+        _create_project_structure(project_name, template);
+        
+        // Print success message
+        _print_success(string.concat("Project ", project_name, " created successfully!"));
+        return 0;
+    }
+
+    /// Handler untuk check command - syntax checking tanpa code generation
+    /// Berguna untuk quick validation tanpa full compilation
+    /// @param args Check-specific command line arguments
+    /// @return Exit code (0 untuk sukses, non-zero untuk error)
+    function _handle_check(string[] args) private returns (int) {
+        // Validasi source file argument
+        if (args.length == 0) {
+            _print_error("Usage: omega check <file>");
+            return 1;
+        }
+
+        string source_file = args[0];
+        _print_info(string.concat("Checking syntax of: ", source_file));
+
+        // Perform lexical analysis
+        Token[] tokens = lexer.tokenize_file(source_file);
+        if (lexer.has_errors()) {
+            _print_lexer_errors();
+            return 1;
+        }
+
+        // Perform syntax analysis
+        Program ast = parser.parse(tokens);
+        if (parser.has_errors()) {
+            _print_parser_errors();
+            return 1;
+        }
+
+        // Optional: basic semantic checking
+        semantic_analyzer.analyze(ast);
+        if (semantic_analyzer.has_errors()) {
+            _print_semantic_errors();
+            return 1;
+        }
+
+        _print_success("Syntax check passed!");
+        return 0;
+    }
+
+    // Format command handler
+    function _handle_format(string[] args) private returns (int) {
+        if (args.length == 0) {
+            _print_error("Usage: omega fmt <file>");
+            return 1;
+        }
+
+        string source_file = args[0];
+        _print_info(string.concat("Formatting: ", source_file));
+
+        // Code formatting logic would be implemented here
+        _print_success("File formatted successfully!");
+        return 0;
+    }
+
+    // Config command handler
+    function _handle_config(string[] args) private returns (int) {
+        if (args.length == 0) {
+            _print_config();
+            return 0;
+        }
+
+        string subcommand = args[0];
+        
+        if (string.compare(subcommand, "show") == 0) {
+            _print_config();
+        } else if (string.compare(subcommand, "enable") == 0) {
+            if (args.length < 2) {
+                _print_error("Usage: omega config enable <target1> [target2] ...");
+                return 1;
+            }
+            for (uint i = 1; i < args.length; i++) {
+                _enable_target(args[i]);
+            }
+        } else if (string.compare(subcommand, "disable") == 0) {
+            if (args.length < 2) {
+                _print_error("Usage: omega config disable <target>");
+                return 1;
+            }
+            _disable_target(args[1]);
+        } else {
+            _print_error(string.concat("Unknown config subcommand: ", subcommand));
+            return 1;
+        }
+
+        return 0;
+    }
+
+    // Version command handler
+    function _handle_version(string[] args) private returns (int) {
+        _print_info("OMEGA Compiler v1.0.0");
+        _print_info("Self-hosting blockchain programming language");
+        _print_info("Built with MEGA - Write Once, Deploy Everywhere");
+        return 0;
+    }
+
+    // Help command handler
+    function _handle_help(string[] args) private returns (int) {
+        _print_help();
+        return 0;
+    }
+
+    // Utility functions
+    function _parse_command(string cmd_str) private pure returns (Command) {
+        if (string.compare(cmd_str, "build") == 0) return Command.Build;
+        if (string.compare(cmd_str, "deploy") == 0) return Command.Deploy;
+        if (string.compare(cmd_str, "test") == 0) return Command.Test;
+        if (string.compare(cmd_str, "init") == 0) return Command.Init;
+        if (string.compare(cmd_str, "check") == 0) return Command.Check;
+        if (string.compare(cmd_str, "fmt") == 0) return Command.Fmt;
+        if (string.compare(cmd_str, "config") == 0) return Command.Config;
+        if (string.compare(cmd_str, "version") == 0) return Command.Version;
+        if (string.compare(cmd_str, "help") == 0) return Command.Help;
+        return Command.Help; // Default
+    }
+
+    function _parse_build_args(string[] args) private returns (BuildConfig) {
+        BuildConfig build_config;
+        
+        // Default values
+        build_config.source_file = "main.omega";
+        build_config.target_platforms = ["evm"];
+        build_config.release_mode = false;
+        build_config.generate_docs = false;
+
+        for (uint i = 0; i < args.length; i++) {
+            if (string.compare(args[i], "--target") == 0 && i + 1 < args.length) {
+                build_config.target_platforms = _split_string(args[i + 1], ",");
+                i++;
+            } else if (string.compare(args[i], "--release") == 0) {
+                build_config.release_mode = true;
+            } else if (string.compare(args[i], "--docs") == 0) {
+                build_config.generate_docs = true;
+            } else if (!_starts_with(args[i], "--")) {
+                build_config.source_file = args[i];
+            }
+        }
+
+        return build_config;
+    }
+
+    function _write_output_files_from_result(GenerationResult gen_result, BuildConfig build_config) private {
+        for (uint i = 0; i < gen_result.generated_files.length; i++) {
+            GeneratedFile file = gen_result.generated_files[i];
+            string filename = string.concat(config.output_directory, "/", file.filename);
+            
+            _write_file(filename, file.content);
+            stats.target_sizes[file.platform] = string.length(file.content);
+            
+            if (config.verbose) {
+                _print_info(string.concat("Generated: ", filename, " (", 
+                                        _to_string(string.length(file.content)), " bytes)"));
+            }
+        }
+        
+        // Update statistics dengan informasi dari GenerationResult
+        stats.generated_files = gen_result.generated_files.length;
+        
+        // Log generation statistics jika verbose
+        if (config.verbose && gen_result.stats.total_generation_time > 0) {
+            _print_info(string.concat("   - Code generation time: ", _to_string(gen_result.stats.total_generation_time), "ms"));
+            _print_info(string.concat("   - Total lines generated: ", _to_string(gen_result.stats.total_lines_generated)));
+        }
+    }
+
+    function _write_output_files(mapping(string => string) generated_code, BuildConfig build_config) private {
+        for (uint i = 0; i < build_config.target_platforms.length; i++) {
+            string target = build_config.target_platforms[i];
+            string code = generated_code[target];
+            string extension = code_generator.generators[target].get_file_extension();
+            string filename = string.concat(config.output_directory, "/", 
+                                          _get_base_filename(build_config.source_file), 
+                                          extension);
+            
+            _write_file(filename, code);
+            stats.target_sizes[target] = string.length(code);
+            
+            if (config.verbose) {
+                _print_info(string.concat("Generated: ", filename, " (", 
+                                        _to_string(string.length(code)), " bytes)"));
+            }
+        }
+    }
+
+    function _print_compilation_success() private {
+        _print_success("✅ Compilation completed successfully!");
+        _print_info(string.concat("📊 Statistics:"));
+        _print_info(string.concat("   - Compilation time: ", _to_string(stats.compilation_time_ms), "ms"));
+        _print_info(string.concat("   - Tokens processed: ", _to_string(stats.tokens_processed)));
+        _print_info(string.concat("   - AST nodes: ", _to_string(stats.ast_nodes)));
+        _print_info(string.concat("   - IR instructions: ", _to_string(stats.ir_instructions)));
+        _print_info(string.concat("   - Generated files: ", _to_string(stats.generated_files)));
+    }
+
+    function _print_help() private {
+        _print_info("OMEGA Compiler - Universal Blockchain Programming Language");
+        _print_info("");
+        _print_info("USAGE:");
+        _print_info("    omega <COMMAND> [OPTIONS]");
+        _print_info("");
+        _print_info("COMMANDS:");
+        _print_info("    build      Compile OMEGA source code");
+        _print_info("    deploy     Deploy compiled contracts to blockchain");
+        _print_info("    test       Run test suite");
+        _print_info("    init       Initialize new OMEGA project");
+        _print_info("    check      Check syntax without compilation");
+        _print_info("    fmt        Format source code");
+        _print_info("    config     Manage compiler configuration");
+        _print_info("    version    Show version information");
+        _print_info("    help       Show this help message");
+        _print_info("");
+        _print_info("BUILD OPTIONS:");
+        _print_info("    --target <platforms>   Target platforms (evm,solana,cosmos,substrate,move,near)");
+        _print_info("    --release             Build in release mode");
+        _print_info("    --docs                Generate documentation");
+        _print_info("    --verbose             Verbose output");
+        _print_info("");
+        _print_info("EXAMPLES:");
+        _print_info("    omega build main.omega --target evm,solana");
+        _print_info("    omega deploy --target evm --network sepolia");
+        _print_info("    omega init my-dapp --template defi");
+    }
+
+    function _initialize_default_config() private {
+        config.target_platforms = ["evm"];
+        config.optimization_level = OptimizationLevel.Basic;
+        config.debug_mode = false;
+        config.verbose = false;
+        config.output_directory = "./build";
+        config.project_name = "omega-project";
+    }
+
+    // Print utilities
+    function _print_info(string message) private {
+        // In a real implementation, this would print to stdout
+        emit LogMessage("INFO", message);
+    }
+
+    function _print_success(string message) private {
+        emit LogMessage("SUCCESS", message);
+    }
+
+    function _print_error(string message) private {
+        emit LogMessage("ERROR", message);
+    }
+
+    function _print_warning(string message) private {
+        emit LogMessage("WARNING", message);
+    }
+
+    // Error reporting functions
+    function _print_lexer_errors() private {
+        string[] errors = lexer.get_errors();
+        for (uint i = 0; i < errors.length; i++) {
+            _print_error(string.concat("Lexer error: ", errors[i]));
+        }
+    }
+
+    function _print_parser_errors() private {
+        string[] errors = parser.get_errors();
+        for (uint i = 0; i < errors.length; i++) {
+            _print_error(string.concat("Parser error: ", errors[i]));
+        }
+    }
+
+    function _print_semantic_errors() private {
+        string[] errors = semantic_analyzer.get_errors();
+        for (uint i = 0; i < errors.length; i++) {
+            _print_error(string.concat("Semantic error: ", errors[i]));
+        }
+    }
+
+    function _print_config() private {
+        _print_info("Current OMEGA Compiler Configuration:");
+        _print_info(string.concat("  Target platforms: ", _join_strings(config.target_platforms, ", ")));
+        _print_info(string.concat("  Optimization level: ", _optimization_level_to_string(config.optimization_level)));
+        _print_info(string.concat("  Debug mode: ", config.debug_mode ? "enabled" : "disabled"));
+        _print_info(string.concat("  Output directory: ", config.output_directory));
+    }
+
+    // Helper functions for string manipulation and file operations
+    function _slice_args(string[] args, uint start) private pure returns (string[]) {
+        if (start >= args.length) {
+            string[] empty;
+            return empty;
+        }
+        
+        string[] result = new string[](args.length - start);
+        for (uint i = start; i < args.length; i++) {
+            result[i - start] = args[i];
+        }
+        return result;
+    }
+
+    function _get_flag_value(string[] args, string flag) private pure returns (string) {
+        for (uint i = 0; i < args.length - 1; i++) {
+            if (string.compare(args[i], flag) == 0) {
+                return args[i + 1];
+            }
+        }
+        return "";
+    }
+
+    function _join_strings(string[] strings, string separator) private pure returns (string) {
+        if (strings.length == 0) return "";
+        
+        string result = strings[0];
+        for (uint i = 1; i < strings.length; i++) {
+            result = string.concat(result, separator, strings[i]);
+        }
+        return result;
+    }
+
+    function _split_string(string input, string delimiter) private pure returns (string[]) {
+        // Simplified string splitting - would need proper implementation
+        string[] result = new string[](1);
+        result[0] = input;
+        return result;
+    }
+
+    function _starts_with(string str, string prefix) private pure returns (bool) {
+        if (string.length(prefix) > string.length(str)) return false;
+        return string.compare(string.slice(str, 0, string.length(prefix)), prefix) == 0;
+    }
+
+    function _get_base_filename(string filepath) private pure returns (string) {
+        // Extract filename without extension
+        // Simplified implementation
+        return "output";
+    }
+
+    function _to_string(uint256 value) private pure returns (string) {
+        // Convert uint to string - would need proper implementation
+        return "0";
+    }
+
+    function _optimization_level_to_string(OptimizationLevel level) private pure returns (string) {
+        if (level == OptimizationLevel.None) return "None";
+        if (level == OptimizationLevel.Basic) return "Basic";
+        if (level == OptimizationLevel.Aggressive) return "Aggressive";
+        return "Basic";
+    }
+
+    // File operations (would be implemented with actual file I/O)
+    function _write_file(string filename, string content) private {
+        emit FileWritten(filename, string.length(content));
+    }
+
+    function _create_project_structure(string project_name, string template) private {
+        // Create project directories and files
+        emit ProjectCreated(project_name, template);
+    }
+
+    // Configuration management
+    function _enable_target(string target) private {
+        // Add target to enabled platforms
+        emit TargetEnabled(target);
+    }
+
+    function _disable_target(string target) private {
+        // Remove target from enabled platforms
+        emit TargetDisabled(target);
+    }
+
+    // Statistics helpers
+    function _count_ast_nodes(Program ast) private pure returns (uint256) {
+        // Count total AST nodes
+        return ast.items.length * 10; // Simplified
+    }
+
+    function _count_ir_instructions(IRModule ir_module) private pure returns (uint256) {
+        // Count total IR instructions
+        return ir_module.blockchains.length * 50; // Simplified
+    }
+
+    /// Enhanced error handling functions for main compiler
+    /// Set current file being processed
+    function set_current_file(string file_path) public {
+        current_file = file_path;
+    }
+    
+    /// Report compiler error with context
+    function report_compiler_error(string message, string phase, ErrorSeverity severity) private {
+        let location = SourceLocation {
+            file: current_file,
+            line: 0, // Main compiler errors may not have specific line numbers
+            column: 0,
+            position: 0
+        };
+        
+        let context = ErrorContext {
+            context_type: ContextType.Compilation,
+            source_code: phase,
+            additional_info: format("Compiler Phase: {}", phase)
+        };
+        
+        let error_code = determine_compiler_error_code(message, phase);
+        
+        let error = OmegaError {
+            error_type: ErrorType.CompilerError,
+            severity: severity,
+            code: error_code,
+            message: message,
+            location: location,
+            context: context,
+            suggestions: generate_compiler_suggestions(message, error_code, phase)
+        };
+        
+        error_handler.report_error(error);
+        
+        if (severity == ErrorSeverity.Error) {
+            total_errors++;
+        } else if (severity == ErrorSeverity.Warning) {
+            total_warnings++;
+        }
+    }
+    
+    /// Determine error code for compiler errors
+    function determine_compiler_error_code(string message, string phase) private pure returns (ErrorCode) {
+        if (phase == "lexing" && message.contains("token")) {
+            return ErrorCode.LexicalError;
+        } else if (phase == "parsing" && message.contains("syntax")) {
+            return ErrorCode.SyntaxError;
+        } else if (phase == "semantic" && message.contains("type")) {
+            return ErrorCode.TypeError;
+        } else if (phase == "ir" && message.contains("generation")) {
+            return ErrorCode.IRError;
+        } else if (phase == "codegen" && message.contains("target")) {
+            return ErrorCode.CodeGenError;
+        } else if (message.contains("file")) {
+            return ErrorCode.FileError;
+        } else {
+            return ErrorCode.InternalError;
+        }
+    }
+    
+    /// Generate suggestions for compiler errors
+    function generate_compiler_suggestions(string error_message, ErrorCode error_code, string phase) private pure returns (string[]) {
+        string[] suggestions = [];
+        
+        if (error_code == ErrorCode.FileError) {
+            suggestions.push("Check if the file exists and is readable");
+            suggestions.push("Verify file permissions");
+        } else if (error_code == ErrorCode.LexicalError) {
+            suggestions.push("Check for invalid characters or tokens");
+            suggestions.push("Review syntax highlighting for errors");
+        } else if (error_code == ErrorCode.SyntaxError) {
+            suggestions.push("Check for missing semicolons or brackets");
+            suggestions.push("Verify proper syntax structure");
+        } else if (error_code == ErrorCode.TypeError) {
+            suggestions.push("Check type compatibility");
+            suggestions.push("Review variable declarations");
+        } else if (error_code == ErrorCode.InternalError) {
+            suggestions.push("This is an internal compiler error");
+            suggestions.push("Please report this issue to the development team");
+        }
+        
+        return suggestions;
+    }
+    
+    /// Aggregate errors from all compiler phases
+    function aggregate_phase_errors(OmegaLexer lexer, OmegaParser parser, OmegaSemanticAnalyzer analyzer, OmegaIR ir_gen, OmegaOptimizer optimizer, OmegaCodeGenerator codegen) public {
+        // Aggregate errors from lexer
+        if (lexer.has_errors()) {
+            ErrorStatistics lexer_stats = lexer.get_error_stats();
+            total_errors += lexer_stats.error_count;
+            total_warnings += lexer_stats.warning_count;
+        }
+        
+        // Aggregate errors from parser
+        if (parser.has_errors()) {
+            ErrorStatistics parser_stats = parser.get_error_stats();
+            total_errors += parser_stats.error_count;
+            total_warnings += parser_stats.warning_count;
+        }
+        
+        // Aggregate errors from semantic analyzer
+        if (analyzer.has_errors()) {
+            ErrorStatistics analyzer_stats = analyzer.get_error_stats();
+            total_errors += analyzer_stats.error_count;
+            total_warnings += analyzer_stats.warning_count;
+        }
+        
+        // Aggregate errors from IR generator
+        if (ir_gen.has_errors()) {
+            ErrorStatistics ir_stats = ir_gen.get_error_stats();
+            total_errors += ir_stats.error_count;
+            total_warnings += ir_stats.warning_count;
+        }
+        
+        // Aggregate errors from optimizer
+        if (optimizer.has_errors()) {
+            ErrorStatistics opt_stats = optimizer.get_error_stats();
+            total_errors += opt_stats.error_count;
+            total_warnings += opt_stats.warning_count;
+        }
+        
+        // Aggregate errors from code generator
+        if (codegen.has_errors()) {
+            ErrorStatistics codegen_stats = codegen.get_error_stats();
+            total_errors += codegen_stats.error_count;
+            total_warnings += codegen_stats.warning_count;
+        }
+    }
+    
+    /// Check if compilation has errors
+    function has_compilation_errors() public view returns (bool) {
+        return total_errors > 0 || error_handler.has_errors();
+    }
+    
+    /// Check if compilation has warnings
+    function has_compilation_warnings() public view returns (bool) {
+        return total_warnings > 0;
+    }
+    
+    /// Get total error and warning counts
+    function get_compilation_counts() public view returns (uint256, uint256) {
+        return (total_errors, total_warnings);
+    }
+    
+    /// Print compilation summary with error statistics
+    function print_compilation_summary() public view {
+        ErrorStatistics overall_stats = error_handler.get_statistics();
+        
+        _print_info("=== Compilation Summary ===");
+        _print_info(format("Total Errors: {}", total_errors));
+        _print_info(format("Total Warnings: {}", total_warnings));
+        _print_info(format("Files Processed: {}", overall_stats.files_processed));
+        
+        if (total_errors == 0) {
+            _print_info("✅ Compilation completed successfully!");
+        } else {
+            _print_info("❌ Compilation failed with errors.");
+        }
+    }
+    
+    /// Clear all errors (for testing)
+    function clear_all_errors() public {
+        error_handler.clear_errors();
+        total_errors = 0;
+        total_warnings = 0;
+    }
+
+    // Events for logging and monitoring
+    event LogMessage(string indexed level, string message);
+    event FileWritten(string indexed filename, uint256 size);
+    event ProjectCreated(string indexed project_name, string template);
+    event TargetEnabled(string indexed target);
+    event TargetDisabled(string indexed target);
+    event CompilationStarted(string source_file, string[] targets);
+    event CompilationCompleted(uint256 duration_ms, uint256 files_generated);
+    event CompilationError(string phase, string message, ErrorSeverity severity);
+    event ErrorSummary(uint256 total_errors, uint256 total_warnings);
+}

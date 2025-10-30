@@ -1,0 +1,753 @@
+// OMEGA EVM Code Generator - Menghasilkan kode Solidity dari OMEGA IR
+// Mendukung semua fitur EVM termasuk smart contracts, events, modifiers, dan optimasi gas
+
+import "../ir/ir.mega";
+import "../error/error.mega";
+import "./base_generator.mega";
+
+/// EVM-specific code generator untuk menghasilkan Solidity code
+blockchain EVMCodeGenerator is BaseCodeGenerator {
+    state {
+        mapping(string => string) solidity_type_mappings;      // Mapping OMEGA types ke Solidity types
+        mapping(string => string) visibility_mappings;         // Mapping visibility modifiers
+        mapping(string => string) mutability_mappings;         // Mapping mutability modifiers
+        string[] pragma_directives;                            // Pragma directives untuk Solidity
+        bool use_safe_math;                                    // Whether to use SafeMath library
+        string solidity_version;                               // Target Solidity version
+        mapping(string => uint256) gas_estimates;              // Gas estimates untuk functions
+    }
+    
+    /// Constructor untuk EVM generator
+    constructor() BaseCodeGenerator() {
+        initialize_evm_mappings();
+        initialize_pragma_directives();
+        solidity_version = "^0.8.19";
+        use_safe_math = false; // Not needed for Solidity 0.8+
+        initialize_evm_features();
+    }
+    
+    /// Initialize EVM-specific type mappings
+    function initialize_evm_mappings() internal {
+        // Basic types
+        solidity_type_mappings["uint"] = "uint256";
+        solidity_type_mappings["int"] = "int256";
+        solidity_type_mappings["bool"] = "bool";
+        solidity_type_mappings["string"] = "string";
+        solidity_type_mappings["bytes"] = "bytes";
+        solidity_type_mappings["address"] = "address";
+        
+        // Array types
+        solidity_type_mappings["uint[]"] = "uint256[]";
+        solidity_type_mappings["int[]"] = "int256[]";
+        solidity_type_mappings["bool[]"] = "bool[]";
+        solidity_type_mappings["string[]"] = "string[]";
+        solidity_type_mappings["address[]"] = "address[]";
+        
+        // Visibility mappings
+        visibility_mappings["public"] = "public";
+        visibility_mappings["private"] = "private";
+        visibility_mappings["internal"] = "internal";
+        visibility_mappings["external"] = "external";
+        
+        // Mutability mappings
+        mutability_mappings["pure"] = "pure";
+        mutability_mappings["view"] = "view";
+        mutability_mappings["payable"] = "payable";
+        mutability_mappings["nonpayable"] = "";
+    }
+    
+    /// Initialize pragma directives
+    function initialize_pragma_directives() internal {
+        pragma_directives.push(string(abi.encodePacked("pragma solidity ", solidity_version, ";")));
+        pragma_directives.push("pragma experimental ABIEncoderV2;");
+    }
+    
+    /// Initialize EVM-specific features
+    function initialize_evm_features() internal override {
+        supported_features = [
+            "basic_types", "functions", "events", "modifiers", "inheritance",
+            "interfaces", "libraries", "mappings", "arrays", "structs", "enums",
+            "payable", "view", "pure", "gas_optimization", "assembly"
+        ];
+    }
+    
+    /// Main function untuk generate Solidity code dari IR
+    function generate(IRModule memory module) public override returns (string memory) {
+        if (!validate_module(module)) {
+            return "";
+        }
+        
+        uint256 start_time = block.timestamp * 1000; // Simplified timestamp
+        
+        string memory result = "";
+        
+        // Generate pragma directives
+        result = string(abi.encodePacked(result, generate_pragma_section()));
+        
+        // Generate imports
+        result = string(abi.encodePacked(result, generate_imports_section(module)));
+        
+        // Generate contracts
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            result = string(abi.encodePacked(result, generate_contract(module.blockchains[i])));
+        }
+        
+        // Update statistics
+        stats.generation_time_ms = (block.timestamp * 1000) - start_time;
+        update_stats_contracts();
+        
+        return result;
+    }
+    
+    /// Generate pragma section
+    function generate_pragma_section() internal view returns (string memory) {
+        string memory result = "// SPDX-License-Identifier: MIT\n";
+        
+        for (uint i = 0; i < pragma_directives.length; i++) {
+            result = string(abi.encodePacked(result, pragma_directives[i], "\n"));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate imports section
+    function generate_imports_section(IRModule memory module) internal returns (string memory) {
+        string memory result = "";
+        
+        // Add standard imports
+        if (use_safe_math) {
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/utils/math/SafeMath.sol\";\n"));
+        }
+        
+        // Add module-specific imports
+        for (uint i = 0; i < module.imports.length; i++) {
+            result = string(abi.encodePacked(result, generate_import(module.imports[i])));
+        }
+        
+        if (bytes(result).length > 0) {
+            result = string(abi.encodePacked(result, "\n"));
+        }
+        
+        return result;
+    }
+    
+    /// Generate single import statement
+    function generate_import(ImportIR memory import_ir) internal pure returns (string memory) {
+        return string(abi.encodePacked("import \"", import_ir.path, "\";\n"));
+    }
+    
+    /// Generate contract dari blockchain IR
+    function generate_contract(BlockchainIR memory blockchain) internal returns (string memory) {
+        push_context(blockchain.name, "");
+        
+        string memory result = "";
+        
+        // Contract declaration
+        result = string(abi.encodePacked(result, "contract ", blockchain.name));
+        
+        // Inheritance
+        if (blockchain.parent_contracts.length > 0) {
+            result = string(abi.encodePacked(result, " is "));
+            for (uint i = 0; i < blockchain.parent_contracts.length; i++) {
+                if (i > 0) result = string(abi.encodePacked(result, ", "));
+                result = string(abi.encodePacked(result, blockchain.parent_contracts[i]));
+            }
+        }
+        
+        result = string(abi.encodePacked(result, " {\n"));
+        push_indent();
+        
+        // State variables
+        result = string(abi.encodePacked(result, generate_state_variables(blockchain.state_variables)));
+        
+        // Events
+        result = string(abi.encodePacked(result, generate_events(blockchain.events)));
+        
+        // Modifiers
+        result = string(abi.encodePacked(result, generate_modifiers(blockchain.modifiers)));
+        
+        // Constructor
+        if (blockchain.constructor.name.length > 0) {
+            result = string(abi.encodePacked(result, generate_constructor(blockchain.constructor)));
+        }
+        
+        // Functions
+        result = string(abi.encodePacked(result, generate_functions(blockchain.functions)));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, "}\n\n"));
+        
+        pop_context();
+        update_stats_contracts();
+        
+        return result;
+    }
+    
+    /// Generate state variables
+    function generate_state_variables(StateVariableIR[] memory variables) internal returns (string memory) {
+        if (variables.length == 0) return "";
+        
+        string memory result = string(abi.encodePacked(get_indent(), "// State Variables\n"));
+        
+        for (uint i = 0; i < variables.length; i++) {
+            result = string(abi.encodePacked(result, generate_state_variable(variables[i])));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate single state variable
+    function generate_state_variable(StateVariableIR memory variable) internal view returns (string memory) {
+        string memory result = get_indent();
+        
+        // Type
+        result = string(abi.encodePacked(result, convert_type(variable.var_type), " "));
+        
+        // Visibility
+        if (bytes(variable.visibility).length > 0) {
+            result = string(abi.encodePacked(result, visibility_mappings[variable.visibility], " "));
+        }
+        
+        // Name
+        result = string(abi.encodePacked(result, variable.name));
+        
+        // Initial value
+        if (bytes(variable.initial_value).length > 0) {
+            result = string(abi.encodePacked(result, " = ", variable.initial_value));
+        }
+        
+        return string(abi.encodePacked(result, ";\n"));
+    }
+    
+    /// Generate events
+    function generate_events(EventIR[] memory events) internal returns (string memory) {
+        if (events.length == 0) return "";
+        
+        string memory result = string(abi.encodePacked(get_indent(), "// Events\n"));
+        
+        for (uint i = 0; i < events.length; i++) {
+            result = string(abi.encodePacked(result, generate_event(events[i])));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate single event
+    function generate_event(EventIR memory event_ir) internal view returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "event ", event_ir.name, "("));
+        
+        // Parameters
+        for (uint i = 0; i < event_ir.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            
+            ParameterIR memory param = event_ir.parameters[i];
+            
+            // Indexed keyword
+            if (param.indexed) {
+                result = string(abi.encodePacked(result, convert_type(param.param_type), " indexed ", param.name));
+            } else {
+                result = string(abi.encodePacked(result, convert_type(param.param_type), " ", param.name));
+            }
+        }
+        
+        return string(abi.encodePacked(result, ");\n"));
+    }
+    
+    /// Generate modifiers
+    function generate_modifiers(ModifierIR[] memory modifiers) internal returns (string memory) {
+        if (modifiers.length == 0) return "";
+        
+        string memory result = string(abi.encodePacked(get_indent(), "// Modifiers\n"));
+        
+        for (uint i = 0; i < modifiers.length; i++) {
+            result = string(abi.encodePacked(result, generate_modifier(modifiers[i])));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate single modifier
+    function generate_modifier(ModifierIR memory modifier) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "modifier ", modifier.name, "("));
+        
+        // Parameters
+        for (uint i = 0; i < modifier.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            result = string(abi.encodePacked(result, generate_parameter(modifier.parameters[i])));
+        }
+        
+        result = string(abi.encodePacked(result, ") {\n"));
+        push_indent();
+        
+        // Body
+        result = string(abi.encodePacked(result, generate_block(modifier.body)));
+        
+        // Placeholder
+        result = string(abi.encodePacked(result, get_indent(), "_;\n"));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        return result;
+    }
+    
+    /// Generate constructor
+    function generate_constructor(FunctionIR memory constructor) internal returns (string memory) {
+        context.in_constructor = true;
+        
+        string memory result = string(abi.encodePacked(get_indent(), "constructor("));
+        
+        // Parameters
+        for (uint i = 0; i < constructor.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            result = string(abi.encodePacked(result, generate_parameter(constructor.parameters[i])));
+        }
+        
+        result = string(abi.encodePacked(result, ")"));
+        
+        // Modifiers
+        if (constructor.modifiers.length > 0) {
+            for (uint i = 0; i < constructor.modifiers.length; i++) {
+                result = string(abi.encodePacked(result, " ", constructor.modifiers[i]));
+            }
+        }
+        
+        result = string(abi.encodePacked(result, " {\n"));
+        push_indent();
+        
+        // Body
+        result = string(abi.encodePacked(result, generate_block(constructor.body)));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        context.in_constructor = false;
+        update_stats_functions();
+        
+        return result;
+    }
+    
+    /// Generate functions
+    function generate_functions(FunctionIR[] memory functions) internal returns (string memory) {
+        if (functions.length == 0) return "";
+        
+        string memory result = string(abi.encodePacked(get_indent(), "// Functions\n"));
+        
+        for (uint i = 0; i < functions.length; i++) {
+            result = string(abi.encodePacked(result, generate_function(functions[i])));
+        }
+        
+        return result;
+    }
+    
+    /// Generate single function
+    function generate_function(FunctionIR memory func) internal returns (string memory) {
+        push_context(context.current_blockchain, func.name);
+        
+        string memory result = string(abi.encodePacked(get_indent(), "function ", func.name, "("));
+        
+        // Parameters
+        for (uint i = 0; i < func.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            result = string(abi.encodePacked(result, generate_parameter(func.parameters[i])));
+        }
+        
+        result = string(abi.encodePacked(result, ")"));
+        
+        // Visibility
+        if (bytes(func.visibility).length > 0) {
+            result = string(abi.encodePacked(result, " ", visibility_mappings[func.visibility]));
+        }
+        
+        // Mutability
+        if (bytes(func.mutability).length > 0 && bytes(mutability_mappings[func.mutability]).length > 0) {
+            result = string(abi.encodePacked(result, " ", mutability_mappings[func.mutability]));
+        }
+        
+        // Modifiers
+        for (uint i = 0; i < func.modifiers.length; i++) {
+            result = string(abi.encodePacked(result, " ", func.modifiers[i]));
+        }
+        
+        // Return type
+        if (bytes(func.return_type).length > 0) {
+            result = string(abi.encodePacked(result, " returns (", convert_type(func.return_type), ")"));
+        }
+        
+        result = string(abi.encodePacked(result, " {\n"));
+        push_indent();
+        
+        // Body
+        result = string(abi.encodePacked(result, generate_block(func.body)));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        pop_context();
+        update_stats_functions();
+        
+        return result;
+    }
+    
+    /// Generate parameter
+    function generate_parameter(ParameterIR memory param) internal view returns (string memory) {
+        string memory result = convert_type(param.param_type);
+        
+        if (bytes(param.storage_location).length > 0) {
+            result = string(abi.encodePacked(result, " ", param.storage_location));
+        }
+        
+        return string(abi.encodePacked(result, " ", param.name));
+    }
+    
+    /// Generate block of statements
+    function generate_block(BlockIR memory block) internal returns (string memory) {
+        string memory result = "";
+        
+        for (uint i = 0; i < block.statements.length; i++) {
+            result = string(abi.encodePacked(result, generate_statement(block.statements[i])));
+        }
+        
+        return result;
+    }
+    
+    /// Generate single statement
+    function generate_statement(StatementIR memory stmt) internal returns (string memory) {
+        if (stmt.stmt_type == StatementType.VariableDeclaration) {
+            return generate_variable_declaration(stmt);
+        } else if (stmt.stmt_type == StatementType.Assignment) {
+            return generate_assignment(stmt);
+        } else if (stmt.stmt_type == StatementType.If) {
+            return generate_if_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.While) {
+            return generate_while_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.For) {
+            return generate_for_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Return) {
+            return generate_return_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Emit) {
+            return generate_emit_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Require) {
+            return generate_require_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Assert) {
+            return generate_assert_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Revert) {
+            return generate_revert_statement(stmt);
+        } else if (stmt.stmt_type == StatementType.Expression) {
+            return string(abi.encodePacked(get_indent(), generate_expression(stmt.expression), ";\n"));
+        }
+        
+        return "";
+    }
+    
+    /// Generate variable declaration
+    function generate_variable_declaration(StatementIR memory stmt) internal view returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), convert_type(stmt.var_type), " ", stmt.variable_name));
+        
+        if (bytes(stmt.initial_value).length > 0) {
+            result = string(abi.encodePacked(result, " = ", stmt.initial_value));
+        }
+        
+        return string(abi.encodePacked(result, ";\n"));
+    }
+    
+    /// Generate assignment statement
+    function generate_assignment(StatementIR memory stmt) internal returns (string memory) {
+        return string(abi.encodePacked(
+            get_indent(),
+            generate_expression(stmt.left_expression),
+            " = ",
+            generate_expression(stmt.right_expression),
+            ";\n"
+        ));
+    }
+    
+    /// Generate if statement
+    function generate_if_statement(StatementIR memory stmt) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(
+            get_indent(),
+            "if (",
+            generate_expression(stmt.condition),
+            ") {\n"
+        ));
+        
+        push_indent();
+        result = string(abi.encodePacked(result, generate_block(stmt.then_block)));
+        pop_indent();
+        
+        result = string(abi.encodePacked(result, get_indent(), "}"));
+        
+        if (stmt.else_block.statements.length > 0) {
+            result = string(abi.encodePacked(result, " else {\n"));
+            push_indent();
+            result = string(abi.encodePacked(result, generate_block(stmt.else_block)));
+            pop_indent();
+            result = string(abi.encodePacked(result, get_indent(), "}"));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate while statement
+    function generate_while_statement(StatementIR memory stmt) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(
+            get_indent(),
+            "while (",
+            generate_expression(stmt.condition),
+            ") {\n"
+        ));
+        
+        push_indent();
+        result = string(abi.encodePacked(result, generate_block(stmt.body)));
+        pop_indent();
+        
+        return string(abi.encodePacked(result, get_indent(), "}\n"));
+    }
+    
+    /// Generate for statement
+    function generate_for_statement(StatementIR memory stmt) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "for ("));
+        
+        // Initialization
+        if (bytes(stmt.init_statement).length > 0) {
+            result = string(abi.encodePacked(result, stmt.init_statement));
+        }
+        result = string(abi.encodePacked(result, "; "));
+        
+        // Condition
+        if (stmt.condition.expr_type != ExpressionType.Empty) {
+            result = string(abi.encodePacked(result, generate_expression(stmt.condition)));
+        }
+        result = string(abi.encodePacked(result, "; "));
+        
+        // Update
+        if (bytes(stmt.update_statement).length > 0) {
+            result = string(abi.encodePacked(result, stmt.update_statement));
+        }
+        
+        result = string(abi.encodePacked(result, ") {\n"));
+        
+        push_indent();
+        result = string(abi.encodePacked(result, generate_block(stmt.body)));
+        pop_indent();
+        
+        return string(abi.encodePacked(result, get_indent(), "}\n"));
+    }
+    
+    /// Generate return statement
+    function generate_return_statement(StatementIR memory stmt) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "return"));
+        
+        if (stmt.return_expression.expr_type != ExpressionType.Empty) {
+            result = string(abi.encodePacked(result, " ", generate_expression(stmt.return_expression)));
+        }
+        
+        return string(abi.encodePacked(result, ";\n"));
+    }
+    
+    /// Generate emit statement
+    function generate_emit_statement(StatementIR memory stmt) internal returns (string memory) {
+        return string(abi.encodePacked(
+            get_indent(),
+            "emit ",
+            generate_expression(stmt.expression),
+            ";\n"
+        ));
+    }
+    
+    /// Generate require statement
+    function generate_require_statement(StatementIR memory stmt) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "require(", generate_expression(stmt.condition)));
+        
+        if (bytes(stmt.error_message).length > 0) {
+            result = string(abi.encodePacked(result, ", \"", escape_string(stmt.error_message), "\""));
+        }
+        
+        return string(abi.encodePacked(result, ");\n"));
+    }
+    
+    /// Generate assert statement
+    function generate_assert_statement(StatementIR memory stmt) internal returns (string memory) {
+        return string(abi.encodePacked(
+            get_indent(),
+            "assert(",
+            generate_expression(stmt.condition),
+            ");\n"
+        ));
+    }
+    
+    /// Generate revert statement
+    function generate_revert_statement(StatementIR memory stmt) internal view returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "revert"));
+        
+        if (bytes(stmt.error_message).length > 0) {
+            result = string(abi.encodePacked(result, "(\"", escape_string(stmt.error_message), "\")"));
+        } else {
+            result = string(abi.encodePacked(result, "()"));
+        }
+        
+        return string(abi.encodePacked(result, ";\n"));
+    }
+    
+    /// Generate expression
+    function generate_expression(ExpressionIR memory expr) internal returns (string memory) {
+        if (expr.expr_type == ExpressionType.Literal) {
+            return expr.value;
+        } else if (expr.expr_type == ExpressionType.Identifier) {
+            return expr.name;
+        } else if (expr.expr_type == ExpressionType.Binary) {
+            return string(abi.encodePacked(
+                "(",
+                generate_expression(expr.left),
+                " ",
+                expr.operator,
+                " ",
+                generate_expression(expr.right),
+                ")"
+            ));
+        } else if (expr.expr_type == ExpressionType.Unary) {
+            return string(abi.encodePacked(expr.operator, generate_expression(expr.operand)));
+        } else if (expr.expr_type == ExpressionType.FunctionCall) {
+            return generate_function_call(expr);
+        } else if (expr.expr_type == ExpressionType.MemberAccess) {
+            return string(abi.encodePacked(generate_expression(expr.object), ".", expr.member_name));
+        } else if (expr.expr_type == ExpressionType.IndexAccess) {
+            return string(abi.encodePacked(
+                generate_expression(expr.object),
+                "[",
+                generate_expression(expr.index),
+                "]"
+            ));
+        }
+        
+        return "";
+    }
+    
+    /// Generate function call expression
+    function generate_function_call(ExpressionIR memory expr) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(expr.function_name, "("));
+        
+        for (uint i = 0; i < expr.arguments.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            result = string(abi.encodePacked(result, generate_expression(expr.arguments[i])));
+        }
+        
+        return string(abi.encodePacked(result, ")"));
+    }
+    
+    /// Convert OMEGA type ke Solidity type
+    function convert_type(string memory omega_type) internal view returns (string memory) {
+        // Check direct mapping first
+        if (bytes(solidity_type_mappings[omega_type]).length > 0) {
+            return solidity_type_mappings[omega_type];
+        }
+        
+        // Handle complex types
+        bytes memory type_bytes = bytes(omega_type);
+        
+        // Handle mapping types: mapping(key => value)
+        if (starts_with(omega_type, "mapping(")) {
+            return omega_type; // Solidity mapping syntax is the same
+        }
+        
+        // Handle array types: type[]
+        if (ends_with(omega_type, "[]")) {
+            string memory base_type = substring(omega_type, 0, type_bytes.length - 2);
+            return string(abi.encodePacked(convert_type(base_type), "[]"));
+        }
+        
+        // Handle fixed-size arrays: type[size]
+        for (uint i = type_bytes.length - 1; i > 0; i--) {
+            if (type_bytes[i] == '[') {
+                string memory base_type = substring(omega_type, 0, i);
+                string memory size_part = substring(omega_type, i, type_bytes.length);
+                return string(abi.encodePacked(convert_type(base_type), size_part));
+            }
+        }
+        
+        // Return as-is if no mapping found (user-defined types)
+        return omega_type;
+    }
+    
+    /// Helper function untuk check if string starts with prefix
+    function starts_with(string memory str, string memory prefix) internal pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory prefix_bytes = bytes(prefix);
+        
+        if (prefix_bytes.length > str_bytes.length) return false;
+        
+        for (uint i = 0; i < prefix_bytes.length; i++) {
+            if (str_bytes[i] != prefix_bytes[i]) return false;
+        }
+        
+        return true;
+    }
+    
+    /// Helper function untuk check if string ends with suffix
+    function ends_with(string memory str, string memory suffix) internal pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory suffix_bytes = bytes(suffix);
+        
+        if (suffix_bytes.length > str_bytes.length) return false;
+        
+        uint start_index = str_bytes.length - suffix_bytes.length;
+        for (uint i = 0; i < suffix_bytes.length; i++) {
+            if (str_bytes[start_index + i] != suffix_bytes[i]) return false;
+        }
+        
+        return true;
+    }
+    
+    /// Helper function untuk substring
+    function substring(string memory str, uint start, uint end) internal pure returns (string memory) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory result = new bytes(end - start);
+        
+        for (uint i = start; i < end; i++) {
+            result[i - start] = str_bytes[i];
+        }
+        
+        return string(result);
+    }
+    
+    /// Override platform-specific functions
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.EVM;
+    }
+    
+    function get_file_extension() public pure override returns (string memory) {
+        return ".sol";
+    }
+    
+    /// EVM-specific configuration
+    function set_solidity_version(string memory version) public {
+        solidity_version = version;
+        pragma_directives[0] = string(abi.encodePacked("pragma solidity ", version, ";"));
+    }
+    
+    function enable_safe_math(bool enable) public {
+        use_safe_math = enable;
+    }
+    
+    function add_pragma(string memory pragma) public {
+        pragma_directives.push(pragma);
+    }
+    
+    /// Gas estimation functions
+    function estimate_gas(string memory function_name) public view returns (uint256) {
+        return gas_estimates[function_name];
+    }
+    
+    function set_gas_estimate(string memory function_name, uint256 gas) public {
+        gas_estimates[function_name] = gas;
+    }
+    
+    /// Reset EVM generator state
+    function reset() public override {
+        super.reset();
+        // Reset EVM-specific state
+        solidity_version = "^0.8.19";
+        use_safe_math = false;
+        initialize_pragma_directives();
+    }
+}

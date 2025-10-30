@@ -1,0 +1,140 @@
+{
+  "name": "Basic Functionality Tests",
+  "description": "Test suite covering basic OMEGA language functionality across different blockchain targets",
+  "test_cases": [
+    {
+      "id": "simple_token_evm",
+      "name": "Simple Token - EVM Target",
+      "description": "Test basic token implementation for EVM",
+      "targets": ["evm"],
+      "source_code": "blockchain SimpleToken {\n    state {\n        mapping(address => uint256) balances;\n        uint256 total_supply;\n        string name;\n        string symbol;\n    }\n    \n    constructor(string memory _name, string memory _symbol, uint256 _initial_supply) {\n        name = _name;\n        symbol = _symbol;\n        total_supply = _initial_supply;\n        balances[msg.sender] = _initial_supply;\n    }\n    \n    function transfer(address to, uint256 amount) public returns (bool) {\n        require(balances[msg.sender] >= amount, \"Insufficient balance\");\n        balances[msg.sender] -= amount;\n        balances[to] += amount;\n        emit Transfer(msg.sender, to, amount);\n        return true;\n    }\n    \n    function balance_of(address account) public view returns (uint256) {\n        return balances[account];\n    }\n    \n    event Transfer(address indexed from, address indexed to, uint256 value);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["SimpleToken.sol"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "Compilation",
+      "timeout_ms": 10000,
+      "dependencies": []
+    },
+    {
+      "id": "simple_token_solana",
+      "name": "Simple Token - Solana Target",
+      "description": "Test basic token implementation for Solana",
+      "targets": ["solana"],
+      "source_code": "blockchain SimpleToken {\n    state {\n        mapping(address => uint256) balances;\n        uint256 total_supply;\n        string name;\n        string symbol;\n    }\n    \n    constructor(string memory _name, string memory _symbol, uint256 _initial_supply) {\n        name = _name;\n        symbol = _symbol;\n        total_supply = _initial_supply;\n        balances[msg.sender] = _initial_supply;\n    }\n    \n    function transfer(address to, uint256 amount) public returns (bool) {\n        require(balances[msg.sender] >= amount, \"Insufficient balance\");\n        balances[msg.sender] -= amount;\n        balances[to] += amount;\n        emit Transfer(msg.sender, to, amount);\n        return true;\n    }\n    \n    function balance_of(address account) public view returns (uint256) {\n        return balances[account];\n    }\n    \n    event Transfer(address indexed from, address indexed to, uint256 value);\n}",
+      "expected_outputs": {
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "Compilation",
+      "timeout_ms": 15000,
+      "dependencies": []
+    },
+    {
+      "id": "counter_cross_chain",
+      "name": "Counter - Cross Chain",
+      "description": "Test simple counter implementation across multiple targets",
+      "targets": ["evm", "solana"],
+      "source_code": "blockchain Counter {\n    state {\n        uint256 count;\n        address owner;\n    }\n    \n    constructor(address _owner) {\n        count = 0;\n        owner = _owner;\n    }\n    \n    function increment() public {\n        require(msg.sender == owner, \"Only owner can increment\");\n        count += 1;\n        emit CountIncremented(count);\n    }\n    \n    function decrement() public {\n        require(msg.sender == owner, \"Only owner can decrement\");\n        require(count > 0, \"Count cannot be negative\");\n        count -= 1;\n        emit CountDecremented(count);\n    }\n    \n    function get_count() public view returns (uint256) {\n        return count;\n    }\n    \n    event CountIncremented(uint256 new_count);\n    event CountDecremented(uint256 new_count);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["Counter.sol"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 20000,
+      "dependencies": []
+    },
+    {
+      "id": "voting_system",
+      "name": "Voting System",
+      "description": "Test voting system with multiple proposals",
+      "targets": ["evm", "solana"],
+      "source_code": "blockchain VotingSystem {\n    state {\n        struct Proposal {\n            string description;\n            uint256 vote_count;\n            bool executed;\n        }\n        \n        mapping(uint256 => Proposal) proposals;\n        mapping(address => mapping(uint256 => bool)) has_voted;\n        mapping(address => bool) voters;\n        uint256 proposal_count;\n        address admin;\n    }\n    \n    constructor(address _admin) {\n        admin = _admin;\n        proposal_count = 0;\n    }\n    \n    function add_voter(address voter) public {\n        require(msg.sender == admin, \"Only admin can add voters\");\n        voters[voter] = true;\n        emit VoterAdded(voter);\n    }\n    \n    function create_proposal(string memory description) public {\n        require(msg.sender == admin, \"Only admin can create proposals\");\n        proposals[proposal_count] = Proposal({\n            description: description,\n            vote_count: 0,\n            executed: false\n        });\n        emit ProposalCreated(proposal_count, description);\n        proposal_count += 1;\n    }\n    \n    function vote(uint256 proposal_id) public {\n        require(voters[msg.sender], \"Not authorized to vote\");\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        require(!has_voted[msg.sender][proposal_id], \"Already voted\");\n        require(!proposals[proposal_id].executed, \"Proposal already executed\");\n        \n        has_voted[msg.sender][proposal_id] = true;\n        proposals[proposal_id].vote_count += 1;\n        \n        emit VoteCast(msg.sender, proposal_id);\n    }\n    \n    function execute_proposal(uint256 proposal_id) public {\n        require(msg.sender == admin, \"Only admin can execute\");\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        require(!proposals[proposal_id].executed, \"Already executed\");\n        require(proposals[proposal_id].vote_count > 0, \"No votes\");\n        \n        proposals[proposal_id].executed = true;\n        emit ProposalExecuted(proposal_id);\n    }\n    \n    function get_proposal(uint256 proposal_id) public view returns (string memory, uint256, bool) {\n        require(proposal_id < proposal_count, \"Invalid proposal\");\n        Proposal memory proposal = proposals[proposal_id];\n        return (proposal.description, proposal.vote_count, proposal.executed);\n    }\n    \n    event VoterAdded(address indexed voter);\n    event ProposalCreated(uint256 indexed proposal_id, string description);\n    event VoteCast(address indexed voter, uint256 indexed proposal_id);\n    event ProposalExecuted(uint256 indexed proposal_id);\n}",
+      "expected_outputs": {
+        "evm": {
+          "success": true,
+          "output_files": ["VotingSystem.sol"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        },
+        "solana": {
+          "success": true,
+          "output_files": ["lib.rs", "Cargo.toml"],
+          "gas_usage": null,
+          "execution_result": null,
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "test_type": "CrossChain",
+      "timeout_ms": 25000,
+      "dependencies": []
+    }
+  ],
+  "setup": {
+    "commands": [
+      "echo 'Setting up basic functionality tests'",
+      "mkdir -p test_output"
+    ],
+    "environment": {
+      "OMEGA_TEST_MODE": "true",
+      "OMEGA_LOG_LEVEL": "debug"
+    },
+    "accounts": [
+      {
+        "name": "admin",
+        "address": "0x1234567890123456789012345678901234567890",
+        "private_key": "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01",
+        "balance": "1000000000000000000000"
+      },
+      {
+        "name": "user1",
+        "address": "0x2345678901234567890123456789012345678901",
+        "private_key": "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef02",
+        "balance": "1000000000000000000000"
+      },
+      {
+        "name": "user2",
+        "address": "0x3456789012345678901234567890123456789012",
+        "private_key": "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef03",
+        "balance": "1000000000000000000000"
+      }
+    ]
+  },
+  "teardown": {
+    "commands": [
+      "echo 'Cleaning up basic functionality tests'"
+    ],
+    "cleanup_files": [
+      "test_output"
+    ]
+  }
+}

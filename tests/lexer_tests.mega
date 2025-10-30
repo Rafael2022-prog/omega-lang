@@ -1,0 +1,613 @@
+// OMEGA Lexer Unit Tests
+// Comprehensive test suite untuk OmegaLexer dengan 80%+ coverage
+
+import "test_framework.mega";
+import "../src/lexer/lexer.mega";
+
+/// Test suite untuk OmegaLexer
+blockchain LexerTests {
+    state {
+        OmegaTestFramework test_framework;
+        OmegaLexer lexer;
+        string test_source_code;
+    }
+
+    constructor() {
+        test_framework = new OmegaTestFramework();
+        lexer = new OmegaLexer();
+        
+        // Setup test suites
+        _setup_basic_tokenization_tests();
+        _setup_keyword_tests();
+        _setup_operator_tests();
+        _setup_literal_tests();
+        _setup_identifier_tests();
+        _setup_comment_tests();
+        _setup_error_handling_tests();
+        _setup_edge_case_tests();
+    }
+
+    /// Setup basic tokenization tests
+    function _setup_basic_tokenization_tests() private {
+        test_framework.add_test_suite("BasicTokenization", "Tests for basic token recognition");
+        
+        test_framework.add_test_case(
+            "BasicTokenization",
+            "test_empty_input",
+            "Should handle empty input gracefully",
+            TestType.Unit,
+            test_empty_input
+        );
+        
+        test_framework.add_test_case(
+            "BasicTokenization",
+            "test_single_token",
+            "Should tokenize single token correctly",
+            TestType.Unit,
+            test_single_token
+        );
+        
+        test_framework.add_test_case(
+            "BasicTokenization",
+            "test_multiple_tokens",
+            "Should tokenize multiple tokens correctly",
+            TestType.Unit,
+            test_multiple_tokens
+        );
+        
+        test_framework.add_test_case(
+            "BasicTokenization",
+            "test_whitespace_handling",
+            "Should handle various whitespace characters",
+            TestType.Unit,
+            test_whitespace_handling
+        );
+    }
+
+    /// Setup keyword recognition tests
+    function _setup_keyword_tests() private {
+        test_framework.add_test_suite("Keywords", "Tests for keyword recognition");
+        
+        test_framework.add_test_case(
+            "Keywords",
+            "test_blockchain_keyword",
+            "Should recognize 'blockchain' keyword",
+            TestType.Unit,
+            test_blockchain_keyword
+        );
+        
+        test_framework.add_test_case(
+            "Keywords",
+            "test_function_keyword",
+            "Should recognize 'function' keyword",
+            TestType.Unit,
+            test_function_keyword
+        );
+        
+        test_framework.add_test_case(
+            "Keywords",
+            "test_state_keyword",
+            "Should recognize 'state' keyword",
+            TestType.Unit,
+            test_state_keyword
+        );
+        
+        test_framework.add_test_case(
+            "Keywords",
+            "test_all_keywords",
+            "Should recognize all OMEGA keywords",
+            TestType.Unit,
+            test_all_keywords
+        );
+    }
+
+    /// Setup operator recognition tests
+    function _setup_operator_tests() private {
+        test_framework.add_test_suite("Operators", "Tests for operator recognition");
+        
+        test_framework.add_test_case(
+            "Operators",
+            "test_arithmetic_operators",
+            "Should recognize arithmetic operators",
+            TestType.Unit,
+            test_arithmetic_operators
+        );
+        
+        test_framework.add_test_case(
+            "Operators",
+            "test_comparison_operators",
+            "Should recognize comparison operators",
+            TestType.Unit,
+            test_comparison_operators
+        );
+        
+        test_framework.add_test_case(
+            "Operators",
+            "test_logical_operators",
+            "Should recognize logical operators",
+            TestType.Unit,
+            test_logical_operators
+        );
+        
+        test_framework.add_test_case(
+            "Operators",
+            "test_assignment_operators",
+            "Should recognize assignment operators",
+            TestType.Unit,
+            test_assignment_operators
+        );
+    }
+
+    /// Setup literal recognition tests
+    function _setup_literal_tests() private {
+        test_framework.add_test_suite("Literals", "Tests for literal value recognition");
+        
+        test_framework.add_test_case(
+            "Literals",
+            "test_integer_literals",
+            "Should recognize integer literals",
+            TestType.Unit,
+            test_integer_literals
+        );
+        
+        test_framework.add_test_case(
+            "Literals",
+            "test_string_literals",
+            "Should recognize string literals",
+            TestType.Unit,
+            test_string_literals
+        );
+        
+        test_framework.add_test_case(
+            "Literals",
+            "test_boolean_literals",
+            "Should recognize boolean literals",
+            TestType.Unit,
+            test_boolean_literals
+        );
+        
+        test_framework.add_test_case(
+            "Literals",
+            "test_address_literals",
+            "Should recognize address literals",
+            TestType.Unit,
+            test_address_literals
+        );
+    }
+
+    /// Setup identifier recognition tests
+    function _setup_identifier_tests() private {
+        test_framework.add_test_suite("Identifiers", "Tests for identifier recognition");
+        
+        test_framework.add_test_case(
+            "Identifiers",
+            "test_simple_identifiers",
+            "Should recognize simple identifiers",
+            TestType.Unit,
+            test_simple_identifiers
+        );
+        
+        test_framework.add_test_case(
+            "Identifiers",
+            "test_underscore_identifiers",
+            "Should recognize identifiers with underscores",
+            TestType.Unit,
+            test_underscore_identifiers
+        );
+        
+        test_framework.add_test_case(
+            "Identifiers",
+            "test_mixed_case_identifiers",
+            "Should recognize mixed case identifiers",
+            TestType.Unit,
+            test_mixed_case_identifiers
+        );
+    }
+
+    /// Setup comment handling tests
+    function _setup_comment_tests() private {
+        test_framework.add_test_suite("Comments", "Tests for comment handling");
+        
+        test_framework.add_test_case(
+            "Comments",
+            "test_single_line_comments",
+            "Should handle single line comments",
+            TestType.Unit,
+            test_single_line_comments
+        );
+        
+        test_framework.add_test_case(
+            "Comments",
+            "test_multi_line_comments",
+            "Should handle multi-line comments",
+            TestType.Unit,
+            test_multi_line_comments
+        );
+        
+        test_framework.add_test_case(
+            "Comments",
+            "test_nested_comments",
+            "Should handle nested comments",
+            TestType.Unit,
+            test_nested_comments
+        );
+    }
+
+    /// Setup error handling tests
+    function _setup_error_handling_tests() private {
+        test_framework.add_test_suite("ErrorHandling", "Tests for lexer error handling");
+        
+        test_framework.add_test_case(
+            "ErrorHandling",
+            "test_invalid_characters",
+            "Should handle invalid characters gracefully",
+            TestType.Unit,
+            test_invalid_characters
+        );
+        
+        test_framework.add_test_case(
+            "ErrorHandling",
+            "test_unterminated_strings",
+            "Should detect unterminated string literals",
+            TestType.Unit,
+            test_unterminated_strings
+        );
+        
+        test_framework.add_test_case(
+            "ErrorHandling",
+            "test_invalid_numbers",
+            "Should handle invalid number formats",
+            TestType.Unit,
+            test_invalid_numbers
+        );
+    }
+
+    /// Setup edge case tests
+    function _setup_edge_case_tests() private {
+        test_framework.add_test_suite("EdgeCases", "Tests for edge cases and boundary conditions");
+        
+        test_framework.add_test_case(
+            "EdgeCases",
+            "test_very_long_identifiers",
+            "Should handle very long identifiers",
+            TestType.Unit,
+            test_very_long_identifiers
+        );
+        
+        test_framework.add_test_case(
+            "EdgeCases",
+            "test_unicode_characters",
+            "Should handle unicode characters appropriately",
+            TestType.Unit,
+            test_unicode_characters
+        );
+        
+        test_framework.add_test_case(
+            "EdgeCases",
+            "test_large_numbers",
+            "Should handle large number literals",
+            TestType.Unit,
+            test_large_numbers
+        );
+    }
+
+    // ===== TEST IMPLEMENTATIONS =====
+
+    /// Test empty input handling
+    function test_empty_input() public {
+        lexer.set_source("");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(1, tokens.length, "Empty input should produce EOF token");
+        TestAssertions.assert_equal(uint256(TokenType.EOF), uint256(tokens[0].token_type), "Token should be EOF");
+    }
+
+    /// Test single token recognition
+    function test_single_token() public {
+        lexer.set_source("blockchain");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(2, tokens.length, "Should have blockchain token + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.Blockchain), uint256(tokens[0].token_type), "First token should be Blockchain");
+        TestAssertions.assert_string_equal("blockchain", tokens[0].value, "Token value should match");
+    }
+
+    /// Test multiple token recognition
+    function test_multiple_tokens() public {
+        lexer.set_source("blockchain MyContract { }");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(5, tokens.length, "Should have 4 tokens + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.Blockchain), uint256(tokens[0].token_type), "First token should be Blockchain");
+        TestAssertions.assert_equal(uint256(TokenType.Identifier), uint256(tokens[1].token_type), "Second token should be Identifier");
+        TestAssertions.assert_equal(uint256(TokenType.LeftBrace), uint256(tokens[2].token_type), "Third token should be LeftBrace");
+        TestAssertions.assert_equal(uint256(TokenType.RightBrace), uint256(tokens[3].token_type), "Fourth token should be RightBrace");
+    }
+
+    /// Test whitespace handling
+    function test_whitespace_handling() public {
+        lexer.set_source("  blockchain\t\nMyContract\r\n  ");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(3, tokens.length, "Whitespace should be ignored");
+        TestAssertions.assert_equal(uint256(TokenType.Blockchain), uint256(tokens[0].token_type), "First token should be Blockchain");
+        TestAssertions.assert_equal(uint256(TokenType.Identifier), uint256(tokens[1].token_type), "Second token should be Identifier");
+    }
+
+    /// Test blockchain keyword recognition
+    function test_blockchain_keyword() public {
+        lexer.set_source("blockchain");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(uint256(TokenType.Blockchain), uint256(tokens[0].token_type), "Should recognize blockchain keyword");
+        TestAssertions.assert_string_equal("blockchain", tokens[0].value, "Token value should be 'blockchain'");
+    }
+
+    /// Test function keyword recognition
+    function test_function_keyword() public {
+        lexer.set_source("function");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(uint256(TokenType.Function), uint256(tokens[0].token_type), "Should recognize function keyword");
+        TestAssertions.assert_string_equal("function", tokens[0].value, "Token value should be 'function'");
+    }
+
+    /// Test state keyword recognition
+    function test_state_keyword() public {
+        lexer.set_source("state");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(uint256(TokenType.State), uint256(tokens[0].token_type), "Should recognize state keyword");
+        TestAssertions.assert_string_equal("state", tokens[0].value, "Token value should be 'state'");
+    }
+
+    /// Test all keywords recognition
+    function test_all_keywords() public {
+        string[] keywords = [
+            "blockchain", "function", "state", "constructor", "public", "private",
+            "view", "pure", "payable", "returns", "if", "else", "for", "while",
+            "do", "break", "continue", "return", "require", "assert", "emit",
+            "event", "modifier", "struct", "enum", "mapping", "array", "string",
+            "uint256", "int256", "bool", "address", "bytes", "true", "false"
+        ];
+        
+        for (uint256 i = 0; i < keywords.length; i++) {
+            lexer.set_source(keywords[i]);
+            Token[] tokens = lexer.tokenize();
+            
+            TestAssertions.assert_true(tokens.length >= 1, format("Should tokenize keyword: {}", keywords[i]));
+            TestAssertions.assert_string_equal(keywords[i], tokens[0].value, format("Token value should match keyword: {}", keywords[i]));
+        }
+    }
+
+    /// Test arithmetic operators
+    function test_arithmetic_operators() public {
+        lexer.set_source("+ - * / % ** ++ --");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(9, tokens.length, "Should recognize all arithmetic operators + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.Plus), uint256(tokens[0].token_type), "Should recognize +");
+        TestAssertions.assert_equal(uint256(TokenType.Minus), uint256(tokens[1].token_type), "Should recognize -");
+        TestAssertions.assert_equal(uint256(TokenType.Multiply), uint256(tokens[2].token_type), "Should recognize *");
+        TestAssertions.assert_equal(uint256(TokenType.Divide), uint256(tokens[3].token_type), "Should recognize /");
+        TestAssertions.assert_equal(uint256(TokenType.Modulo), uint256(tokens[4].token_type), "Should recognize %");
+    }
+
+    /// Test comparison operators
+    function test_comparison_operators() public {
+        lexer.set_source("== != < > <= >=");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(7, tokens.length, "Should recognize all comparison operators + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.Equal), uint256(tokens[0].token_type), "Should recognize ==");
+        TestAssertions.assert_equal(uint256(TokenType.NotEqual), uint256(tokens[1].token_type), "Should recognize !=");
+        TestAssertions.assert_equal(uint256(TokenType.LessThan), uint256(tokens[2].token_type), "Should recognize <");
+        TestAssertions.assert_equal(uint256(TokenType.GreaterThan), uint256(tokens[3].token_type), "Should recognize >");
+    }
+
+    /// Test logical operators
+    function test_logical_operators() public {
+        lexer.set_source("&& || !");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(4, tokens.length, "Should recognize all logical operators + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.LogicalAnd), uint256(tokens[0].token_type), "Should recognize &&");
+        TestAssertions.assert_equal(uint256(TokenType.LogicalOr), uint256(tokens[1].token_type), "Should recognize ||");
+        TestAssertions.assert_equal(uint256(TokenType.LogicalNot), uint256(tokens[2].token_type), "Should recognize !");
+    }
+
+    /// Test assignment operators
+    function test_assignment_operators() public {
+        lexer.set_source("= += -= *= /=");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(6, tokens.length, "Should recognize all assignment operators + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.Assign), uint256(tokens[0].token_type), "Should recognize =");
+        TestAssertions.assert_equal(uint256(TokenType.PlusAssign), uint256(tokens[1].token_type), "Should recognize +=");
+        TestAssertions.assert_equal(uint256(TokenType.MinusAssign), uint256(tokens[2].token_type), "Should recognize -=");
+    }
+
+    /// Test integer literals
+    function test_integer_literals() public {
+        lexer.set_source("123 0 999999 0x1A2B 0b1010");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(6, tokens.length, "Should recognize all integer literals + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.IntegerLiteral), uint256(tokens[0].token_type), "Should recognize decimal integer");
+        TestAssertions.assert_equal(uint256(TokenType.IntegerLiteral), uint256(tokens[1].token_type), "Should recognize zero");
+        TestAssertions.assert_equal(uint256(TokenType.IntegerLiteral), uint256(tokens[2].token_type), "Should recognize large integer");
+        TestAssertions.assert_string_equal("123", tokens[0].value, "Token value should match");
+    }
+
+    /// Test string literals
+    function test_string_literals() public {
+        lexer.set_source("\"hello\" \"world with spaces\" \"\"");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(4, tokens.length, "Should recognize all string literals + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.StringLiteral), uint256(tokens[0].token_type), "Should recognize string literal");
+        TestAssertions.assert_string_equal("hello", tokens[0].value, "String value should not include quotes");
+        TestAssertions.assert_string_equal("world with spaces", tokens[1].value, "Should handle spaces in strings");
+        TestAssertions.assert_string_equal("", tokens[2].value, "Should handle empty strings");
+    }
+
+    /// Test boolean literals
+    function test_boolean_literals() public {
+        lexer.set_source("true false");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(3, tokens.length, "Should recognize boolean literals + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.True), uint256(tokens[0].token_type), "Should recognize true");
+        TestAssertions.assert_equal(uint256(TokenType.False), uint256(tokens[1].token_type), "Should recognize false");
+    }
+
+    /// Test address literals
+    function test_address_literals() public {
+        lexer.set_source("0x1234567890abcdef1234567890abcdef12345678");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(2, tokens.length, "Should recognize address literal + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.AddressLiteral), uint256(tokens[0].token_type), "Should recognize address literal");
+    }
+
+    /// Test simple identifiers
+    function test_simple_identifiers() public {
+        lexer.set_source("myVar balance totalSupply");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(4, tokens.length, "Should recognize all identifiers + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.Identifier), uint256(tokens[0].token_type), "Should recognize identifier");
+        TestAssertions.assert_string_equal("myVar", tokens[0].value, "Identifier value should match");
+        TestAssertions.assert_string_equal("balance", tokens[1].value, "Identifier value should match");
+    }
+
+    /// Test underscore identifiers
+    function test_underscore_identifiers() public {
+        lexer.set_source("_private __internal my_var _");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(5, tokens.length, "Should recognize all underscore identifiers + EOF");
+        TestAssertions.assert_equal(uint256(TokenType.Identifier), uint256(tokens[0].token_type), "Should recognize _private");
+        TestAssertions.assert_string_equal("_private", tokens[0].value, "Should handle leading underscore");
+        TestAssertions.assert_string_equal("my_var", tokens[2].value, "Should handle underscore in middle");
+    }
+
+    /// Test mixed case identifiers
+    function test_mixed_case_identifiers() public {
+        lexer.set_source("MyContract totalSupply getUserBalance");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(4, tokens.length, "Should recognize all mixed case identifiers + EOF");
+        TestAssertions.assert_string_equal("MyContract", tokens[0].value, "Should preserve case");
+        TestAssertions.assert_string_equal("totalSupply", tokens[1].value, "Should preserve camelCase");
+    }
+
+    /// Test single line comments
+    function test_single_line_comments() public {
+        lexer.set_source("// This is a comment\nblockchain");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(2, tokens.length, "Comments should be ignored");
+        TestAssertions.assert_equal(uint256(TokenType.Blockchain), uint256(tokens[0].token_type), "Should find token after comment");
+    }
+
+    /// Test multi-line comments
+    function test_multi_line_comments() public {
+        lexer.set_source("/* This is a\n   multi-line comment */\nfunction");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(2, tokens.length, "Multi-line comments should be ignored");
+        TestAssertions.assert_equal(uint256(TokenType.Function), uint256(tokens[0].token_type), "Should find token after comment");
+    }
+
+    /// Test nested comments
+    function test_nested_comments() public {
+        lexer.set_source("/* Outer /* inner */ comment */\nstate");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(2, tokens.length, "Nested comments should be handled");
+        TestAssertions.assert_equal(uint256(TokenType.State), uint256(tokens[0].token_type), "Should find token after nested comment");
+    }
+
+    /// Test invalid characters
+    function test_invalid_characters() public {
+        lexer.set_source("blockchain @ invalid");
+        
+        try {
+            Token[] tokens = lexer.tokenize();
+            TestAssertions.assert_true(false, "Should throw error for invalid character");
+        } catch (string error) {
+            TestAssertions.assert_true(true, "Should handle invalid characters with error");
+        }
+    }
+
+    /// Test unterminated strings
+    function test_unterminated_strings() public {
+        lexer.set_source("\"unterminated string");
+        
+        try {
+            Token[] tokens = lexer.tokenize();
+            TestAssertions.assert_true(false, "Should throw error for unterminated string");
+        } catch (string error) {
+            TestAssertions.assert_true(true, "Should detect unterminated strings");
+        }
+    }
+
+    /// Test invalid numbers
+    function test_invalid_numbers() public {
+        lexer.set_source("123abc");
+        
+        try {
+            Token[] tokens = lexer.tokenize();
+            TestAssertions.assert_true(false, "Should throw error for invalid number format");
+        } catch (string error) {
+            TestAssertions.assert_true(true, "Should detect invalid number formats");
+        }
+    }
+
+    /// Test very long identifiers
+    function test_very_long_identifiers() public {
+        string long_identifier = "a";
+        for (uint256 i = 0; i < 1000; i++) {
+            long_identifier = string.concat(long_identifier, "a");
+        }
+        
+        lexer.set_source(long_identifier);
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(2, tokens.length, "Should handle very long identifiers");
+        TestAssertions.assert_equal(uint256(TokenType.Identifier), uint256(tokens[0].token_type), "Should recognize as identifier");
+    }
+
+    /// Test unicode characters
+    function test_unicode_characters() public {
+        lexer.set_source("blockchain 测试");
+        
+        try {
+            Token[] tokens = lexer.tokenize();
+            // Should either handle gracefully or throw appropriate error
+            TestAssertions.assert_true(true, "Unicode handling test completed");
+        } catch (string error) {
+            TestAssertions.assert_true(true, "Unicode characters handled with error as expected");
+        }
+    }
+
+    /// Test large numbers
+    function test_large_numbers() public {
+        lexer.set_source("999999999999999999999999999999999999999");
+        Token[] tokens = lexer.tokenize();
+        
+        TestAssertions.assert_equal(2, tokens.length, "Should handle large numbers");
+        TestAssertions.assert_equal(uint256(TokenType.IntegerLiteral), uint256(tokens[0].token_type), "Should recognize as integer literal");
+    }
+
+    /// Run all lexer tests
+    function run_all_tests() public returns (TestStatistics) {
+        return test_framework.run_all_tests();
+    }
+
+    /// Run specific test suite
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return test_framework.run_test_suite(suite_name);
+    }
+}

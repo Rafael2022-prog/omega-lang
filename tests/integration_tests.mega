@@ -1,0 +1,570 @@
+// OMEGA Integration Tests - Written in MEGA
+// Comprehensive integration testing for OMEGA compiler
+
+blockchain OmegaIntegrationTests {
+    state {
+        TestRunner runner;
+        TestConfig config;
+        TestResults results;
+        CompilerInstance compiler;
+    }
+    
+    constructor() {
+        config = TestConfig::default();
+        compiler = CompilerInstance::new(config);
+        runner = TestRunner::new(compiler, config);
+        results = TestResults::new();
+    }
+    
+    // Basic EVM Compilation Test
+    function test_basic_evm_compilation() public returns (TestResult) {
+        TestCase test_case = TestCase({
+            id: "basic_evm_test",
+            name: "Basic EVM Compilation Test",
+            description: "Test basic OMEGA to EVM compilation",
+            targets: ["evm"],
+            source_code: `
+blockchain SimpleToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+    }
+    
+    constructor(string memory _name, string memory _symbol, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _initial_supply;
+        balances[msg.sender] = _initial_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+}`,
+            expected_outputs: {
+                "evm": ExpectedOutput({
+                    success: true,
+                    contains_patterns: [
+                        "pragma solidity",
+                        "contract SimpleToken",
+                        "function transfer",
+                        "event Transfer"
+                    ],
+                    gas_estimate: 500000,
+                    compilation_time_ms: 2000
+                })
+            },
+            timeout_ms: 10000
+        });
+        
+        return runner.execute_test_case(test_case);
+    }
+    
+    // Basic Solana Compilation Test
+    function test_basic_solana_compilation() public returns (TestResult) {
+        TestCase test_case = TestCase({
+            id: "basic_solana_test",
+            name: "Basic Solana Compilation Test",
+            description: "Test basic OMEGA to Solana compilation",
+            targets: ["solana"],
+            source_code: `
+blockchain SolanaToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+    }
+    
+    constructor(uint256 _initial_supply) {
+        total_supply = _initial_supply;
+        balances[msg.sender] = _initial_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        return true;
+    }
+}`,
+            expected_outputs: {
+                "solana": ExpectedOutput({
+                    success: true,
+                    contains_patterns: [
+                        "use solana_program",
+                        "pub struct SolanaToken",
+                        "fn transfer",
+                        "AccountInfo"
+                    ],
+                    binary_size_kb: 150,
+                    compilation_time_ms: 3000
+                })
+            },
+            timeout_ms: 15000
+        });
+        
+        return runner.execute_test_case(test_case);
+    }
+    
+    // Cross-Chain Compilation Test
+    function test_cross_chain_compilation() public returns (TestResult) {
+        TestCase test_case = TestCase({
+            id: "cross_chain_test",
+            name: "Cross-Chain Compilation Test",
+            description: "Test compilation for multiple targets simultaneously",
+            targets: ["evm", "solana", "cosmos"],
+            source_code: `
+blockchain CrossChainBridge {
+    state {
+        mapping(bytes32 => bool) processed_transactions;
+        mapping(address => uint256) locked_balances;
+    }
+    
+    @cross_chain(target = "solana")
+    function bridge_to_solana(bytes32 recipient, uint256 amount) public {
+        require(amount > 0, "Invalid amount");
+        locked_balances[msg.sender] += amount;
+        emit TokensBridged(msg.sender, recipient, amount, "solana");
+    }
+    
+    @cross_chain(target = "cosmos")
+    function bridge_to_cosmos(string memory recipient, uint256 amount) public {
+        require(amount > 0, "Invalid amount");
+        locked_balances[msg.sender] += amount;
+        emit TokensBridged(msg.sender, string_to_bytes32(recipient), amount, "cosmos");
+    }
+    
+    event TokensBridged(address indexed from, bytes32 indexed to, uint256 amount, string target);
+}`,
+            expected_outputs: {
+                "evm": ExpectedOutput({
+                    success: true,
+                    contains_patterns: ["contract CrossChainBridge", "function bridge_to_solana"],
+                    gas_estimate: 300000,
+                    compilation_time_ms: 2500
+                }),
+                "solana": ExpectedOutput({
+                    success: true,
+                    contains_patterns: ["pub struct CrossChainBridge", "fn bridge_to_solana"],
+                    binary_size_kb: 200,
+                    compilation_time_ms: 4000
+                }),
+                "cosmos": ExpectedOutput({
+                    success: true,
+                    contains_patterns: ["type CrossChainBridge struct", "func BridgeToSolana"],
+                    binary_size_kb: 180,
+                    compilation_time_ms: 3500
+                })
+            },
+            timeout_ms: 20000
+        });
+        
+        return runner.execute_test_case(test_case);
+    }
+    
+    // DeFi Protocol Compilation Test
+    function test_defi_protocol_compilation() public returns (TestResult) {
+        TestCase test_case = TestCase({
+            id: "defi_protocol_test",
+            name: "DeFi Protocol Compilation Test",
+            description: "Test compilation of complex DeFi protocol",
+            targets: ["evm"],
+            source_code: `
+blockchain AutomatedMarketMaker {
+    state {
+        mapping(address => uint256) token_a_balance;
+        mapping(address => uint256) token_b_balance;
+        mapping(address => uint256) liquidity_tokens;
+        uint256 reserve_a;
+        uint256 reserve_b;
+        uint256 total_liquidity;
+        uint256 fee_rate; // in basis points (e.g., 30 = 0.3%)
+    }
+    
+    constructor(uint256 _fee_rate) {
+        fee_rate = _fee_rate;
+    }
+    
+    function add_liquidity(uint256 amount_a, uint256 amount_b) public returns (uint256) {
+        require(amount_a > 0 && amount_b > 0, "Invalid amounts");
+        
+        uint256 liquidity;
+        if (total_liquidity == 0) {
+            liquidity = sqrt(amount_a * amount_b);
+        } else {
+            liquidity = min(
+                (amount_a * total_liquidity) / reserve_a,
+                (amount_b * total_liquidity) / reserve_b
+            );
+        }
+        
+        token_a_balance[msg.sender] += amount_a;
+        token_b_balance[msg.sender] += amount_b;
+        liquidity_tokens[msg.sender] += liquidity;
+        
+        reserve_a += amount_a;
+        reserve_b += amount_b;
+        total_liquidity += liquidity;
+        
+        emit LiquidityAdded(msg.sender, amount_a, amount_b, liquidity);
+        return liquidity;
+    }
+    
+    function swap_a_for_b(uint256 amount_a) public returns (uint256) {
+        require(amount_a > 0, "Invalid amount");
+        require(reserve_a > 0 && reserve_b > 0, "No liquidity");
+        
+        uint256 fee = (amount_a * fee_rate) / 10000;
+        uint256 amount_a_with_fee = amount_a - fee;
+        
+        uint256 amount_b = (amount_a_with_fee * reserve_b) / (reserve_a + amount_a_with_fee);
+        
+        require(amount_b > 0, "Insufficient output amount");
+        require(amount_b < reserve_b, "Insufficient liquidity");
+        
+        reserve_a += amount_a;
+        reserve_b -= amount_b;
+        
+        emit Swap(msg.sender, amount_a, amount_b, "A_to_B");
+        return amount_b;
+    }
+    
+    function remove_liquidity(uint256 liquidity_amount) public returns (uint256, uint256) {
+        require(liquidity_amount > 0, "Invalid amount");
+        require(liquidity_tokens[msg.sender] >= liquidity_amount, "Insufficient liquidity tokens");
+        
+        uint256 amount_a = (liquidity_amount * reserve_a) / total_liquidity;
+        uint256 amount_b = (liquidity_amount * reserve_b) / total_liquidity;
+        
+        liquidity_tokens[msg.sender] -= liquidity_amount;
+        token_a_balance[msg.sender] -= amount_a;
+        token_b_balance[msg.sender] -= amount_b;
+        
+        reserve_a -= amount_a;
+        reserve_b -= amount_b;
+        total_liquidity -= liquidity_amount;
+        
+        emit LiquidityRemoved(msg.sender, amount_a, amount_b, liquidity_amount);
+        return (amount_a, amount_b);
+    }
+    
+    function get_price() public view returns (uint256) {
+        require(reserve_a > 0 && reserve_b > 0, "No liquidity");
+        return (reserve_b * 1e18) / reserve_a;
+    }
+    
+    // Utility functions
+    function sqrt(uint256 x) private pure returns (uint256) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        uint256 y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+        return y;
+    }
+    
+    function min(uint256 a, uint256 b) private pure returns (uint256) {
+        return a < b ? a : b;
+    }
+    
+    event LiquidityAdded(address indexed provider, uint256 amount_a, uint256 amount_b, uint256 liquidity);
+    event LiquidityRemoved(address indexed provider, uint256 amount_a, uint256 amount_b, uint256 liquidity);
+    event Swap(address indexed trader, uint256 amount_in, uint256 amount_out, string direction);
+}`,
+            expected_outputs: {
+                "evm": ExpectedOutput({
+                    success: true,
+                    contains_patterns: [
+                        "contract AutomatedMarketMaker",
+                        "function add_liquidity",
+                        "function swap_a_for_b",
+                        "function remove_liquidity",
+                        "event LiquidityAdded"
+                    ],
+                    gas_estimate: 2000000,
+                    compilation_time_ms: 5000
+                })
+            },
+            timeout_ms: 30000
+        });
+        
+        return runner.execute_test_case(test_case);
+    }
+    
+    // Network Harness Test
+    function test_network_harness() public returns (TestResult) {
+        NetworkConfig[] networks = [
+            NetworkConfig({
+                name: "ethereum_sepolia",
+                network_type: NetworkType.EVM,
+                rpc_url: "https://sepolia.infura.io/v3/test",
+                chain_id: 11155111,
+                gas_price: 20000000000
+            }),
+            NetworkConfig({
+                name: "solana_devnet",
+                network_type: NetworkType.Solana,
+                rpc_url: "https://api.devnet.solana.com",
+                chain_id: 0,
+                gas_price: 5000
+            })
+        ];
+        
+        TestResult result = TestResult::new("network_harness_test");
+        
+        for (uint256 i = 0; i < networks.length; i++) {
+            NetworkConfig network = networks[i];
+            bool connection_success = runner.test_network_connection(network);
+            
+            if (!connection_success) {
+                result.mark_failed(string.concat("Failed to connect to ", network.name));
+                return result;
+            }
+        }
+        
+        result.mark_passed();
+        return result;
+    }
+    
+    // Error Handling Test
+    function test_error_handling() public returns (TestResult) {
+        TestCase[] error_test_cases = [
+            TestCase({
+                id: "syntax_error_test",
+                name: "Syntax Error Test",
+                description: "Test compiler error handling for syntax errors",
+                targets: ["evm"],
+                source_code: `
+blockchain InvalidSyntax {
+    state {
+        uint256 balance
+    }
+    
+    function invalid_function( {
+        // Missing closing parenthesis and function body
+    }
+}`,
+                expected_outputs: {
+                    "evm": ExpectedOutput({
+                        success: false,
+                        error_patterns: [
+                            "syntax error",
+                            "unexpected token",
+                            "missing"
+                        ]
+                    })
+                },
+                timeout_ms: 5000
+            }),
+            TestCase({
+                id: "type_error_test",
+                name: "Type Error Test",
+                description: "Test compiler error handling for type errors",
+                targets: ["evm"],
+                source_code: `
+blockchain TypeErrors {
+    state {
+        uint256 balance;
+    }
+    
+    function type_mismatch() public {
+        balance = "invalid string assignment";
+        uint256 result = balance + true;
+    }
+}`,
+                expected_outputs: {
+                    "evm": ExpectedOutput({
+                        success: false,
+                        error_patterns: [
+                            "type mismatch",
+                            "cannot assign",
+                            "incompatible types"
+                        ]
+                    })
+                },
+                timeout_ms: 5000
+            })
+        ];
+        
+        TestResult result = TestResult::new("error_handling_test");
+        uint256 passed_tests = 0;
+        
+        for (uint256 i = 0; i < error_test_cases.length; i++) {
+            TestResult case_result = runner.execute_test_case(error_test_cases[i]);
+            if (case_result.status == TestStatus.Passed) {
+                passed_tests++;
+            }
+        }
+        
+        if (passed_tests == error_test_cases.length) {
+            result.mark_passed();
+        } else {
+            result.mark_failed(string.concat("Only ", uint_to_string(passed_tests), " of ", uint_to_string(error_test_cases.length), " error tests passed"));
+        }
+        
+        return result;
+    }
+    
+    // Performance Benchmark Test
+    function test_performance_benchmarks() public returns (TestResult) {
+        PerformanceBenchmark[] benchmarks = [
+            PerformanceBenchmark({
+                name: "small_contract_compilation",
+                description: "Benchmark compilation of small contract",
+                source_lines: 50,
+                expected_max_time_ms: 1000,
+                expected_max_memory_mb: 50
+            }),
+            PerformanceBenchmark({
+                name: "medium_contract_compilation",
+                description: "Benchmark compilation of medium contract",
+                source_lines: 500,
+                expected_max_time_ms: 5000,
+                expected_max_memory_mb: 100
+            }),
+            PerformanceBenchmark({
+                name: "large_contract_compilation",
+                description: "Benchmark compilation of large contract",
+                source_lines: 2000,
+                expected_max_time_ms: 15000,
+                expected_max_memory_mb: 200
+            })
+        ];
+        
+        TestResult result = TestResult::new("performance_benchmarks");
+        uint256 passed_benchmarks = 0;
+        
+        for (uint256 i = 0; i < benchmarks.length; i++) {
+            PerformanceBenchmark benchmark = benchmarks[i];
+            PerformanceResult perf_result = runner.run_performance_benchmark(benchmark);
+            
+            if (perf_result.compilation_time_ms <= benchmark.expected_max_time_ms &&
+                perf_result.memory_usage_mb <= benchmark.expected_max_memory_mb) {
+                passed_benchmarks++;
+            }
+        }
+        
+        if (passed_benchmarks == benchmarks.length) {
+            result.mark_passed();
+        } else {
+            result.mark_failed(string.concat("Only ", uint_to_string(passed_benchmarks), " of ", uint_to_string(benchmarks.length), " benchmarks passed"));
+        }
+        
+        return result;
+    }
+    
+    // Run all integration tests
+    function run_all_integration_tests() public returns (TestResults) {
+        TestResults all_results = TestResults::new();
+        
+        // Execute all test functions
+        all_results.add_test_result(test_basic_evm_compilation());
+        all_results.add_test_result(test_basic_solana_compilation());
+        all_results.add_test_result(test_cross_chain_compilation());
+        all_results.add_test_result(test_defi_protocol_compilation());
+        all_results.add_test_result(test_network_harness());
+        all_results.add_test_result(test_error_handling());
+        all_results.add_test_result(test_performance_benchmarks());
+        
+        // Generate comprehensive report
+        runner.generate_integration_report(all_results);
+        
+        return all_results;
+    }
+}
+
+// Supporting structures for integration tests
+struct ExpectedOutput {
+    bool success;
+    string[] contains_patterns;
+    string[] error_patterns;
+    uint256 gas_estimate;
+    uint256 binary_size_kb;
+    uint256 compilation_time_ms;
+}
+
+struct NetworkConfig {
+    string name;
+    NetworkType network_type;
+    string rpc_url;
+    uint256 chain_id;
+    uint256 gas_price;
+}
+
+enum NetworkType {
+    EVM,
+    Solana,
+    Cosmos,
+    Substrate,
+    Move,
+    Near
+}
+
+struct PerformanceBenchmark {
+    string name;
+    string description;
+    uint256 source_lines;
+    uint256 expected_max_time_ms;
+    uint256 expected_max_memory_mb;
+}
+
+struct PerformanceResult {
+    uint256 compilation_time_ms;
+    uint256 memory_usage_mb;
+    uint256 cpu_usage_percent;
+    uint256 disk_io_mb;
+}
+
+struct CompilerInstance {
+    CompilerConfig config;
+    CompilerStats stats;
+}
+
+// Utility function
+function uint_to_string(uint256 value) private pure returns (string memory) {
+    if (value == 0) {
+        return "0";
+    }
+    
+    uint256 temp = value;
+    uint256 digits;
+    
+    while (temp != 0) {
+        digits++;
+        temp /= 10;
+    }
+    
+    bytes memory buffer = new bytes(digits);
+    
+    while (value != 0) {
+        digits -= 1;
+        buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+        value /= 10;
+    }
+    
+    return string(buffer);
+}
+
+function string_to_bytes32(string memory source) private pure returns (bytes32 result) {
+    bytes memory temp_bytes = bytes(source);
+    if (temp_bytes.length == 0) {
+        return 0x0;
+    }
+    
+    assembly {
+        result := mload(add(source, 32))
+    }
+}

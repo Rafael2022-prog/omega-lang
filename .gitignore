@@ -1,0 +1,121 @@
+# OMEGA Language - Git Ignore Rules
+
+# Development and internal files
+GITHUB_PUBLICATION_AUDIT.md
+ALTERNATIVE_ICON_METHODS.md
+TESTING_GUIDE.md
+QUICK_START_GUIDE.md
+FINAL_SUMMARY.md
+FILES_TO_EXCLUDE.md
+
+# Test and debug files
+**/test_*.mega
+**/debug_*.mega
+**/*_test.mega
+**/*_debug.mega
+
+# Log files
+*.log
+**/*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+**/*.tmp
+**/*.temp
+*.bak
+**/*.bak
+
+# Build artifacts
+build/
+dist/
+target/
+out/
+bin/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Rust
+target/
+Cargo.lock
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# IDE personal settings
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+.idea/shelf/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Personal notes and drafts
+NOTES.md
+DRAFT_*.md
+TODO_PERSONAL.md

@@ -1,0 +1,55 @@
+Windows Registry Editor Version 5.00
+
+; OMEGA File Association for .mega files
+; This registry file associates .mega files with OMEGA compiler
+
+[HKEY_CLASSES_ROOT\.mega]
+@="OmegaSourceFile"
+"Content Type"="text/plain"
+
+[HKEY_CLASSES_ROOT\.mega\OpenWithProgIds]
+"OmegaSourceFile"=""
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile]
+@="OMEGA Source File"
+"EditFlags"=dword:00000000
+"BrowserFlags"=dword:00000008
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\DefaultIcon]
+@="r:\\OMEGA\\omega-icon.ico,0"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell]
+@="open"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\open]
+@="&Open with OMEGA"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\open\command]
+@="\"C:\\Program Files\\OMEGA\\omega.exe\" \"%1\""
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\compile]
+@="&Compile with OMEGA"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\compile\command]
+@="\"C:\\Program Files\\OMEGA\\omega.exe\" build \"%1\""
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\edit]
+@="&Edit"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\edit\command]
+@="notepad.exe \"%1\""
+
+; Context menu for .mega files
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\vscode]
+@="Open with &VS Code"
+
+[HKEY_CLASSES_ROOT\OmegaSourceFile\shell\vscode\command]
+@="\"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+
+; File type description
+[HKEY_CLASSES_ROOT\OmegaSourceFile\FriendlyTypeName]
+@="OMEGA Blockchain Source File"
+
+; Perceived type
+[HKEY_CLASSES_ROOT\OmegaSourceFile\PerceivedType]
+@="text"

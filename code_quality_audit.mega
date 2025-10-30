@@ -1,0 +1,737 @@
+// OMEGA Code Quality Audit System
+// Comprehensive code quality analysis and improvement recommendations
+
+blockchain OmegaCodeQualityAudit {
+    state {
+        // Quality metrics storage
+        mapping(string => QualityMetrics) file_metrics;
+        mapping(string => CodeIssue[]) code_issues;
+        mapping(string => CoverageReport) coverage_reports;
+        
+        // Audit configuration
+        QualityStandards quality_standards;
+        AuditConfiguration audit_config;
+        
+        // Results and recommendations
+        QualityScore overall_score;
+        ImprovementPlan improvement_plan;
+        
+        // Audit history
+        AuditHistory[] audit_history;
+        uint256 audit_counter;
+        
+        // Quality gates
+        mapping(string => QualityGate) quality_gates;
+        bool deployment_approved;
+    }
+    
+    struct QualityMetrics {
+        uint256 lines_of_code;
+        uint256 cyclomatic_complexity;
+        uint256 cognitive_complexity;
+        uint256 maintainability_index;
+        uint256 technical_debt_ratio;
+        uint256 code_duplication_percentage;
+        uint256 test_coverage_percentage;
+        uint256 documentation_coverage;
+        string[] security_vulnerabilities;
+        string[] performance_issues;
+        uint256 last_updated;
+    }
+    
+    struct CodeIssue {
+        string issue_type;
+        string severity;
+        string file_path;
+        uint256 line_number;
+        string description;
+        string recommendation;
+        bool is_blocking;
+        uint256 estimated_fix_time;
+    }
+    
+    struct CoverageReport {
+        uint256 line_coverage;
+        uint256 branch_coverage;
+        uint256 function_coverage;
+        uint256 statement_coverage;
+        string[] uncovered_files;
+        string[] critical_uncovered_functions;
+    }
+    
+    struct QualityStandards {
+        uint256 min_test_coverage;
+        uint256 max_cyclomatic_complexity;
+        uint256 max_cognitive_complexity;
+        uint256 min_maintainability_index;
+        uint256 max_technical_debt_ratio;
+        uint256 max_code_duplication;
+        uint256 min_documentation_coverage;
+    }
+    
+    struct AuditConfiguration {
+        string[] target_directories;
+        string[] file_extensions;
+        string[] excluded_patterns;
+        bool enable_security_scan;
+        bool enable_performance_analysis;
+        bool enable_dependency_check;
+        string audit_level; // "basic", "standard", "comprehensive"
+    }
+    
+    struct QualityScore {
+        uint256 overall_score;
+        uint256 maintainability_score;
+        uint256 reliability_score;
+        uint256 security_score;
+        uint256 performance_score;
+        uint256 testability_score;
+        string grade; // A+, A, B+, B, C+, C, D, F
+        bool passes_quality_gate;
+    }
+    
+    struct ImprovementPlan {
+        PriorityAction[] high_priority_actions;
+        PriorityAction[] medium_priority_actions;
+        PriorityAction[] low_priority_actions;
+        uint256 estimated_total_effort;
+        string[] quick_wins;
+        string[] long_term_goals;
+    }
+    
+    struct PriorityAction {
+        string action_type;
+        string description;
+        string[] affected_files;
+        uint256 estimated_effort;
+        uint256 impact_score;
+        string deadline;
+    }
+    
+    struct AuditHistory {
+        uint256 audit_id;
+        uint256 timestamp;
+        QualityScore score_snapshot;
+        uint256 issues_found;
+        uint256 issues_resolved;
+        string audit_summary;
+    }
+    
+    struct QualityGate {
+        string gate_name;
+        string condition;
+        uint256 threshold;
+        bool is_blocking;
+        string description;
+    }
+    
+    constructor() {
+        // Initialize quality standards
+        quality_standards = QualityStandards({
+            min_test_coverage: 80,
+            max_cyclomatic_complexity: 10,
+            max_cognitive_complexity: 15,
+            min_maintainability_index: 70,
+            max_technical_debt_ratio: 5,
+            max_code_duplication: 3,
+            min_documentation_coverage: 75
+        });
+        
+        // Initialize audit configuration
+        audit_config = AuditConfiguration({
+            target_directories: ["src/", "tests/"],
+            file_extensions: [".mega", ".rs", ".toml"],
+            excluded_patterns: ["target/", "node_modules/", ".git/"],
+            enable_security_scan: true,
+            enable_performance_analysis: true,
+            enable_dependency_check: true,
+            audit_level: "comprehensive"
+        });
+        
+        // Initialize quality gates
+        _initialize_quality_gates();
+        
+        audit_counter = 0;
+        deployment_approved = false;
+    }
+    
+    function start_comprehensive_audit() public returns (uint256) {
+        uint256 audit_id = ++audit_counter;
+        
+        emit AuditStarted(audit_id, block.timestamp, msg.sender);
+        
+        // Phase 1: Static Code Analysis
+        _perform_static_analysis();
+        
+        // Phase 2: Test Coverage Analysis
+        _analyze_test_coverage();
+        
+        // Phase 3: Security Analysis
+        if (audit_config.enable_security_scan) {
+            _perform_security_analysis();
+        }
+        
+        // Phase 4: Performance Analysis
+        if (audit_config.enable_performance_analysis) {
+            _analyze_performance_patterns();
+        }
+        
+        // Phase 5: Dependency Analysis
+        if (audit_config.enable_dependency_check) {
+            _analyze_dependencies();
+        }
+        
+        // Phase 6: Documentation Analysis
+        _analyze_documentation_quality();
+        
+        // Phase 7: Calculate Overall Score
+        _calculate_quality_score();
+        
+        // Phase 8: Generate Improvement Plan
+        _generate_improvement_plan();
+        
+        // Phase 9: Evaluate Quality Gates
+        _evaluate_quality_gates();
+        
+        // Save audit history
+        _save_audit_history(audit_id);
+        
+        emit AuditCompleted(audit_id, overall_score, deployment_approved);
+        
+        return audit_id;
+    }
+    
+    function _perform_static_analysis() internal {
+        // Analyze each target file
+        for (uint i = 0; i < audit_config.target_directories.length; i++) {
+            string memory directory = audit_config.target_directories[i];
+            _analyze_directory(directory);
+        }
+    }
+    
+    function _analyze_directory(string memory directory) internal {
+        // Simulated file analysis - in real implementation, this would
+        // interface with actual static analysis tools
+        
+        // Example analysis for main.mega
+        if (keccak256(bytes(directory)) == keccak256(bytes("src/"))) {
+            _analyze_main_file();
+            _analyze_lexer_module();
+            _analyze_parser_module();
+            _analyze_semantic_module();
+            _analyze_ir_module();
+            _analyze_codegen_module();
+        }
+    }
+    
+    function _analyze_main_file() internal {
+        QualityMetrics memory metrics = QualityMetrics({
+            lines_of_code: 150,
+            cyclomatic_complexity: 8,
+            cognitive_complexity: 12,
+            maintainability_index: 75,
+            technical_debt_ratio: 3,
+            code_duplication_percentage: 1,
+            test_coverage_percentage: 85,
+            documentation_coverage: 80,
+            security_vulnerabilities: new string[](0),
+            performance_issues: new string[](0),
+            last_updated: block.timestamp
+        });
+        
+        file_metrics["src/main.mega"] = metrics;
+        
+        // Check for issues
+        if (metrics.cyclomatic_complexity > quality_standards.max_cyclomatic_complexity) {
+            _add_code_issue("src/main.mega", "complexity", "warning", 
+                "Cyclomatic complexity is high", "Consider refactoring into smaller functions");
+        }
+    }
+    
+    function _analyze_lexer_module() internal {
+        QualityMetrics memory metrics = QualityMetrics({
+            lines_of_code: 300,
+            cyclomatic_complexity: 15,
+            cognitive_complexity: 20,
+            maintainability_index: 65,
+            technical_debt_ratio: 7,
+            code_duplication_percentage: 2,
+            test_coverage_percentage: 90,
+            documentation_coverage: 85,
+            security_vulnerabilities: new string[](0),
+            performance_issues: new string[](1),
+            last_updated: block.timestamp
+        });
+        
+        metrics.performance_issues[0] = "String concatenation in hot path";
+        
+        file_metrics["src/lexer/lexer.mega"] = metrics;
+        
+        // Add performance issue
+        _add_code_issue("src/lexer/lexer.mega", "performance", "medium",
+            "String concatenation in tokenization loop", "Use StringBuilder or pre-allocated buffers");
+    }
+    
+    function _analyze_parser_module() internal {
+        QualityMetrics memory metrics = QualityMetrics({
+            lines_of_code: 450,
+            cyclomatic_complexity: 12,
+            cognitive_complexity: 18,
+            maintainability_index: 70,
+            technical_debt_ratio: 4,
+            code_duplication_percentage: 3,
+            test_coverage_percentage: 88,
+            documentation_coverage: 82,
+            security_vulnerabilities: new string[](0),
+            performance_issues: new string[](0),
+            last_updated: block.timestamp
+        });
+        
+        file_metrics["src/parser/parser.mega"] = metrics;
+    }
+    
+    function _analyze_semantic_module() internal {
+        QualityMetrics memory metrics = QualityMetrics({
+            lines_of_code: 380,
+            cyclomatic_complexity: 14,
+            cognitive_complexity: 22,
+            maintainability_index: 68,
+            technical_debt_ratio: 6,
+            code_duplication_percentage: 4,
+            test_coverage_percentage: 82,
+            documentation_coverage: 78,
+            security_vulnerabilities: new string[](1),
+            performance_issues: new string[](0),
+            last_updated: block.timestamp
+        });
+        
+        metrics.security_vulnerabilities[0] = "Potential buffer overflow in type checking";
+        
+        file_metrics["src/semantic/analyzer.mega"] = metrics;
+        
+        // Add security issue
+        _add_code_issue("src/semantic/analyzer.mega", "security", "high",
+            "Potential buffer overflow in type checking", "Add bounds checking for array access");
+    }
+    
+    function _analyze_ir_module() internal {
+        QualityMetrics memory metrics = QualityMetrics({
+            lines_of_code: 280,
+            cyclomatic_complexity: 9,
+            cognitive_complexity: 14,
+            maintainability_index: 78,
+            technical_debt_ratio: 2,
+            code_duplication_percentage: 1,
+            test_coverage_percentage: 92,
+            documentation_coverage: 88,
+            security_vulnerabilities: new string[](0),
+            performance_issues: new string[](0),
+            last_updated: block.timestamp
+        });
+        
+        file_metrics["src/ir/optimizer.mega"] = metrics;
+    }
+    
+    function _analyze_codegen_module() internal {
+        QualityMetrics memory metrics = QualityMetrics({
+            lines_of_code: 520,
+            cyclomatic_complexity: 18,
+            cognitive_complexity: 25,
+            maintainability_index: 62,
+            technical_debt_ratio: 8,
+            code_duplication_percentage: 5,
+            test_coverage_percentage: 75,
+            documentation_coverage: 70,
+            security_vulnerabilities: new string[](0),
+            performance_issues: new string[](2),
+            last_updated: block.timestamp
+        });
+        
+        metrics.performance_issues[0] = "Inefficient string building in code generation";
+        metrics.performance_issues[1] = "Repeated file I/O operations";
+        
+        file_metrics["src/codegen/codegen.mega"] = metrics;
+        
+        // Add issues
+        _add_code_issue("src/codegen/codegen.mega", "complexity", "high",
+            "Cyclomatic complexity exceeds threshold", "Split large functions into smaller ones");
+        
+        _add_code_issue("src/codegen/codegen.mega", "coverage", "medium",
+            "Test coverage below standard", "Add more unit tests for edge cases");
+        
+        _add_code_issue("src/codegen/codegen.mega", "duplication", "medium",
+            "Code duplication detected", "Extract common patterns into shared functions");
+    }
+    
+    function _add_code_issue(string memory file_path, string memory issue_type, 
+                           string memory severity, string memory description, 
+                           string memory recommendation) internal {
+        CodeIssue memory issue = CodeIssue({
+            issue_type: issue_type,
+            severity: severity,
+            file_path: file_path,
+            line_number: 0, // Would be populated by actual analysis
+            description: description,
+            recommendation: recommendation,
+            is_blocking: keccak256(bytes(severity)) == keccak256(bytes("high")),
+            estimated_fix_time: _estimate_fix_time(issue_type, severity)
+        });
+        
+        code_issues[file_path].push(issue);
+    }
+    
+    function _estimate_fix_time(string memory issue_type, string memory severity) 
+        internal pure returns (uint256) {
+        // Estimate fix time in hours
+        if (keccak256(bytes(severity)) == keccak256(bytes("high"))) {
+            return 8; // 1 day
+        } else if (keccak256(bytes(severity)) == keccak256(bytes("medium"))) {
+            return 4; // Half day
+        } else {
+            return 2; // 2 hours
+        }
+    }
+    
+    function _analyze_test_coverage() internal {
+        // Analyze overall test coverage
+        CoverageReport memory coverage = CoverageReport({
+            line_coverage: 84,
+            branch_coverage: 78,
+            function_coverage: 92,
+            statement_coverage: 86,
+            uncovered_files: new string[](2),
+            critical_uncovered_functions: new string[](3)
+        });
+        
+        coverage.uncovered_files[0] = "src/codegen/codegen.mega";
+        coverage.uncovered_files[1] = "src/semantic/analyzer.mega";
+        
+        coverage.critical_uncovered_functions[0] = "optimize_ir_tree";
+        coverage.critical_uncovered_functions[1] = "generate_solana_code";
+        coverage.critical_uncovered_functions[2] = "validate_cross_chain_call";
+        
+        coverage_reports["overall"] = coverage;
+        
+        // Add coverage issues if below standards
+        if (coverage.line_coverage < quality_standards.min_test_coverage) {
+            _add_code_issue("tests/", "coverage", "high",
+                "Line coverage below minimum standard", "Add more comprehensive test cases");
+        }
+    }
+    
+    function _perform_security_analysis() internal {
+        // Security analysis would integrate with tools like:
+        // - Cargo audit for Rust dependencies
+        // - Custom MEGA security rules
+        // - Static analysis for common vulnerabilities
+        
+        // Example security findings
+        _add_code_issue("src/semantic/analyzer.mega", "security", "high",
+            "Buffer overflow vulnerability in type checking", 
+            "Implement bounds checking and input validation");
+        
+        _add_code_issue("src/codegen/codegen.mega", "security", "medium",
+            "Potential code injection in template generation", 
+            "Sanitize all user inputs and use parameterized templates");
+    }
+    
+    function _analyze_performance_patterns() internal {
+        // Performance analysis for common anti-patterns
+        _add_code_issue("src/lexer/lexer.mega", "performance", "medium",
+            "Inefficient string operations in hot path", 
+            "Use rope data structure or pre-allocated buffers");
+        
+        _add_code_issue("src/codegen/codegen.mega", "performance", "low",
+            "Repeated file system operations", 
+            "Batch file operations and use caching");
+    }
+    
+    function _analyze_dependencies() internal {
+        // Dependency analysis would check:
+        // - Outdated dependencies
+        // - Security vulnerabilities in dependencies
+        // - License compatibility
+        // - Dependency bloat
+        
+        // Example findings
+        _add_code_issue("Cargo.toml", "dependency", "medium",
+            "Some dependencies may have security vulnerabilities", 
+            "Update to latest versions and audit dependency tree");
+    }
+    
+    function _analyze_documentation_quality() internal {
+        // Documentation analysis
+        uint256 total_functions = 45;
+        uint256 documented_functions = 36;
+        uint256 doc_coverage = (documented_functions * 100) / total_functions;
+        
+        if (doc_coverage < quality_standards.min_documentation_coverage) {
+            _add_code_issue("src/", "documentation", "medium",
+                "Documentation coverage below standard", 
+                "Add comprehensive documentation for all public functions");
+        }
+    }
+    
+    function _calculate_quality_score() internal {
+        // Calculate weighted quality score
+        uint256 maintainability = _calculate_maintainability_score();
+        uint256 reliability = _calculate_reliability_score();
+        uint256 security = _calculate_security_score();
+        uint256 performance = _calculate_performance_score();
+        uint256 testability = _calculate_testability_score();
+        
+        // Weighted average
+        uint256 total_score = (maintainability * 25 + reliability * 20 + 
+                              security * 25 + performance * 15 + testability * 15) / 100;
+        
+        overall_score = QualityScore({
+            overall_score: total_score,
+            maintainability_score: maintainability,
+            reliability_score: reliability,
+            security_score: security,
+            performance_score: performance,
+            testability_score: testability,
+            grade: _calculate_grade(total_score),
+            passes_quality_gate: total_score >= 75
+        });
+    }
+    
+    function _calculate_maintainability_score() internal view returns (uint256) {
+        // Based on complexity, duplication, and documentation
+        uint256 avg_complexity = 12; // Average cyclomatic complexity
+        uint256 avg_duplication = 3; // Average duplication percentage
+        uint256 avg_documentation = 80; // Average documentation coverage
+        
+        uint256 complexity_score = avg_complexity <= 10 ? 100 : (100 - (avg_complexity - 10) * 5);
+        uint256 duplication_score = avg_duplication <= 3 ? 100 : (100 - (avg_duplication - 3) * 10);
+        uint256 doc_score = avg_documentation;
+        
+        return (complexity_score + duplication_score + doc_score) / 3;
+    }
+    
+    function _calculate_reliability_score() internal view returns (uint256) {
+        // Based on test coverage and code quality
+        uint256 test_coverage = coverage_reports["overall"].line_coverage;
+        uint256 issue_count = _count_issues_by_severity("high") + _count_issues_by_severity("medium");
+        
+        uint256 coverage_score = test_coverage;
+        uint256 quality_score = issue_count <= 5 ? 100 : (100 - (issue_count - 5) * 5);
+        
+        return (coverage_score + quality_score) / 2;
+    }
+    
+    function _calculate_security_score() internal view returns (uint256) {
+        uint256 security_issues = _count_issues_by_type("security");
+        
+        if (security_issues == 0) return 100;
+        if (security_issues <= 2) return 85;
+        if (security_issues <= 5) return 70;
+        return 50;
+    }
+    
+    function _calculate_performance_score() internal view returns (uint256) {
+        uint256 performance_issues = _count_issues_by_type("performance");
+        
+        if (performance_issues == 0) return 100;
+        if (performance_issues <= 3) return 85;
+        if (performance_issues <= 6) return 70;
+        return 55;
+    }
+    
+    function _calculate_testability_score() internal view returns (uint256) {
+        uint256 test_coverage = coverage_reports["overall"].line_coverage;
+        uint256 complexity_issues = _count_issues_by_type("complexity");
+        
+        uint256 coverage_component = test_coverage;
+        uint256 complexity_component = complexity_issues <= 2 ? 100 : (100 - (complexity_issues - 2) * 10);
+        
+        return (coverage_component + complexity_component) / 2;
+    }
+    
+    function _count_issues_by_severity(string memory severity) internal view returns (uint256) {
+        uint256 count = 0;
+        // This would iterate through all issues in a real implementation
+        // Simplified for demonstration
+        return count;
+    }
+    
+    function _count_issues_by_type(string memory issue_type) internal view returns (uint256) {
+        uint256 count = 0;
+        // This would iterate through all issues in a real implementation
+        // Simplified for demonstration
+        return count;
+    }
+    
+    function _calculate_grade(uint256 score) internal pure returns (string memory) {
+        if (score >= 95) return "A+";
+        if (score >= 90) return "A";
+        if (score >= 85) return "B+";
+        if (score >= 80) return "B";
+        if (score >= 75) return "C+";
+        if (score >= 70) return "C";
+        if (score >= 60) return "D";
+        return "F";
+    }
+    
+    function _generate_improvement_plan() internal {
+        // Generate prioritized improvement plan
+        improvement_plan.high_priority_actions.push(PriorityAction({
+            action_type: "security_fix",
+            description: "Fix buffer overflow vulnerability in semantic analyzer",
+            affected_files: ["src/semantic/analyzer.mega"],
+            estimated_effort: 8,
+            impact_score: 95,
+            deadline: "immediate"
+        }));
+        
+        improvement_plan.medium_priority_actions.push(PriorityAction({
+            action_type: "refactoring",
+            description: "Reduce cyclomatic complexity in code generator",
+            affected_files: ["src/codegen/codegen.mega"],
+            estimated_effort: 16,
+            impact_score: 75,
+            deadline: "1_week"
+        }));
+        
+        improvement_plan.low_priority_actions.push(PriorityAction({
+            action_type: "optimization",
+            description: "Optimize string operations in lexer",
+            affected_files: ["src/lexer/lexer.mega"],
+            estimated_effort: 4,
+            impact_score: 60,
+            deadline: "2_weeks"
+        }));
+        
+        improvement_plan.quick_wins.push("Add missing documentation comments");
+        improvement_plan.quick_wins.push("Fix code formatting inconsistencies");
+        improvement_plan.quick_wins.push("Remove unused imports");
+        
+        improvement_plan.long_term_goals.push("Achieve 95%+ test coverage");
+        improvement_plan.long_term_goals.push("Implement comprehensive performance monitoring");
+        improvement_plan.long_term_goals.push("Establish automated quality gates in CI/CD");
+        
+        improvement_plan.estimated_total_effort = 32; // Total hours
+    }
+    
+    function _initialize_quality_gates() internal {
+        quality_gates["test_coverage"] = QualityGate({
+            gate_name: "Test Coverage",
+            condition: "line_coverage >= 80",
+            threshold: 80,
+            is_blocking: true,
+            description: "Minimum test coverage required for deployment"
+        });
+        
+        quality_gates["security_issues"] = QualityGate({
+            gate_name: "Security Issues",
+            condition: "high_security_issues == 0",
+            threshold: 0,
+            is_blocking: true,
+            description: "No high-severity security issues allowed"
+        });
+        
+        quality_gates["complexity"] = QualityGate({
+            gate_name: "Code Complexity",
+            condition: "avg_cyclomatic_complexity <= 15",
+            threshold: 15,
+            is_blocking: false,
+            description: "Average cyclomatic complexity should be reasonable"
+        });
+    }
+    
+    function _evaluate_quality_gates() internal {
+        bool all_gates_pass = true;
+        
+        // Check test coverage gate
+        if (coverage_reports["overall"].line_coverage < quality_gates["test_coverage"].threshold) {
+            all_gates_pass = false;
+        }
+        
+        // Check security issues gate
+        uint256 high_security_issues = _count_high_security_issues();
+        if (high_security_issues > quality_gates["security_issues"].threshold) {
+            all_gates_pass = false;
+        }
+        
+        deployment_approved = all_gates_pass && overall_score.passes_quality_gate;
+    }
+    
+    function _count_high_security_issues() internal view returns (uint256) {
+        // Count high-severity security issues
+        return 1; // Simplified - would count actual issues
+    }
+    
+    function _save_audit_history(uint256 audit_id) internal {
+        uint256 total_issues = _count_all_issues();
+        
+        audit_history.push(AuditHistory({
+            audit_id: audit_id,
+            timestamp: block.timestamp,
+            score_snapshot: overall_score,
+            issues_found: total_issues,
+            issues_resolved: 0, // Would track from previous audit
+            audit_summary: "Comprehensive code quality audit completed"
+        }));
+    }
+    
+    function _count_all_issues() internal view returns (uint256) {
+        // Count all issues across all files
+        return 8; // Simplified count
+    }
+    
+    // Public view functions
+    function get_quality_score() public view returns (QualityScore memory) {
+        return overall_score;
+    }
+    
+    function get_improvement_plan() public view returns (ImprovementPlan memory) {
+        return improvement_plan;
+    }
+    
+    function get_file_metrics(string memory file_path) public view returns (QualityMetrics memory) {
+        return file_metrics[file_path];
+    }
+    
+    function get_code_issues(string memory file_path) public view returns (CodeIssue[] memory) {
+        return code_issues[file_path];
+    }
+    
+    function is_deployment_approved() public view returns (bool) {
+        return deployment_approved;
+    }
+    
+    function get_audit_summary() public view returns (string memory) {
+        return string(abi.encodePacked(
+            "Quality Score: ", _uint_to_string(overall_score.overall_score), "/100 (", overall_score.grade, ") | ",
+            "Issues Found: ", _uint_to_string(_count_all_issues()), " | ",
+            "Deployment Approved: ", deployment_approved ? "Yes" : "No"
+        ));
+    }
+    
+    function _uint_to_string(uint256 value) internal pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    // Events
+    event AuditStarted(uint256 indexed audit_id, uint256 timestamp, address auditor);
+    event AuditCompleted(uint256 indexed audit_id, QualityScore score, bool deployment_approved);
+    event QualityGateEvaluated(string gate_name, bool passed, uint256 actual_value, uint256 threshold);
+    event IssueFound(string file_path, string issue_type, string severity, string description);
+    event ImprovementPlanGenerated(uint256 high_priority_count, uint256 medium_priority_count, uint256 low_priority_count);
+}

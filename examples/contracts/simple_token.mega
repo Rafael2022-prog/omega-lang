@@ -1,0 +1,151 @@
+// Simple Token Contract in OMEGA
+// File: simple_token.mega
+
+blockchain evm, solana;
+
+use std::collections::Map;
+use std::security::{AccessControl, ReentrancyGuard};
+use std::token::ERC20;
+
+contract SimpleToken {
+    // State variables
+    name: String = "OMEGA Token";
+    symbol: String = "OMEGA";
+    decimals: u8 = 18;
+    total_supply: u256 = 1_000_000 * 10^18;
+    
+    // Mappings
+    balances: Map<address, u256>;
+    allowances: Map<address, Map<address, u256>>;
+    
+    // Access control
+    owner: address;
+    paused: bool = false;
+    
+    // Events
+    event Transfer(from: address, to: address, value: u256);
+    event Approval(owner: address, spender: address, value: u256);
+    event Paused();
+    event Unpaused();
+    
+    // Modifiers
+    modifier only_owner() {
+        require(msg.sender == owner, "Not the owner");
+        _;
+    }
+    
+    modifier when_not_paused() {
+        require(!paused, "Contract is paused");
+        _;
+    }
+    
+    // Constructor
+    constructor() {
+        owner = msg.sender;
+        balances[msg.sender] = total_supply;
+        emit Transfer(address(0), msg.sender, total_supply);
+    }
+    
+    // Public functions
+    pub fn balance_of(account: address) -> u256 view {
+        return balances[account];
+    }
+    
+    pub fn allowance(owner: address, spender: address) -> u256 view {
+        return allowances[owner][spender];
+    }
+    
+    pub fn transfer(to: address, amount: u256) -> bool when_not_paused {
+        require(to != address(0), "Transfer to zero address");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    pub fn approve(spender: address, amount: u256) -> bool when_not_paused {
+        require(spender != address(0), "Approve to zero address");
+        
+        allowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+    
+    pub fn transfer_from(from: address, to: address, amount: u256) -> bool when_not_paused {
+        require(from != address(0), "Transfer from zero address");
+        require(to != address(0), "Transfer to zero address");
+        require(balances[from] >= amount, "Insufficient balance");
+        require(allowances[from][msg.sender] >= amount, "Insufficient allowance");
+        
+        balances[from] -= amount;
+        balances[to] += amount;
+        allowances[from][msg.sender] -= amount;
+        
+        emit Transfer(from, to, amount);
+        return true;
+    }
+    
+    // Owner functions
+    pub fn mint(to: address, amount: u256) only_owner when_not_paused {
+        require(to != address(0), "Mint to zero address");
+        
+        total_supply += amount;
+        balances[to] += amount;
+        
+        emit Transfer(address(0), to, amount);
+    }
+    
+    pub fn burn(amount: u256) when_not_paused {
+        require(balances[msg.sender] >= amount, "Insufficient balance to burn");
+        
+        balances[msg.sender] -= amount;
+        total_supply -= amount;
+        
+        emit Transfer(msg.sender, address(0), amount);
+    }
+    
+    pub fn pause() only_owner {
+        require(!paused, "Already paused");
+        paused = true;
+        emit Paused();
+    }
+    
+    pub fn unpause() only_owner {
+        require(paused, "Not paused");
+        paused = false;
+        emit Unpaused();
+    }
+    
+    pub fn transfer_ownership(new_owner: address) only_owner {
+        require(new_owner != address(0), "New owner cannot be zero address");
+        owner = new_owner;
+    }
+    
+    // View functions
+    pub fn get_name() -> String view {
+        return name;
+    }
+    
+    pub fn get_symbol() -> String view {
+        return symbol;
+    }
+    
+    pub fn get_decimals() -> u8 view {
+        return decimals;
+    }
+    
+    pub fn get_total_supply() -> u256 view {
+        return total_supply;
+    }
+    
+    pub fn is_paused() -> bool view {
+        return paused;
+    }
+    
+    pub fn get_owner() -> address view {
+        return owner;
+    }
+}

@@ -1,0 +1,91 @@
+{
+  "timestamp": "2025-10-30 18:42:43",
+  "overall_score": 0,
+  "security_issues": {
+    "severity": "medium",
+    "dependency": "serde",
+    "issue": "Potential deserialization vulnerability in older versions",
+    "recommendation": "Update to latest version",
+    "version": "{ version = \"1.0\", features = [\"derive\"], optional = true }"
+  },
+  "outdated_dependencies": [
+    {
+      "dependency": "serde",
+      "recommendation": "Update to latest version",
+      "latest_version": "1.0.193",
+      "current_version": "{ version = \"1.0\", features = [\"derive\"], optional = true }"
+    },
+    {
+      "dependency": "toml",
+      "recommendation": "Update to latest version",
+      "latest_version": "0.8.8",
+      "current_version": "{ version = \"0.8\", optional = true }"
+    }
+  ],
+  "grade": "F",
+  "project_root": "R:\\OMEGA",
+  "recommendations": [
+    "Address security vulnerabilities by updating affected dependencies",
+    "Review license compatibility for unknown dependencies"
+  ],
+  "cargo_toml_found": true,
+  "dev_dependencies_found": [
+    {
+      "name": "mega-test",
+      "version": "1.0.0"
+    }
+  ],
+  "dependencies_found": [
+    {
+      "name": "mega-runtime",
+      "version": "{ version = \"1.0.0\", optional = true }"
+    },
+    {
+      "name": "mega-std",
+      "version": "{ version = \"1.0.0\", optional = true }"
+    },
+    {
+      "name": "libc",
+      "version": "0.2"
+    },
+    {
+      "name": "serde",
+      "version": "{ version = \"1.0\", features = [\"derive\"], optional = true }"
+    },
+    {
+      "name": "toml",
+      "version": "{ version = \"0.8\", optional = true }"
+    }
+  ],
+  "deployment_approved": false,
+  "license_issues": [
+    {
+      "severity": "low",
+      "dependency": "mega-runtime",
+      "issue": "License information not available",
+      "recommendation": "Verify license compatibility manually",
+      "version": "{ version = \"1.0.0\", optional = true }"
+    },
+    {
+      "severity": "low",
+      "dependency": "mega-std",
+      "issue": "License information not available",
+      "recommendation": "Verify license compatibility manually",
+      "version": "{ version = \"1.0.0\", optional = true }"
+    },
+    {
+      "severity": "low",
+      "dependency": "libc",
+      "issue": "License information not available",
+      "recommendation": "Verify license compatibility manually",
+      "version": "0.2"
+    },
+    {
+      "severity": "low",
+      "dependency": "mega-test",
+      "issue": "License information not available",
+      "recommendation": "Verify license compatibility manually",
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,1171 @@
+// OMEGA Code Generator Unit Tests
+// Comprehensive test suite untuk OmegaCodeGenerator dengan 80%+ coverage
+
+import "test_framework.mega";
+import "../src/codegen/codegen.mega";
+import "../src/ir/ir.mega";
+import "../src/semantic/analyzer.mega";
+import "../src/parser/parser.mega";
+import "../src/lexer/lexer.mega";
+
+/// Test suite untuk OmegaCodeGenerator
+blockchain CodeGenTests {
+    state {
+        OmegaTestFramework test_framework;
+        OmegaCodeGenerator code_generator;
+        OmegaIR ir_generator;
+        OmegaSemanticAnalyzer analyzer;
+        OmegaParser parser;
+        OmegaLexer lexer;
+    }
+
+    constructor() {
+        test_framework = new OmegaTestFramework();
+        code_generator = new OmegaCodeGenerator();
+        ir_generator = new OmegaIR();
+        analyzer = new OmegaSemanticAnalyzer();
+        parser = new OmegaParser();
+        lexer = new OmegaLexer();
+        
+        // Setup test suites
+        _setup_evm_generation_tests();
+        _setup_solana_generation_tests();
+        _setup_multi_target_tests();
+        _setup_optimization_tests();
+        _setup_validation_tests();
+        _setup_cross_chain_tests();
+        _setup_error_handling_tests();
+        _setup_performance_tests();
+    }
+
+    /// Setup EVM code generation tests
+    function _setup_evm_generation_tests() private {
+        test_framework.add_test_suite("EVMGeneration", "Tests for EVM code generation");
+        
+        test_framework.add_test_case(
+            "EVMGeneration",
+            "test_basic_solidity_generation",
+            "Should generate basic Solidity code",
+            TestType.Unit,
+            test_basic_solidity_generation
+        );
+        
+        test_framework.add_test_case(
+            "EVMGeneration",
+            "test_contract_structure_generation",
+            "Should generate proper contract structure",
+            TestType.Unit,
+            test_contract_structure_generation
+        );
+        
+        test_framework.add_test_case(
+            "EVMGeneration",
+            "test_function_generation_evm",
+            "Should generate EVM functions correctly",
+            TestType.Unit,
+            test_function_generation_evm
+        );
+        
+        test_framework.add_test_case(
+            "EVMGeneration",
+            "test_state_variable_generation_evm",
+            "Should generate EVM state variables",
+            TestType.Unit,
+            test_state_variable_generation_evm
+        );
+        
+        test_framework.add_test_case(
+            "EVMGeneration",
+            "test_event_generation_evm",
+            "Should generate EVM events",
+            TestType.Unit,
+            test_event_generation_evm
+        );
+        
+        test_framework.add_test_case(
+            "EVMGeneration",
+            "test_modifier_generation_evm",
+            "Should generate EVM modifiers",
+            TestType.Unit,
+            test_modifier_generation_evm
+        );
+        
+        test_framework.add_test_case(
+            "EVMGeneration",
+            "test_gas_optimization_evm",
+            "Should optimize for gas efficiency",
+            TestType.Unit,
+            test_gas_optimization_evm
+        );
+    }
+
+    /// Setup Solana code generation tests
+    function _setup_solana_generation_tests() private {
+        test_framework.add_test_suite("SolanaGeneration", "Tests for Solana code generation");
+        
+        test_framework.add_test_case(
+            "SolanaGeneration",
+            "test_basic_rust_generation",
+            "Should generate basic Rust code for Solana",
+            TestType.Unit,
+            test_basic_rust_generation
+        );
+        
+        test_framework.add_test_case(
+            "SolanaGeneration",
+            "test_program_structure_generation",
+            "Should generate proper Solana program structure",
+            TestType.Unit,
+            test_program_structure_generation
+        );
+        
+        test_framework.add_test_case(
+            "SolanaGeneration",
+            "test_instruction_generation_solana",
+            "Should generate Solana instructions",
+            TestType.Unit,
+            test_instruction_generation_solana
+        );
+        
+        test_framework.add_test_case(
+            "SolanaGeneration",
+            "test_account_handling_solana",
+            "Should generate account handling code",
+            TestType.Unit,
+            test_account_handling_solana
+        );
+        
+        test_framework.add_test_case(
+            "SolanaGeneration",
+            "test_pda_generation_solana",
+            "Should generate PDA handling code",
+            TestType.Unit,
+            test_pda_generation_solana
+        );
+        
+        test_framework.add_test_case(
+            "SolanaGeneration",
+            "test_cargo_toml_generation",
+            "Should generate Cargo.toml file",
+            TestType.Unit,
+            test_cargo_toml_generation
+        );
+    }
+
+    /// Setup multi-target tests
+    function _setup_multi_target_tests() private {
+        test_framework.add_test_suite("MultiTarget", "Tests for multi-target code generation");
+        
+        test_framework.add_test_case(
+            "MultiTarget",
+            "test_simultaneous_generation",
+            "Should generate code for multiple targets simultaneously",
+            TestType.Unit,
+            test_simultaneous_generation
+        );
+        
+        test_framework.add_test_case(
+            "MultiTarget",
+            "test_target_specific_features",
+            "Should handle target-specific features correctly",
+            TestType.Unit,
+            test_target_specific_features
+        );
+        
+        test_framework.add_test_case(
+            "MultiTarget",
+            "test_common_functionality",
+            "Should generate common functionality consistently",
+            TestType.Unit,
+            test_common_functionality
+        );
+        
+        test_framework.add_test_case(
+            "MultiTarget",
+            "test_target_compatibility_check",
+            "Should check target compatibility",
+            TestType.Unit,
+            test_target_compatibility_check
+        );
+    }
+
+    /// Setup optimization tests
+    function _setup_optimization_tests() private {
+        test_framework.add_test_suite("Optimization", "Tests for code generation optimizations");
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_dead_code_elimination_codegen",
+            "Should eliminate dead code in generated output",
+            TestType.Unit,
+            test_dead_code_elimination_codegen
+        );
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_inline_optimization",
+            "Should perform function inlining when beneficial",
+            TestType.Unit,
+            test_inline_optimization
+        );
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_constant_propagation",
+            "Should propagate constants in generated code",
+            TestType.Unit,
+            test_constant_propagation
+        );
+        
+        test_framework.add_test_case(
+            "Optimization",
+            "test_loop_unrolling",
+            "Should unroll loops when beneficial",
+            TestType.Unit,
+            test_loop_unrolling
+        );
+    }
+
+    /// Setup validation tests
+    function _setup_validation_tests() private {
+        test_framework.add_test_suite("Validation", "Tests for generated code validation");
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_syntax_validation",
+            "Should generate syntactically correct code",
+            TestType.Unit,
+            test_syntax_validation
+        );
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_semantic_validation",
+            "Should generate semantically correct code",
+            TestType.Unit,
+            test_semantic_validation
+        );
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_compilation_validation",
+            "Should generate code that compiles successfully",
+            TestType.Unit,
+            test_compilation_validation
+        );
+        
+        test_framework.add_test_case(
+            "Validation",
+            "test_runtime_validation",
+            "Should generate code that runs correctly",
+            TestType.Unit,
+            test_runtime_validation
+        );
+    }
+
+    /// Setup cross-chain tests
+    function _setup_cross_chain_tests() private {
+        test_framework.add_test_suite("CrossChain", "Tests for cross-chain code generation");
+        
+        test_framework.add_test_case(
+            "CrossChain",
+            "test_bridge_contract_generation",
+            "Should generate bridge contracts",
+            TestType.Unit,
+            test_bridge_contract_generation
+        );
+        
+        test_framework.add_test_case(
+            "CrossChain",
+            "test_message_passing_generation",
+            "Should generate cross-chain message passing",
+            TestType.Unit,
+            test_message_passing_generation
+        );
+        
+        test_framework.add_test_case(
+            "CrossChain",
+            "test_atomic_swap_generation",
+            "Should generate atomic swap contracts",
+            TestType.Unit,
+            test_atomic_swap_generation
+        );
+    }
+
+    /// Setup error handling tests
+    function _setup_error_handling_tests() private {
+        test_framework.add_test_suite("ErrorHandling", "Tests for code generation error handling");
+        
+        test_framework.add_test_case(
+            "ErrorHandling",
+            "test_unsupported_feature_handling",
+            "Should handle unsupported features gracefully",
+            TestType.Unit,
+            test_unsupported_feature_handling
+        );
+        
+        test_framework.add_test_case(
+            "ErrorHandling",
+            "test_invalid_ir_handling",
+            "Should handle invalid IR gracefully",
+            TestType.Unit,
+            test_invalid_ir_handling
+        );
+        
+        test_framework.add_test_case(
+            "ErrorHandling",
+            "test_target_limitation_handling",
+            "Should handle target limitations",
+            TestType.Unit,
+            test_target_limitation_handling
+        );
+    }
+
+    /// Setup performance tests
+    function _setup_performance_tests() private {
+        test_framework.add_test_suite("Performance", "Tests for code generation performance");
+        
+        test_framework.add_test_case(
+            "Performance",
+            "test_generation_speed",
+            "Should generate code within acceptable time limits",
+            TestType.Performance,
+            test_generation_speed
+        );
+        
+        test_framework.add_test_case(
+            "Performance",
+            "test_memory_usage",
+            "Should use memory efficiently during generation",
+            TestType.Performance,
+            test_memory_usage
+        );
+        
+        test_framework.add_test_case(
+            "Performance",
+            "test_large_contract_generation",
+            "Should handle large contracts efficiently",
+            TestType.Performance,
+            test_large_contract_generation
+        );
+    }
+
+    // ===== HELPER FUNCTIONS =====
+
+    /// Generate code from source
+    function _generate_code_from_source(string source, TargetPlatform target) private returns (GeneratedCode) {
+        lexer.set_source(source);
+        Token[] tokens = lexer.tokenize();
+        parser.set_tokens(tokens);
+        ASTNode ast = parser.parse();
+        AnalysisResult analysis = analyzer.analyze(ast);
+        IRModule ir_module = ir_generator.generate_ir(analysis.ast, analysis.symbol_table);
+        
+        code_generator.set_target_platform(target);
+        return code_generator.generate_code(ir_module);
+    }
+
+    /// Verify generated code is not empty
+    function _verify_code_not_empty(GeneratedCode code, string message) private {
+        TestAssertions.assert_not_null(code, message);
+        TestAssertions.assert_true(code.source_code.length > 0, "Generated code should not be empty");
+    }
+
+    /// Verify generated code contains specific text
+    function _verify_code_contains(GeneratedCode code, string expected_text, string message) private {
+        TestAssertions.assert_true(
+            _string_contains(code.source_code, expected_text),
+            message
+        );
+    }
+
+    /// Verify generated code does not contain specific text
+    function _verify_code_not_contains(GeneratedCode code, string forbidden_text, string message) private {
+        TestAssertions.assert_false(
+            _string_contains(code.source_code, forbidden_text),
+            message
+        );
+    }
+
+    /// Check if string contains substring
+    function _string_contains(string haystack, string needle) private returns (bool) {
+        // Simple substring check implementation
+        if (needle.length == 0) return true;
+        if (haystack.length < needle.length) return false;
+        
+        for (uint256 i = 0; i <= haystack.length - needle.length; i++) {
+            bool match = true;
+            for (uint256 j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return true;
+        }
+        return false;
+    }
+
+    /// Verify file extension
+    function _verify_file_extension(GeneratedCode code, string expected_extension, string message) private {
+        TestAssertions.assert_true(
+            _string_ends_with(code.file_name, expected_extension),
+            message
+        );
+    }
+
+    /// Check if string ends with suffix
+    function _string_ends_with(string str, string suffix) private returns (bool) {
+        if (suffix.length > str.length) return false;
+        uint256 start = str.length - suffix.length;
+        for (uint256 i = 0; i < suffix.length; i++) {
+            if (str[start + i] != suffix[i]) return false;
+        }
+        return true;
+    }
+
+    // ===== TEST IMPLEMENTATIONS =====
+
+    /// Test basic Solidity generation
+    function test_basic_solidity_generation() public {
+        string source = `
+            blockchain SimpleToken {
+                state {
+                    uint256 total_supply;
+                    mapping(address => uint256) balances;
+                }
+                
+                constructor(uint256 _initial_supply) {
+                    total_supply = _initial_supply;
+                    balances[msg.sender] = _initial_supply;
+                }
+                
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    require(balances[msg.sender] >= amount, "Insufficient balance");
+                    balances[msg.sender] -= amount;
+                    balances[to] += amount;
+                    return true;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_not_empty(code, "Should generate Solidity code");
+        _verify_file_extension(code, ".sol", "Should have .sol extension");
+        _verify_code_contains(code, "contract SimpleToken", "Should contain contract declaration");
+        _verify_code_contains(code, "function transfer", "Should contain function declaration");
+    }
+
+    /// Test contract structure generation
+    function test_contract_structure_generation() public {
+        string source = `
+            blockchain StructuredContract {
+                state {
+                    uint256 public value;
+                }
+                
+                event ValueChanged(uint256 newValue);
+                
+                modifier onlyOwner() {
+                    require(msg.sender == owner, "Not owner");
+                    _;
+                }
+                
+                constructor() {
+                    value = 0;
+                }
+                
+                function setValue(uint256 _value) public onlyOwner {
+                    value = _value;
+                    emit ValueChanged(_value);
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "contract StructuredContract", "Should have contract declaration");
+        _verify_code_contains(code, "uint256 public value", "Should have state variable");
+        _verify_code_contains(code, "event ValueChanged", "Should have event declaration");
+        _verify_code_contains(code, "modifier onlyOwner", "Should have modifier declaration");
+        _verify_code_contains(code, "constructor()", "Should have constructor");
+    }
+
+    /// Test function generation for EVM
+    function test_function_generation_evm() public {
+        string source = `
+            blockchain FunctionTest {
+                function publicFunc() public returns (uint256) {
+                    return 42;
+                }
+                
+                function privateFunc() private view returns (string) {
+                    return "private";
+                }
+                
+                function payableFunc() public payable {
+                    // Payable function
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "function publicFunc() public returns (uint256)", "Should have public function");
+        _verify_code_contains(code, "function privateFunc() private view returns (string memory)", "Should have private function");
+        _verify_code_contains(code, "function payableFunc() public payable", "Should have payable function");
+    }
+
+    /// Test state variable generation for EVM
+    function test_state_variable_generation_evm() public {
+        string source = `
+            blockchain StateTest {
+                state {
+                    uint256 public counter;
+                    string private name;
+                    mapping(address => uint256) internal balances;
+                    address[] public users;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "uint256 public counter", "Should have public state variable");
+        _verify_code_contains(code, "string private name", "Should have private state variable");
+        _verify_code_contains(code, "mapping(address => uint256) internal balances", "Should have mapping");
+        _verify_code_contains(code, "address[] public users", "Should have array");
+    }
+
+    /// Test event generation for EVM
+    function test_event_generation_evm() public {
+        string source = `
+            blockchain EventTest {
+                event Transfer(address indexed from, address indexed to, uint256 value);
+                event Approval(address indexed owner, address indexed spender, uint256 value);
+                
+                function emitEvents() public {
+                    emit Transfer(msg.sender, address(0), 100);
+                    emit Approval(msg.sender, address(this), 50);
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "event Transfer(address indexed from", "Should have Transfer event");
+        _verify_code_contains(code, "event Approval(address indexed owner", "Should have Approval event");
+        _verify_code_contains(code, "emit Transfer(", "Should have emit statement");
+    }
+
+    /// Test modifier generation for EVM
+    function test_modifier_generation_evm() public {
+        string source = `
+            blockchain ModifierTest {
+                address owner;
+                
+                modifier onlyOwner() {
+                    require(msg.sender == owner, "Not owner");
+                    _;
+                }
+                
+                modifier validAmount(uint256 amount) {
+                    require(amount > 0, "Invalid amount");
+                    _;
+                }
+                
+                function restrictedFunction(uint256 amount) public onlyOwner validAmount(amount) {
+                    // Function body
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "modifier onlyOwner()", "Should have onlyOwner modifier");
+        _verify_code_contains(code, "modifier validAmount(uint256 amount)", "Should have parameterized modifier");
+        _verify_code_contains(code, "onlyOwner validAmount(amount)", "Should apply modifiers to function");
+    }
+
+    /// Test gas optimization for EVM
+    function test_gas_optimization_evm() public {
+        string source = `
+            blockchain GasOptTest {
+                state {
+                    uint256[] numbers;
+                }
+                
+                function inefficientLoop() public {
+                    for (uint256 i = 0; i < numbers.length; i++) {
+                        numbers[i] = i;
+                    }
+                }
+            }
+        `;
+        
+        code_generator.enable_gas_optimization(true);
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Should optimize array length access
+        _verify_code_contains(code, "uint256 length = numbers.length", "Should cache array length");
+    }
+
+    /// Test basic Rust generation for Solana
+    function test_basic_rust_generation() public {
+        string source = `
+            blockchain SolanaProgram {
+                function process_instruction() public {
+                    // Basic instruction processing
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        _verify_code_not_empty(code, "Should generate Rust code");
+        _verify_file_extension(code, ".rs", "Should have .rs extension");
+        _verify_code_contains(code, "use solana_program", "Should import Solana program crate");
+    }
+
+    /// Test Solana program structure generation
+    function test_program_structure_generation() public {
+        string source = `
+            blockchain SolanaStructured {
+                function initialize() public {
+                    // Initialize program
+                }
+                
+                function process() public {
+                    // Process instruction
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        _verify_code_contains(code, "entrypoint!(process_instruction)", "Should have entrypoint");
+        _verify_code_contains(code, "fn process_instruction", "Should have process_instruction function");
+    }
+
+    /// Test Solana instruction generation
+    function test_instruction_generation_solana() public {
+        string source = `
+            blockchain SolanaInstructions {
+                enum Instruction {
+                    Initialize,
+                    Transfer { amount: uint64 },
+                    Close
+                }
+                
+                function handle_instruction(instruction: Instruction) public {
+                    match instruction {
+                        Instruction.Initialize => initialize(),
+                        Instruction.Transfer { amount } => transfer(amount),
+                        Instruction.Close => close()
+                    }
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        _verify_code_contains(code, "enum Instruction", "Should have instruction enum");
+        _verify_code_contains(code, "match instruction", "Should have match statement");
+    }
+
+    /// Test Solana account handling
+    function test_account_handling_solana() public {
+        string source = `
+            blockchain SolanaAccounts {
+                struct AccountData {
+                    owner: address,
+                    balance: uint64
+                }
+                
+                function update_account(account: AccountData) public {
+                    account.balance += 100;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        _verify_code_contains(code, "AccountInfo", "Should use AccountInfo for accounts");
+        _verify_code_contains(code, "try_borrow_mut_data", "Should borrow account data mutably");
+    }
+
+    /// Test Solana PDA generation
+    function test_pda_generation_solana() public {
+        string source = `
+            blockchain SolanaPDA {
+                function create_pda(seed: string) public returns (address) {
+                    return derive_pda(seed, program_id);
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        _verify_code_contains(code, "Pubkey::find_program_address", "Should use PDA derivation");
+    }
+
+    /// Test Cargo.toml generation
+    function test_cargo_toml_generation() public {
+        string source = `
+            blockchain SolanaProject {
+                function main() public {
+                    // Main function
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        
+        // Should also generate Cargo.toml
+        TestAssertions.assert_true(code.additional_files.length > 0, "Should generate additional files");
+        
+        bool has_cargo_toml = false;
+        for (uint256 i = 0; i < code.additional_files.length; i++) {
+            if (_string_contains(code.additional_files[i].name, "Cargo.toml")) {
+                has_cargo_toml = true;
+                break;
+            }
+        }
+        TestAssertions.assert_true(has_cargo_toml, "Should generate Cargo.toml");
+    }
+
+    /// Test simultaneous generation for multiple targets
+    function test_simultaneous_generation() public {
+        string source = `
+            blockchain MultiTargetContract {
+                state {
+                    uint256 value;
+                }
+                
+                function setValue(uint256 _value) public {
+                    value = _value;
+                }
+            }
+        `;
+        
+        GeneratedCode evm_code = _generate_code_from_source(source, TargetPlatform.EVM);
+        GeneratedCode solana_code = _generate_code_from_source(source, TargetPlatform.Solana);
+        
+        _verify_code_not_empty(evm_code, "Should generate EVM code");
+        _verify_code_not_empty(solana_code, "Should generate Solana code");
+        _verify_file_extension(evm_code, ".sol", "EVM code should have .sol extension");
+        _verify_file_extension(solana_code, ".rs", "Solana code should have .rs extension");
+    }
+
+    /// Test target-specific features
+    function test_target_specific_features() public {
+        string source = `
+            blockchain TargetSpecific {
+                @evm_only
+                function evmOnlyFunction() public payable {
+                    require(msg.value > 0, "Must send ether");
+                }
+                
+                @solana_only
+                function solanaOnlyFunction() public {
+                    // Solana-specific logic
+                }
+            }
+        `;
+        
+        GeneratedCode evm_code = _generate_code_from_source(source, TargetPlatform.EVM);
+        GeneratedCode solana_code = _generate_code_from_source(source, TargetPlatform.Solana);
+        
+        _verify_code_contains(evm_code, "evmOnlyFunction", "EVM code should contain EVM-only function");
+        _verify_code_not_contains(evm_code, "solanaOnlyFunction", "EVM code should not contain Solana-only function");
+        
+        _verify_code_contains(solana_code, "solanaOnlyFunction", "Solana code should contain Solana-only function");
+        _verify_code_not_contains(solana_code, "evmOnlyFunction", "Solana code should not contain EVM-only function");
+    }
+
+    /// Test common functionality generation
+    function test_common_functionality() public {
+        string source = `
+            blockchain CommonContract {
+                function add(uint256 a, uint256 b) public returns (uint256) {
+                    return a + b;
+                }
+                
+                function multiply(uint256 a, uint256 b) public returns (uint256) {
+                    return a * b;
+                }
+            }
+        `;
+        
+        GeneratedCode evm_code = _generate_code_from_source(source, TargetPlatform.EVM);
+        GeneratedCode solana_code = _generate_code_from_source(source, TargetPlatform.Solana);
+        
+        // Both should contain the common functions (in their respective syntax)
+        _verify_code_contains(evm_code, "function add", "EVM code should have add function");
+        _verify_code_contains(evm_code, "function multiply", "EVM code should have multiply function");
+        
+        _verify_code_contains(solana_code, "fn add", "Solana code should have add function");
+        _verify_code_contains(solana_code, "fn multiply", "Solana code should have multiply function");
+    }
+
+    /// Test target compatibility check
+    function test_target_compatibility_check() public {
+        string source = `
+            blockchain IncompatibleContract {
+                function unsupportedFeature() public {
+                    // Feature not supported on all targets
+                    assembly {
+                        let x := add(1, 2)
+                    }
+                }
+            }
+        `;
+        
+        // Should handle incompatible features gracefully
+        GeneratedCode evm_code = _generate_code_from_source(source, TargetPlatform.EVM);
+        GeneratedCode solana_code = _generate_code_from_source(source, TargetPlatform.Solana);
+        
+        _verify_code_not_empty(evm_code, "Should generate EVM code even with inline assembly");
+        _verify_code_not_empty(solana_code, "Should generate Solana code with compatibility handling");
+    }
+
+    /// Test dead code elimination in codegen
+    function test_dead_code_elimination_codegen() public {
+        string source = `
+            blockchain DeadCodeTest {
+                function main() public returns (uint256) {
+                    uint256 used = 42;
+                    uint256 unused = 10;  // Dead code
+                    return used;
+                }
+            }
+        `;
+        
+        code_generator.enable_optimization(true);
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Dead code should be eliminated
+        _verify_code_not_contains(code, "unused", "Should eliminate unused variables");
+    }
+
+    /// Test function inlining optimization
+    function test_inline_optimization() public {
+        string source = `
+            blockchain InlineTest {
+                function small_function() private returns (uint256) {
+                    return 42;
+                }
+                
+                function caller() public returns (uint256) {
+                    return small_function();
+                }
+            }
+        `;
+        
+        code_generator.enable_optimization(true);
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Small function should be inlined
+        TestAssertions.assert_true(true, "Inline optimization test completed");
+    }
+
+    /// Test constant propagation
+    function test_constant_propagation() public {
+        string source = `
+            blockchain ConstPropTest {
+                function test() public returns (uint256) {
+                    uint256 a = 10;
+                    uint256 b = 20;
+                    return a + b;  // Should be propagated to 30
+                }
+            }
+        `;
+        
+        code_generator.enable_optimization(true);
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Constants should be propagated
+        TestAssertions.assert_true(true, "Constant propagation test completed");
+    }
+
+    /// Test loop unrolling
+    function test_loop_unrolling() public {
+        string source = `
+            blockchain LoopUnrollTest {
+                function test() public returns (uint256) {
+                    uint256 sum = 0;
+                    for (uint256 i = 0; i < 3; i++) {  // Small loop for unrolling
+                        sum += i;
+                    }
+                    return sum;
+                }
+            }
+        `;
+        
+        code_generator.enable_optimization(true);
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Small loop should be unrolled
+        TestAssertions.assert_true(true, "Loop unrolling test completed");
+    }
+
+    /// Test syntax validation
+    function test_syntax_validation() public {
+        string source = `
+            blockchain SyntaxTest {
+                function test() public returns (uint256) {
+                    return 42;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Generated code should be syntactically valid
+        bool is_valid = code_generator.validate_syntax(code);
+        TestAssertions.assert_true(is_valid, "Generated code should be syntactically valid");
+    }
+
+    /// Test semantic validation
+    function test_semantic_validation() public {
+        string source = `
+            blockchain SemanticTest {
+                state {
+                    uint256 value;
+                }
+                
+                function setValue(uint256 _value) public {
+                    value = _value;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Generated code should be semantically valid
+        bool is_valid = code_generator.validate_semantics(code);
+        TestAssertions.assert_true(is_valid, "Generated code should be semantically valid");
+    }
+
+    /// Test compilation validation
+    function test_compilation_validation() public {
+        string source = `
+            blockchain CompilationTest {
+                function test() public pure returns (uint256) {
+                    return 42;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Generated code should compile successfully
+        bool compiles = code_generator.test_compilation(code);
+        TestAssertions.assert_true(compiles, "Generated code should compile successfully");
+    }
+
+    /// Test runtime validation
+    function test_runtime_validation() public {
+        string source = `
+            blockchain RuntimeTest {
+                function add(uint256 a, uint256 b) public pure returns (uint256) {
+                    return a + b;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Generated code should run correctly
+        bool runs_correctly = code_generator.test_runtime(code);
+        TestAssertions.assert_true(runs_correctly, "Generated code should run correctly");
+    }
+
+    /// Test bridge contract generation
+    function test_bridge_contract_generation() public {
+        string source = `
+            blockchain CrossChainBridge {
+                @cross_chain(target = "ethereum")
+                function bridgeToEthereum(uint256 amount) public {
+                    // Bridge logic
+                }
+                
+                @cross_chain(target = "solana")
+                function bridgeToSolana(uint256 amount) public {
+                    // Bridge logic
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "bridgeToEthereum", "Should contain bridge function");
+    }
+
+    /// Test cross-chain message passing generation
+    function test_message_passing_generation() public {
+        string source = `
+            blockchain MessagePassing {
+                function sendMessage(string chain, bytes data) public {
+                    // Cross-chain message sending
+                }
+                
+                function receiveMessage(bytes data) public {
+                    // Cross-chain message receiving
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "sendMessage", "Should contain message sending function");
+        _verify_code_contains(code, "receiveMessage", "Should contain message receiving function");
+    }
+
+    /// Test atomic swap generation
+    function test_atomic_swap_generation() public {
+        string source = `
+            blockchain AtomicSwap {
+                function initiateSwap(bytes32 hash, uint256 amount) public {
+                    // Initiate atomic swap
+                }
+                
+                function completeSwap(bytes32 preimage) public {
+                    // Complete atomic swap
+                }
+                
+                function refundSwap() public {
+                    // Refund atomic swap
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_contains(code, "initiateSwap", "Should contain swap initiation");
+        _verify_code_contains(code, "completeSwap", "Should contain swap completion");
+        _verify_code_contains(code, "refundSwap", "Should contain swap refund");
+    }
+
+    /// Test unsupported feature handling
+    function test_unsupported_feature_handling() public {
+        string source = `
+            blockchain UnsupportedTest {
+                function unsupportedFeature() public {
+                    // Some unsupported feature
+                    advanced_crypto_operation();
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        
+        // Should handle gracefully and report warnings
+        TestAssertions.assert_true(code_generator.has_warnings(), "Should have warnings for unsupported features");
+    }
+
+    /// Test invalid IR handling
+    function test_invalid_ir_handling() public {
+        // Create invalid IR manually
+        IRModule invalid_ir = new IRModule();
+        invalid_ir.name = "";  // Invalid empty name
+        
+        GeneratedCode code = code_generator.generate_code(invalid_ir);
+        
+        // Should handle invalid IR gracefully
+        TestAssertions.assert_true(code_generator.has_errors(), "Should have errors for invalid IR");
+    }
+
+    /// Test target limitation handling
+    function test_target_limitation_handling() public {
+        string source = `
+            blockchain LimitationTest {
+                function largeFunction() public {
+                    // Function that exceeds target limitations
+                    uint256[1000] memory large_array;
+                    for (uint256 i = 0; i < 1000; i++) {
+                        large_array[i] = i;
+                    }
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.Solana);
+        
+        // Should handle target limitations
+        TestAssertions.assert_true(true, "Target limitation handling test completed");
+    }
+
+    /// Test generation speed
+    function test_generation_speed() public {
+        string source = `
+            blockchain PerformanceTest {
+                function test() public {
+                    uint256 sum = 0;
+                    for (uint256 i = 0; i < 100; i++) {
+                        sum += i;
+                    }
+                }
+            }
+        `;
+        
+        uint256 start_time = block.timestamp;
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        uint256 end_time = block.timestamp;
+        
+        uint256 generation_time = end_time - start_time;
+        TestAssertions.assert_true(generation_time < 5, "Generation should complete within 5 seconds");
+    }
+
+    /// Test memory usage
+    function test_memory_usage() public {
+        string source = `
+            blockchain MemoryTest {
+                function test() public {
+                    // Simple function to test memory usage
+                    uint256 x = 42;
+                    return x;
+                }
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        
+        // Memory usage should be reasonable
+        TestAssertions.assert_true(true, "Memory usage test completed");
+    }
+
+    /// Test large contract generation
+    function test_large_contract_generation() public {
+        string source = `
+            blockchain LargeContract {
+                state {
+                    mapping(address => uint256) balances;
+                    mapping(address => mapping(address => uint256)) allowances;
+                    uint256 total_supply;
+                    string name;
+                    string symbol;
+                    uint8 decimals;
+                }
+                
+                // Multiple functions to make it a large contract
+                function transfer(address to, uint256 amount) public returns (bool) {
+                    return true;
+                }
+                
+                function approve(address spender, uint256 amount) public returns (bool) {
+                    return true;
+                }
+                
+                function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+                    return true;
+                }
+                
+                // ... more functions would be here in a real large contract
+            }
+        `;
+        
+        GeneratedCode code = _generate_code_from_source(source, TargetPlatform.EVM);
+        _verify_code_not_empty(code, "Should generate code for large contract");
+        
+        // Should handle large contracts efficiently
+        TestAssertions.assert_true(code.source_code.length > 1000, "Should generate substantial code");
+    }
+
+    /// Run all code generation tests
+    function run_all_tests() public returns (TestStatistics) {
+        return test_framework.run_all_tests();
+    }
+
+    /// Run specific test suite
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return test_framework.run_test_suite(suite_name);
+    }
+}

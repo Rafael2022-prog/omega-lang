@@ -1,0 +1,422 @@
+// OMEGA Code Generator Core - Mengintegrasikan semua modul code generation
+// Menyediakan interface utama untuk code generation multi-target
+
+import "../ir/ir.mega";
+import "../error/error.mega";
+import "./base_generator.mega";
+import "./evm_generator.mega";
+import "./solana_generator.mega";
+import "./multi_target_generator.mega";
+import "./codegen_utils.mega";
+import "./codegen_validator.mega";
+
+/// Main OMEGA Code Generator yang mengintegrasikan semua generator
+blockchain OmegaCodeGenerator {
+    state {
+        // Core components
+        IRModule current_module;                                    // Current IR module being processed
+        GenerationConfig config;                                    // Generation configuration
+        CodeGenStats stats;                                         // Generation statistics
+        ErrorHandler error_handler;                                 // Error handling
+        
+        // Sub-modules
+        EVMCodeGenerator evm_generator;                             // EVM/Solidity generator
+        SolanaCodeGenerator solana_generator;                       // Solana/Anchor generator
+        CosmosCodeGenerator cosmos_generator;                       // Cosmos SDK generator
+        SubstrateCodeGenerator substrate_generator;                 // Substrate generator
+        MoveCodeGenerator move_generator;                           // Move VM generator
+        NEARCodeGenerator near_generator;                           // NEAR Protocol generator
+        
+        // Utilities and validation
+        CodeGenUtils utils;                                         // Code generation utilities
+        CodeGenValidator validator;                                 // Code validation
+        
+        // Cache and optimization
+        mapping(string => string) generated_code_cache;             // Cache for generated code
+        mapping(TargetPlatform => bool) enabled_platforms;          // Enabled target platforms
+        OptimizationLevel optimization_level;                       // Optimization level
+        
+        // Metadata
+        string compiler_version;                                    // Compiler version
+        uint generation_timestamp;                                  // Generation timestamp
+        mapping(string => string) metadata;                         // Additional metadata
+    }
+    
+    /// Generation statistics
+    struct CodeGenStats {
+        uint total_generations;                                     // Total code generations
+        uint successful_generations;                                // Successful generations
+        uint failed_generations;                                    // Failed generations
+        mapping(TargetPlatform => uint) platform_generations;      // Generations per platform
+        mapping(TargetPlatform => uint) generation_times;          // Generation times per platform
+        uint total_lines_generated;                                // Total lines of code generated
+    }
+    
+    constructor() {
+        initialize_generators();
+        initialize_config();
+        error_handler = new ErrorHandler();
+        utils = new CodeGenUtils();
+        validator = new CodeGenValidator();
+        compiler_version = "1.0.0";
+    }
+    
+    /// Initialize all code generators
+    function initialize_generators() internal {
+        evm_generator = new EVMCodeGenerator();
+        solana_generator = new SolanaCodeGenerator();
+        cosmos_generator = new CosmosCodeGenerator();
+        substrate_generator = new SubstrateCodeGenerator();
+        move_generator = new MoveCodeGenerator();
+        near_generator = new NEARCodeGenerator();
+        
+        // Enable all platforms by default
+        enabled_platforms[TargetPlatform.EVM] = true;
+        enabled_platforms[TargetPlatform.Solana] = true;
+        enabled_platforms[TargetPlatform.Cosmos] = true;
+        enabled_platforms[TargetPlatform.Substrate] = true;
+        enabled_platforms[TargetPlatform.Move] = true;
+        enabled_platforms[TargetPlatform.Near] = true;
+    }
+    
+    /// Initialize default configuration
+    function initialize_config() internal {
+        config = GenerationConfig({
+            target_platforms: get_enabled_platforms(),
+            optimization_level: OptimizationLevel.Balanced,
+            include_comments: true,
+            include_documentation: true,
+            format_code: true,
+            validate_output: true,
+            generate_tests: false,
+            custom_settings: new mapping(string => string)()
+        });
+        
+        optimization_level = OptimizationLevel.Balanced;
+    }
+    
+    /// Main code generation function
+    function generate_code(IRModule memory module, GenerationConfig memory gen_config) public returns (GenerationResult memory) {
+        stats.total_generations++;
+        generation_timestamp = block.timestamp;
+        current_module = module;
+        config = gen_config;
+        
+        GenerationResult memory result = GenerationResult({
+            success: true,
+            generated_files: new GeneratedFile[](0),
+            errors: new string[](0),
+            warnings: new string[](0),
+            generation_time: 0,
+            total_lines: 0
+        });
+        
+        uint startTime = block.timestamp;
+        
+        // Validate IR module first
+        if (config.validate_output && !validator.validate_ir_module(module)) {
+            result.success = false;
+            result.errors = append_to_array(result.errors, "IR module validation failed");
+            stats.failed_generations++;
+            return result;
+        }
+        
+        // Generate code for each enabled platform
+        for (uint i = 0; i < config.target_platforms.length; i++) {
+            TargetPlatform platform = config.target_platforms[i];
+            
+            if (!enabled_platforms[platform]) {
+                result.warnings = append_to_array(result.warnings, string(abi.encodePacked("Platform not enabled: ", platform_to_string(platform))));
+                continue;
+            }
+            
+            GeneratedFile memory file = generate_for_platform(module, platform);
+            
+            if (bytes(file.content).length > 0) {
+                result.generated_files = append_file_to_array(result.generated_files, file);
+                result.total_lines += count_lines(file.content);
+                stats.platform_generations[platform]++;
+            } else {
+                result.success = false;
+                result.errors = append_to_array(result.errors, string(abi.encodePacked("Failed to generate code for platform: ", platform_to_string(platform))));
+            }
+        }
+        
+        // Calculate generation time
+        result.generation_time = block.timestamp - startTime;
+        
+        // Update statistics
+        if (result.success) {
+            stats.successful_generations++;
+        } else {
+            stats.failed_generations++;
+        }
+        stats.total_lines_generated += result.total_lines;
+        
+        return result;
+    }
+    
+    /// Generate code for specific platform
+    function generate_for_platform(IRModule memory module, TargetPlatform platform) internal returns (GeneratedFile memory) {
+        string memory code = "";
+        string memory filename = "";
+        string memory extension = "";
+        
+        // Select appropriate generator
+        if (platform == TargetPlatform.EVM) {
+            code = evm_generator.generate(module);
+            filename = string(abi.encodePacked(module.name, ".sol"));
+            extension = ".sol";
+        } else if (platform == TargetPlatform.Solana) {
+            code = solana_generator.generate(module);
+            filename = string(abi.encodePacked("lib.rs"));
+            extension = ".rs";
+        } else if (platform == TargetPlatform.Cosmos) {
+            code = cosmos_generator.generate(module);
+            filename = string(abi.encodePacked(module.name, ".go"));
+            extension = ".go";
+        } else if (platform == TargetPlatform.Substrate) {
+            code = substrate_generator.generate(module);
+            filename = string(abi.encodePacked("lib.rs"));
+            extension = ".rs";
+        } else if (platform == TargetPlatform.Move) {
+            code = move_generator.generate(module);
+            filename = string(abi.encodePacked(module.name, ".move"));
+            extension = ".move";
+        } else if (platform == TargetPlatform.Near) {
+            code = near_generator.generate(module);
+            filename = string(abi.encodePacked("lib.rs"));
+            extension = ".rs";
+        }
+        
+        // Add file header if configured
+        if (config.include_comments) {
+            string memory header = utils.generate_file_header(
+                filename,
+                string(abi.encodePacked("Generated ", platform_to_string(platform), " code for ", module.name)),
+                "OMEGA Compiler"
+            );
+            code = string(abi.encodePacked(header, code));
+        }
+        
+        // Format code if configured
+        if (config.format_code) {
+            code = format_generated_code(code, platform);
+        }
+        
+        // Validate generated code if configured
+        if (config.validate_output) {
+            CodeGenValidator.ValidationResult memory validation = validator.validate_generated_code(code, platform, module.name);
+            if (!validation.is_valid) {
+                // Log validation errors but still return the code
+                for (uint i = 0; i < validation.errors.length; i++) {
+                    error_handler.report_error(validation.errors[i], ErrorType.ValidationError);
+                }
+            }
+        }
+        
+        // Cache generated code
+        string memory cache_key = string(abi.encodePacked(module.name, "_", platform_to_string(platform)));
+        generated_code_cache[cache_key] = code;
+        
+        return GeneratedFile({
+            filename: filename,
+            content: code,
+            platform: platform,
+            size: bytes(code).length,
+            checksum: keccak256(bytes(code))
+        });
+    }
+    
+    /// Generate code for multiple targets
+    function generate_multi_target(IRModule memory module, TargetPlatform[] memory platforms) public returns (GenerationResult memory) {
+        GenerationConfig memory multi_config = config;
+        multi_config.target_platforms = platforms;
+        return generate_code(module, multi_config);
+    }
+    
+    /// Format generated code
+    function format_generated_code(string memory code, TargetPlatform platform) internal view returns (string memory) {
+        // Basic formatting - in real implementation would use proper formatters
+        if (platform == TargetPlatform.EVM) {
+            return utils.indent_lines(code, 0, "    ");
+        } else if (platform == TargetPlatform.Solana || platform == TargetPlatform.Substrate || platform == TargetPlatform.Near) {
+            return utils.indent_lines(code, 0, "    ");
+        } else if (platform == TargetPlatform.Cosmos) {
+            return utils.indent_lines(code, 0, "\t");
+        }
+        
+        return code;
+    }
+    
+    /// Get generator for specific platform
+    function get_generator(TargetPlatform platform) public view returns (address) {
+        if (platform == TargetPlatform.EVM) return address(evm_generator);
+        if (platform == TargetPlatform.Solana) return address(solana_generator);
+        if (platform == TargetPlatform.Cosmos) return address(cosmos_generator);
+        if (platform == TargetPlatform.Substrate) return address(substrate_generator);
+        if (platform == TargetPlatform.Move) return address(move_generator);
+        if (platform == TargetPlatform.Near) return address(near_generator);
+        return address(0);
+    }
+    
+    /// Check if platform is supported
+    function is_platform_supported(TargetPlatform platform) public view returns (bool) {
+        return get_generator(platform) != address(0);
+    }
+    
+    /// Enable/disable target platform
+    function set_platform_enabled(TargetPlatform platform, bool enabled) public {
+        enabled_platforms[platform] = enabled;
+    }
+    
+    /// Get enabled platforms
+    function get_enabled_platforms() public view returns (TargetPlatform[] memory) {
+        TargetPlatform[] memory all_platforms = new TargetPlatform[](6);
+        all_platforms[0] = TargetPlatform.EVM;
+        all_platforms[1] = TargetPlatform.Solana;
+        all_platforms[2] = TargetPlatform.Cosmos;
+        all_platforms[3] = TargetPlatform.Substrate;
+        all_platforms[4] = TargetPlatform.Move;
+        all_platforms[5] = TargetPlatform.Near;
+        
+        uint enabled_count = 0;
+        for (uint i = 0; i < all_platforms.length; i++) {
+            if (enabled_platforms[all_platforms[i]]) {
+                enabled_count++;
+            }
+        }
+        
+        TargetPlatform[] memory enabled = new TargetPlatform[](enabled_count);
+        uint index = 0;
+        for (uint i = 0; i < all_platforms.length; i++) {
+            if (enabled_platforms[all_platforms[i]]) {
+                enabled[index] = all_platforms[i];
+                index++;
+            }
+        }
+        
+        return enabled;
+    }
+    
+    /// Set optimization level
+    function set_optimization_level(OptimizationLevel level) public {
+        optimization_level = level;
+        config.optimization_level = level;
+        
+        // Update all generators
+        evm_generator.set_optimization_level(level);
+        solana_generator.set_optimization_level(level);
+        cosmos_generator.set_optimization_level(level);
+        substrate_generator.set_optimization_level(level);
+        move_generator.set_optimization_level(level);
+        near_generator.set_optimization_level(level);
+    }
+    
+    /// Get generation statistics
+    function get_generation_stats() public view returns (CodeGenStats memory) {
+        return stats;
+    }
+    
+    /// Get cached generated code
+    function get_cached_code(string memory module_name, TargetPlatform platform) public view returns (string memory) {
+        string memory cache_key = string(abi.encodePacked(module_name, "_", platform_to_string(platform)));
+        return generated_code_cache[cache_key];
+    }
+    
+    /// Clear code cache
+    function clear_cache() public {
+        delete generated_code_cache;
+    }
+    
+    /// Set metadata
+    function set_metadata(string memory key, string memory value) public {
+        metadata[key] = value;
+    }
+    
+    /// Get metadata
+    function get_metadata(string memory key) public view returns (string memory) {
+        return metadata[key];
+    }
+    
+    /// Reset generator state
+    function reset() public {
+        delete current_module;
+        delete generated_code_cache;
+        delete stats;
+        
+        // Reset all generators
+        evm_generator.reset();
+        solana_generator.reset();
+        cosmos_generator.reset();
+        substrate_generator.reset();
+        move_generator.reset();
+        near_generator.reset();
+        
+        utils.reset();
+        validator.reset_validation_state();
+        
+        initialize_config();
+    }
+    
+    /// Generation result structure
+    struct GenerationResult {
+        bool success;                                               // Overall success
+        GeneratedFile[] generated_files;                            // Generated files
+        string[] errors;                                            // Generation errors
+        string[] warnings;                                          // Generation warnings
+        uint generation_time;                                       // Time taken (seconds)
+        uint total_lines;                                           // Total lines generated
+    }
+    
+    /// Generated file structure
+    struct GeneratedFile {
+        string filename;                                            // File name
+        string content;                                             // File content
+        TargetPlatform platform;                                    // Target platform
+        uint size;                                                  // File size in bytes
+        bytes32 checksum;                                           // Content checksum
+    }
+    
+    /// Utility functions
+    function platform_to_string(TargetPlatform platform) internal pure returns (string memory) {
+        if (platform == TargetPlatform.EVM) return "EVM";
+        if (platform == TargetPlatform.Solana) return "Solana";
+        if (platform == TargetPlatform.Cosmos) return "Cosmos";
+        if (platform == TargetPlatform.Substrate) return "Substrate";
+        if (platform == TargetPlatform.Move) return "Move";
+        if (platform == TargetPlatform.Near) return "Near";
+        return "Unknown";
+    }
+    
+    function count_lines(string memory code) internal pure returns (uint) {
+        bytes memory codeBytes = bytes(code);
+        uint lines = 1;
+        
+        for (uint i = 0; i < codeBytes.length; i++) {
+            if (codeBytes[i] == '\n') {
+                lines++;
+            }
+        }
+        
+        return lines;
+    }
+    
+    function append_to_array(string[] memory array, string memory item) internal pure returns (string[] memory) {
+        string[] memory newArray = new string[](array.length + 1);
+        for (uint i = 0; i < array.length; i++) {
+            newArray[i] = array[i];
+        }
+        newArray[array.length] = item;
+        return newArray;
+    }
+    
+    function append_file_to_array(GeneratedFile[] memory array, GeneratedFile memory item) internal pure returns (GeneratedFile[] memory) {
+        GeneratedFile[] memory newArray = new GeneratedFile[](array.length + 1);
+        for (uint i = 0; i < array.length; i++) {
+            newArray[i] = array[i];
+        }
+        newArray[array.length] = item;
+        return newArray;
+    }
+}

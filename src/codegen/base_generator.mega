@@ -1,0 +1,426 @@
+// OMEGA Base Code Generator - Base class dan utilities untuk code generation
+// Menyediakan interface dan fungsi dasar untuk semua target platform generators
+
+import "../ir/ir.mega";
+import "../error/error.mega";
+
+/// Base trait untuk semua code generators
+/// Setiap target platform harus mengimplementasikan trait ini
+trait CodeGenerator {
+    function generate(IRModule memory module) public returns (string memory);              // Generate kode dari IR module
+    function get_platform() public view returns (TargetPlatform);                         // Return target platform
+    function get_file_extension() public view returns (string memory);                    // Return ekstensi file output
+    function supports_feature(string memory feature) public view returns (bool);          // Check feature support
+    function validate_module(IRModule memory module) public returns (bool);               // Validate IR module
+    function get_dependencies() public view returns (string[] memory);                    // Get required dependencies
+}
+
+/// Enum untuk mendefinisikan target platform yang didukung
+enum TargetPlatform {
+    EVM,        // Ethereum Virtual Machine (Solidity)
+    Solana,     // Solana runtime (Rust)
+    Cosmos,     // Cosmos SDK (Go)
+    Substrate,  // Substrate framework (Rust)
+    Move,       // Move VM (Move language)
+    Near        // NEAR Protocol (Rust/AssemblyScript)
+}
+
+/// Konfigurasi untuk code generation dengan berbagai opsi optimasi
+struct GenerationConfig {
+    OptimizationLevel optimization_level;                   // Level optimasi (None, Basic, Aggressive)
+    bool debug_info;                                        // Include debug information
+    bool gas_optimization;                                  // Enable gas optimization untuk EVM
+    mapping(string => string) custom_options;               // Custom options per target
+    uint256 max_function_size;                              // Maximum function size
+    bool enable_warnings;                                   // Enable warning generation
+}
+
+/// Enum untuk level optimasi
+enum OptimizationLevel {
+    None,       // No optimization
+    Basic,      // Basic optimization
+    Aggressive  // Aggressive optimization
+}
+
+/// Context untuk code generation
+struct CodeGenContext {
+    string current_blockchain;                              // Current blockchain being processed
+    string current_function;                                // Current function being processed
+    uint256 indent_level;                                   // Current indentation level
+    mapping(string => string) variable_mappings;            // Variable name mappings
+    string[] imports;                                       // Required imports
+    bool in_constructor;                                    // Whether currently in constructor
+    bool in_modifier;                                       // Whether currently in modifier
+}
+
+/// Statistics untuk code generation
+struct CodeGenStats {
+    uint256 lines_generated;                               // Total lines generated
+    uint256 functions_generated;                            // Total functions generated
+    uint256 contracts_generated;                            // Total contracts generated
+    uint256 generation_time_ms;                             // Generation time in milliseconds
+    mapping(string => uint256) feature_usage;               // Feature usage statistics
+}
+
+/// Base blockchain untuk code generator utilities
+blockchain BaseCodeGenerator {
+    state {
+        GenerationConfig config;                            // Generation configuration
+        CodeGenContext context;                             // Generation context
+        CodeGenStats stats;                                 // Generation statistics
+        OmegaErrorHandler error_handler;                    // Error handler
+        mapping(string => string) template_cache;           // Template cache
+        string[] supported_features;                        // Supported features list
+    }
+    
+    /// Constructor untuk base generator
+    constructor() {
+        error_handler = OmegaErrorHandler::new();
+        config = create_default_config();
+        context = create_default_context();
+        stats = create_default_stats();
+        initialize_supported_features();
+    }
+    
+    /// Create default configuration
+    function create_default_config() internal pure returns (GenerationConfig memory) {
+        GenerationConfig memory default_config;
+        default_config.optimization_level = OptimizationLevel.Basic;
+        default_config.debug_info = false;
+        default_config.gas_optimization = true;
+        default_config.max_function_size = 1000;
+        default_config.enable_warnings = true;
+        return default_config;
+    }
+    
+    /// Create default context
+    function create_default_context() internal pure returns (CodeGenContext memory) {
+        CodeGenContext memory default_context;
+        default_context.current_blockchain = "";
+        default_context.current_function = "";
+        default_context.indent_level = 0;
+        default_context.in_constructor = false;
+        default_context.in_modifier = false;
+        return default_context;
+    }
+    
+    /// Create default statistics
+    function create_default_stats() internal pure returns (CodeGenStats memory) {
+        CodeGenStats memory default_stats;
+        default_stats.lines_generated = 0;
+        default_stats.functions_generated = 0;
+        default_stats.contracts_generated = 0;
+        default_stats.generation_time_ms = 0;
+        return default_stats;
+    }
+    
+    /// Initialize supported features (to be overridden by specific generators)
+    function initialize_supported_features() internal virtual {
+        supported_features = ["basic_types", "functions", "events", "modifiers"];
+    }
+    
+    /// Validate IR module untuk code generation
+    function validate_module(IRModule memory module) public virtual returns (bool) {
+        // Basic validation
+        if (bytes(module.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.CodeGenError,
+                "Module name cannot be empty",
+                0, 0
+            );
+            return false;
+        }
+        
+        // Validate blockchains
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            if (!validate_blockchain(module.blockchains[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Validate blockchain IR
+    function validate_blockchain(BlockchainIR memory blockchain) internal returns (bool) {
+        if (bytes(blockchain.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.CodeGenError,
+                "Blockchain name cannot be empty",
+                blockchain.line_number, 0
+            );
+            return false;
+        }
+        
+        // Validate functions
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            if (!validate_function(blockchain.functions[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Validate function IR
+    function validate_function(FunctionIR memory func) internal returns (bool) {
+        if (bytes(func.name).length == 0) {
+            error_handler.report_error(
+                ErrorType.CodeGenError,
+                "Function name cannot be empty",
+                func.line_number, 0
+            );
+            return false;
+        }
+        
+        // Check function size limit
+        if (estimate_function_size(func) > config.max_function_size) {
+            error_handler.report_error(
+                ErrorType.CodeGenError,
+                string(abi.encodePacked("Function ", func.name, " exceeds size limit")),
+                func.line_number, 0
+            );
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Estimate function size (lines of code)
+    function estimate_function_size(FunctionIR memory func) internal pure returns (uint256) {
+        // Simplified estimation based on statements count
+        return func.body.statements.length + func.parameters.length * 2;
+    }
+    
+    /// Generate indentation string
+    function get_indent() internal view returns (string memory) {
+        string memory indent = "";
+        for (uint i = 0; i < context.indent_level; i++) {
+            indent = string(abi.encodePacked(indent, "    "));
+        }
+        return indent;
+    }
+    
+    /// Increase indentation level
+    function push_indent() internal {
+        context.indent_level++;
+    }
+    
+    /// Decrease indentation level
+    function pop_indent() internal {
+        if (context.indent_level > 0) {
+            context.indent_level--;
+        }
+    }
+    
+    /// Convert string to camelCase
+    function to_camel_case(string memory input) internal pure returns (string memory) {
+        bytes memory input_bytes = bytes(input);
+        if (input_bytes.length == 0) return input;
+        
+        bytes memory result = new bytes(input_bytes.length);
+        bool capitalize_next = false;
+        uint result_length = 0;
+        
+        for (uint i = 0; i < input_bytes.length; i++) {
+            bytes1 char = input_bytes[i];
+            
+            if (char == '_' || char == '-') {
+                capitalize_next = true;
+            } else {
+                if (capitalize_next && char >= 'a' && char <= 'z') {
+                    result[result_length++] = bytes1(uint8(char) - 32); // Convert to uppercase
+                    capitalize_next = false;
+                } else {
+                    result[result_length++] = char;
+                }
+            }
+        }
+        
+        // Resize result
+        bytes memory final_result = new bytes(result_length);
+        for (uint i = 0; i < result_length; i++) {
+            final_result[i] = result[i];
+        }
+        
+        return string(final_result);
+    }
+    
+    /// Convert string to PascalCase
+    function to_pascal_case(string memory input) internal pure returns (string memory) {
+        string memory camel = to_camel_case(input);
+        bytes memory camel_bytes = bytes(camel);
+        
+        if (camel_bytes.length > 0 && camel_bytes[0] >= 'a' && camel_bytes[0] <= 'z') {
+            camel_bytes[0] = bytes1(uint8(camel_bytes[0]) - 32); // Convert first char to uppercase
+        }
+        
+        return string(camel_bytes);
+    }
+    
+    /// Convert string to snake_case
+    function to_snake_case(string memory input) internal pure returns (string memory) {
+        bytes memory input_bytes = bytes(input);
+        bytes memory result = new bytes(input_bytes.length * 2); // Worst case
+        uint result_length = 0;
+        
+        for (uint i = 0; i < input_bytes.length; i++) {
+            bytes1 char = input_bytes[i];
+            
+            // Add underscore before uppercase letters (except first character)
+            if (i > 0 && char >= 'A' && char <= 'Z') {
+                result[result_length++] = '_';
+            }
+            
+            // Convert to lowercase
+            if (char >= 'A' && char <= 'Z') {
+                result[result_length++] = bytes1(uint8(char) + 32);
+            } else {
+                result[result_length++] = char;
+            }
+        }
+        
+        // Resize result
+        bytes memory final_result = new bytes(result_length);
+        for (uint i = 0; i < result_length; i++) {
+            final_result[i] = result[i];
+        }
+        
+        return string(final_result);
+    }
+    
+    /// Escape string untuk output code
+    function escape_string(string memory input) internal pure returns (string memory) {
+        bytes memory input_bytes = bytes(input);
+        bytes memory result = new bytes(input_bytes.length * 2); // Worst case
+        uint result_length = 0;
+        
+        for (uint i = 0; i < input_bytes.length; i++) {
+            bytes1 char = input_bytes[i];
+            
+            if (char == '"') {
+                result[result_length++] = '\\';
+                result[result_length++] = '"';
+            } else if (char == '\\') {
+                result[result_length++] = '\\';
+                result[result_length++] = '\\';
+            } else if (char == '\n') {
+                result[result_length++] = '\\';
+                result[result_length++] = 'n';
+            } else if (char == '\r') {
+                result[result_length++] = '\\';
+                result[result_length++] = 'r';
+            } else if (char == '\t') {
+                result[result_length++] = '\\';
+                result[result_length++] = 't';
+            } else {
+                result[result_length++] = char;
+            }
+        }
+        
+        // Resize result
+        bytes memory final_result = new bytes(result_length);
+        for (uint i = 0; i < result_length; i++) {
+            final_result[i] = result[i];
+        }
+        
+        return string(final_result);
+    }
+    
+    /// Join array of strings dengan separator
+    function join_strings(string[] memory strings, string memory separator) internal pure returns (string memory) {
+        if (strings.length == 0) return "";
+        
+        string memory result = strings[0];
+        for (uint i = 1; i < strings.length; i++) {
+            result = string(abi.encodePacked(result, separator, strings[i]));
+        }
+        
+        return result;
+    }
+    
+    /// Check if feature is supported
+    function supports_feature(string memory feature) public view virtual returns (bool) {
+        for (uint i = 0; i < supported_features.length; i++) {
+            if (keccak256(bytes(supported_features[i])) == keccak256(bytes(feature))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /// Add import to context
+    function add_import(string memory import_statement) internal {
+        context.imports.push(import_statement);
+    }
+    
+    /// Generate imports section
+    function generate_imports() internal view returns (string memory) {
+        if (context.imports.length == 0) return "";
+        
+        string memory result = "";
+        for (uint i = 0; i < context.imports.length; i++) {
+            result = string(abi.encodePacked(result, context.imports[i], "\n"));
+        }
+        
+        return result;
+    }
+    
+    /// Update statistics
+    function update_stats_lines(uint256 lines) internal {
+        stats.lines_generated += lines;
+    }
+    
+    function update_stats_functions() internal {
+        stats.functions_generated++;
+    }
+    
+    function update_stats_contracts() internal {
+        stats.contracts_generated++;
+    }
+    
+    /// Configuration functions
+    function set_config(GenerationConfig memory new_config) public {
+        config = new_config;
+    }
+    
+    function get_config() public view returns (GenerationConfig memory) {
+        return config;
+    }
+    
+    /// Context management
+    function push_context(string memory blockchain_name, string memory function_name) internal {
+        context.current_blockchain = blockchain_name;
+        context.current_function = function_name;
+    }
+    
+    function pop_context() internal {
+        context.current_blockchain = "";
+        context.current_function = "";
+    }
+    
+    /// Statistics getters
+    function get_stats() public view returns (CodeGenStats memory) {
+        return stats;
+    }
+    
+    /// Error handling
+    function get_error_count() public view returns (uint256) {
+        return error_handler.get_error_count();
+    }
+    
+    function get_errors() public view returns (OmegaError[] memory) {
+        return error_handler.get_errors();
+    }
+    
+    function clear_errors() public {
+        error_handler.clear_errors();
+    }
+    
+    /// Reset generator state
+    function reset() public virtual {
+        context = create_default_context();
+        stats = create_default_stats();
+        error_handler.clear_errors();
+    }
+}

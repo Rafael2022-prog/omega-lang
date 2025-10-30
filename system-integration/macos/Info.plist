@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>mega</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>omega-file-icon</string>
+            <key>CFBundleTypeName</key>
+            <string>OMEGA Blockchain Source File</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>org.omega-lang.omega-source</string>
+            </array>
+            <key>NSDocumentClass</key>
+            <string>OmegaDocument</string>
+        </dict>
+    </array>
+    
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.source-code</string>
+                <string>public.plain-text</string>
+            </array>
+            <key>UTTypeDescription</key>
+            <string>OMEGA Blockchain Source File</string>
+            <key>UTTypeIconFile</key>
+            <string>omega-file-icon</string>
+            <key>UTTypeIdentifier</key>
+            <string>org.omega-lang.omega-source</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>mega</string>
+                </array>
+                <key>public.mime-type</key>
+                <array>
+                    <string>text/x-omega</string>
+                    <string>application/x-omega-source</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+    
+    <key>CFBundleIdentifier</key>
+    <string>org.omega-lang.omega-editor</string>
+    
+    <key>CFBundleName</key>
+    <string>OMEGA Editor</string>
+    
+    <key>CFBundleDisplayName</key>
+    <string>OMEGA Blockchain Editor</string>
+    
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    
+    <key>CFBundleSignature</key>
+    <string>OMGA</string>
+    
+    <key>CFBundleExecutable</key>
+    <string>omega-editor</string>
+    
+    <key>CFBundleIconFile</key>
+    <string>omega-app-icon</string>
+    
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+    
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.developer-tools</string>
+    
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2024 OMEGA Team. All rights reserved.</string>
+</dict>
+</plist>

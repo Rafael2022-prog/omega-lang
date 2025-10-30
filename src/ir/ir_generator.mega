@@ -1,0 +1,645 @@
+// OMEGA IR Generator - Menghasilkan IR dari AST yang telah dianalisis
+// Modul khusus untuk generasi Intermediate Representation
+
+import "../ast/ast_nodes.mega";
+import "../semantic/analyzer.mega";
+import "../error/error.mega";
+
+/// Blockchain untuk mengelola generasi IR dari AST
+blockchain IRGenerator {
+    state {
+        IRContext current_context;                       // Context generasi IR saat ini
+        mapping(string => IRModule) generated_modules;   // Modul IR yang telah dihasilkan
+        OmegaErrorHandler error_handler;                 // Error handler untuk IR generation
+        uint256 temp_counter;                           // Counter untuk temporary variables
+        uint256 label_counter;                          // Counter untuk labels
+    }
+    
+    /// Konstruktor untuk inisialisasi IR generator
+    constructor() {
+        error_handler = OmegaErrorHandler::new();
+        temp_counter = 0;
+        label_counter = 0;
+    }
+    
+    /// Generate IR untuk program lengkap
+    /// @param program Program AST yang akan dikonversi
+    /// @param analysis Hasil analisis semantik
+    /// @return Array modul IR yang dihasilkan
+    function generate_program_ir(Program memory program, AnalysisResult memory analysis) 
+        public returns (IRModule[] memory) {
+        
+        // Initialize context
+        current_context = IRContext({
+            current_module: "",
+            current_blockchain: "",
+            current_function: "",
+            symbol_table: analysis.symbol_table,
+            type_environment: analysis.type_environment,
+            temp_counter: 0,
+            label_counter: 0
+        });
+        
+        IRModule[] memory modules = new IRModule[](program.items.length);
+        uint256 module_count = 0;
+        
+        // Generate IR untuk setiap item
+        for (uint256 i = 0; i < program.items.length; i++) {
+            Item memory item = program.items[i];
+            
+            if (item.item_type == ItemType.Import) {
+                generate_import_ir(item.import_item);
+            } else if (item.item_type == ItemType.Blockchain) {
+                IRModule memory module = generate_blockchain_ir(item.blockchain_item);
+                modules[module_count] = module;
+                module_count++;
+            } else if (item.item_type == ItemType.Struct) {
+                generate_struct_ir(item.struct_item);
+            } else if (item.item_type == ItemType.Enum) {
+                generate_enum_ir(item.enum_item);
+            } else if (item.item_type == ItemType.Function) {
+                generate_function_ir(item.function_item);
+            } else if (item.item_type == ItemType.Constant) {
+                generate_constant_ir(item.constant_item);
+            }
+        }
+        
+        return modules;
+    }
+    
+    /// Generate IR untuk import statement
+    function generate_import_ir(Import memory import_item) private {
+        ImportIR memory import_ir = ImportIR({
+            module_path: import_item.path,
+            alias: import_item.has_alias ? import_item.alias : "",
+            has_alias: import_item.has_alias,
+            is_wildcard: import_item.is_wildcard,
+            specific_items: import_item.specific_items
+        });
+        
+        // Tambahkan ke current module
+        get_current_module().imports.push(import_ir);
+    }
+    
+    /// Generate IR untuk blockchain declaration
+    function generate_blockchain_ir(Blockchain memory blockchain) private returns (IRModule memory) {
+        current_context.current_blockchain = blockchain.name;
+        
+        IRModule memory module = IRModule({
+            name: blockchain.name,
+            imports: new ImportIR[](0),
+            types: new TypeDefinitionIR[](0),
+            functions: new IRFunction[](blockchain.functions.length),
+            state_variables: new StateVariableIR[](blockchain.state_variables.length),
+            events: new EventIR[](blockchain.events.length),
+            modifiers: new ModifierIR[](blockchain.modifiers.length),
+            constructor: IRFunction({
+                name: "constructor",
+                parameters: new ParameterIR[](0),
+                return_type: TypeIR({type_kind: TypeKind.Void, name: "void"}),
+                visibility: VisibilityIR.Public,
+                mutability: MutabilityIR.NonPayable,
+                body: new IRBasicBlock[](0),
+                annotations: new AnnotationIR[](0)
+            }),
+            metadata: ModuleMetadata({
+                source_file: "",
+                line_number: blockchain.line_number,
+                column_number: blockchain.column_number
+            })
+        });
+        
+        // Generate state variables
+        for (uint256 i = 0; i < blockchain.state_variables.length; i++) {
+            module.state_variables[i] = generate_state_variable_ir(blockchain.state_variables[i]);
+        }
+        
+        // Generate events
+        for (uint256 i = 0; i < blockchain.events.length; i++) {
+            module.events[i] = generate_event_ir(blockchain.events[i]);
+        }
+        
+        // Generate functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            Function memory func = blockchain.functions[i];
+            module.functions[i] = generate_function_ir(func);
+            
+            // Set constructor jika function adalah constructor
+            if (keccak256(bytes(func.name)) == keccak256(bytes("constructor"))) {
+                module.constructor = module.functions[i];
+            }
+        }
+        
+        // Generate modifiers
+        for (uint256 i = 0; i < blockchain.modifiers.length; i++) {
+            module.modifiers[i] = generate_modifier_ir(blockchain.modifiers[i]);
+        }
+        
+        generated_modules[blockchain.name] = module;
+        return module;
+    }
+    
+    /// Generate IR untuk state variable
+    function generate_state_variable_ir(StateVariable memory var) 
+        private returns (StateVariableIR memory) {
+        return StateVariableIR({
+            name: var.name,
+            type_ir: convert_type_to_ir(var.var_type),
+            visibility: convert_visibility_to_ir(var.visibility),
+            mutability: convert_mutability_to_ir(var.mutability),
+            initial_value: var.has_initial_value ? 
+                generate_expression_ir(var.initial_value) : 
+                ValueIR({value_type: ValueType.Null, data: ""}),
+            has_initial_value: var.has_initial_value,
+            annotations: convert_annotations(var.annotations),
+            metadata: VariableMetadata({
+                line_number: var.line_number,
+                column_number: var.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk event
+    function generate_event_ir(Event memory event) private returns (EventIR memory) {
+        ParameterIR[] memory params = new ParameterIR[](event.parameters.length);
+        for (uint256 i = 0; i < event.parameters.length; i++) {
+            params[i] = generate_parameter_ir(event.parameters[i]);
+        }
+        
+        return EventIR({
+            name: event.name,
+            parameters: params,
+            annotations: convert_annotations(event.annotations)
+        });
+    }
+    
+    /// Generate IR untuk function
+    function generate_function_ir(Function memory func) private returns (IRFunction memory) {
+        current_context.current_function = func.name;
+        
+        // Generate parameters
+        ParameterIR[] memory params = new ParameterIR[](func.parameters.length);
+        for (uint256 i = 0; i < func.parameters.length; i++) {
+            params[i] = generate_parameter_ir(func.parameters[i]);
+        }
+        
+        // Generate function body
+        IRBasicBlock[] memory body = new IRBasicBlock[](1);
+        body[0] = generate_block_ir(func.body);
+        
+        return IRFunction({
+            name: func.name,
+            parameters: params,
+            return_type: convert_type_to_ir(func.return_type),
+            visibility: convert_visibility_to_ir(func.visibility),
+            mutability: convert_mutability_to_ir(func.mutability),
+            body: body,
+            annotations: convert_annotations(func.annotations)
+        });
+    }
+    
+    /// Generate IR untuk modifier
+    function generate_modifier_ir(Modifier memory modifier) private returns (ModifierIR memory) {
+        ParameterIR[] memory params = new ParameterIR[](modifier.parameters.length);
+        for (uint256 i = 0; i < modifier.parameters.length; i++) {
+            params[i] = generate_parameter_ir(modifier.parameters[i]);
+        }
+        
+        IRBasicBlock[] memory body = new IRBasicBlock[](1);
+        body[0] = generate_block_ir(modifier.body);
+        
+        return ModifierIR({
+            name: modifier.name,
+            parameters: params,
+            body: body,
+            annotations: convert_annotations(modifier.annotations)
+        });
+    }
+    
+    /// Generate IR untuk parameter
+    function generate_parameter_ir(Parameter memory param) private returns (ParameterIR memory) {
+        return ParameterIR({
+            name: param.name,
+            type_ir: convert_type_to_ir(param.param_type),
+            is_indexed: param.is_indexed
+        });
+    }
+    
+    /// Generate IR untuk struct
+    function generate_struct_ir(Struct memory struct_def) private {
+        FieldIR[] memory fields = new FieldIR[](struct_def.fields.length);
+        for (uint256 i = 0; i < struct_def.fields.length; i++) {
+            fields[i] = FieldIR({
+                name: struct_def.fields[i].name,
+                type_ir: convert_type_to_ir(struct_def.fields[i].field_type)
+            });
+        }
+        
+        TypeDefinitionIR memory type_def = TypeDefinitionIR({
+            name: struct_def.name,
+            definition_type: TypeDefinitionKind.Struct,
+            fields: fields,
+            variants: new VariantIR[](0)
+        });
+        
+        get_current_module().types.push(type_def);
+    }
+    
+    /// Generate IR untuk enum
+    function generate_enum_ir(Enum memory enum_def) private {
+        VariantIR[] memory variants = new VariantIR[](enum_def.variants.length);
+        for (uint256 i = 0; i < enum_def.variants.length; i++) {
+            variants[i] = VariantIR({
+                name: enum_def.variants[i].name,
+                discriminant: i,
+                fields: new FieldIR[](0)
+            });
+        }
+        
+        TypeDefinitionIR memory type_def = TypeDefinitionIR({
+            name: enum_def.name,
+            definition_type: TypeDefinitionKind.Enum,
+            fields: new FieldIR[](0),
+            variants: variants
+        });
+        
+        get_current_module().types.push(type_def);
+    }
+    
+    /// Generate IR untuk constant
+    function generate_constant_ir(Constant memory constant) private {
+        // Constants are handled as part of module metadata
+        // Implementation depends on target platform requirements
+    }
+    
+    /// Generate IR untuk block statement
+    function generate_block_ir(Block memory block) private returns (IRBasicBlock memory) {
+        IRInstruction[] memory instructions = new IRInstruction[](block.statements.length);
+        
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            instructions[i] = generate_statement_ir(block.statements[i]);
+        }
+        
+        return IRBasicBlock({
+            label: generate_label(),
+            instructions: instructions,
+            terminator: TerminatorInstruction({
+                terminator_type: TerminatorType.Return,
+                targets: new string[](0),
+                condition: ValueIR({value_type: ValueType.Null, data: ""})
+            })
+        });
+    }
+    
+    /// Generate IR untuk statement
+    function generate_statement_ir(Statement memory stmt) private returns (IRInstruction memory) {
+        if (stmt.stmt_type == StatementType.VariableDeclaration) {
+            return generate_variable_declaration_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.If) {
+            return generate_if_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.While) {
+            return generate_while_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.For) {
+            return generate_for_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.Return) {
+            return generate_return_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.Emit) {
+            return generate_emit_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.Require) {
+            return generate_require_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.Assert) {
+            return generate_assert_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.Revert) {
+            return generate_revert_statement_ir(stmt);
+        } else if (stmt.stmt_type == StatementType.Block) {
+            // Handle nested blocks
+            IRBasicBlock memory nested_block = generate_block_ir(stmt.block_stmt);
+            return IRInstruction({
+                instruction_type: InstructionType.Block,
+                operands: new ValueIR[](0),
+                result: ValueIR({value_type: ValueType.Null, data: ""}),
+                metadata: InstructionMetadata({
+                    line_number: stmt.line_number,
+                    column_number: stmt.column_number
+                })
+            });
+        } else {
+            // Expression statement
+            ValueIR memory expr_result = generate_expression_ir(stmt.expression_stmt);
+            return IRInstruction({
+                instruction_type: InstructionType.Expression,
+                operands: new ValueIR[](1),
+                result: expr_result,
+                metadata: InstructionMetadata({
+                    line_number: stmt.line_number,
+                    column_number: stmt.column_number
+                })
+            });
+        }
+    }
+    
+    /// Generate IR untuk variable declaration
+    function generate_variable_declaration_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR[] memory operands = new ValueIR[](stmt.var_decl.has_initial_value ? 1 : 0);
+        if (stmt.var_decl.has_initial_value) {
+            operands[0] = generate_expression_ir(stmt.var_decl.initial_value);
+        }
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Alloca,
+            operands: operands,
+            result: ValueIR({
+                value_type: ValueType.Variable,
+                data: stmt.var_decl.name
+            }),
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk if statement
+    function generate_if_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR memory condition = generate_expression_ir(stmt.if_stmt.condition);
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Branch,
+            operands: new ValueIR[](1),
+            result: condition,
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk while statement
+    function generate_while_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR memory condition = generate_expression_ir(stmt.while_stmt.condition);
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Loop,
+            operands: new ValueIR[](1),
+            result: condition,
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk for statement
+    function generate_for_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        // For loops are more complex and require multiple instructions
+        // This is a simplified version
+        return IRInstruction({
+            instruction_type: InstructionType.Loop,
+            operands: new ValueIR[](0),
+            result: ValueIR({value_type: ValueType.Null, data: ""}),
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk return statement
+    function generate_return_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR[] memory operands = new ValueIR[](stmt.return_stmt.has_value ? 1 : 0);
+        if (stmt.return_stmt.has_value) {
+            operands[0] = generate_expression_ir(stmt.return_stmt.value);
+        }
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Return,
+            operands: operands,
+            result: ValueIR({value_type: ValueType.Null, data: ""}),
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk emit statement
+    function generate_emit_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR[] memory operands = new ValueIR[](stmt.emit_stmt.arguments.length);
+        for (uint256 i = 0; i < stmt.emit_stmt.arguments.length; i++) {
+            operands[i] = generate_expression_ir(stmt.emit_stmt.arguments[i]);
+        }
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Call,
+            operands: operands,
+            result: ValueIR({
+                value_type: ValueType.Event,
+                data: stmt.emit_stmt.event_name
+            }),
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk require statement
+    function generate_require_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR[] memory operands = new ValueIR[](stmt.require_stmt.has_message ? 2 : 1);
+        operands[0] = generate_expression_ir(stmt.require_stmt.condition);
+        if (stmt.require_stmt.has_message) {
+            operands[1] = generate_expression_ir(stmt.require_stmt.message);
+        }
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Call,
+            operands: operands,
+            result: ValueIR({
+                value_type: ValueType.Builtin,
+                data: "require"
+            }),
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk assert statement
+    function generate_assert_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR[] memory operands = new ValueIR[](stmt.assert_stmt.has_message ? 2 : 1);
+        operands[0] = generate_expression_ir(stmt.assert_stmt.condition);
+        if (stmt.assert_stmt.has_message) {
+            operands[1] = generate_expression_ir(stmt.assert_stmt.message);
+        }
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Call,
+            operands: operands,
+            result: ValueIR({
+                value_type: ValueType.Builtin,
+                data: "assert"
+            }),
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk revert statement
+    function generate_revert_statement_ir(Statement memory stmt) 
+        private returns (IRInstruction memory) {
+        ValueIR[] memory operands = new ValueIR[](stmt.revert_stmt.has_message ? 1 : 0);
+        if (stmt.revert_stmt.has_message) {
+            operands[0] = generate_expression_ir(stmt.revert_stmt.message);
+        }
+        
+        return IRInstruction({
+            instruction_type: InstructionType.Call,
+            operands: operands,
+            result: ValueIR({
+                value_type: ValueType.Builtin,
+                data: "revert"
+            }),
+            metadata: InstructionMetadata({
+                line_number: stmt.line_number,
+                column_number: stmt.column_number
+            })
+        });
+    }
+    
+    /// Generate IR untuk expression
+    function generate_expression_ir(Expression memory expr) private returns (ValueIR memory) {
+        if (expr.expr_type == ExpressionType.Literal) {
+            return convert_literal_to_ir(expr.literal);
+        } else if (expr.expr_type == ExpressionType.Identifier) {
+            return ValueIR({
+                value_type: ValueType.Variable,
+                data: expr.identifier.name
+            });
+        } else if (expr.expr_type == ExpressionType.Binary) {
+            return generate_binary_expression_ir(expr);
+        } else if (expr.expr_type == ExpressionType.Unary) {
+            return generate_unary_expression_ir(expr);
+        } else if (expr.expr_type == ExpressionType.Assignment) {
+            return generate_assignment_expression_ir(expr);
+        } else if (expr.expr_type == ExpressionType.FunctionCall) {
+            return generate_function_call_ir(expr);
+        } else if (expr.expr_type == ExpressionType.MemberAccess) {
+            return generate_member_access_ir(expr);
+        } else if (expr.expr_type == ExpressionType.IndexAccess) {
+            return generate_index_access_ir(expr);
+        } else {
+            return ValueIR({
+                value_type: ValueType.Null,
+                data: ""
+            });
+        }
+    }
+    
+    /// Generate IR untuk binary expression
+    function generate_binary_expression_ir(Expression memory expr) private returns (ValueIR memory) {
+        ValueIR memory left = generate_expression_ir(expr.binary.left);
+        ValueIR memory right = generate_expression_ir(expr.binary.right);
+        
+        return ValueIR({
+            value_type: ValueType.Temporary,
+            data: generate_temp_variable()
+        });
+    }
+    
+    /// Generate IR untuk unary expression
+    function generate_unary_expression_ir(Expression memory expr) private returns (ValueIR memory) {
+        ValueIR memory operand = generate_expression_ir(expr.unary.operand);
+        
+        return ValueIR({
+            value_type: ValueType.Temporary,
+            data: generate_temp_variable()
+        });
+    }
+    
+    /// Generate IR untuk assignment expression
+    function generate_assignment_expression_ir(Expression memory expr) private returns (ValueIR memory) {
+        ValueIR memory left = generate_expression_ir(expr.assignment.left);
+        ValueIR memory right = generate_expression_ir(expr.assignment.right);
+        
+        return left; // Assignment returns the assigned value
+    }
+    
+    /// Generate IR untuk function call
+    function generate_function_call_ir(Expression memory expr) private returns (ValueIR memory) {
+        ValueIR[] memory args = new ValueIR[](expr.function_call.arguments.length);
+        for (uint256 i = 0; i < expr.function_call.arguments.length; i++) {
+            args[i] = generate_expression_ir(expr.function_call.arguments[i]);
+        }
+        
+        return ValueIR({
+            value_type: ValueType.Temporary,
+            data: generate_temp_variable()
+        });
+    }
+    
+    /// Generate IR untuk member access
+    function generate_member_access_ir(Expression memory expr) private returns (ValueIR memory) {
+        ValueIR memory object = generate_expression_ir(expr.member_access.object);
+        
+        return ValueIR({
+            value_type: ValueType.Temporary,
+            data: generate_temp_variable()
+        });
+    }
+    
+    /// Generate IR untuk index access
+    function generate_index_access_ir(Expression memory expr) private returns (ValueIR memory) {
+        ValueIR memory object = generate_expression_ir(expr.index_access.object);
+        ValueIR memory index = generate_expression_ir(expr.index_access.index);
+        
+        return ValueIR({
+            value_type: ValueType.Temporary,
+            data: generate_temp_variable()
+        });
+    }
+    
+    /// Utility functions
+    function get_current_module() private view returns (IRModule storage) {
+        return generated_modules[current_context.current_blockchain];
+    }
+    
+    function generate_temp_variable() private returns (string memory) {
+        temp_counter++;
+        return string(abi.encodePacked("_t", uint_to_string(temp_counter)));
+    }
+    
+    function generate_label() private returns (string memory) {
+        label_counter++;
+        return string(abi.encodePacked("_L", uint_to_string(label_counter)));
+    }
+    
+    function uint_to_string(uint256 value) private pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+}

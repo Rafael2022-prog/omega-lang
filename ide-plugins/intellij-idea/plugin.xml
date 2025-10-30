@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<idea-plugin>
+    <id>com.omega.lang.plugin</id>
+    <name>OMEGA Language Support</name>
+    <version>1.0.0</version>
+    <vendor email="support@omegalang.xyz" url="https://www.omegalang.xyz">OMEGA Team</vendor>
+    
+    <description><![CDATA[
+        OMEGA blockchain programming language support for IntelliJ IDEA.
+        Provides syntax highlighting, file icons, and basic language features.
+    ]]></description>
+    
+    <change-notes><![CDATA[
+        Initial release with file icon support and basic syntax highlighting.
+    ]]></change-notes>
+    
+    <idea-version since-build="193.0"/>
+    
+    <depends>com.intellij.modules.platform</depends>
+    
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- File Type Definition -->
+        <fileType 
+            name="OMEGA" 
+            implementationClass="com.omega.lang.OmegaFileType" 
+            fieldName="INSTANCE" 
+            language="OMEGA" 
+            extensions="mega"/>
+            
+        <!-- Language Definition -->
+        <lang.parserDefinition 
+            language="OMEGA" 
+            implementationClass="com.omega.lang.parser.OmegaParserDefinition"/>
+            
+        <!-- Syntax Highlighter -->
+        <lang.syntaxHighlighterFactory 
+            language="OMEGA" 
+            implementationClass="com.omega.lang.highlighting.OmegaSyntaxHighlighterFactory"/>
+            
+        <!-- File Icon Provider -->
+        <iconProvider implementation="com.omega.lang.icons.OmegaIconProvider"/>
+        
+        <!-- Color Settings -->
+        <colorSettingsPage implementation="com.omega.lang.highlighting.OmegaColorSettingsPage"/>
+    </extensions>
+    
+    <actions>
+        <!-- Add custom actions if needed -->
+    </actions>
+</idea-plugin>

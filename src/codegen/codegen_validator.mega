@@ -1,0 +1,467 @@
+// OMEGA Code Generation Validator
+// Menyediakan validasi untuk code generation dan output
+
+import "../ir/ir.mega";
+import "../error/error.mega";
+import "./base_generator.mega";
+import "./codegen_utils.mega";
+
+/// Validator untuk code generation
+blockchain CodeGenValidator {
+    state {
+        mapping(TargetPlatform => ValidationRules) platform_rules;  // Rules per platform
+        mapping(string => bool) validated_modules;                  // Cache validated modules
+        ValidationStats stats;                                      // Validation statistics
+        ErrorHandler error_handler;                                 // Error handling
+    }
+    
+    /// Validation rules untuk setiap platform
+    struct ValidationRules {
+        string[] required_imports;                                  // Required imports
+        string[] forbidden_keywords;                                // Forbidden keywords
+        uint max_function_length;                                   // Max function length
+        uint max_complexity;                                        // Max cyclomatic complexity
+        bool require_type_annotations;                              // Require type annotations
+        bool require_documentation;                                 // Require documentation
+        mapping(string => string) naming_conventions;               // Naming conventions
+    }
+    
+    /// Validation statistics
+    struct ValidationStats {
+        uint total_validations;                                     // Total validations performed
+        uint successful_validations;                                // Successful validations
+        uint failed_validations;                                    // Failed validations
+        uint warnings_generated;                                    // Warnings generated
+        mapping(TargetPlatform => uint) platform_validations;      // Validations per platform
+    }
+    
+    constructor() {
+        initialize_platform_rules();
+        error_handler = new ErrorHandler();
+    }
+    
+    /// Initialize validation rules untuk setiap platform
+    function initialize_platform_rules() internal {
+        initialize_evm_rules();
+        initialize_solana_rules();
+        initialize_cosmos_rules();
+        initialize_substrate_rules();
+        initialize_move_rules();
+        initialize_near_rules();
+    }
+    
+    /// Initialize EVM validation rules
+    function initialize_evm_rules() internal {
+        ValidationRules storage rules = platform_rules[TargetPlatform.EVM];
+        rules.required_imports = ["pragma solidity"];
+        rules.forbidden_keywords = ["goto", "label"];
+        rules.max_function_length = 100;
+        rules.max_complexity = 10;
+        rules.require_type_annotations = true;
+        rules.require_documentation = false;
+        rules.naming_conventions["contract"] = "PascalCase";
+        rules.naming_conventions["function"] = "camelCase";
+        rules.naming_conventions["variable"] = "camelCase";
+        rules.naming_conventions["constant"] = "SCREAMING_SNAKE_CASE";
+    }
+    
+    /// Initialize Solana validation rules
+    function initialize_solana_rules() internal {
+        ValidationRules storage rules = platform_rules[TargetPlatform.Solana];
+        rules.required_imports = ["use anchor_lang::prelude::*"];
+        rules.forbidden_keywords = ["unsafe"];
+        rules.max_function_length = 150;
+        rules.max_complexity = 15;
+        rules.require_type_annotations = true;
+        rules.require_documentation = true;
+        rules.naming_conventions["struct"] = "PascalCase";
+        rules.naming_conventions["function"] = "snake_case";
+        rules.naming_conventions["variable"] = "snake_case";
+        rules.naming_conventions["constant"] = "SCREAMING_SNAKE_CASE";
+    }
+    
+    /// Initialize Cosmos validation rules
+    function initialize_cosmos_rules() internal {
+        ValidationRules storage rules = platform_rules[TargetPlatform.Cosmos];
+        rules.required_imports = ["github.com/cosmos/cosmos-sdk"];
+        rules.forbidden_keywords = ["goto"];
+        rules.max_function_length = 120;
+        rules.max_complexity = 12;
+        rules.require_type_annotations = true;
+        rules.require_documentation = true;
+        rules.naming_conventions["struct"] = "PascalCase";
+        rules.naming_conventions["function"] = "PascalCase";
+        rules.naming_conventions["variable"] = "camelCase";
+        rules.naming_conventions["constant"] = "SCREAMING_SNAKE_CASE";
+    }
+    
+    /// Initialize Substrate validation rules
+    function initialize_substrate_rules() internal {
+        ValidationRules storage rules = platform_rules[TargetPlatform.Substrate];
+        rules.required_imports = ["use frame_support"];
+        rules.forbidden_keywords = ["unsafe"];
+        rules.max_function_length = 100;
+        rules.max_complexity = 10;
+        rules.require_type_annotations = true;
+        rules.require_documentation = true;
+        rules.naming_conventions["struct"] = "PascalCase";
+        rules.naming_conventions["function"] = "snake_case";
+        rules.naming_conventions["variable"] = "snake_case";
+        rules.naming_conventions["constant"] = "SCREAMING_SNAKE_CASE";
+    }
+    
+    /// Initialize Move validation rules
+    function initialize_move_rules() internal {
+        ValidationRules storage rules = platform_rules[TargetPlatform.Move];
+        rules.required_imports = [];
+        rules.forbidden_keywords = ["goto", "unsafe"];
+        rules.max_function_length = 80;
+        rules.max_complexity = 8;
+        rules.require_type_annotations = true;
+        rules.require_documentation = false;
+        rules.naming_conventions["module"] = "PascalCase";
+        rules.naming_conventions["function"] = "snake_case";
+        rules.naming_conventions["variable"] = "snake_case";
+        rules.naming_conventions["constant"] = "SCREAMING_SNAKE_CASE";
+    }
+    
+    /// Initialize NEAR validation rules
+    function initialize_near_rules() internal {
+        ValidationRules storage rules = platform_rules[TargetPlatform.Near];
+        rules.required_imports = ["use near_sdk"];
+        rules.forbidden_keywords = ["unsafe"];
+        rules.max_function_length = 120;
+        rules.max_complexity = 12;
+        rules.require_type_annotations = true;
+        rules.require_documentation = true;
+        rules.naming_conventions["struct"] = "PascalCase";
+        rules.naming_conventions["function"] = "snake_case";
+        rules.naming_conventions["variable"] = "snake_case";
+        rules.naming_conventions["constant"] = "SCREAMING_SNAKE_CASE";
+    }
+    
+    /// Validate generated code
+    function validate_generated_code(string memory code, TargetPlatform platform, string memory module_name) public returns (ValidationResult memory) {
+        stats.total_validations++;
+        stats.platform_validations[platform]++;
+        
+        ValidationResult memory result = ValidationResult({
+            is_valid: true,
+            errors: new string[](0),
+            warnings: new string[](0),
+            suggestions: new string[](0),
+            metrics: CodeMetrics({
+                lines_of_code: 0,
+                cyclomatic_complexity: 0,
+                function_count: 0,
+                comment_ratio: 0
+            })
+        });
+        
+        // Get platform rules
+        ValidationRules storage rules = platform_rules[platform];
+        
+        // Validate syntax
+        if (!validate_syntax(code)) {
+            result.is_valid = false;
+            result.errors = append_to_array(result.errors, "Syntax validation failed");
+        }
+        
+        // Validate required imports
+        if (!validate_required_imports(code, rules.required_imports)) {
+            result.warnings = append_to_array(result.warnings, "Missing required imports");
+        }
+        
+        // Validate forbidden keywords
+        string[] memory forbidden = check_forbidden_keywords(code, rules.forbidden_keywords);
+        if (forbidden.length > 0) {
+            result.is_valid = false;
+            for (uint i = 0; i < forbidden.length; i++) {
+                result.errors = append_to_array(result.errors, string(abi.encodePacked("Forbidden keyword used: ", forbidden[i])));
+            }
+        }
+        
+        // Calculate metrics
+        result.metrics = calculate_code_metrics(code);
+        
+        // Validate complexity
+        if (result.metrics.cyclomatic_complexity > rules.max_complexity) {
+            result.warnings = append_to_array(result.warnings, string(abi.encodePacked("High cyclomatic complexity: ", uint_to_string(result.metrics.cyclomatic_complexity))));
+        }
+        
+        // Validate naming conventions
+        string[] memory naming_violations = validate_naming_conventions(code, rules.naming_conventions);
+        for (uint i = 0; i < naming_violations.length; i++) {
+            result.warnings = append_to_array(result.warnings, naming_violations[i]);
+        }
+        
+        // Update statistics
+        if (result.is_valid) {
+            stats.successful_validations++;
+        } else {
+            stats.failed_validations++;
+        }
+        stats.warnings_generated += result.warnings.length;
+        
+        // Cache result
+        validated_modules[module_name] = result.is_valid;
+        
+        return result;
+    }
+    
+    /// Validation result structure
+    struct ValidationResult {
+        bool is_valid;                                              // Overall validation result
+        string[] errors;                                            // Validation errors
+        string[] warnings;                                          // Validation warnings
+        string[] suggestions;                                       // Improvement suggestions
+        CodeMetrics metrics;                                        // Code metrics
+    }
+    
+    /// Code metrics structure
+    struct CodeMetrics {
+        uint lines_of_code;                                         // Lines of code
+        uint cyclomatic_complexity;                                 // Cyclomatic complexity
+        uint function_count;                                        // Number of functions
+        uint comment_ratio;                                         // Comment to code ratio
+    }
+    
+    /// Validate syntax
+    function validate_syntax(string memory code) internal pure returns (bool) {
+        // Use CodeGenUtils for syntax validation
+        CodeGenUtils utils = new CodeGenUtils();
+        return utils.validate_syntax(code, "generic");
+    }
+    
+    /// Validate required imports
+    function validate_required_imports(string memory code, string[] memory required_imports) internal pure returns (bool) {
+        for (uint i = 0; i < required_imports.length; i++) {
+            if (!contains_string(code, required_imports[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /// Check for forbidden keywords
+    function check_forbidden_keywords(string memory code, string[] memory forbidden_keywords) internal pure returns (string[] memory) {
+        string[] memory violations = new string[](forbidden_keywords.length);
+        uint violationCount = 0;
+        
+        for (uint i = 0; i < forbidden_keywords.length; i++) {
+            if (contains_string(code, forbidden_keywords[i])) {
+                violations[violationCount] = forbidden_keywords[i];
+                violationCount++;
+            }
+        }
+        
+        // Resize array to actual violations
+        string[] memory result = new string[](violationCount);
+        for (uint i = 0; i < violationCount; i++) {
+            result[i] = violations[i];
+        }
+        
+        return result;
+    }
+    
+    /// Calculate code metrics
+    function calculate_code_metrics(string memory code) internal pure returns (CodeMetrics memory) {
+        bytes memory codeBytes = bytes(code);
+        
+        CodeMetrics memory metrics = CodeMetrics({
+            lines_of_code: 0,
+            cyclomatic_complexity: 0,
+            function_count: 0,
+            comment_ratio: 0
+        });
+        
+        // Count lines of code
+        for (uint i = 0; i < codeBytes.length; i++) {
+            if (codeBytes[i] == '\n') {
+                metrics.lines_of_code++;
+            }
+        }
+        
+        // Calculate cyclomatic complexity
+        CodeGenUtils utils = new CodeGenUtils();
+        metrics.cyclomatic_complexity = utils.calculate_complexity(code);
+        
+        // Count functions (simple heuristic)
+        metrics.function_count = count_occurrences(code, "function") + 
+                                count_occurrences(code, "fn ") + 
+                                count_occurrences(code, "func ");
+        
+        // Calculate comment ratio (simple heuristic)
+        uint comment_lines = count_occurrences(code, "//") + count_occurrences(code, "/*");
+        if (metrics.lines_of_code > 0) {
+            metrics.comment_ratio = (comment_lines * 100) / metrics.lines_of_code;
+        }
+        
+        return metrics;
+    }
+    
+    /// Validate naming conventions
+    function validate_naming_conventions(string memory code, mapping(string => string) storage conventions) internal view returns (string[] memory) {
+        // Simplified naming convention validation
+        string[] memory violations = new string[](10);
+        uint violationCount = 0;
+        
+        // This would be more sophisticated in a real implementation
+        // For now, just return empty array
+        
+        string[] memory result = new string[](violationCount);
+        return result;
+    }
+    
+    /// Validate IR module before code generation
+    function validate_ir_module(IRModule memory module) public returns (bool) {
+        // Validate module structure
+        if (bytes(module.name).length == 0) {
+            error_handler.report_error("Module name cannot be empty", ErrorType.ValidationError);
+            return false;
+        }
+        
+        // Validate blockchains
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            if (!validate_blockchain_ir(module.blockchains[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Validate blockchain IR
+    function validate_blockchain_ir(BlockchainIR memory blockchain) internal returns (bool) {
+        // Validate blockchain name
+        if (bytes(blockchain.name).length == 0) {
+            error_handler.report_error("Blockchain name cannot be empty", ErrorType.ValidationError);
+            return false;
+        }
+        
+        // Validate functions
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            if (!validate_function_ir(blockchain.functions[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Validate function IR
+    function validate_function_ir(FunctionIR memory func) internal returns (bool) {
+        // Validate function name
+        if (bytes(func.name).length == 0) {
+            error_handler.report_error("Function name cannot be empty", ErrorType.ValidationError);
+            return false;
+        }
+        
+        // Validate parameters
+        for (uint i = 0; i < func.parameters.length; i++) {
+            if (bytes(func.parameters[i].name).length == 0) {
+                error_handler.report_error("Parameter name cannot be empty", ErrorType.ValidationError);
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Get validation statistics
+    function get_validation_stats() public view returns (ValidationStats memory) {
+        return stats;
+    }
+    
+    /// Check if module was validated successfully
+    function is_module_validated(string memory module_name) public view returns (bool) {
+        return validated_modules[module_name];
+    }
+    
+    /// Reset validation state
+    function reset_validation_state() public {
+        delete validated_modules;
+        stats = ValidationStats({
+            total_validations: 0,
+            successful_validations: 0,
+            failed_validations: 0,
+            warnings_generated: 0
+        });
+    }
+    
+    /// Utility functions
+    function contains_string(string memory haystack, string memory needle) internal pure returns (bool) {
+        bytes memory haystackBytes = bytes(haystack);
+        bytes memory needleBytes = bytes(needle);
+        
+        if (needleBytes.length > haystackBytes.length) return false;
+        
+        for (uint i = 0; i <= haystackBytes.length - needleBytes.length; i++) {
+            bool found = true;
+            for (uint j = 0; j < needleBytes.length; j++) {
+                if (haystackBytes[i + j] != needleBytes[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) return true;
+        }
+        
+        return false;
+    }
+    
+    function count_occurrences(string memory haystack, string memory needle) internal pure returns (uint) {
+        bytes memory haystackBytes = bytes(haystack);
+        bytes memory needleBytes = bytes(needle);
+        uint count = 0;
+        
+        if (needleBytes.length > haystackBytes.length) return 0;
+        
+        for (uint i = 0; i <= haystackBytes.length - needleBytes.length; i++) {
+            bool found = true;
+            for (uint j = 0; j < needleBytes.length; j++) {
+                if (haystackBytes[i + j] != needleBytes[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) {
+                count++;
+                i += needleBytes.length - 1; // Skip past this occurrence
+            }
+        }
+        
+        return count;
+    }
+    
+    function append_to_array(string[] memory array, string memory item) internal pure returns (string[] memory) {
+        string[] memory newArray = new string[](array.length + 1);
+        for (uint i = 0; i < array.length; i++) {
+            newArray[i] = array[i];
+        }
+        newArray[array.length] = item;
+        return newArray;
+    }
+    
+    function uint_to_string(uint value) internal pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint temp = value;
+        uint digits = 0;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+}

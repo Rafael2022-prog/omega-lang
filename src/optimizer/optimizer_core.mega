@@ -1,0 +1,526 @@
+// OMEGA Core Optimizer
+// Mengintegrasikan semua pass optimasi dan menyediakan interface utama
+
+import "../ir/ir.mega";
+import "./base_optimizer.mega";
+import "./constant_folding.mega";
+import "./dead_code_elimination.mega";
+import "./peephole_optimizer.mega";
+import "./loop_optimizer.mega";
+
+/// Core optimizer yang mengintegrasikan semua pass optimasi
+blockchain OmegaOptimizer {
+    state {
+        // Configuration
+        OptimizationConfig config;
+        OptimizationLevel current_level;
+        OptimizationTarget target;
+        bool aggressive_mode;
+        
+        // Optimization passes
+        BaseOptimizer base_optimizer;
+        ConstantFoldingPass constant_folding;
+        DeadCodeEliminationPass dead_code_elimination;
+        PeepholeOptimizerPass peephole_optimizer;
+        LoopOptimizerPass loop_optimizer;
+        
+        // Statistics and metrics
+        OptimizationStats global_stats;
+        mapping(string => OptimizationStats) pass_stats;
+        uint256 total_passes_run;
+        uint256 total_optimizations_applied;
+        uint256 total_instructions_eliminated;
+        uint256 total_execution_time;
+        
+        // Pass management
+        OptimizationPassInfo[] available_passes;
+        mapping(string => bool) enabled_passes;
+        mapping(string => uint256) pass_priorities;
+        
+        // Results and caching
+        mapping(bytes32 => OptimizationResult) optimization_cache;
+        OptimizationResult last_result;
+        
+        bool initialized;
+    }
+    
+    /// Information about optimization pass
+    struct OptimizationPassInfo {
+        string name;
+        string description;
+        OptimizationLevel min_level;
+        bool enabled;
+        uint256 priority;
+        uint256 estimated_improvement;
+    }
+    
+    /// Comprehensive optimization result
+    struct ComprehensiveResult {
+        IRModule optimized_module;
+        OptimizationStats stats;
+        OptimizationPassResult[] pass_results;
+        uint256 total_time;
+        bool success;
+        string[] warnings;
+        string[] errors;
+    }
+    
+    /// Result from individual pass
+    struct OptimizationPassResult {
+        string pass_name;
+        bool applied;
+        uint256 improvements;
+        uint256 execution_time;
+        string details;
+    }
+    
+    /// Constructor
+    constructor() {
+        _initialize_optimizer();
+        _initialize_passes();
+        _setup_default_configuration();
+        initialized = true;
+    }
+    
+    /// Initialize optimizer components
+    function _initialize_optimizer() private {
+        base_optimizer = new BaseOptimizer();
+        constant_folding = new ConstantFoldingPass();
+        dead_code_elimination = new DeadCodeEliminationPass();
+        peephole_optimizer = new PeepholeOptimizerPass();
+        loop_optimizer = new LoopOptimizerPass();
+        
+        total_passes_run = 0;
+        total_optimizations_applied = 0;
+        total_instructions_eliminated = 0;
+        total_execution_time = 0;
+    }
+    
+    /// Initialize available passes
+    function _initialize_passes() private {
+        // Register all available passes
+        _register_pass("constant_folding", "Constant folding and propagation", OptimizationLevel.O1, true, 100);
+        _register_pass("dead_code_elimination", "Dead code elimination", OptimizationLevel.O1, true, 90);
+        _register_pass("peephole_optimization", "Peephole optimizations", OptimizationLevel.O2, true, 80);
+        _register_pass("loop_optimization", "Loop optimizations", OptimizationLevel.O2, true, 70);
+    }
+    
+    /// Register optimization pass
+    function _register_pass(
+        string memory name,
+        string memory description,
+        OptimizationLevel min_level,
+        bool enabled,
+        uint256 priority
+    ) private {
+        available_passes.push(OptimizationPassInfo({
+            name: name,
+            description: description,
+            min_level: min_level,
+            enabled: enabled,
+            priority: priority,
+            estimated_improvement: 0
+        }));
+        
+        enabled_passes[name] = enabled;
+        pass_priorities[name] = priority;
+    }
+    
+    /// Setup default configuration
+    function _setup_default_configuration() private {
+        config = OptimizationConfig({
+            level: OptimizationLevel.O2,
+            target: OptimizationTarget.BALANCED,
+            enable_aggressive: false,
+            preserve_debug_info: true
+        });
+        
+        current_level = OptimizationLevel.O2;
+        target = OptimizationTarget.BALANCED;
+        aggressive_mode = false;
+    }
+    
+    /// Main optimization entry point
+    function optimize(IRModule memory module) public returns (ComprehensiveResult memory) {
+        require(initialized, "OmegaOptimizer not initialized");
+        
+        uint256 start_time = block.timestamp;
+        ComprehensiveResult memory result;
+        result.optimized_module = module;
+        result.success = true;
+        
+        // Check cache first
+        bytes32 module_hash = calculate_module_hash(module);
+        if (optimization_cache[module_hash].success) {
+            return _create_cached_result(optimization_cache[module_hash]);
+        }
+        
+        // Run optimization passes
+        OptimizationPassResult[] memory pass_results = new OptimizationPassResult[](available_passes.length);
+        uint256 pass_count = 0;
+        
+        // Sort passes by priority
+        OptimizationPassInfo[] memory sorted_passes = _sort_passes_by_priority();
+        
+        // Execute passes in order
+        for (uint256 i = 0; i < sorted_passes.length; i++) {
+            OptimizationPassInfo memory pass_info = sorted_passes[i];
+            
+            if (_should_run_pass(pass_info)) {
+                OptimizationPassResult memory pass_result = _run_optimization_pass(
+                    result.optimized_module,
+                    pass_info.name
+                );
+                
+                if (pass_result.applied) {
+                    result.optimized_module = _apply_pass_result(result.optimized_module, pass_result);
+                    pass_results[pass_count] = pass_result;
+                    pass_count++;
+                    total_optimizations_applied++;
+                }
+            }
+        }
+        
+        // Resize pass results array
+        OptimizationPassResult[] memory final_pass_results = new OptimizationPassResult[](pass_count);
+        for (uint256 i = 0; i < pass_count; i++) {
+            final_pass_results[i] = pass_results[i];
+        }
+        result.pass_results = final_pass_results;
+        
+        // Calculate final statistics
+        result.stats = _calculate_optimization_stats(module, result.optimized_module);
+        result.total_time = block.timestamp - start_time;
+        total_execution_time += result.total_time;
+        total_passes_run++;
+        
+        // Cache result
+        optimization_cache[module_hash] = OptimizationResult({
+            optimized_module: result.optimized_module,
+            stats: result.stats,
+            success: result.success,
+            execution_time: result.total_time
+        });
+        
+        last_result = optimization_cache[module_hash];
+        return result;
+    }
+    
+    /// Check if pass should run
+    function _should_run_pass(OptimizationPassInfo memory pass_info) private view returns (bool) {
+        return pass_info.enabled &&
+               enabled_passes[pass_info.name] &&
+               _level_meets_requirement(current_level, pass_info.min_level);
+    }
+    
+    /// Check if optimization level meets requirement
+    function _level_meets_requirement(OptimizationLevel current, OptimizationLevel required) private pure returns (bool) {
+        return uint256(current) >= uint256(required);
+    }
+    
+    /// Sort passes by priority
+    function _sort_passes_by_priority() private view returns (OptimizationPassInfo[] memory) {
+        OptimizationPassInfo[] memory sorted = new OptimizationPassInfo[](available_passes.length);
+        
+        // Copy array
+        for (uint256 i = 0; i < available_passes.length; i++) {
+            sorted[i] = available_passes[i];
+        }
+        
+        // Simple bubble sort by priority (descending)
+        for (uint256 i = 0; i < sorted.length; i++) {
+            for (uint256 j = 0; j < sorted.length - 1 - i; j++) {
+                if (sorted[j].priority < sorted[j + 1].priority) {
+                    OptimizationPassInfo memory temp = sorted[j];
+                    sorted[j] = sorted[j + 1];
+                    sorted[j + 1] = temp;
+                }
+            }
+        }
+        
+        return sorted;
+    }
+    
+    /// Run specific optimization pass
+    function _run_optimization_pass(
+        IRModule memory module,
+        string memory pass_name
+    ) private returns (OptimizationPassResult memory) {
+        uint256 start_time = block.timestamp;
+        OptimizationPassResult memory result;
+        result.pass_name = pass_name;
+        result.applied = false;
+        
+        // Route to appropriate pass
+        if (keccak256(bytes(pass_name)) == keccak256(bytes("constant_folding"))) {
+            IRModule memory optimized = constant_folding.run(module);
+            result.applied = !_modules_equal(module, optimized);
+            result.improvements = _count_improvements(module, optimized);
+            result.details = "Constant folding applied";
+            
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("dead_code_elimination"))) {
+            IRModule memory optimized = dead_code_elimination.run(module);
+            result.applied = !_modules_equal(module, optimized);
+            result.improvements = _count_improvements(module, optimized);
+            result.details = "Dead code eliminated";
+            
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("peephole_optimization"))) {
+            IRModule memory optimized = peephole_optimizer.run(module);
+            result.applied = !_modules_equal(module, optimized);
+            result.improvements = _count_improvements(module, optimized);
+            result.details = "Peephole optimizations applied";
+            
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("loop_optimization"))) {
+            IRModule memory optimized = loop_optimizer.run(module);
+            result.applied = !_modules_equal(module, optimized);
+            result.improvements = _count_improvements(module, optimized);
+            result.details = "Loop optimizations applied";
+        }
+        
+        result.execution_time = block.timestamp - start_time;
+        return result;
+    }
+    
+    /// Apply pass result to module
+    function _apply_pass_result(
+        IRModule memory module,
+        OptimizationPassResult memory pass_result
+    ) private returns (IRModule memory) {
+        // Re-run the pass to get the optimized module
+        // In a real implementation, this would be more efficient
+        
+        if (keccak256(bytes(pass_result.pass_name)) == keccak256(bytes("constant_folding"))) {
+            return constant_folding.run(module);
+        } else if (keccak256(bytes(pass_result.pass_name)) == keccak256(bytes("dead_code_elimination"))) {
+            return dead_code_elimination.run(module);
+        } else if (keccak256(bytes(pass_result.pass_name)) == keccak256(bytes("peephole_optimization"))) {
+            return peephole_optimizer.run(module);
+        } else if (keccak256(bytes(pass_result.pass_name)) == keccak256(bytes("loop_optimization"))) {
+            return loop_optimizer.run(module);
+        }
+        
+        return module;
+    }
+    
+    /// Calculate optimization statistics
+    function _calculate_optimization_stats(
+        IRModule memory original,
+        IRModule memory optimized
+    ) private pure returns (OptimizationStats memory) {
+        OptimizationStats memory stats;
+        
+        uint256 original_instructions = _count_total_instructions(original);
+        uint256 optimized_instructions = _count_total_instructions(optimized);
+        
+        stats.instructions_eliminated = original_instructions > optimized_instructions ? 
+            original_instructions - optimized_instructions : 0;
+        stats.functions_optimized = original.functions.length;
+        stats.constants_folded = 0; // Would be calculated by individual passes
+        stats.dead_code_removed = stats.instructions_eliminated;
+        
+        return stats;
+    }
+    
+    /// Count total instructions in module
+    function _count_total_instructions(IRModule memory module) private pure returns (uint256) {
+        uint256 total = 0;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            total += module.functions[i].body.instructions.length;
+        }
+        return total;
+    }
+    
+    /// Check if two modules are equal
+    function _modules_equal(IRModule memory a, IRModule memory b) private pure returns (bool) {
+        if (a.functions.length != b.functions.length) {
+            return false;
+        }
+        
+        for (uint256 i = 0; i < a.functions.length; i++) {
+            if (a.functions[i].body.instructions.length != b.functions[i].body.instructions.length) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /// Count improvements between modules
+    function _count_improvements(IRModule memory original, IRModule memory optimized) private pure returns (uint256) {
+        uint256 original_count = _count_total_instructions(original);
+        uint256 optimized_count = _count_total_instructions(optimized);
+        return original_count > optimized_count ? original_count - optimized_count : 0;
+    }
+    
+    /// Calculate module hash for caching
+    function calculate_module_hash(IRModule memory module) private pure returns (bytes32) {
+        // Simplified hash calculation
+        string memory module_str = string(abi.encodePacked(
+            module.name,
+            module.functions.length
+        ));
+        return keccak256(bytes(module_str));
+    }
+    
+    /// Create cached result
+    function _create_cached_result(OptimizationResult memory cached) private pure returns (ComprehensiveResult memory) {
+        ComprehensiveResult memory result;
+        result.optimized_module = cached.optimized_module;
+        result.stats = cached.stats;
+        result.total_time = cached.execution_time;
+        result.success = cached.success;
+        result.pass_results = new OptimizationPassResult[](0);
+        result.warnings = new string[](0);
+        result.errors = new string[](0);
+        return result;
+    }
+    
+    /// Configuration and management functions
+    
+    /// Set optimization level
+    function set_optimization_level(OptimizationLevel level) public {
+        current_level = level;
+        config.level = level;
+        
+        // Update pass enablement based on level
+        _update_passes_for_level(level);
+    }
+    
+    /// Update passes based on optimization level
+    function _update_passes_for_level(OptimizationLevel level) private {
+        for (uint256 i = 0; i < available_passes.length; i++) {
+            bool should_enable = _level_meets_requirement(level, available_passes[i].min_level);
+            enabled_passes[available_passes[i].name] = should_enable;
+            available_passes[i].enabled = should_enable;
+        }
+    }
+    
+    /// Set optimization target
+    function set_optimization_target(OptimizationTarget new_target) public {
+        target = new_target;
+        config.target = new_target;
+    }
+    
+    /// Enable/disable aggressive mode
+    function set_aggressive_mode(bool enabled) public {
+        aggressive_mode = enabled;
+        config.enable_aggressive = enabled;
+    }
+    
+    /// Enable/disable specific pass
+    function set_pass_enabled(string memory pass_name, bool enabled) public {
+        enabled_passes[pass_name] = enabled;
+        
+        // Update pass info
+        for (uint256 i = 0; i < available_passes.length; i++) {
+            if (keccak256(bytes(available_passes[i].name)) == keccak256(bytes(pass_name))) {
+                available_passes[i].enabled = enabled;
+                break;
+            }
+        }
+    }
+    
+    /// Set pass priority
+    function set_pass_priority(string memory pass_name, uint256 priority) public {
+        pass_priorities[pass_name] = priority;
+        
+        // Update pass info
+        for (uint256 i = 0; i < available_passes.length; i++) {
+            if (keccak256(bytes(available_passes[i].name)) == keccak256(bytes(pass_name))) {
+                available_passes[i].priority = priority;
+                break;
+            }
+        }
+    }
+    
+    /// Get available passes
+    function get_available_passes() public view returns (OptimizationPassInfo[] memory) {
+        return available_passes;
+    }
+    
+    /// Get global statistics
+    function get_global_stats() public view returns (OptimizationStats memory) {
+        return global_stats;
+    }
+    
+    /// Get pass statistics
+    function get_pass_stats(string memory pass_name) public view returns (OptimizationStats memory) {
+        return pass_stats[pass_name];
+    }
+    
+    /// Get last optimization result
+    function get_last_result() public view returns (OptimizationResult memory) {
+        return last_result;
+    }
+    
+    /// Clear optimization cache
+    function clear_cache() public {
+        // Reset cache - in real implementation would iterate through mapping
+        total_passes_run = 0;
+        total_optimizations_applied = 0;
+        total_instructions_eliminated = 0;
+        total_execution_time = 0;
+    }
+    
+    /// Get optimizer configuration
+    function get_config() public view returns (OptimizationConfig memory) {
+        return config;
+    }
+    
+    /// Get optimization metrics
+    function get_metrics() public view returns (uint256, uint256, uint256, uint256) {
+        return (total_passes_run, total_optimizations_applied, total_instructions_eliminated, total_execution_time);
+    }
+    
+    /// Reset all statistics
+    function reset_stats() public {
+        global_stats = OptimizationStats({
+            instructions_eliminated: 0,
+            functions_optimized: 0,
+            constants_folded: 0,
+            dead_code_removed: 0
+        });
+        
+        total_passes_run = 0;
+        total_optimizations_applied = 0;
+        total_instructions_eliminated = 0;
+        total_execution_time = 0;
+        
+        // Reset individual pass stats
+        constant_folding.reset_stats();
+        dead_code_elimination.reset_stats();
+        peephole_optimizer.reset_stats();
+        loop_optimizer.reset_stats();
+    }
+    
+    /// Estimate optimization benefit
+    function estimate_optimization_benefit(IRModule memory module) public view returns (uint256) {
+        uint256 total_benefit = 0;
+        
+        for (uint256 i = 0; i < available_passes.length; i++) {
+            if (available_passes[i].enabled) {
+                total_benefit += _estimate_pass_benefit(module, available_passes[i].name);
+            }
+        }
+        
+        return total_benefit;
+    }
+    
+    /// Estimate benefit from specific pass
+    function _estimate_pass_benefit(IRModule memory module, string memory pass_name) private view returns (uint256) {
+        // Simplified estimation - would use more sophisticated analysis in real implementation
+        uint256 total_instructions = _count_total_instructions(module);
+        
+        if (keccak256(bytes(pass_name)) == keccak256(bytes("constant_folding"))) {
+            return (total_instructions * 5) / 100; // 5% improvement estimate
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("dead_code_elimination"))) {
+            return (total_instructions * 10) / 100; // 10% improvement estimate
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("peephole_optimization"))) {
+            return (total_instructions * 7) / 100; // 7% improvement estimate
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("loop_optimization"))) {
+            return (total_instructions * 15) / 100; // 15% improvement estimate
+        }
+        
+        return 0;
+    }
+}

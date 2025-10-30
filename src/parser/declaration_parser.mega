@@ -1,0 +1,595 @@
+// OMEGA Declaration Parser - Modul khusus untuk parsing declarations
+// Menangani parsing untuk blockchain, struct, enum, function, dan declarations lainnya
+
+import "./ast_nodes.mega";
+import "./statement_parser.mega";
+import "../lexer/lexer.mega" as Lexer;
+import "../error/error.mega";
+
+/// Parser khusus untuk declarations
+blockchain DeclarationParser {
+    state {
+        Token[] tokens;
+        uint256 current;
+        StatementParser statement_parser;
+        OmegaErrorHandler error_handler;
+        string current_file;
+    }
+    
+    constructor() {
+        current = 0;
+        statement_parser = StatementParser::new();
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+    }
+    
+    /// Set tokens untuk parsing
+    function set_tokens(Token[] memory input_tokens, uint256 start_index) public {
+        tokens = input_tokens;
+        current = start_index;
+        statement_parser.set_tokens(input_tokens, start_index);
+    }
+    
+    /// Get current token index
+    function get_current_index() public view returns (uint256) {
+        return current;
+    }
+    
+    /// Parse import statement
+    function parse_import() public returns (Import memory) {
+        consume(TokenType.Import, "Expected 'import'");
+        
+        Token memory path_token = consume(TokenType.String, "Expected import path");
+        string memory path = path_token.lexeme;
+        
+        string memory alias = "";
+        bool is_wildcard = false;
+        string[] memory specific_imports;
+        
+        if (match(TokenType.As)) {
+            Token memory alias_token = consume(TokenType.Identifier, "Expected alias name");
+            alias = alias_token.lexeme;
+        } else if (match(TokenType.LeftBrace)) {
+            // Specific imports: import { func1, func2 } from "path"
+            uint256 import_count = 0;
+            
+            if (!check(TokenType.RightBrace)) {
+                do {
+                    Token memory import_name = consume(TokenType.Identifier, "Expected import name");
+                    specific_imports[import_count] = import_name.lexeme;
+                    import_count++;
+                } while (match(TokenType.Comma));
+            }
+            
+            consume(TokenType.RightBrace, "Expected '}' after import list");
+        } else if (match(TokenType.Star)) {
+            is_wildcard = true;
+            if (match(TokenType.As)) {
+                Token memory alias_token = consume(TokenType.Identifier, "Expected alias name");
+                alias = alias_token.lexeme;
+            }
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after import");
+        
+        return Import({
+            path: path,
+            alias: alias,
+            is_wildcard: is_wildcard,
+            specific_imports: specific_imports
+        });
+    }
+    
+    /// Parse blockchain declaration
+    function parse_blockchain(Annotation[] memory annotations) public returns (Blockchain memory) {
+        consume(TokenType.Blockchain, "Expected 'blockchain'");
+        
+        Token memory name = consume(TokenType.Identifier, "Expected blockchain name");
+        consume(TokenType.LeftBrace, "Expected '{' after blockchain name");
+        
+        StateBlock memory state_block;
+        Function[] memory functions;
+        Event[] memory events;
+        Modifier[] memory modifiers;
+        
+        uint256 function_count = 0;
+        uint256 event_count = 0;
+        uint256 modifier_count = 0;
+        
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            Annotation[] memory item_annotations = parse_annotations();
+            
+            if (check(TokenType.State)) {
+                state_block = parse_state_block();
+            } else if (check(TokenType.Function)) {
+                functions[function_count] = parse_function(item_annotations);
+                function_count++;
+            } else if (check(TokenType.Event)) {
+                events[event_count] = parse_event(item_annotations);
+                event_count++;
+            } else if (check(TokenType.Modifier)) {
+                modifiers[modifier_count] = parse_modifier(item_annotations);
+                modifier_count++;
+            } else {
+                revert("Unexpected token in blockchain body");
+            }
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after blockchain body");
+        
+        return Blockchain({
+            name: name.lexeme,
+            annotations: annotations,
+            state_block: state_block,
+            functions: functions,
+            events: events,
+            modifiers: modifiers
+        });
+    }
+    
+    /// Parse state block
+    function parse_state_block() public returns (StateBlock memory) {
+        consume(TokenType.State, "Expected 'state'");
+        consume(TokenType.LeftBrace, "Expected '{' after 'state'");
+        
+        StateVariable[] memory variables;
+        uint256 var_count = 0;
+        
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            variables[var_count] = parse_state_variable();
+            var_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after state block");
+        
+        return StateBlock({
+            variables: variables
+        });
+    }
+    
+    /// Parse state variable
+    function parse_state_variable() public returns (StateVariable memory) {
+        Visibility visibility = Visibility.Private;
+        Mutability mutability = Mutability.NonPayable;
+        
+        // Parse visibility modifier
+        if (check(TokenType.Public) || check(TokenType.Private) || 
+            check(TokenType.Internal) || check(TokenType.External)) {
+            visibility = parse_visibility();
+        }
+        
+        statement_parser.set_tokens(tokens, current);
+        Type memory var_type = statement_parser.parse_type();
+        current = statement_parser.get_current_index();
+        
+        Token memory name = consume(TokenType.Identifier, "Expected variable name");
+        
+        Expression memory default_value;
+        if (match(TokenType.Equal)) {
+            // Parse default value expression
+            // For now, we'll skip complex expression parsing in state variables
+        }
+        
+        consume(TokenType.Semicolon, "Expected ';' after state variable");
+        
+        return StateVariable({
+            name: name.lexeme,
+            variable_type: var_type,
+            visibility: visibility,
+            mutability: mutability,
+            default_value: default_value
+        });
+    }
+    
+    /// Parse event declaration
+    function parse_event(Annotation[] memory annotations) public returns (Event memory) {
+        consume(TokenType.Event, "Expected 'event'");
+        
+        Token memory name = consume(TokenType.Identifier, "Expected event name");
+        consume(TokenType.LeftParen, "Expected '(' after event name");
+        
+        EventParameter[] memory parameters;
+        uint256 param_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                parameters[param_count] = parse_event_parameter();
+                param_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after event parameters");
+        consume(TokenType.Semicolon, "Expected ';' after event declaration");
+        
+        return Event({
+            name: name.lexeme,
+            annotations: annotations,
+            parameters: parameters
+        });
+    }
+    
+    /// Parse event parameter
+    function parse_event_parameter() public returns (EventParameter memory) {
+        statement_parser.set_tokens(tokens, current);
+        Type memory param_type = statement_parser.parse_type();
+        current = statement_parser.get_current_index();
+        
+        bool indexed = false;
+        if (match(TokenType.Indexed)) {
+            indexed = true;
+        }
+        
+        Token memory name = consume(TokenType.Identifier, "Expected parameter name");
+        
+        return EventParameter({
+            name: name.lexeme,
+            parameter_type: param_type,
+            indexed: indexed
+        });
+    }
+    
+    /// Parse function declaration
+    function parse_function(Annotation[] memory annotations) public returns (Function memory) {
+        consume(TokenType.Function, "Expected 'function'");
+        
+        Token memory name = consume(TokenType.Identifier, "Expected function name");
+        consume(TokenType.LeftParen, "Expected '(' after function name");
+        
+        Parameter[] memory parameters;
+        uint256 param_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                parameters[param_count] = parse_parameter();
+                param_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after parameters");
+        
+        Visibility visibility = Visibility.Private;
+        Mutability mutability = Mutability.NonPayable;
+        Type memory return_type;
+        
+        // Parse function modifiers
+        while (check(TokenType.Public) || check(TokenType.Private) || 
+               check(TokenType.Internal) || check(TokenType.External) ||
+               check(TokenType.Pure) || check(TokenType.View) || 
+               check(TokenType.Payable) || check(TokenType.Returns)) {
+            
+            if (check(TokenType.Public) || check(TokenType.Private) || 
+                check(TokenType.Internal) || check(TokenType.External)) {
+                visibility = parse_visibility();
+            } else if (check(TokenType.Pure) || check(TokenType.View) || 
+                       check(TokenType.Payable)) {
+                mutability = parse_mutability();
+            } else if (match(TokenType.Returns)) {
+                consume(TokenType.LeftParen, "Expected '(' after 'returns'");
+                statement_parser.set_tokens(tokens, current);
+                return_type = statement_parser.parse_type();
+                current = statement_parser.get_current_index();
+                consume(TokenType.RightParen, "Expected ')' after return type");
+            }
+        }
+        
+        statement_parser.set_tokens(tokens, current);
+        Block memory body = statement_parser.parse_block();
+        current = statement_parser.get_current_index();
+        
+        return Function({
+            name: name.lexeme,
+            annotations: annotations,
+            parameters: parameters,
+            return_type: return_type,
+            visibility: visibility,
+            mutability: mutability,
+            body: body
+        });
+    }
+    
+    /// Parse function parameter
+    function parse_parameter() public returns (Parameter memory) {
+        statement_parser.set_tokens(tokens, current);
+        Type memory param_type = statement_parser.parse_type();
+        current = statement_parser.get_current_index();
+        
+        bool is_memory = false;
+        bool is_storage = false;
+        bool is_calldata = false;
+        
+        if (match(TokenType.Memory)) {
+            is_memory = true;
+        } else if (match(TokenType.Storage)) {
+            is_storage = true;
+        } else if (match(TokenType.Calldata)) {
+            is_calldata = true;
+        }
+        
+        Token memory name = consume(TokenType.Identifier, "Expected parameter name");
+        
+        return Parameter({
+            name: name.lexeme,
+            parameter_type: param_type,
+            is_memory: is_memory,
+            is_storage: is_storage,
+            is_calldata: is_calldata
+        });
+    }
+    
+    /// Parse struct declaration
+    function parse_struct(Annotation[] memory annotations) public returns (Struct memory) {
+        consume(TokenType.Struct, "Expected 'struct'");
+        
+        Token memory name = consume(TokenType.Identifier, "Expected struct name");
+        consume(TokenType.LeftBrace, "Expected '{' after struct name");
+        
+        StructField[] memory fields;
+        uint256 field_count = 0;
+        
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            fields[field_count] = parse_struct_field();
+            field_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after struct body");
+        
+        return Struct({
+            name: name.lexeme,
+            annotations: annotations,
+            fields: fields
+        });
+    }
+    
+    /// Parse struct field
+    function parse_struct_field() private returns (StructField memory) {
+        Visibility visibility = Visibility.Public;
+        
+        if (check(TokenType.Public) || check(TokenType.Private)) {
+            visibility = parse_visibility();
+        }
+        
+        statement_parser.set_tokens(tokens, current);
+        Type memory field_type = statement_parser.parse_type();
+        current = statement_parser.get_current_index();
+        
+        Token memory name = consume(TokenType.Identifier, "Expected field name");
+        consume(TokenType.Semicolon, "Expected ';' after struct field");
+        
+        return StructField({
+            name: name.lexeme,
+            field_type: field_type,
+            visibility: visibility
+        });
+    }
+    
+    /// Parse enum declaration
+    function parse_enum(Annotation[] memory annotations) public returns (Enum memory) {
+        consume(TokenType.Enum, "Expected 'enum'");
+        
+        Token memory name = consume(TokenType.Identifier, "Expected enum name");
+        consume(TokenType.LeftBrace, "Expected '{' after enum name");
+        
+        EnumVariant[] memory variants;
+        uint256 variant_count = 0;
+        
+        if (!check(TokenType.RightBrace)) {
+            do {
+                variants[variant_count] = parse_enum_variant();
+                variant_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after enum body");
+        
+        return Enum({
+            name: name.lexeme,
+            annotations: annotations,
+            variants: variants
+        });
+    }
+    
+    /// Parse enum variant
+    function parse_enum_variant() private returns (EnumVariant memory) {
+        Token memory name = consume(TokenType.Identifier, "Expected variant name");
+        
+        uint256 value = 0;
+        if (match(TokenType.Equal)) {
+            Token memory value_token = consume(TokenType.Number, "Expected variant value");
+            value = parse_integer_from_string(value_token.lexeme);
+        }
+        
+        return EnumVariant({
+            name: name.lexeme,
+            value: value
+        });
+    }
+    
+    /// Parse constant declaration
+    function parse_constant(Annotation[] memory annotations) public returns (Constant memory) {
+        consume(TokenType.Constant, "Expected 'constant'");
+        
+        statement_parser.set_tokens(tokens, current);
+        Type memory constant_type = statement_parser.parse_type();
+        current = statement_parser.get_current_index();
+        
+        Token memory name = consume(TokenType.Identifier, "Expected constant name");
+        consume(TokenType.Equal, "Expected '=' after constant name");
+        
+        // Parse constant value expression (simplified for now)
+        Expression memory value;
+        
+        consume(TokenType.Semicolon, "Expected ';' after constant declaration");
+        
+        return Constant({
+            name: name.lexeme,
+            annotations: annotations,
+            constant_type: constant_type,
+            value: value
+        });
+    }
+    
+    /// Parse modifier declaration
+    function parse_modifier(Annotation[] memory annotations) public returns (Modifier memory) {
+        consume(TokenType.Modifier, "Expected 'modifier'");
+        
+        Token memory name = consume(TokenType.Identifier, "Expected modifier name");
+        consume(TokenType.LeftParen, "Expected '(' after modifier name");
+        
+        Parameter[] memory parameters;
+        uint256 param_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                parameters[param_count] = parse_parameter();
+                param_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after modifier parameters");
+        
+        statement_parser.set_tokens(tokens, current);
+        Block memory body = statement_parser.parse_block();
+        current = statement_parser.get_current_index();
+        
+        return Modifier({
+            name: name.lexeme,
+            annotations: annotations,
+            parameters: parameters,
+            body: body
+        });
+    }
+    
+    /// Parse annotations
+    function parse_annotations() public returns (Annotation[] memory) {
+        Annotation[] memory annotations;
+        uint256 annotation_count = 0;
+        
+        while (match(TokenType.At)) {
+            annotations[annotation_count] = parse_annotation();
+            annotation_count++;
+        }
+        
+        return annotations;
+    }
+    
+    /// Parse single annotation
+    function parse_annotation() private returns (Annotation memory) {
+        Token memory name = consume(TokenType.Identifier, "Expected annotation name");
+        
+        AnnotationArg[] memory args;
+        uint256 arg_count = 0;
+        
+        if (match(TokenType.LeftParen)) {
+            if (!check(TokenType.RightParen)) {
+                do {
+                    args[arg_count] = parse_annotation_arg();
+                    arg_count++;
+                } while (match(TokenType.Comma));
+            }
+            consume(TokenType.RightParen, "Expected ')' after annotation arguments");
+        }
+        
+        return Annotation({
+            name: name.lexeme,
+            args: args
+        });
+    }
+    
+    /// Parse annotation argument
+    function parse_annotation_arg() private returns (AnnotationArg memory) {
+        Token memory name = consume(TokenType.Identifier, "Expected argument name");
+        consume(TokenType.Equal, "Expected '=' after argument name");
+        Token memory value = consume(TokenType.String, "Expected argument value");
+        
+        return AnnotationArg({
+            name: name.lexeme,
+            value: value.lexeme
+        });
+    }
+    
+    /// Parse visibility modifier
+    function parse_visibility() public returns (Visibility) {
+        if (match(TokenType.Public)) return Visibility.Public;
+        if (match(TokenType.Private)) return Visibility.Private;
+        if (match(TokenType.Internal)) return Visibility.Internal;
+        if (match(TokenType.External)) return Visibility.External;
+        
+        revert("Expected visibility modifier");
+    }
+    
+    /// Parse mutability modifier
+    function parse_mutability() public returns (Mutability) {
+        if (match(TokenType.Pure)) return Mutability.Pure;
+        if (match(TokenType.View)) return Mutability.View;
+        if (match(TokenType.Payable)) return Mutability.Payable;
+        
+        return Mutability.NonPayable;
+    }
+    
+    // Helper functions
+    function match(TokenType token_type) private returns (bool) {
+        if (check(token_type)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+    
+    function check(TokenType token_type) private view returns (bool) {
+        if (is_at_end()) return false;
+        return peek().token_type == token_type;
+    }
+    
+    function advance() private returns (Token memory) {
+        if (!is_at_end()) current++;
+        return previous();
+    }
+    
+    function is_at_end() private view returns (bool) {
+        return peek().token_type == TokenType.EOF;
+    }
+    
+    function peek() private view returns (Token memory) {
+        return tokens[current];
+    }
+    
+    function previous() private view returns (Token memory) {
+        return tokens[current - 1];
+    }
+    
+    function consume(TokenType token_type, string memory message) private returns (Token memory) {
+        if (check(token_type)) return advance();
+        
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.ParseError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: peek().line,
+                    column: peek().column,
+                    length: peek().lexeme.length
+                }),
+                context: ErrorContext.Parser,
+                severity: ErrorSeverity.Error,
+                error_code: "P003",
+                suggestions: new string[](0)
+            })
+        );
+        
+        revert(message);
+    }
+    
+    function parse_integer_from_string(string memory str) private pure returns (uint256) {
+        bytes memory b = bytes(str);
+        uint256 result = 0;
+        
+        for (uint256 i = 0; i < b.length; i++) {
+            uint8 digit = uint8(b[i]) - 48; // ASCII '0' = 48
+            require(digit <= 9, "Invalid digit in number");
+            result = result * 10 + digit;
+        }
+        
+        return result;
+    }
+}

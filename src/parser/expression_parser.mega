@@ -1,0 +1,472 @@
+// OMEGA Expression Parser - Modul khusus untuk parsing expressions
+// Menggunakan precedence climbing untuk menangani operator precedence
+
+import "./ast_nodes.mega";
+import "../lexer/lexer.mega" as Lexer;
+import "../error/error.mega";
+
+/// Parser khusus untuk expressions dengan precedence climbing
+blockchain ExpressionParser {
+    state {
+        Token[] tokens;
+        uint256 current;
+        OmegaErrorHandler error_handler;
+        string current_file;
+    }
+    
+    constructor() {
+        current = 0;
+        error_handler = OmegaErrorHandler::new();
+        current_file = "";
+    }
+    
+    /// Set tokens untuk parsing
+    function set_tokens(Token[] memory input_tokens, uint256 start_index) public {
+        tokens = input_tokens;
+        current = start_index;
+    }
+    
+    /// Get current token index
+    function get_current_index() public view returns (uint256) {
+        return current;
+    }
+    
+    /// Parse expression dengan precedence climbing
+    function parse_expression() public returns (Expression memory) {
+        return parse_assignment();
+    }
+    
+    /// Parse assignment expressions (lowest precedence)
+    function parse_assignment() private returns (Expression memory) {
+        Expression memory expr = parse_logical_or();
+        
+        if (match_assignment_operator()) {
+            AssignmentOperator op = get_assignment_operator(previous().token_type);
+            Expression memory right = parse_assignment();
+            
+            return Expression({
+                expression_type: ExpressionType.Assignment,
+                assignment: AssignmentExpression({
+                    left: expr,
+                    operator: op,
+                    right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse logical OR expressions
+    function parse_logical_or() private returns (Expression memory) {
+        Expression memory expr = parse_logical_and();
+        
+        while (match(TokenType.LogicalOr)) {
+            BinaryOperator op = BinaryOperator.LogicalOr;
+            Expression memory right = parse_logical_and();
+            
+            expr = Expression({
+                expression_type: ExpressionType.Binary,
+                binary: BinaryExpression({
+                    left: expr,
+                    operator: op,
+                    right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse logical AND expressions
+    function parse_logical_and() private returns (Expression memory) {
+        Expression memory expr = parse_equality();
+        
+        while (match(TokenType.LogicalAnd)) {
+            BinaryOperator op = BinaryOperator.LogicalAnd;
+            Expression memory right = parse_equality();
+            
+            expr = Expression({
+                expression_type: ExpressionType.Binary,
+                binary: BinaryExpression({
+                    left: expr,
+                    operator: op,
+                    right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse equality expressions (==, !=)
+    function parse_equality() private returns (Expression memory) {
+        Expression memory expr = parse_comparison();
+        
+        while (match_equality_operator()) {
+            BinaryOperator op = get_equality_operator(previous().token_type);
+            Expression memory right = parse_comparison();
+            
+            expr = Expression({
+                expression_type: ExpressionType.Binary,
+                binary: BinaryExpression({
+                    left: expr,
+                    operator: op,
+                    right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse comparison expressions (<, <=, >, >=)
+    function parse_comparison() private returns (Expression memory) {
+        Expression memory expr = parse_term();
+        
+        while (match_comparison_operator()) {
+            BinaryOperator op = get_comparison_operator(previous().token_type);
+            Expression memory right = parse_term();
+            
+            expr = Expression({
+                expression_type: ExpressionType.Binary,
+                binary: BinaryExpression({
+                    left: expr,
+                    operator: op,
+                    right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse term expressions (+, -)
+    function parse_term() private returns (Expression memory) {
+        Expression memory expr = parse_factor();
+        
+        while (match_term_operator()) {
+            BinaryOperator op = get_term_operator(previous().token_type);
+            Expression memory right = parse_factor();
+            
+            expr = Expression({
+                expression_type: ExpressionType.Binary,
+                binary: BinaryExpression({
+                    left: expr,
+                    operator: op,
+                    right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse factor expressions (*, /, %)
+    function parse_factor() private returns (Expression memory) {
+        Expression memory expr = parse_unary();
+        
+        while (match_factor_operator()) {
+            BinaryOperator op = get_factor_operator(previous().token_type);
+            Expression memory right = parse_unary();
+            
+            expr = Expression({
+                expression_type: ExpressionType.Binary,
+                binary: BinaryExpression({
+                    left: expr,
+                    operator: op,
+                    right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse unary expressions (!, -, +, ~)
+    function parse_unary() private returns (Expression memory) {
+        if (match_unary_operator()) {
+            UnaryOperator op = get_unary_operator(previous().token_type);
+            Expression memory right = parse_unary();
+            
+            return Expression({
+                expression_type: ExpressionType.Unary,
+                unary: UnaryExpression({
+                    operator: op,
+                    operand: right
+                })
+            });
+        }
+        
+        return parse_call();
+    }
+    
+    /// Parse call expressions dan member access
+    function parse_call() private returns (Expression memory) {
+        Expression memory expr = parse_primary();
+        
+        while (true) {
+            if (match(TokenType.LeftParen)) {
+                expr = finish_call(expr);
+            } else if (match(TokenType.LeftBracket)) {
+                Expression memory index = parse_expression();
+                consume(TokenType.RightBracket, "Expected ']' after array index");
+                
+                expr = Expression({
+                    expression_type: ExpressionType.ArrayAccess,
+                    array_access: ArrayAccessExpression({
+                        array: expr,
+                        index: index
+                    })
+                });
+            } else if (match(TokenType.Dot)) {
+                Token memory name = consume(TokenType.Identifier, "Expected property name after '.'");
+                
+                expr = Expression({
+                    expression_type: ExpressionType.MemberAccess,
+                    member_access: MemberAccessExpression({
+                        object: expr,
+                        member: name.lexeme
+                    })
+                });
+            } else {
+                break;
+            }
+        }
+        
+        return expr;
+    }
+    
+    /// Finish parsing function call
+    function finish_call(Expression memory callee) private returns (Expression memory) {
+        Expression[] memory arguments;
+        uint256 arg_count = 0;
+        
+        if (!check(TokenType.RightParen)) {
+            do {
+                arguments[arg_count] = parse_expression();
+                arg_count++;
+            } while (match(TokenType.Comma));
+        }
+        
+        consume(TokenType.RightParen, "Expected ')' after arguments");
+        
+        return Expression({
+            expression_type: ExpressionType.Call,
+            call: CallExpression({
+                callee: callee,
+                arguments: arguments
+            })
+        });
+    }
+    
+    /// Parse primary expressions (literals, identifiers, parentheses)
+    function parse_primary() private returns (Expression memory) {
+        if (match(TokenType.True)) {
+            return Expression({
+                expression_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Boolean,
+                    boolean_value: true
+                })
+            });
+        }
+        
+        if (match(TokenType.False)) {
+            return Expression({
+                expression_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Boolean,
+                    boolean_value: false
+                })
+            });
+        }
+        
+        if (match(TokenType.Number)) {
+            return Expression({
+                expression_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Integer,
+                    integer_value: parse_integer_from_string(previous().lexeme)
+                })
+            });
+        }
+        
+        if (match(TokenType.String)) {
+            return Expression({
+                expression_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.String,
+                    string_value: previous().lexeme
+                })
+            });
+        }
+        
+        if (match(TokenType.Address)) {
+            return Expression({
+                expression_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.Address,
+                    address_value: address(previous().lexeme)
+                })
+            });
+        }
+        
+        if (match(TokenType.Identifier)) {
+            return Expression({
+                expression_type: ExpressionType.Identifier,
+                identifier: previous().lexeme
+            });
+        }
+        
+        if (match(TokenType.LeftParen)) {
+            Expression memory expr = parse_expression();
+            consume(TokenType.RightParen, "Expected ')' after expression");
+            return expr;
+        }
+        
+        revert("Expected expression");
+    }
+    
+    // Helper functions untuk operator matching
+    function match_assignment_operator() private view returns (bool) {
+        return check(TokenType.Equal) || check(TokenType.PlusEqual) || 
+               check(TokenType.MinusEqual) || check(TokenType.StarEqual) ||
+               check(TokenType.SlashEqual) || check(TokenType.PercentEqual);
+    }
+    
+    function match_equality_operator() private view returns (bool) {
+        return check(TokenType.EqualEqual) || check(TokenType.BangEqual);
+    }
+    
+    function match_comparison_operator() private view returns (bool) {
+        return check(TokenType.Greater) || check(TokenType.GreaterEqual) ||
+               check(TokenType.Less) || check(TokenType.LessEqual);
+    }
+    
+    function match_term_operator() private view returns (bool) {
+        return check(TokenType.Plus) || check(TokenType.Minus);
+    }
+    
+    function match_factor_operator() private view returns (bool) {
+        return check(TokenType.Star) || check(TokenType.Slash) || check(TokenType.Percent);
+    }
+    
+    function match_unary_operator() private view returns (bool) {
+        return check(TokenType.Bang) || check(TokenType.Minus) || 
+               check(TokenType.Plus) || check(TokenType.Tilde);
+    }
+    
+    // Helper functions untuk mendapatkan operator enum
+    function get_assignment_operator(TokenType token_type) private pure returns (AssignmentOperator) {
+        if (token_type == TokenType.Equal) return AssignmentOperator.Assign;
+        if (token_type == TokenType.PlusEqual) return AssignmentOperator.AddAssign;
+        if (token_type == TokenType.MinusEqual) return AssignmentOperator.SubAssign;
+        if (token_type == TokenType.StarEqual) return AssignmentOperator.MulAssign;
+        if (token_type == TokenType.SlashEqual) return AssignmentOperator.DivAssign;
+        if (token_type == TokenType.PercentEqual) return AssignmentOperator.ModAssign;
+        revert("Invalid assignment operator");
+    }
+    
+    function get_equality_operator(TokenType token_type) private pure returns (BinaryOperator) {
+        if (token_type == TokenType.EqualEqual) return BinaryOperator.Equal;
+        if (token_type == TokenType.BangEqual) return BinaryOperator.NotEqual;
+        revert("Invalid equality operator");
+    }
+    
+    function get_comparison_operator(TokenType token_type) private pure returns (BinaryOperator) {
+        if (token_type == TokenType.Greater) return BinaryOperator.Greater;
+        if (token_type == TokenType.GreaterEqual) return BinaryOperator.GreaterEqual;
+        if (token_type == TokenType.Less) return BinaryOperator.Less;
+        if (token_type == TokenType.LessEqual) return BinaryOperator.LessEqual;
+        revert("Invalid comparison operator");
+    }
+    
+    function get_term_operator(TokenType token_type) private pure returns (BinaryOperator) {
+        if (token_type == TokenType.Plus) return BinaryOperator.Add;
+        if (token_type == TokenType.Minus) return BinaryOperator.Sub;
+        revert("Invalid term operator");
+    }
+    
+    function get_factor_operator(TokenType token_type) private pure returns (BinaryOperator) {
+        if (token_type == TokenType.Star) return BinaryOperator.Mul;
+        if (token_type == TokenType.Slash) return BinaryOperator.Div;
+        if (token_type == TokenType.Percent) return BinaryOperator.Mod;
+        revert("Invalid factor operator");
+    }
+    
+    function get_unary_operator(TokenType token_type) private pure returns (UnaryOperator) {
+        if (token_type == TokenType.Bang) return UnaryOperator.Not;
+        if (token_type == TokenType.Minus) return UnaryOperator.Minus;
+        if (token_type == TokenType.Plus) return UnaryOperator.Plus;
+        if (token_type == TokenType.Tilde) return UnaryOperator.BitwiseNot;
+        revert("Invalid unary operator");
+    }
+    
+    // Utility functions
+    function match(TokenType token_type) private returns (bool) {
+        if (check(token_type)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+    
+    function check(TokenType token_type) private view returns (bool) {
+        if (is_at_end()) return false;
+        return peek().token_type == token_type;
+    }
+    
+    function advance() private returns (Token memory) {
+        if (!is_at_end()) current++;
+        return previous();
+    }
+    
+    function is_at_end() private view returns (bool) {
+        return peek().token_type == TokenType.EOF;
+    }
+    
+    function peek() private view returns (Token memory) {
+        return tokens[current];
+    }
+    
+    function previous() private view returns (Token memory) {
+        return tokens[current - 1];
+    }
+    
+    function consume(TokenType token_type, string memory message) private returns (Token memory) {
+        if (check(token_type)) return advance();
+        
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.ParseError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: peek().line,
+                    column: peek().column,
+                    length: peek().lexeme.length
+                }),
+                context: ErrorContext.Parser,
+                severity: ErrorSeverity.Error,
+                error_code: "P001",
+                suggestions: new string[](0)
+            })
+        );
+        
+        revert(message);
+    }
+    
+    function parse_integer_from_string(string memory str) private pure returns (uint256) {
+        bytes memory b = bytes(str);
+        uint256 result = 0;
+        
+        for (uint256 i = 0; i < b.length; i++) {
+            uint8 digit = uint8(b[i]) - 48; // ASCII '0' = 48
+            require(digit <= 9, "Invalid digit in number");
+            result = result * 10 + digit;
+        }
+        
+        return result;
+    }
+}

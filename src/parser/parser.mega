@@ -1,0 +1,392 @@
+// OMEGA Parser Core - Modul utama yang mengintegrasikan semua sub-parser
+// Menggantikan parser.mega yang besar dengan arsitektur modular
+
+import "./ast_nodes.mega";
+import "./expression_parser.mega";
+import "./statement_parser.mega";
+import "./declaration_parser.mega";
+import "../lexer/lexer.mega" as Lexer;
+import "../error/error.mega";
+
+/// Parser utama OMEGA dengan arsitektur modular
+blockchain OmegaParser {
+    state {
+        Token[] tokens;
+        uint256 current;
+        
+        // Sub-parsers
+        ExpressionParser expression_parser;
+        StatementParser statement_parser;
+        DeclarationParser declaration_parser;
+        
+        // Error handling
+        OmegaErrorHandler error_handler;
+        string current_file;
+        bool panic_mode;
+        
+        // Parser state
+        uint256 loop_depth;
+        uint256 function_depth;
+        bool in_blockchain_context;
+    }
+    
+    constructor() {
+        current = 0;
+        panic_mode = false;
+        loop_depth = 0;
+        function_depth = 0;
+        in_blockchain_context = false;
+        
+        // Initialize sub-parsers
+        expression_parser = ExpressionParser::new();
+        statement_parser = StatementParser::new();
+        declaration_parser = DeclarationParser::new();
+        error_handler = OmegaErrorHandler::new();
+    }
+    
+    /// Main parsing function - converts token stream to AST
+    function parse(Token[] memory input_tokens, string memory filename) public returns (Program memory) {
+        tokens = input_tokens;
+        current = 0;
+        current_file = filename;
+        panic_mode = false;
+        
+        // Initialize all sub-parsers with tokens
+        expression_parser.set_tokens(input_tokens, 0);
+        statement_parser.set_tokens(input_tokens, 0);
+        declaration_parser.set_tokens(input_tokens, 0);
+        
+        return parse_program();
+    }
+    
+    /// Parse complete program
+    function parse_program() private returns (Program memory) {
+        Item[] memory items;
+        uint256 item_count = 0;
+        
+        while (!is_at_end()) {
+            try {
+                items[item_count] = parse_item();
+                item_count++;
+                panic_mode = false;
+            } catch {
+                if (panic_mode) {
+                    synchronize();
+                }
+            }
+        }
+        
+        return Program({
+            items: items
+        });
+    }
+    
+    /// Parse top-level item
+    function parse_item() private returns (Item memory) {
+        // Parse annotations first
+        Annotation[] memory annotations = declaration_parser.parse_annotations();
+        sync_current_with_declaration_parser();
+        
+        if (check(TokenType.Import)) {
+            Import memory import_item = declaration_parser.parse_import();
+            sync_current_with_declaration_parser();
+            
+            return Item({
+                item_type: ItemType.ImportItem,
+                import_item: import_item,
+                blockchain_item: Blockchain({}),
+                struct_item: Struct({}),
+                enum_item: Enum({}),
+                function_item: Function({}),
+                constant_item: Constant({})
+            });
+        }
+        
+        if (check(TokenType.Blockchain)) {
+            in_blockchain_context = true;
+            Blockchain memory blockchain_item = declaration_parser.parse_blockchain(annotations);
+            sync_current_with_declaration_parser();
+            in_blockchain_context = false;
+            
+            return Item({
+                item_type: ItemType.BlockchainItem,
+                import_item: Import({}),
+                blockchain_item: blockchain_item,
+                struct_item: Struct({}),
+                enum_item: Enum({}),
+                function_item: Function({}),
+                constant_item: Constant({})
+            });
+        }
+        
+        if (check(TokenType.Struct)) {
+            Struct memory struct_item = declaration_parser.parse_struct(annotations);
+            sync_current_with_declaration_parser();
+            
+            return Item({
+                item_type: ItemType.StructItem,
+                import_item: Import({}),
+                blockchain_item: Blockchain({}),
+                struct_item: struct_item,
+                enum_item: Enum({}),
+                function_item: Function({}),
+                constant_item: Constant({})
+            });
+        }
+        
+        if (check(TokenType.Enum)) {
+            Enum memory enum_item = declaration_parser.parse_enum(annotations);
+            sync_current_with_declaration_parser();
+            
+            return Item({
+                item_type: ItemType.EnumItem,
+                import_item: Import({}),
+                blockchain_item: Blockchain({}),
+                struct_item: Struct({}),
+                enum_item: enum_item,
+                function_item: Function({}),
+                constant_item: Constant({})
+            });
+        }
+        
+        if (check(TokenType.Function)) {
+            function_depth++;
+            Function memory function_item = declaration_parser.parse_function(annotations);
+            sync_current_with_declaration_parser();
+            function_depth--;
+            
+            return Item({
+                item_type: ItemType.FunctionItem,
+                import_item: Import({}),
+                blockchain_item: Blockchain({}),
+                struct_item: Struct({}),
+                enum_item: Enum({}),
+                function_item: function_item,
+                constant_item: Constant({})
+            });
+        }
+        
+        if (check(TokenType.Constant)) {
+            Constant memory constant_item = declaration_parser.parse_constant(annotations);
+            sync_current_with_declaration_parser();
+            
+            return Item({
+                item_type: ItemType.ConstantItem,
+                import_item: Import({}),
+                blockchain_item: Blockchain({}),
+                struct_item: Struct({}),
+                enum_item: Enum({}),
+                function_item: Function({}),
+                constant_item: constant_item
+            });
+        }
+        
+        revert("Unexpected token at top level");
+    }
+    
+    /// Synchronize current index with declaration parser
+    function sync_current_with_declaration_parser() private {
+        current = declaration_parser.get_current_index();
+        expression_parser.set_tokens(tokens, current);
+        statement_parser.set_tokens(tokens, current);
+    }
+    
+    /// Synchronize current index with expression parser
+    function sync_current_with_expression_parser() private {
+        current = expression_parser.get_current_index();
+        statement_parser.set_tokens(tokens, current);
+        declaration_parser.set_tokens(tokens, current);
+    }
+    
+    /// Synchronize current index with statement parser
+    function sync_current_with_statement_parser() private {
+        current = statement_parser.get_current_index();
+        expression_parser.set_tokens(tokens, current);
+        declaration_parser.set_tokens(tokens, current);
+    }
+    
+    /// Error recovery - synchronize to next statement
+    function synchronize() private {
+        panic_mode = false;
+        
+        advance();
+        
+        while (!is_at_end()) {
+            if (previous().token_type == TokenType.Semicolon) return;
+            
+            TokenType current_type = peek().token_type;
+            if (current_type == TokenType.Blockchain ||
+                current_type == TokenType.Function ||
+                current_type == TokenType.Struct ||
+                current_type == TokenType.Enum ||
+                current_type == TokenType.Import ||
+                current_type == TokenType.Constant ||
+                current_type == TokenType.If ||
+                current_type == TokenType.While ||
+                current_type == TokenType.For ||
+                current_type == TokenType.Return) {
+                return;
+            }
+            
+            advance();
+        }
+    }
+    
+    /// Get current parsing context information
+    function get_context_info() public view returns (string memory) {
+        string memory context = "Parser Context: ";
+        
+        if (in_blockchain_context) {
+            context = string(abi.encodePacked(context, "blockchain "));
+        }
+        
+        if (function_depth > 0) {
+            context = string(abi.encodePacked(context, "function(depth=", uint_to_string(function_depth), ") "));
+        }
+        
+        if (loop_depth > 0) {
+            context = string(abi.encodePacked(context, "loop(depth=", uint_to_string(loop_depth), ") "));
+        }
+        
+        return context;
+    }
+    
+    /// Get parsing statistics
+    function get_parsing_stats() public view returns (uint256, uint256, uint256, bool) {
+        return (current, tokens.length, error_handler.get_error_count(), panic_mode);
+    }
+    
+    /// Check if parser is in valid state
+    function is_valid_state() public view returns (bool) {
+        return !panic_mode && current <= tokens.length;
+    }
+    
+    /// Reset parser state
+    function reset() public {
+        current = 0;
+        panic_mode = false;
+        loop_depth = 0;
+        function_depth = 0;
+        in_blockchain_context = false;
+        error_handler.clear_errors();
+    }
+    
+    /// Set error handler
+    function set_error_handler(OmegaErrorHandler memory handler) public {
+        error_handler = handler;
+    }
+    
+    /// Get error handler
+    function get_error_handler() public view returns (OmegaErrorHandler memory) {
+        return error_handler;
+    }
+    
+    /// Parse expression (delegate to expression parser)
+    function parse_expression() public returns (Expression memory) {
+        expression_parser.set_tokens(tokens, current);
+        Expression memory expr = expression_parser.parse_expression();
+        sync_current_with_expression_parser();
+        return expr;
+    }
+    
+    /// Parse statement (delegate to statement parser)
+    function parse_statement() public returns (Statement memory) {
+        statement_parser.set_tokens(tokens, current);
+        Statement memory stmt = statement_parser.parse_statement();
+        sync_current_with_statement_parser();
+        return stmt;
+    }
+    
+    /// Parse block (delegate to statement parser)
+    function parse_block() public returns (Block memory) {
+        statement_parser.set_tokens(tokens, current);
+        Block memory block = statement_parser.parse_block();
+        sync_current_with_statement_parser();
+        return block;
+    }
+    
+    /// Parse type (delegate to statement parser)
+    function parse_type() public returns (Type memory) {
+        statement_parser.set_tokens(tokens, current);
+        Type memory type_info = statement_parser.parse_type();
+        sync_current_with_statement_parser();
+        return type_info;
+    }
+    
+    // Helper functions
+    function match(TokenType token_type) private returns (bool) {
+        if (check(token_type)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+    
+    function check(TokenType token_type) private view returns (bool) {
+        if (is_at_end()) return false;
+        return peek().token_type == token_type;
+    }
+    
+    function advance() private returns (Token memory) {
+        if (!is_at_end()) current++;
+        return previous();
+    }
+    
+    function is_at_end() private view returns (bool) {
+        return peek().token_type == TokenType.EOF;
+    }
+    
+    function peek() private view returns (Token memory) {
+        return tokens[current];
+    }
+    
+    function previous() private view returns (Token memory) {
+        return tokens[current - 1];
+    }
+    
+    function consume(TokenType token_type, string memory message) private returns (Token memory) {
+        if (check(token_type)) return advance();
+        
+        panic_mode = true;
+        error_handler.report_error(
+            OmegaError({
+                error_type: ErrorType.ParseError,
+                message: message,
+                location: SourceLocation({
+                    file: current_file,
+                    line: peek().line,
+                    column: peek().column,
+                    length: peek().lexeme.length
+                }),
+                context: ErrorContext.Parser,
+                severity: ErrorSeverity.Error,
+                error_code: "P001",
+                suggestions: new string[](0)
+            })
+        );
+        
+        revert(message);
+    }
+    
+    function uint_to_string(uint256 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint256 temp = value;
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+}
