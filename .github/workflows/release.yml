@@ -221,3 +221,15 @@ jobs:
         git add -A
         git diff --staged --quiet || git commit -m "📝 Update documentation for release ${{ github.ref_name }}"
         git push
+
+  sync-wiki:
+    name: 🔄 Sync Wiki after Release
+    needs: create-release
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')
+    uses: ./.github/workflows/sync-wiki.yml
+    secrets:
+      WIKI_PAT: ${{ secrets.WIKI_PAT }}
+    with:
+      only_md: true
+      file_glob: ""
+      mapping_file: "wiki/mapping.json"

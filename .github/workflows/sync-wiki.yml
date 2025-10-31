@@ -6,9 +6,44 @@ on:
     paths:
       - 'wiki/**'
   workflow_dispatch:
+    inputs:
+      only_md:
+        description: "Copy only .md files"
+        type: boolean
+        default: true
+        required: false
+      file_glob:
+        description: "Restrict copy to matching pattern under wiki/ (e.g. docs/**/*.md)"
+        type: string
+        default: ""
+        required: false
+      mapping_file:
+        description: "JSON mapping file path relative to repo (e.g., wiki/mapping.json)"
+        type: string
+        default: "wiki/mapping.json"
+        required: false
+  workflow_call:
+    inputs:
+      only_md:
+        required: false
+        type: boolean
+        default: true
+      file_glob:
+        required: false
+        type: string
+        default: ""
+      mapping_file:
+        required: false
+        type: string
+        default: "wiki/mapping.json"
+    secrets:
+      WIKI_PAT:
+        required: true
 
 permissions:
   contents: write
+
+yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 
 jobs:
   sync-wiki:
@@ -16,11 +51,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve inputs
+        id: opts
+        shell: bash
+        run: |
+          ONLY_MD="${{ inputs.only_md || github.event.inputs.only_md || 'true' }}"
+          FILE_GLOB="${{ inputs.file_glob || github.event.inputs.file_glob || '' }}"
+          MAPPING_FILE="${{ inputs.mapping_file || github.event.inputs.mapping_file || 'wiki/mapping.json' }}"
+          echo "only_md=$ONLY_MD" >> $GITHUB_OUTPUT
+          echo "file_glob=$FILE_GLOB" >> $GITHUB_OUTPUT
+          echo "mapping_file=$MAPPING_FILE" >> $GITHUB_OUTPUT
+          echo "ONLY_MD=$ONLY_MD" >> $GITHUB_ENV
+          echo "FILE_GLOB=$FILE_GLOB" >> $GITHUB_ENV
+          echo "MAPPING_FILE=$MAPPING_FILE" >> $GITHUB_ENV
 
       - name: Clone Wiki repository
         env:
@@ -31,17 +82,74 @@ jobs:
             exit 1
           fi
           set -e
-          git clone "https://$WIKI_PAT@github.com/Rafael2022-prog/omega-lang.wiki.git" wiki-repo
+          git clone "https://$WIKI_PAT@github.com/${{ github.repository }}.wiki.git" wiki-repo
           cd wiki-repo
           # Remove existing content (keep .git directory)
           find . -mindepth 1 -not -name ".git" -exec rm -rf {} +
           cd ..
 
-      - name: Copy wiki content from repo
+      - name: Copy wiki content with validation
+        shell: bash
         run: |
-          rsync -av --delete wiki/ wiki-repo/
+          set -e
+          mkdir -p wiki-repo
+          shopt -s globstar nullglob
+          if [ "${ONLY_MD}" = "true" ] && [ -z "${FILE_GLOB}" ]; then
+            echo "Copying only Markdown files (*.md) from wiki/ ..."
+            rsync -av --delete --include='*/' --include='*.md' --exclude='*' wiki/ wiki-repo/
+          elif [ -n "${FILE_GLOB}" ]; then
+            echo "Copying pattern wiki/${FILE_GLOB} limited to .md files..."
+            for f in wiki/${FILE_GLOB}; do
+              if [[ -f "$f" && "$f" == *.md ]]; then
+                dest="wiki-repo/${f#wiki/}"
+                mkdir -p "$(dirname "$dest")"
+                cp "$f" "$dest"
+              fi
+            done
+          else
+            echo "Copying all contents from wiki/ ..."
+            rsync -av --delete wiki/ wiki-repo/
+          fi
+
+      - name: Enforce .md-only (if requested)
+        if: ${{ steps.opts.outputs.only_md == 'true' }}
+        shell: bash
+        run: |
+          if find wiki-repo -type f ! -name '*.md' ! -path '*/.git/*' -print -quit | grep -q . ; then
+            echo "❌ Non-Markdown files detected while ONLY_MD=true." >&2
+            find wiki-repo -type f ! -name '*.md' ! -path '*/.git/*' -print
+            exit 1
+          fi
+
+      - name: Ensure jq is available
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Apply filename mapping (optional)
+        shell: bash
+        run: |
+          set -e
+          if [ -n "${MAPPING_FILE}" ] && [ -f "${MAPPING_FILE}" ]; then
+            echo "Applying mapping from ${MAPPING_FILE}..."
+            jq -e . "${MAPPING_FILE}" >/dev/null 2>&1 || { echo "❌ Invalid JSON in ${MAPPING_FILE}" >&2; exit 1; }
+            cd wiki-repo
+            for src in $(jq -r 'keys[]' "../${MAPPING_FILE}"); do
+              dest=$(jq -r --arg s "$src" '.[$s]' "../${MAPPING_FILE}")
+              if [ -f "$src" ]; then
+                mkdir -p "$(dirname "$dest")"
+                git mv "$src" "$dest" || { mkdir -p "$(dirname "$dest")"; mv "$src" "$dest"; }
+              else
+                echo "⚠️ Source mapped file not found: $src"
+              fi
+            done
+            cd ..
+          else
+            echo "No mapping file provided or not found (${MAPPING_FILE}). Skipping."
+          fi
 
       - name: Commit and push updates to Wiki
+        shell: bash
         run: |
           set -e
           cd wiki-repo
@@ -49,7 +157,6 @@ jobs:
             echo "No wiki changes to commit."
             exit 0
           fi
-          git add .
+          git add -A
           git commit -m "Sync wiki from main repo /wiki (automated)"
-          # Try pushing to master (default wiki branch), fallback to main
           git push origin HEAD:master || git push origin HEAD:main || git push
