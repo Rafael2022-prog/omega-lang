@@ -7,8 +7,6 @@ on:
 permissions:
   contents: write
 
-yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-
 jobs:
   auto-tag:
     runs-on: ubuntu-latest
