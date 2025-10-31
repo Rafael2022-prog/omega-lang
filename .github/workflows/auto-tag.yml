@@ -1,0 +1,157 @@
+name: 🔖 Auto Tag on Version Change
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure jq is available
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Resolve version source and current version
+        id: current
+        shell: bash
+        run: |
+          set -e
+          # Candidate source files (ordered precedence)
+          CANDIDATES=(
+            "package.json"
+            "omega.toml"
+            "lsp-server/package.json"
+            "tree-sitter-omega/package.json"
+          )
+
+          detect_version() {
+            local file="$1"
+            local ver=""
+            if [[ "$file" == *.json ]]; then
+              ver=$(jq -r '.version // empty' "$file" 2>/dev/null || true)
+              if [[ -z "$ver" ]] && jq -e '.omega.version?' "$file" >/dev/null 2>&1; then
+                ver=$(jq -r '.omega.version' "$file")
+              fi
+            elif [[ "$file" == *.toml ]]; then
+              ver=$(grep -E '^\s*version\s*=\s*"?[0-9]+\.[0-9]+\.[0-9]+' "$file" | head -n1 | sed -E 's/.*version\s*=\s*"?([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+            fi
+            echo "$ver"
+          }
+
+          SOURCE_FILE=""
+          CURRENT_VERSION=""
+          for f in "${CANDIDATES[@]}"; do
+            if [[ -f "$f" ]]; then
+              v=$(detect_version "$f")
+              if [[ -n "$v" ]]; then
+                SOURCE_FILE="$f"
+                CURRENT_VERSION="$v"
+                break
+              fi
+            fi
+          done
+
+          if [[ -z "$SOURCE_FILE" || -z "$CURRENT_VERSION" ]]; then
+            echo "❌ No version source found or failed to parse version." >&2
+            echo "source_file=" >> $GITHUB_OUTPUT
+            echo "current_version=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Using source: $SOURCE_FILE -> version: $CURRENT_VERSION"
+          echo "source_file=$SOURCE_FILE" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Resolve previous commit and previous version
+        id: previous
+        shell: bash
+        run: |
+          set -e
+          SOURCE_FILE="${{ steps.current.outputs.source_file }}"
+          if [[ -z "$SOURCE_FILE" ]]; then
+            echo "prev_sha=" >> $GITHUB_OUTPUT
+            echo "previous_version=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          PREV_SHA=$(git rev-parse HEAD~1 2>/dev/null || true)
+          if [[ -z "$PREV_SHA" ]]; then
+            echo "No previous commit found (first commit on branch)."
+            echo "prev_sha=" >> $GITHUB_OUTPUT
+            echo "previous_version=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          tmpfile=$(mktemp)
+          git show "$PREV_SHA:$SOURCE_FILE" > "$tmpfile" 2>/dev/null || true
+
+          parse_prev_version() {
+            local file="$SOURCE_FILE"
+            local ver=""
+            if [[ "$file" == *.json ]]; then
+              ver=$(jq -r '.version // empty' "$tmpfile" 2>/dev/null || true)
+              if [[ -z "$ver" ]]; then
+                ver=$(jq -r '.omega.version // empty' "$tmpfile" 2>/dev/null || true)
+              fi
+            elif [[ "$file" == *.toml ]]; then
+              ver=$(grep -E '^\s*version\s*=\s*"?[0-9]+\.[0-9]+\.[0-9]+' "$tmpfile" | head -n1 | sed -E 's/.*version\s*=\s*"?([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+            fi
+            echo "$ver"
+          }
+
+          PREV_VER=$(parse_prev_version)
+          echo "prev_sha=$PREV_SHA" >> $GITHUB_OUTPUT
+          echo "previous_version=$PREV_VER" >> $GITHUB_OUTPUT
+          echo "Previous version: $PREV_VER"
+
+      - name: Create and push tag if version changed
+        if: ${{ steps.current.outputs.current_version != '' }}
+        shell: bash
+        run: |
+          set -e
+          CUR="${{ steps.current.outputs.current_version }}"
+          PREV="${{ steps.previous.outputs.previous_version }}"
+          SRC="${{ steps.current.outputs.source_file }}"
+          echo "Current: $CUR | Previous: $PREV | Source: $SRC"
+
+          if [[ ! "$CUR" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Skipping auto-tag: version '$CUR' is not semver X.Y.Z"
+            exit 0
+          fi
+
+          if [[ "$CUR" == "$PREV" ]]; then
+            echo "No version change detected. Skipping tagging."
+            exit 0
+          fi
+
+          # Skip if tag already exists remotely
+          if git ls-remote --tags origin "refs/tags/v$CUR" | grep -q .; then
+            echo "Tag v$CUR already exists on remote. Skipping."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "Creating tag v$CUR on current commit..."
+          git tag -a "v$CUR" -m "Auto tag: version $CUR (source: $SRC)"
+          git push origin "v$CUR"
+          echo "✅ Pushed tag v$CUR"
+
+      - name: Summary
+        if: ${{ steps.current.outputs.current_version != '' }}
+        run: |
+          echo "Auto-tag workflow executed. Source: ${{ steps.current.outputs.source_file }} | Current: ${{ steps.current.outputs.current_version }} | Previous: ${{ steps.previous.outputs.previous_version }}"
