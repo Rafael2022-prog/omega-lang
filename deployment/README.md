@@ -77,19 +77,21 @@ Template for Nginx web server configuration.
 For better security, consider using environment variables:
 
 ```powershell
-# Set environment variables
+# Set environment variables (prefer SSH key; avoid plain passwords)
 $env:OMEGA_SERVER_IP = "your-server-ip"
-$env:OMEGA_USERNAME = "your-username"
-$env:OMEGA_PASSWORD = "your-password"
-$env:OMEGA_DOMAIN = "your-domain.com"
+$env:OMEGA_SERVER_USER = "your-username"
+$env:OMEGA_SERVER_PASSWORD = "your-password" # optional if not using SSH key
+$env:OMEGA_SSH_KEY_PATH = "C:\Users\you\.ssh\id_rsa.ppk" # optional preferred
+$env:OMEGA_SERVER_DOMAIN = "your-domain.com"
 
 # Use in scripts
 param(
-    [string]$ServerIP = $env:OMEGA_SERVER_IP,
-    [string]$Username = $env:OMEGA_USERNAME,
-    [string]$Password = $env:OMEGA_PASSWORD,
-    [string]$Domain = $env:OMEGA_DOMAIN
+    [string]$ServerIP   = $env:OMEGA_SERVER_IP,
+    [string]$Username   = $env:OMEGA_SERVER_USER,
+    [string]$Password   = $env:OMEGA_SERVER_PASSWORD,
+    [string]$Domain     = $env:OMEGA_SERVER_DOMAIN
 )
+# Note: Scripts will prefer OMEGA_SSH_KEY_PATH if set; otherwise OMEGA_SERVER_PASSWORD.
 ```
 
 ## Git Security
