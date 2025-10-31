@@ -143,3 +143,64 @@ omega-vscode-extension/node_modules/
 # Website Development (not for repository)
 website/
 **/website/
+
+# ========================================
+# SECURITY: Server Configuration Files
+# ========================================
+# NEVER commit files containing:
+# - Server IP addresses
+# - Passwords or credentials
+# - Internal server configurations
+# - Deployment scripts with sensitive data
+
+# Server Setup Scripts (contain sensitive info)
+*server*.ps1
+*deploy*.ps1
+*setup*.ps1
+*install*.ps1
+*monitoring*.ps1
+*backup*.ps1
+*ssl*.ps1
+*management*.ps1
+
+# Server Configuration Files
+nginx.conf
+*nginx*.conf
+apache.conf
+*apache*.conf
+server.conf
+*server*.conf
+
+# Deployment Packages with Sensitive Data
+deploy-package/
+**/deploy-package/
+
+# Environment Files
+.env
+.env.*
+*.env
+config.json
+*config*.json
+secrets.json
+*secrets*.json
+
+# SSH and Certificate Files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+known_hosts
+
+# Database Configuration
+database.conf
+db.conf
+*database*.conf
+*db*.conf
+
+# Cloud Provider Configurations
+aws-config
+gcp-config
+azure-config
+*cloud*.conf
