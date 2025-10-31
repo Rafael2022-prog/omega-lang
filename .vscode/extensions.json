@@ -1,5 +1,10 @@
 {
   "recommendations": [
-    "omega-lang.mega-vscode"
-  ]
+    "ms-vscode.powershell",
+    "rust-lang.rust-analyzer",
+    "ms-vscode.vscode-json"
+  ],
+  "unwantedRecommendations": [],
+  "version": "1.1.0",
+  "description": "Enhanced OMEGA development environment with improved performance and security features"
 }

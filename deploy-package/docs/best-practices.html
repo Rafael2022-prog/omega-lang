@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Best Practices - OMEGA Blockchain Language</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" type="image/svg+xml" href="../logo.svg">
+    <meta name="description" content="Best practices for developing secure and efficient OMEGA smart contracts">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="brand">
+                <img src="../logo.svg" alt="OMEGA" class="logo">
+                <span class="brand-text">OMEGA</span>
+            </a>
+            <div class="nav-menu">
+                <a href="../index.html" class="nav-link">Home</a>
+                <a href="../docs.html" class="nav-link">Docs</a>
+                <a href="../playground.html" class="nav-link">Playground</a>
+                <a href="https://github.com/Rafael2022-prog/omega-lang" class="nav-link github-link" target="_blank">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="docs-layout">
+                <aside class="docs-sidebar">
+                    <nav class="docs-nav">
+                        <h3>Documentation</h3>
+                        <ul>
+                            <li><a href="getting-started.html">Getting Started</a></li>
+                            <li><a href="language-spec.html">Language Specification</a></li>
+                            <li><a href="best-practices.html" class="active">Best Practices</a></li>
+                            <li><a href="examples.html">Examples</a></li>
+                        </ul>
+                    </nav>
+                </aside>
+
+                <article class="docs-content">
+                    <header class="docs-header">
+                        <h1>OMEGA Best Practices</h1>
+                        <p class="lead">Guidelines for writing secure, efficient, and maintainable OMEGA smart contracts</p>
+                    </header>
+
+                    <section class="docs-section">
+                        <h2>Security Best Practices</h2>
+                        
+                        <h3>Input Validation</h3>
+                        <p>Always validate inputs to prevent unexpected behavior:</p>
+                        <pre><code class="language-mega">function transfer(address to, uint256 amount) public returns (bool) {
+    require(to != address(0), "Invalid recipient address");
+    require(amount > 0, "Amount must be positive");
+    require(balances[msg.sender] >= amount, "Insufficient balance");
+    
+    // Function logic here
+}</code></pre>
+
+                        <h3>Reentrancy Protection</h3>
+                        <p>Use the checks-effects-interactions pattern:</p>
+                        <pre><code class="language-mega">function withdraw(uint256 amount) public {
+    // Checks
+    require(balances[msg.sender] >= amount, "Insufficient balance");
+    
+    // Effects
+    balances[msg.sender] -= amount;
+    
+    // Interactions
+    payable(msg.sender).transfer(amount);
+}</code></pre>
+
+                        <h3>Access Control</h3>
+                        <pre><code class="language-mega">blockchain SecureContract {
+    state {
+        address owner;
+        mapping(address => bool) admins;
+    }
+    
+    modifier only_owner() {
+        require(msg.sender == owner, "Only owner can call this");
+        _;
+    }
+    
+    modifier only_admin() {
+        require(admins[msg.sender], "Only admin can call this");
+        _;
+    }
+    
+    function set_admin(address admin, bool status) public only_owner {
+        admins[admin] = status;
+    }
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Gas Optimization</h2>
+                        
+                        <h3>Use Appropriate Data Types</h3>
+                        <pre><code class="language-mega">// Good: Use smaller types when possible
+uint8 small_number;
+uint32 medium_number;
+
+// Avoid: Using uint256 for small values unnecessarily
+uint256 tiny_flag; // Wasteful for boolean-like values</code></pre>
+
+                        <h3>Pack Struct Variables</h3>
+                        <pre><code class="language-mega">// Good: Packed struct (saves gas)
+struct User {
+    uint128 balance;    // 16 bytes
+    uint64 timestamp;   // 8 bytes
+    uint32 id;          // 4 bytes
+    uint32 status;      // 4 bytes
+    // Total: 32 bytes (1 storage slot)
+}
+
+// Avoid: Unpacked struct
+struct BadUser {
+    uint256 balance;    // 32 bytes
+    uint256 timestamp;  // 32 bytes
+    uint256 id;         // 32 bytes
+    // Total: 96 bytes (3 storage slots)
+}</code></pre>
+
+                        <h3>Batch Operations</h3>
+                        <pre><code class="language-mega">function batch_transfer(address[] recipients, uint256[] amounts) public {
+    require(recipients.length == amounts.length, "Array length mismatch");
+    
+    for (uint256 i = 0; i < recipients.length; i++) {
+        transfer(recipients[i], amounts[i]);
+    }
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Code Organization</h2>
+                        
+                        <h3>Use Meaningful Names</h3>
+                        <pre><code class="language-mega">// Good
+function calculate_compound_interest(uint256 principal, uint256 rate, uint256 time) 
+    public pure returns (uint256) {
+    // Implementation
+}
+
+// Avoid
+function calc(uint256 p, uint256 r, uint256 t) public pure returns (uint256) {
+    // Implementation
+}</code></pre>
+
+                        <h3>Modular Design</h3>
+                        <pre><code class="language-mega">// Separate concerns into different contracts
+blockchain TokenLogic {
+    // Core token functionality
+}
+
+blockchain TokenGovernance {
+    // Governance-related functions
+}
+
+blockchain TokenVesting {
+    // Vesting and time-locked functions
+}</code></pre>
+
+                        <h3>Documentation</h3>
+                        <pre><code class="language-mega">/// @title ERC20 Token Implementation
+/// @author Your Name
+/// @notice This contract implements a basic ERC20 token
+/// @dev All function calls are currently implemented without side effects
+blockchain MyToken {
+    /// @notice Transfer tokens to a specified address
+    /// @param to The address to transfer to
+    /// @param amount The amount to be transferred
+    /// @return success True if the transfer was successful
+    function transfer(address to, uint256 amount) public returns (bool success) {
+        // Implementation
+    }
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Cross-Chain Best Practices</h2>
+                        
+                        <h3>Handle Network Differences</h3>
+                        <pre><code class="language-mega">function get_network_specific_data() public view returns (uint256) {
+    #[target(evm)]
+    return block.number;
+    
+    #[target(solana)]
+    return Clock::get().slot;
+    
+    #[target(cosmos)]
+    return env.block.height;
+}</code></pre>
+
+                        <h3>Cross-Chain Communication</h3>
+                        <pre><code class="language-mega">@cross_chain(target = "solana")
+function bridge_tokens(bytes32 solana_recipient, uint256 amount) public {
+    require(amount > 0, "Amount must be positive");
+    require(balances[msg.sender] >= amount, "Insufficient balance");
+    
+    // Lock tokens on source chain
+    balances[msg.sender] -= amount;
+    locked_balances += amount;
+    
+    // Emit cross-chain event
+    emit CrossChainTransfer(msg.sender, solana_recipient, amount, "solana");
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Testing Best Practices</h2>
+                        
+                        <h3>Comprehensive Test Coverage</h3>
+                        <pre><code class="language-mega">// Test file: tests/token_tests.omega
+test "should transfer tokens correctly" {
+    let token = deploy_token("Test", "TST", 1000);
+    let result = token.transfer(user1, 100);
+    
+    assert(result == true);
+    assert(token.balance_of(user1) == 100);
+    assert(token.balance_of(deployer) == 900);
+}
+
+test "should fail transfer with insufficient balance" {
+    let token = deploy_token("Test", "TST", 100);
+    
+    expect_revert(
+        token.transfer(user1, 200),
+        "Insufficient balance"
+    );
+}</code></pre>
+
+                        <h3>Edge Case Testing</h3>
+                        <pre><code class="language-mega">test "should handle zero transfers" {
+    let token = deploy_token("Test", "TST", 1000);
+    let result = token.transfer(user1, 0);
+    
+    // Define expected behavior for zero transfers
+    assert(result == false); // or true, depending on design
+}
+
+test "should handle maximum values" {
+    let token = deploy_token("Test", "TST", type(uint256).max);
+    // Test behavior with maximum possible values
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Performance Optimization</h2>
+                        
+                        <h3>Minimize Storage Operations</h3>
+                        <pre><code class="language-mega">// Good: Single storage write
+function update_user_data(uint256 new_balance, uint256 new_timestamp) public {
+    UserData storage user = users[msg.sender];
+    user.balance = new_balance;
+    user.last_update = new_timestamp;
+}
+
+// Avoid: Multiple storage operations
+function bad_update_user_data(uint256 new_balance, uint256 new_timestamp) public {
+    users[msg.sender].balance = new_balance;      // Storage write 1
+    users[msg.sender].last_update = new_timestamp; // Storage write 2
+}</code></pre>
+
+                        <h3>Use Events for Data Storage</h3>
+                        <pre><code class="language-mega">// Use events for historical data that doesn't need to be queried on-chain
+event UserAction(
+    address indexed user,
+    string action_type,
+    uint256 timestamp,
+    bytes data
+);
+
+function perform_action(string action_type, bytes data) public {
+    // Minimal on-chain storage
+    user_action_count[msg.sender]++;
+    
+    // Detailed data in events
+    emit UserAction(msg.sender, action_type, block.timestamp, data);
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Deployment Best Practices</h2>
+                        
+                        <h3>Environment Configuration</h3>
+                        <pre><code class="language-toml"># omega.toml
+[deployment.testnet]
+gas_limit = 8000000
+gas_price = "20 gwei"
+confirmations = 2
+
+[deployment.mainnet]
+gas_limit = 6000000
+gas_price = "auto"
+confirmations = 5</code></pre>
+
+                        <h3>Gradual Rollout</h3>
+                        <ol>
+                            <li>Deploy to testnet first</li>
+                            <li>Conduct thorough testing</li>
+                            <li>Deploy to mainnet with limited functionality</li>
+                            <li>Gradually enable full features</li>
+                        </ol>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Common Pitfalls to Avoid</h2>
+                        
+                        <div class="warning-box">
+                            <h4>⚠️ Integer Overflow/Underflow</h4>
+                            <p>Always use safe math operations or built-in overflow checks.</p>
+                        </div>
+
+                        <div class="warning-box">
+                            <h4>⚠️ Uninitialized Storage</h4>
+                            <p>Initialize all state variables properly in the constructor.</p>
+                        </div>
+
+                        <div class="warning-box">
+                            <h4>⚠️ Gas Limit Issues</h4>
+                            <p>Be aware of gas limits when processing arrays or loops.</p>
+                        </div>
+
+                        <div class="warning-box">
+                            <h4>⚠️ Front-Running</h4>
+                            <p>Consider commit-reveal schemes for sensitive operations.</p>
+                        </div>
+                    </section>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>OMEGA</h4>
+                    <p>Universal Blockchain Programming Language</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="getting-started.html">Getting Started</a></li>
+                        <li><a href="language-spec.html">Language Spec</a></li>
+                        <li><a href="best-practices.html">Best Practices</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang">GitHub</a></li>
+                        <li><a href="https://discord.gg/omega-lang">Discord</a></li>
+                        <li><a href="https://twitter.com/omega_lang">Twitter</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 OMEGA Language. Created by Emylton Leunufna.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

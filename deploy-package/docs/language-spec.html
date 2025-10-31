@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Specification - OMEGA Blockchain Language</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" type="image/svg+xml" href="../logo.svg">
+    <meta name="description" content="Complete OMEGA language specification and syntax reference">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="brand">
+                <img src="../logo.svg" alt="OMEGA" class="logo">
+                <span class="brand-text">OMEGA</span>
+            </a>
+            <div class="nav-menu">
+                <a href="../index.html" class="nav-link">Home</a>
+                <a href="../docs.html" class="nav-link">Docs</a>
+                <a href="../playground.html" class="nav-link">Playground</a>
+                <a href="https://github.com/Rafael2022-prog/omega-lang" class="nav-link github-link" target="_blank">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="docs-layout">
+                <aside class="docs-sidebar">
+                    <nav class="docs-nav">
+                        <h3>Documentation</h3>
+                        <ul>
+                            <li><a href="getting-started.html">Getting Started</a></li>
+                            <li><a href="language-spec.html" class="active">Language Specification</a></li>
+                            <li><a href="best-practices.html">Best Practices</a></li>
+                            <li><a href="examples.html">Examples</a></li>
+                        </ul>
+                    </nav>
+                </aside>
+
+                <article class="docs-content">
+                    <header class="docs-header">
+                        <h1>OMEGA Language Specification</h1>
+                        <p class="lead">Complete reference for OMEGA blockchain programming language syntax and semantics (.mega files)</p>
+                    </header>
+
+                    <section class="docs-section">
+                        <h2>File Structure</h2>
+                        <p>OMEGA source files use the <code>.mega</code> extension and follow a structured format:</p>
+                        <pre><code class="language-mega">// Import statements
+import "std/io";
+import "std/blockchain";
+
+// Blockchain contract declaration
+blockchain MyContract {
+    // Contract body
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Basic Syntax</h2>
+                        
+                        <h3>Blockchain Declaration</h3>
+                        <p>Every OMEGA smart contract is declared as a <code>blockchain</code>:</p>
+                        <pre><code class="language-mega">blockchain MyContract {
+    // Contract body
+}</code></pre>
+
+                        <h3>State Variables</h3>
+                        <p>State variables are declared in a <code>state</code> block:</p>
+                        <pre><code class="language-mega">blockchain MyContract {
+    state {
+        uint256 public total_supply;
+        mapping(address => uint256) balances;
+        string name;
+        bool is_paused;
+    }
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Data Types</h2>
+                        
+                        <h3>Primitive Types</h3>
+                        <ul>
+                            <li><code>bool</code> - Boolean values (true/false)</li>
+                            <li><code>uint8</code>, <code>uint16</code>, <code>uint32</code>, <code>uint64</code>, <code>uint128</code>, <code>uint256</code> - Unsigned integers</li>
+                            <li><code>int8</code>, <code>int16</code>, <code>int32</code>, <code>int64</code>, <code>int128</code>, <code>int256</code> - Signed integers</li>
+                            <li><code>address</code> - Blockchain address</li>
+                            <li><code>string</code> - UTF-8 string</li>
+                            <li><code>bytes</code> - Dynamic byte array</li>
+                        </ul>
+
+                        <h3>Complex Types</h3>
+                        <pre><code class="language-mega">// Arrays
+uint256[] dynamic_array;
+uint256[10] fixed_array;
+
+// Mappings
+mapping(address => uint256) balances;
+mapping(address => mapping(address => uint256)) allowances;
+
+// Structs
+struct User {
+    string name;
+    uint256 balance;
+    bool is_active;
+}
+
+// Enums
+enum Status {
+    Pending,
+    Active,
+    Inactive
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Import System</h2>
+                        <p>OMEGA uses a module-based import system:</p>
+                        <pre><code class="language-mega">// Standard library imports
+import "std/io";
+import "std/process";
+import "std/env";
+
+// Local module imports
+import "lexer/lexer";
+import "parser/parser";
+import "semantic/analyzer";
+
+// Blockchain-specific imports
+import "std/blockchain";
+import "std/crypto";</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Functions</h2>
+                        
+                        <h3>Function Declaration</h3>
+                        <pre><code class="language-mega">function transfer(address to, uint256 amount) public returns (bool) {
+    require(balances[msg.sender] >= amount, "Insufficient balance");
+    
+    balances[msg.sender] -= amount;
+    balances[to] += amount;
+    
+    emit Transfer(msg.sender, to, amount);
+    return true;
+}</code></pre>
+
+                        <h3>Visibility Modifiers</h3>
+                        <ul>
+                            <li><code>public</code> - Accessible from anywhere</li>
+                            <li><code>private</code> - Only accessible within the contract</li>
+                            <li><code>internal</code> - Accessible within contract and derived contracts</li>
+                            <li><code>external</code> - Only accessible from outside the contract</li>
+                        </ul>
+
+                        <h3>State Mutability</h3>
+                        <ul>
+                            <li><code>view</code> - Function doesn't modify state</li>
+                            <li><code>pure</code> - Function doesn't read or modify state</li>
+                            <li><code>payable</code> - Function can receive native tokens</li>
+                        </ul>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Constructor</h2>
+                        <pre><code class="language-mega">blockchain Token {
+    state {
+        string name;
+        string symbol;
+        uint256 total_supply;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _supply;
+    }
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Events</h2>
+                        <pre><code class="language-mega">// Event declaration
+event Transfer(address indexed from, address indexed to, uint256 value);
+event Approval(address indexed owner, address indexed spender, uint256 value);
+
+// Emitting events
+emit Transfer(msg.sender, recipient, amount);
+emit Approval(owner, spender, amount);</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Control Flow</h2>
+                        
+                        <h3>Conditionals</h3>
+                        <pre><code class="language-mega">if (balance > 0) {
+    // Execute if condition is true
+} else if (balance == 0) {
+    // Execute if first condition is false and this is true
+} else {
+    // Execute if all conditions are false
+}</code></pre>
+
+                        <h3>Loops</h3>
+                        <pre><code class="language-mega">// For loop
+for (uint256 i = 0; i < array.length; i++) {
+    // Loop body
+}
+
+// While loop
+while (condition) {
+    // Loop body
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Error Handling</h2>
+                        <pre><code class="language-mega">// Require statements
+require(condition, "Error message");
+
+// Assert statements
+assert(invariant_condition);
+
+// Revert statements
+if (error_condition) {
+    revert("Custom error message");
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Cross-Chain Features</h2>
+                        
+                        <h3>Cross-Chain Function Calls</h3>
+                        <pre><code class="language-mega">@cross_chain(target = "solana")
+function bridge_to_solana(bytes32 recipient, uint256 amount) public {
+    require(amount > 0, "Invalid amount");
+    locked_balances[msg.sender] += amount;
+    
+    emit TokensBridged(msg.sender, recipient, amount, "solana");
+}</code></pre>
+
+                        <h3>Target-Specific Code</h3>
+                        <pre><code class="language-mega">function get_block_info() public view returns (uint256) {
+    #[target(evm)]
+    return block.number;
+    
+    #[target(solana)]
+    return Clock::get().slot;
+    
+    #[target(cosmos)]
+    return ctx.block_height();
+}</code></pre>
+
+                        <h3>Multi-Target Compilation</h3>
+                        <pre><code class="language-mega">// Conditional compilation for different targets
+#[cfg(target = "evm")]
+function evm_specific_function() public {
+    // EVM-specific implementation
+}
+
+#[cfg(target = "solana")]
+function solana_specific_function() public {
+    // Solana-specific implementation
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Built-in Variables</h2>
+                        <ul>
+                            <li><code>msg.sender</code> - Address of the caller</li>
+                            <li><code>msg.value</code> - Amount of native tokens sent</li>
+                            <li><code>block.timestamp</code> - Current block timestamp</li>
+                            <li><code>block.number</code> - Current block number</li>
+                            <li><code>tx.origin</code> - Original transaction sender</li>
+                        </ul>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Comments</h2>
+                        <pre><code class="language-mega">// Single line comment
+
+/*
+ * Multi-line comment
+ * Can span multiple lines
+ */
+
+/// Documentation comment
+/// Used for generating documentation</code></pre>
+                    </section>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>OMEGA</h4>
+                    <p>Universal Blockchain Programming Language</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="getting-started.html">Getting Started</a></li>
+                        <li><a href="language-spec.html">Language Spec</a></li>
+                        <li><a href="best-practices.html">Best Practices</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang">GitHub</a></li>
+                        <li><a href="https://discord.gg/omega-lang">Discord</a></li>
+                        <li><a href="https://twitter.com/omega_lang">Twitter</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 OMEGA Language. Created by Emylton Leunufna.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

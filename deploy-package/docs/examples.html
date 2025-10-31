@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examples - OMEGA Blockchain Language</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" type="image/svg+xml" href="../logo.svg">
+    <meta name="description" content="Comprehensive examples and use cases for OMEGA blockchain programming">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="brand">
+                <img src="../logo.svg" alt="OMEGA" class="logo">
+                <span class="brand-text">OMEGA</span>
+            </a>
+            <div class="nav-menu">
+                <a href="../index.html" class="nav-link">Home</a>
+                <a href="../docs.html" class="nav-link">Docs</a>
+                <a href="../playground.html" class="nav-link">Playground</a>
+                <a href="https://github.com/Rafael2022-prog/omega-lang" class="nav-link github-link" target="_blank">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="docs-layout">
+                <aside class="docs-sidebar">
+                    <nav class="docs-nav">
+                        <h3>Documentation</h3>
+                        <ul>
+                            <li><a href="getting-started.html">Getting Started</a></li>
+                            <li><a href="language-spec.html">Language Specification</a></li>
+                            <li><a href="best-practices.html">Best Practices</a></li>
+                            <li><a href="examples.html" class="active">Examples</a></li>
+                        </ul>
+                        
+                        <h3>Examples</h3>
+                        <ul>
+                            <li><a href="#basic-token">Basic Token</a></li>
+                            <li><a href="#defi-amm">DeFi AMM</a></li>
+                            <li><a href="#nft-collection">NFT Collection</a></li>
+                            <li><a href="#cross-chain-bridge">Cross-Chain Bridge</a></li>
+                            <li><a href="#dao-governance">DAO Governance</a></li>
+                        </ul>
+                    </nav>
+                </aside>
+
+                <article class="docs-content">
+                    <header class="docs-header">
+                        <h1>OMEGA Examples</h1>
+                        <p class="lead">Real-world examples and use cases for OMEGA blockchain development using MEGA language (.mega files)</p>
+                    </header>
+
+                    <section class="docs-section" id="basic-token">
+                        <h2>Basic ERC20 Token</h2>
+                        <p>A complete implementation of an ERC20-compatible token:</p>
+                        
+                        <pre><code class="language-mega">// BasicToken.mega
+blockchain BasicToken {
+    state {
+        mapping(address => uint256) balances;
+        mapping(address => mapping(address => uint256)) allowances;
+        
+        uint256 total_supply;
+        string name;
+        string symbol;
+        uint8 decimals;
+        address owner;
+    }
+    
+    constructor(
+        string _name,
+        string _symbol,
+        uint8 _decimals,
+        uint256 _initial_supply
+    ) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+        total_supply = _initial_supply * 10**_decimals;
+        owner = msg.sender;
+        balances[msg.sender] = total_supply;
+        
+        emit Transfer(address(0), msg.sender, total_supply);
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(to != address(0), "Transfer to zero address");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function approve(address spender, uint256 amount) public returns (bool) {
+        allowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+    
+    function transfer_from(address from, address to, uint256 amount) 
+        public returns (bool) {
+        require(to != address(0), "Transfer to zero address");
+        require(balances[from] >= amount, "Insufficient balance");
+        require(allowances[from][msg.sender] >= amount, "Insufficient allowance");
+        
+        balances[from] -= amount;
+        balances[to] += amount;
+        allowances[from][msg.sender] -= amount;
+        
+        emit Transfer(from, to, amount);
+        return true;
+    }
+    
+    function allowance(address owner, address spender) 
+        public view returns (uint256) {
+        return allowances[owner][spender];
+    }
+    
+    // Events
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section" id="defi-amm">
+                        <h2>DeFi Automated Market Maker (AMM)</h2>
+                        <p>A simple constant product AMM implementation:</p>
+                        
+                        <pre><code class="language-mega">// SimpleAMM.mega
+blockchain SimpleAMM {
+    state {
+        address token_a;
+        address token_b;
+        
+        uint256 reserve_a;
+        uint256 reserve_b;
+        
+        mapping(address => uint256) liquidity_shares;
+        uint256 total_liquidity;
+        
+        uint256 constant FEE_RATE = 3; // 0.3% fee
+        uint256 constant FEE_DENOMINATOR = 1000;
+    }
+    
+    constructor(address _token_a, address _token_b) {
+        token_a = _token_a;
+        token_b = _token_b;
+    }
+    
+    function add_liquidity(uint256 amount_a, uint256 amount_b) 
+        public returns (uint256 liquidity) {
+        
+        // Transfer tokens from user
+        IERC20(token_a).transfer_from(msg.sender, address(this), amount_a);
+        IERC20(token_b).transfer_from(msg.sender, address(this), amount_b);
+        
+        if (total_liquidity == 0) {
+            liquidity = sqrt(amount_a * amount_b);
+        } else {
+            liquidity = min(
+                (amount_a * total_liquidity) / reserve_a,
+                (amount_b * total_liquidity) / reserve_b
+            );
+        }
+        
+        require(liquidity > 0, "Insufficient liquidity minted");
+        
+        liquidity_shares[msg.sender] += liquidity;
+        total_liquidity += liquidity;
+        
+        reserve_a += amount_a;
+        reserve_b += amount_b;
+        
+        emit LiquidityAdded(msg.sender, amount_a, amount_b, liquidity);
+        return liquidity;
+    }
+    
+    function remove_liquidity(uint256 liquidity) 
+        public returns (uint256 amount_a, uint256 amount_b) {
+        require(liquidity_shares[msg.sender] >= liquidity, "Insufficient liquidity");
+        
+        amount_a = (liquidity * reserve_a) / total_liquidity;
+        amount_b = (liquidity * reserve_b) / total_liquidity;
+        
+        liquidity_shares[msg.sender] -= liquidity;
+        total_liquidity -= liquidity;
+        
+        reserve_a -= amount_a;
+        reserve_b -= amount_b;
+        
+        IERC20(token_a).transfer(msg.sender, amount_a);
+        IERC20(token_b).transfer(msg.sender, amount_b);
+        
+        emit LiquidityRemoved(msg.sender, amount_a, amount_b, liquidity);
+        return (amount_a, amount_b);
+    }
+    
+    function swap_a_for_b(uint256 amount_a_in) public returns (uint256 amount_b_out) {
+        require(amount_a_in > 0, "Invalid input amount");
+        
+        uint256 amount_a_with_fee = amount_a_in * (FEE_DENOMINATOR - FEE_RATE);
+        amount_b_out = (amount_a_with_fee * reserve_b) / 
+                       (reserve_a * FEE_DENOMINATOR + amount_a_with_fee);
+        
+        require(amount_b_out > 0, "Insufficient output amount");
+        
+        IERC20(token_a).transfer_from(msg.sender, address(this), amount_a_in);
+        IERC20(token_b).transfer(msg.sender, amount_b_out);
+        
+        reserve_a += amount_a_in;
+        reserve_b -= amount_b_out;
+        
+        emit Swap(msg.sender, amount_a_in, 0, 0, amount_b_out);
+        return amount_b_out;
+    }
+    
+    function get_reserves() public view returns (uint256, uint256) {
+        return (reserve_a, reserve_b);
+    }
+    
+    // Helper functions
+    function sqrt(uint256 x) internal pure returns (uint256) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        uint256 y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+        return y;
+    }
+    
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
+    }
+    
+    // Events
+    event LiquidityAdded(address indexed provider, uint256 amount_a, uint256 amount_b, uint256 liquidity);
+    event LiquidityRemoved(address indexed provider, uint256 amount_a, uint256 amount_b, uint256 liquidity);
+    event Swap(address indexed user, uint256 amount_a_in, uint256 amount_b_in, uint256 amount_a_out, uint256 amount_b_out);
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section" id="nft-collection">
+                        <h2>NFT Collection</h2>
+                        <p>An ERC721-compatible NFT collection with minting and metadata:</p>
+                        
+                        <pre><code class="language-mega">// NFTCollection.mega
+blockchain NFTCollection {
+    state {
+        mapping(uint256 => address) token_owners;
+        mapping(address => uint256) owner_token_count;
+        mapping(uint256 => address) token_approvals;
+        mapping(address => mapping(address => bool)) operator_approvals;
+        mapping(uint256 => string) token_uris;
+        
+        string collection_name;
+        string collection_symbol;
+        uint256 next_token_id;
+        uint256 max_supply;
+        uint256 mint_price;
+        address owner;
+        bool public_mint_enabled;
+    }
+    
+    constructor(
+        string _name,
+        string _symbol,
+        uint256 _max_supply,
+        uint256 _mint_price
+    ) {
+        collection_name = _name;
+        collection_symbol = _symbol;
+        max_supply = _max_supply;
+        mint_price = _mint_price;
+        owner = msg.sender;
+        next_token_id = 1;
+    }
+    
+    modifier only_owner() {
+        require(msg.sender == owner, "Only owner can call this");
+        _;
+    }
+    
+    function mint(address to, string memory token_uri) public payable returns (uint256) {
+        require(next_token_id <= max_supply, "Max supply reached");
+        require(to != address(0), "Cannot mint to zero address");
+        
+        if (msg.sender != owner) {
+            require(public_mint_enabled, "Public minting not enabled");
+            require(msg.value >= mint_price, "Insufficient payment");
+        }
+        
+        uint256 token_id = next_token_id;
+        next_token_id++;
+        
+        token_owners[token_id] = to;
+        owner_token_count[to]++;
+        token_uris[token_id] = token_uri;
+        
+        emit Transfer(address(0), to, token_id);
+        return token_id;
+    }
+    
+    function batch_mint(address[] recipients, string[] token_uris) 
+        public only_owner returns (uint256[] token_ids) {
+        require(recipients.length == token_uris.length, "Array length mismatch");
+        require(next_token_id + recipients.length <= max_supply, "Would exceed max supply");
+        
+        token_ids = new uint256[](recipients.length);
+        
+        for (uint256 i = 0; i < recipients.length; i++) {
+            token_ids[i] = mint(recipients[i], token_uris[i]);
+        }
+        
+        return token_ids;
+    }
+    
+    function owner_of(uint256 token_id) public view returns (address) {
+        address token_owner = token_owners[token_id];
+        require(token_owner != address(0), "Token does not exist");
+        return token_owner;
+    }
+    
+    function balance_of(address owner_addr) public view returns (uint256) {
+        require(owner_addr != address(0), "Query for zero address");
+        return owner_token_count[owner_addr];
+    }
+    
+    function transfer_from(address from, address to, uint256 token_id) public {
+        require(is_approved_or_owner(msg.sender, token_id), "Not approved or owner");
+        require(from == token_owners[token_id], "From address is not owner");
+        require(to != address(0), "Transfer to zero address");
+        
+        // Clear approval
+        token_approvals[token_id] = address(0);
+        
+        // Update balances
+        owner_token_count[from]--;
+        owner_token_count[to]++;
+        token_owners[token_id] = to;
+        
+        emit Transfer(from, to, token_id);
+    }
+    
+    function approve(address approved, uint256 token_id) public {
+        address token_owner = owner_of(token_id);
+        require(approved != token_owner, "Approval to current owner");
+        require(
+            msg.sender == token_owner || operator_approvals[token_owner][msg.sender],
+            "Not owner or approved for all"
+        );
+        
+        token_approvals[token_id] = approved;
+        emit Approval(token_owner, approved, token_id);
+    }
+    
+    function set_approval_for_all(address operator, bool approved) public {
+        require(operator != msg.sender, "Approve to caller");
+        operator_approvals[msg.sender][operator] = approved;
+        emit ApprovalForAll(msg.sender, operator, approved);
+    }
+    
+    function token_uri(uint256 token_id) public view returns (string) {
+        require(token_owners[token_id] != address(0), "Token does not exist");
+        return token_uris[token_id];
+    }
+    
+    function set_public_mint(bool enabled) public only_owner {
+        public_mint_enabled = enabled;
+    }
+    
+    function withdraw() public only_owner {
+        payable(owner).transfer(address(this).balance);
+    }
+    
+    function is_approved_or_owner(address spender, uint256 token_id) 
+        internal view returns (bool) {
+        address token_owner = owner_of(token_id);
+        return (
+            spender == token_owner ||
+            token_approvals[token_id] == spender ||
+            operator_approvals[token_owner][spender]
+        );
+    }
+    
+    // Events
+    event Transfer(address indexed from, address indexed to, uint256 indexed token_id);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed token_id);
+    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section" id="cross-chain-bridge">
+                        <h2>Cross-Chain Bridge</h2>
+                        <p>A bridge contract for transferring tokens between different blockchains:</p>
+                        
+                        <pre><code class="language-mega">// CrossChainBridge.mega
+blockchain CrossChainBridge {
+    state {
+        mapping(bytes32 => bool) processed_transactions;
+        mapping(address => uint256) locked_balances;
+        mapping(string => bool) supported_chains;
+        
+        address bridge_token;
+        address owner;
+        uint256 bridge_fee;
+        uint256 min_bridge_amount;
+        
+        // Validator system
+        mapping(address => bool) validators;
+        uint256 validator_count;
+        uint256 required_signatures;
+    }
+    
+    constructor(
+        address _bridge_token,
+        uint256 _bridge_fee,
+        uint256 _min_bridge_amount,
+        uint256 _required_signatures
+    ) {
+        bridge_token = _bridge_token;
+        bridge_fee = _bridge_fee;
+        min_bridge_amount = _min_bridge_amount;
+        required_signatures = _required_signatures;
+        owner = msg.sender;
+        
+        // Add initial supported chains
+        supported_chains["ethereum"] = true;
+        supported_chains["polygon"] = true;
+        supported_chains["solana"] = true;
+    }
+    
+    modifier only_owner() {
+        require(msg.sender == owner, "Only owner can call this");
+        _;
+    }
+    
+    modifier only_validator() {
+        require(validators[msg.sender], "Only validator can call this");
+        _;
+    }
+    
+    @cross_chain(target = "solana")
+    function bridge_to_solana(bytes32 solana_recipient, uint256 amount) public payable {
+        require(amount >= min_bridge_amount, "Amount below minimum");
+        require(msg.value >= bridge_fee, "Insufficient bridge fee");
+        require(supported_chains["solana"], "Solana not supported");
+        
+        // Lock tokens on source chain
+        IERC20(bridge_token).transfer_from(msg.sender, address(this), amount);
+        locked_balances[msg.sender] += amount;
+        
+        // Generate unique transaction ID
+        bytes32 tx_id = keccak256(abi.encodePacked(
+            msg.sender,
+            solana_recipient,
+            amount,
+            block.timestamp,
+            block.number
+        ));
+        
+        emit CrossChainTransfer(
+            tx_id,
+            msg.sender,
+            solana_recipient,
+            amount,
+            "ethereum",
+            "solana"
+        );
+    }
+    
+    @cross_chain(target = "polygon")
+    function bridge_to_polygon(address polygon_recipient, uint256 amount) public payable {
+        require(amount >= min_bridge_amount, "Amount below minimum");
+        require(msg.value >= bridge_fee, "Insufficient bridge fee");
+        require(supported_chains["polygon"], "Polygon not supported");
+        
+        IERC20(bridge_token).transfer_from(msg.sender, address(this), amount);
+        locked_balances[msg.sender] += amount;
+        
+        bytes32 tx_id = keccak256(abi.encodePacked(
+            msg.sender,
+            polygon_recipient,
+            amount,
+            block.timestamp,
+            block.number
+        ));
+        
+        emit CrossChainTransfer(
+            tx_id,
+            msg.sender,
+            polygon_recipient,
+            amount,
+            "ethereum",
+            "polygon"
+        );
+    }
+    
+    function complete_bridge_transfer(
+        bytes32 tx_id,
+        address recipient,
+        uint256 amount,
+        string source_chain,
+        bytes[] signatures
+    ) public only_validator {
+        require(!processed_transactions[tx_id], "Transaction already processed");
+        require(signatures.length >= required_signatures, "Insufficient signatures");
+        require(supported_chains[source_chain], "Source chain not supported");
+        
+        // Verify signatures (simplified)
+        require(verify_signatures(tx_id, recipient, amount, source_chain, signatures), 
+                "Invalid signatures");
+        
+        processed_transactions[tx_id] = true;
+        
+        // Mint or unlock tokens
+        IERC20(bridge_token).transfer(recipient, amount);
+        
+        emit BridgeTransferCompleted(tx_id, recipient, amount, source_chain);
+    }
+    
+    function add_validator(address validator) public only_owner {
+        require(!validators[validator], "Already a validator");
+        validators[validator] = true;
+        validator_count++;
+    }
+    
+    function remove_validator(address validator) public only_owner {
+        require(validators[validator], "Not a validator");
+        validators[validator] = false;
+        validator_count--;
+        require(validator_count >= required_signatures, "Too few validators");
+    }
+    
+    function set_supported_chain(string chain, bool supported) public only_owner {
+        supported_chains[chain] = supported;
+    }
+    
+    function set_bridge_parameters(
+        uint256 _bridge_fee,
+        uint256 _min_bridge_amount,
+        uint256 _required_signatures
+    ) public only_owner {
+        bridge_fee = _bridge_fee;
+        min_bridge_amount = _min_bridge_amount;
+        require(_required_signatures <= validator_count, "Too many required signatures");
+        required_signatures = _required_signatures;
+    }
+    
+    function verify_signatures(
+        bytes32 tx_id,
+        address recipient,
+        uint256 amount,
+        string source_chain,
+        bytes[] signatures
+    ) internal view returns (bool) {
+        // Simplified signature verification
+        // In production, implement proper ECDSA signature verification
+        bytes32 message_hash = keccak256(abi.encodePacked(
+            tx_id, recipient, amount, source_chain
+        ));
+        
+        uint256 valid_signatures = 0;
+        for (uint256 i = 0; i < signatures.length; i++) {
+            address signer = recover_signer(message_hash, signatures[i]);
+            if (validators[signer]) {
+                valid_signatures++;
+            }
+        }
+        
+        return valid_signatures >= required_signatures;
+    }
+    
+    function recover_signer(bytes32 hash, bytes signature) 
+        internal pure returns (address) {
+        // Implement ECDSA recovery
+        // This is a placeholder
+        return address(0);
+    }
+    
+    function withdraw_fees() public only_owner {
+        payable(owner).transfer(address(this).balance);
+    }
+    
+    // Events
+    event CrossChainTransfer(
+        bytes32 indexed tx_id,
+        address indexed sender,
+        bytes32 indexed recipient,
+        uint256 amount,
+        string source_chain,
+        string target_chain
+    );
+    
+    event BridgeTransferCompleted(
+        bytes32 indexed tx_id,
+        address indexed recipient,
+        uint256 amount,
+        string source_chain
+    );
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section" id="dao-governance">
+                        <h2>DAO Governance</h2>
+                        <p>A decentralized autonomous organization with proposal and voting system:</p>
+                        
+                        <pre><code class="language-mega">// DAOGovernance.mega
+blockchain DAOGovernance {
+    state {
+        struct Proposal {
+            uint256 id;
+            address proposer;
+            string title;
+            string description;
+            uint256 start_time;
+            uint256 end_time;
+            uint256 votes_for;
+            uint256 votes_against;
+            uint256 votes_abstain;
+            bool executed;
+            bool cancelled;
+            bytes execution_data;
+            address target_contract;
+        }
+        
+        mapping(uint256 => Proposal) proposals;
+        mapping(uint256 => mapping(address => bool)) has_voted;
+        mapping(uint256 => mapping(address => uint256)) vote_power;
+        
+        address governance_token;
+        uint256 next_proposal_id;
+        uint256 proposal_threshold; // Minimum tokens to create proposal
+        uint256 voting_period; // Duration of voting in seconds
+        uint256 execution_delay; // Delay before execution
+        uint256 quorum_threshold; // Minimum participation for valid vote
+        
+        address[] council_members;
+        mapping(address => bool) is_council_member;
+    }
+    
+    constructor(
+        address _governance_token,
+        uint256 _proposal_threshold,
+        uint256 _voting_period,
+        uint256 _execution_delay,
+        uint256 _quorum_threshold
+    ) {
+        governance_token = _governance_token;
+        proposal_threshold = _proposal_threshold;
+        voting_period = _voting_period;
+        execution_delay = _execution_delay;
+        quorum_threshold = _quorum_threshold;
+        next_proposal_id = 1;
+    }
+    
+    function create_proposal(
+        string title,
+        string description,
+        address target_contract,
+        bytes execution_data
+    ) public returns (uint256) {
+        uint256 proposer_balance = IERC20(governance_token).balance_of(msg.sender);
+        require(proposer_balance >= proposal_threshold, "Insufficient tokens to propose");
+        
+        uint256 proposal_id = next_proposal_id++;
+        
+        proposals[proposal_id] = Proposal({
+            id: proposal_id,
+            proposer: msg.sender,
+            title: title,
+            description: description,
+            start_time: block.timestamp,
+            end_time: block.timestamp + voting_period,
+            votes_for: 0,
+            votes_against: 0,
+            votes_abstain: 0,
+            executed: false,
+            cancelled: false,
+            execution_data: execution_data,
+            target_contract: target_contract
+        });
+        
+        emit ProposalCreated(
+            proposal_id,
+            msg.sender,
+            title,
+            description,
+            block.timestamp,
+            block.timestamp + voting_period
+        );
+        
+        return proposal_id;
+    }
+    
+    function vote(uint256 proposal_id, uint8 vote_type) public {
+        // vote_type: 0 = against, 1 = for, 2 = abstain
+        require(vote_type <= 2, "Invalid vote type");
+        require(!has_voted[proposal_id][msg.sender], "Already voted");
+        
+        Proposal storage proposal = proposals[proposal_id];
+        require(proposal.id != 0, "Proposal does not exist");
+        require(block.timestamp >= proposal.start_time, "Voting not started");
+        require(block.timestamp <= proposal.end_time, "Voting ended");
+        require(!proposal.cancelled, "Proposal cancelled");
+        
+        uint256 voter_power = IERC20(governance_token).balance_of(msg.sender);
+        require(voter_power > 0, "No voting power");
+        
+        has_voted[proposal_id][msg.sender] = true;
+        vote_power[proposal_id][msg.sender] = voter_power;
+        
+        if (vote_type == 0) {
+            proposal.votes_against += voter_power;
+        } else if (vote_type == 1) {
+            proposal.votes_for += voter_power;
+        } else {
+            proposal.votes_abstain += voter_power;
+        }
+        
+        emit VoteCast(proposal_id, msg.sender, vote_type, voter_power);
+    }
+    
+    function execute_proposal(uint256 proposal_id) public {
+        Proposal storage proposal = proposals[proposal_id];
+        require(proposal.id != 0, "Proposal does not exist");
+        require(block.timestamp > proposal.end_time + execution_delay, "Execution delay not met");
+        require(!proposal.executed, "Already executed");
+        require(!proposal.cancelled, "Proposal cancelled");
+        
+        uint256 total_votes = proposal.votes_for + proposal.votes_against + proposal.votes_abstain;
+        require(total_votes >= quorum_threshold, "Quorum not met");
+        require(proposal.votes_for > proposal.votes_against, "Proposal rejected");
+        
+        proposal.executed = true;
+        
+        // Execute the proposal
+        if (proposal.target_contract != address(0) && proposal.execution_data.length > 0) {
+            (bool success, ) = proposal.target_contract.call(proposal.execution_data);
+            require(success, "Execution failed");
+        }
+        
+        emit ProposalExecuted(proposal_id, msg.sender);
+    }
+    
+    function cancel_proposal(uint256 proposal_id) public {
+        Proposal storage proposal = proposals[proposal_id];
+        require(proposal.id != 0, "Proposal does not exist");
+        require(!proposal.executed, "Already executed");
+        require(!proposal.cancelled, "Already cancelled");
+        
+        // Only proposer or council can cancel
+        require(
+            msg.sender == proposal.proposer || is_council_member[msg.sender],
+            "Not authorized to cancel"
+        );
+        
+        proposal.cancelled = true;
+        emit ProposalCancelled(proposal_id, msg.sender);
+    }
+    
+    function add_council_member(address member) public {
+        require(is_council_member[msg.sender] || council_members.length == 0, 
+                "Only council can add members");
+        require(!is_council_member[member], "Already a council member");
+        
+        council_members.push(member);
+        is_council_member[member] = true;
+        
+        emit CouncilMemberAdded(member);
+    }
+    
+    function remove_council_member(address member) public {
+        require(is_council_member[msg.sender], "Only council can remove members");
+        require(is_council_member[member], "Not a council member");
+        
+        is_council_member[member] = false;
+        
+        // Remove from array
+        for (uint256 i = 0; i < council_members.length; i++) {
+            if (council_members[i] == member) {
+                council_members[i] = council_members[council_members.length - 1];
+                council_members.pop();
+                break;
+            }
+        }
+        
+        emit CouncilMemberRemoved(member);
+    }
+    
+    function get_proposal(uint256 proposal_id) public view returns (Proposal memory) {
+        return proposals[proposal_id];
+    }
+    
+    function get_proposal_status(uint256 proposal_id) public view returns (string memory) {
+        Proposal memory proposal = proposals[proposal_id];
+        
+        if (proposal.cancelled) return "Cancelled";
+        if (proposal.executed) return "Executed";
+        if (block.timestamp < proposal.start_time) return "Pending";
+        if (block.timestamp <= proposal.end_time) return "Active";
+        
+        uint256 total_votes = proposal.votes_for + proposal.votes_against + proposal.votes_abstain;
+        if (total_votes < quorum_threshold) return "Failed (No Quorum)";
+        if (proposal.votes_for <= proposal.votes_against) return "Rejected";
+        if (block.timestamp <= proposal.end_time + execution_delay) return "Queued";
+        
+        return "Ready for Execution";
+    }
+    
+    // Events
+    event ProposalCreated(
+        uint256 indexed proposal_id,
+        address indexed proposer,
+        string title,
+        string description,
+        uint256 start_time,
+        uint256 end_time
+    );
+    
+    event VoteCast(
+        uint256 indexed proposal_id,
+        address indexed voter,
+        uint8 vote_type,
+        uint256 voting_power
+    );
+    
+    event ProposalExecuted(uint256 indexed proposal_id, address indexed executor);
+    event ProposalCancelled(uint256 indexed proposal_id, address indexed canceller);
+    event CouncilMemberAdded(address indexed member);
+    event CouncilMemberRemoved(address indexed member);
+}</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>More Examples</h2>
+                        <p>Explore additional examples in our GitHub repository:</p>
+                        <ul>
+                            <li><a href="https://github.com/Rafael2022-prog/omega-lang/tree/main/examples" target="_blank">GitHub Examples Repository</a></li>
+                            <li><a href="../playground.html">Try OMEGA Online Playground</a></li>
+                            <li><a href="getting-started.html">Getting Started Guide</a></li>
+                        </ul>
+                    </section>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>OMEGA</h4>
+                    <p>Universal Blockchain Programming Language</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="getting-started.html">Getting Started</a></li>
+                        <li><a href="language-spec.html">Language Spec</a></li>
+                        <li><a href="best-practices.html">Best Practices</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang">GitHub</a></li>
+                        <li><a href="https://discord.gg/omega-lang">Discord</a></li>
+                        <li><a href="https://twitter.com/omega_lang">Twitter</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 OMEGA Language. Created by Emylton Leunufna.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

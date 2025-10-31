@@ -1,0 +1,155 @@
+{
+  "environment": "windows",
+  "test_timestamp": "2025-10-31T10:27:39",
+  "test_ready": true,
+  "test_completed": "2025-10-31T10:27:40",
+  "summary": {
+    "skipped": 0,
+    "failed": 0,
+    "warnings": 0,
+    "success_rate": 0,
+    "passed": 0,
+    "total_tests": 0
+  },
+  "test_results": {
+    "doc_COMPILER_ARCHITECTURE_md": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Documentation file is substantial",
+      "details": "1608 words",
+      "status": "PASS"
+    },
+    "file_src_main.mega": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Required file exists",
+      "details": "src\\main.mega",
+      "status": "PASS"
+    },
+    "tool_git": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "git is not available",
+      "details": "",
+      "status": "FAIL"
+    },
+    "tool_cargo": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "cargo is not available",
+      "details": "",
+      "status": "FAIL"
+    },
+    "file_src_semantic_analyzer.mega": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Required file exists",
+      "details": "src\\semantic\\analyzer.mega",
+      "status": "PASS"
+    },
+    "rust_version": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Rust version is compatible",
+      "details": "1.90.0",
+      "status": "PASS"
+    },
+    "file_src_codegen_codegen.mega": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Required file exists",
+      "details": "src\\codegen\\codegen.mega",
+      "status": "PASS"
+    },
+    "doc_README_md": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Documentation file is substantial",
+      "details": "1193 words",
+      "status": "PASS"
+    },
+    "integration_tests": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Integration tests skipped (no binary)",
+      "details": "",
+      "status": "SKIP"
+    },
+    "cargo_structure": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Cargo.toml not found",
+      "details": "",
+      "status": "FAIL"
+    },
+    "powershell_version": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "PowerShell version is compatible",
+      "details": "7.5.3",
+      "status": "PASS"
+    },
+    "code_todos": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Too many TODO/FIXME comments: 41",
+      "details": "",
+      "status": "FAIL"
+    },
+    "performance_tests": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Performance tests skipped",
+      "details": "",
+      "status": "SKIP"
+    },
+    "file_src_parser_parser.mega": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Required file exists",
+      "details": "src\\parser\\parser.mega",
+      "status": "PASS"
+    },
+    "security_secrets": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "No hardcoded secrets detected",
+      "details": "",
+      "status": "PASS"
+    },
+    "tool_rustc": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "rustc is not available",
+      "details": "",
+      "status": "FAIL"
+    },
+    "unit_tests": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Unit tests failed",
+      "details": "error: could not find `Cargo.toml` in `R:\\OMEGA` or any parent directory",
+      "status": "FAIL"
+    },
+    "file_Cargo.toml": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Required file missing",
+      "details": "Cargo.toml",
+      "status": "FAIL"
+    },
+    "file_src_lexer_lexer.mega": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Required file exists",
+      "details": "src\\lexer\\lexer.mega",
+      "status": "PASS"
+    },
+    "doc_LANGUAGE_SPECIFICATION_md": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Documentation file is substantial",
+      "details": "1235 words",
+      "status": "PASS"
+    },
+    "clean_build": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Clean build failed",
+      "details": "error: could not find `Cargo.toml` in `R:\\OMEGA` or any parent directory",
+      "status": "FAIL"
+    },
+    "binary_exists": {
+      "timestamp": "2025-10-31T10:27:40",
+      "message": "Binary does not exist",
+      "details": "",
+      "status": "FAIL"
+    },
+    "file_src_ir_optimizer.mega": {
+      "timestamp": "2025-10-31T10:27:39",
+      "message": "Required file missing",
+      "details": "src\\ir\\optimizer.mega",
+      "status": "FAIL"
+    }
+  },
+  "omega_version": "1.0.0"
+}

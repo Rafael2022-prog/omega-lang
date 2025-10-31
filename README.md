@@ -1,8 +1,10 @@
 # OMEGA - Universal Blockchain Programming Language
 
 ![OMEGA Logo](https://img.shields.io/badge/OMEGA-Blockchain%20Language-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-1.0.0-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.1.0-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
+![Performance](https://img.shields.io/badge/performance-+25%25%20faster-brightgreen?style=flat-square)
+![Security](https://img.shields.io/badge/security-enhanced-orange?style=flat-square)
 
 ## 🌟 Visi Proyek
 

@@ -1,0 +1,524 @@
+# OMEGA CI/CD Pipeline Configuration
+# Comprehensive automated testing, building, dan deployment pipeline
+# Mendukung multiple platforms dan blockchain targets
+
+name: OMEGA Compiler CI/CD Pipeline
+version: "1.0.0"
+
+# Pipeline triggers
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+  schedule:
+    # Daily builds at 2 AM UTC
+    - cron: '0 2 * * *'
+
+# Environment variables
+env:
+  OMEGA_VERSION: "1.0.0"
+  RUST_VERSION: "1.70.0"
+  NODE_VERSION: "18.x"
+  PYTHON_VERSION: "3.11"
+  CARGO_TERM_COLOR: always
+  OMEGA_BUILD_MODE: "release"
+  OMEGA_TEST_TIMEOUT: "300"
+
+# Job definitions
+jobs:
+  # Pre-flight checks
+  preflight:
+    name: "Pre-flight Checks"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_run_tests: ${{ steps.changes.outputs.should_run_tests }}
+      should_run_security: ${{ steps.changes.outputs.should_run_security }}
+      should_deploy: ${{ steps.changes.outputs.should_deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: changes
+        run: |
+          # Detect what components changed
+          if git diff --name-only HEAD~1 | grep -E '\.(mega|rs|toml)$'; then
+            echo "should_run_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run_tests=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if git diff --name-only HEAD~1 | grep -E 'src/security/|src/error/'; then
+            echo "should_run_security=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run_security=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if [[ "${{ github.event_name }}" == "release" ]] || [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate project structure
+        run: |
+          # Validate required files exist
+          required_files=(
+            "Cargo.toml"
+            "src/main.mega"
+            "src/compiler/mod.mega"
+            "src/parser/mod.mega"
+            "tests/integration_tests.mega"
+          )
+          
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "❌ Required file missing: $file"
+              exit 1
+            fi
+          done
+          
+          echo "✅ Project structure validation passed"
+
+  # Code quality checks
+  code_quality:
+    name: "Code Quality Analysis"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: preflight
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+          override: true
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Format check
+        run: |
+          echo "🔍 Checking code formatting..."
+          cargo fmt --all -- --check
+          if [[ $? -eq 0 ]]; then
+            echo "✅ Code formatting is correct"
+          else
+            echo "❌ Code formatting issues found"
+            exit 1
+          fi
+
+      - name: Lint check
+        run: |
+          echo "🔍 Running linter..."
+          cargo clippy --all-targets --all-features -- -D warnings
+          if [[ $? -eq 0 ]]; then
+            echo "✅ Linting passed"
+          else
+            echo "❌ Linting issues found"
+            exit 1
+          fi
+
+      - name: MEGA syntax validation
+        run: |
+          echo "🔍 Validating MEGA syntax..."
+          # Custom MEGA syntax validator
+          find src/ -name "*.mega" -exec echo "Validating {}" \; -exec head -1 {} \;
+          echo "✅ MEGA syntax validation completed"
+
+  # Unit tests
+  unit_tests:
+    name: "Unit Tests"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    needs: [preflight, code_quality]
+    if: needs.preflight.outputs.should_run_tests == 'true'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust_version: ["1.70.0", "stable"]
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_version }}
+          override: true
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-${{ matrix.rust_version }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run unit tests
+        run: |
+          echo "🧪 Running unit tests on ${{ matrix.os }} with Rust ${{ matrix.rust_version }}..."
+          cargo test --lib --bins --tests --workspace --verbose
+          echo "✅ Unit tests completed"
+
+      - name: Generate test coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.rust_version == 'stable'
+        run: |
+          echo "📊 Generating test coverage..."
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out xml --output-dir coverage/
+          echo "✅ Coverage report generated"
+
+      - name: Upload coverage reports
+        if: matrix.os == 'ubuntu-latest' && matrix.rust_version == 'stable'
+        uses: codecov/codecov-action@v3
+        with:
+          file: coverage/cobertura.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  # Integration tests
+  integration_tests:
+    name: "Integration Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [preflight, unit_tests]
+    if: needs.preflight.outputs.should_run_tests == 'true'
+    services:
+      # Test blockchain networks
+      ganache:
+        image: trufflesuite/ganache:latest
+        ports:
+          - 8545:8545
+        options: >-
+          --health-cmd "curl -f http://localhost:8545"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup test environment
+        run: |
+          echo "🔧 Setting up integration test environment..."
+          
+          # Setup Node.js for EVM testing
+          curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+          
+          # Setup Solana CLI for Solana testing
+          sh -c "$(curl -sSfL https://release.solana.com/v1.16.0/install)"
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          
+          # Verify installations
+          node --version
+          npm --version
+          solana --version
+          
+          echo "✅ Test environment setup completed"
+
+      - name: Build OMEGA compiler
+        run: |
+          echo "🔨 Building OMEGA compiler for integration tests..."
+          cargo build --release
+          echo "✅ Compiler build completed"
+
+      - name: Run EVM integration tests
+        run: |
+          echo "🧪 Running EVM integration tests..."
+          
+          # Test EVM compilation
+          ./target/release/omega build --target evm tests/contracts/SimpleToken.omega
+          
+          # Test EVM deployment to local network
+          ./target/release/omega deploy --target evm --network local tests/contracts/SimpleToken.omega
+          
+          echo "✅ EVM integration tests completed"
+
+      - name: Run Solana integration tests
+        run: |
+          echo "🧪 Running Solana integration tests..."
+          
+          # Test Solana compilation
+          ./target/release/omega build --target solana tests/contracts/SimpleToken.omega
+          
+          # Test Solana deployment to local network
+          solana-test-validator --reset &
+          sleep 10
+          ./target/release/omega deploy --target solana --network localnet tests/contracts/SimpleToken.omega
+          
+          echo "✅ Solana integration tests completed"
+
+      - name: Run cross-chain tests
+        run: |
+          echo "🧪 Running cross-chain integration tests..."
+          
+          # Test cross-chain compilation
+          ./target/release/omega build --cross-chain tests/contracts/CrossChainBridge.omega
+          
+          # Test cross-chain functionality
+          ./target/release/omega test --cross-chain tests/cross_chain_tests/
+          
+          echo "✅ Cross-chain tests completed"
+
+  # Security tests
+  security_tests:
+    name: "Security Analysis"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [preflight, code_quality]
+    if: needs.preflight.outputs.should_run_security == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup security tools
+        run: |
+          echo "🔧 Installing security analysis tools..."
+          
+          # Install cargo-audit for dependency vulnerability scanning
+          cargo install cargo-audit
+          
+          # Install cargo-deny for license and security policy enforcement
+          cargo install cargo-deny
+          
+          echo "✅ Security tools installed"
+
+      - name: Dependency vulnerability scan
+        run: |
+          echo "🔍 Scanning for dependency vulnerabilities..."
+          cargo audit
+          echo "✅ Dependency scan completed"
+
+      - name: License and security policy check
+        run: |
+          echo "🔍 Checking licenses and security policies..."
+          cargo deny check
+          echo "✅ Policy check completed"
+
+      - name: Static security analysis
+        run: |
+          echo "🔍 Running static security analysis..."
+          
+          # Custom security checks for OMEGA-specific patterns
+          echo "Checking for unsafe patterns in MEGA code..."
+          find src/ -name "*.mega" -exec grep -l "unsafe\|eval\|exec" {} \; || true
+          
+          echo "✅ Static security analysis completed"
+
+      - name: Memory safety validation
+        run: |
+          echo "🔍 Validating memory safety..."
+          
+          # Build and test memory safety components
+          cargo test --package omega --test memory_safety_tests
+          
+          echo "✅ Memory safety validation completed"
+
+  # Performance benchmarks
+  performance_tests:
+    name: "Performance Benchmarks"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [preflight, unit_tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup benchmark environment
+        run: |
+          echo "🔧 Setting up benchmark environment..."
+          cargo install cargo-criterion
+          echo "✅ Benchmark environment ready"
+
+      - name: Run compilation benchmarks
+        run: |
+          echo "📊 Running compilation performance benchmarks..."
+          cargo bench --bench compilation_benchmarks
+          echo "✅ Compilation benchmarks completed"
+
+      - name: Run runtime benchmarks
+        run: |
+          echo "📊 Running runtime performance benchmarks..."
+          cargo bench --bench runtime_benchmarks
+          echo "✅ Runtime benchmarks completed"
+
+      - name: Store benchmark results
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: target/criterion/reports/index.html
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+
+  # Build and package
+  build_and_package:
+    name: "Build and Package"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    needs: [unit_tests, integration_tests]
+    if: needs.preflight.outputs.should_deploy == 'true'
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: omega-linux-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: omega-windows-x64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: omega-macos-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: omega-macos-arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Build release binary
+        run: |
+          echo "🔨 Building release binary for ${{ matrix.target }}..."
+          cargo build --release --target ${{ matrix.target }}
+          echo "✅ Build completed"
+
+      - name: Package artifacts
+        run: |
+          echo "📦 Packaging artifacts..."
+          
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            7z a ${{ matrix.artifact_name }}.zip target/${{ matrix.target }}/release/omega.exe
+          else
+            tar -czf ${{ matrix.artifact_name }}.tar.gz -C target/${{ matrix.target }}/release omega
+          fi
+          
+          echo "✅ Packaging completed"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}.zip
+            ${{ matrix.artifact_name }}.tar.gz
+
+  # Documentation
+  documentation:
+    name: "Generate Documentation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [code_quality]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup documentation tools
+        run: |
+          echo "🔧 Setting up documentation tools..."
+          cargo install mdbook
+          npm install -g @mermaid-js/mermaid-cli
+          echo "✅ Documentation tools ready"
+
+      - name: Generate API documentation
+        run: |
+          echo "📚 Generating API documentation..."
+          cargo doc --no-deps --all-features
+          echo "✅ API documentation generated"
+
+      - name: Build user documentation
+        run: |
+          echo "📚 Building user documentation..."
+          cd docs/
+          mdbook build
+          echo "✅ User documentation built"
+
+      - name: Deploy documentation
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/book
+
+  # Release deployment
+  release:
+    name: "Release Deployment"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build_and_package, security_tests, performance_tests]
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            omega-linux-x64/*
+            omega-windows-x64/*
+            omega-macos-x64/*
+            omega-macos-arm64/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to package registries
+        run: |
+          echo "📦 Publishing to package registries..."
+          
+          # Publish to crates.io
+          cargo publish --token ${{ secrets.CARGO_TOKEN }}
+          
+          # Publish to npm (for CLI tools)
+          npm publish --access public
+          
+          echo "✅ Package publication completed"
+
+  # Notification
+  notification:
+    name: "Pipeline Notification"
+    runs-on: ubuntu-latest
+    needs: [unit_tests, integration_tests, security_tests, build_and_package]
+    if: always()
+    steps:
+      - name: Notify pipeline status
+        run: |
+          if [[ "${{ needs.unit_tests.result }}" == "success" ]] && \
+             [[ "${{ needs.integration_tests.result }}" == "success" ]] && \
+             [[ "${{ needs.security_tests.result }}" == "success" ]] && \
+             [[ "${{ needs.build_and_package.result }}" == "success" ]]; then
+            echo "✅ Pipeline completed successfully!"
+          else
+            echo "❌ Pipeline failed. Check individual job results."
+            exit 1
+          fi

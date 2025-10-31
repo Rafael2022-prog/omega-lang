@@ -1,0 +1,471 @@
+// OMEGA Production Builder - Native MEGA Implementation
+// Generates production-ready omega.exe executable
+
+import "std/io";
+import "std/fs";
+import "std/process";
+import "std/env";
+import "std/path";
+
+/// Production Builder untuk OMEGA Compiler
+/// Menghasilkan omega.exe yang siap produksi
+blockchain OmegaProductionBuilder {
+    state {
+        BuildConfiguration config;
+        CompilerPipeline pipeline;
+        ExecutableGenerator generator;
+        ProductionValidator validator;
+        string build_version;
+        string target_architecture;
+        bool release_mode;
+    }
+    
+    struct BuildConfiguration {
+        string source_root;
+        string output_dir;
+        string executable_name;
+        string[] source_files;
+        string[] dependencies;
+        OptimizationLevel optimization;
+        bool debug_symbols;
+        bool static_linking;
+    }
+    
+    struct CompilerPipeline {
+        LexerStage lexer;
+        ParserStage parser;
+        SemanticStage semantic;
+        IRStage ir_generator;
+        OptimizerStage optimizer;
+        CodegenStage codegen;
+    }
+    
+    struct ExecutableGenerator {
+        string target_platform;
+        string linker_path;
+        string[] linker_flags;
+        string[] library_paths;
+        bool strip_symbols;
+    }
+    
+    enum OptimizationLevel {
+        Debug,      // -O0
+        Release,    // -O2
+        Aggressive  // -O3
+    }
+    
+    constructor() {
+        build_version = "1.0.0";
+        target_architecture = get_target_architecture();
+        release_mode = true;
+        
+        // Initialize build configuration
+        config = BuildConfiguration({
+            source_root: "src",
+            output_dir: "target/release",
+            executable_name: "omega.exe",
+            source_files: collect_source_files(),
+            dependencies: load_dependencies(),
+            optimization: OptimizationLevel::Aggressive,
+            debug_symbols: false,
+            static_linking: true
+        });
+        
+        // Initialize compiler pipeline
+        pipeline = initialize_compiler_pipeline();
+        
+        // Initialize executable generator
+        generator = ExecutableGenerator({
+            target_platform: "windows-x64",
+            linker_path: get_system_linker(),
+            linker_flags: ["-static", "-O3", "-s"],
+            library_paths: ["lib", "target/deps"],
+            strip_symbols: true
+        });
+        
+        log_info("Production Builder initialized for OMEGA v" + build_version);
+    }
+    
+    /// Main build function - generates production omega.exe
+    function build_production_executable() public returns (bool) {
+        log_info("🔨 Starting production build for OMEGA compiler...");
+        
+        try {
+            // Step 1: Validate source code
+            if (!validate_source_integrity()) {
+                log_error("Source validation failed");
+                return false;
+            }
+            
+            // Step 2: Create build directories
+            create_build_directories();
+            
+            // Step 3: Compile all source files
+            if (!compile_source_files()) {
+                log_error("Source compilation failed");
+                return false;
+            }
+            
+            // Step 4: Generate intermediate representation
+            if (!generate_ir()) {
+                log_error("IR generation failed");
+                return false;
+            }
+            
+            // Step 5: Apply optimizations
+            if (!apply_optimizations()) {
+                log_error("Optimization failed");
+                return false;
+            }
+            
+            // Step 6: Generate native code
+            if (!generate_native_code()) {
+                log_error("Native code generation failed");
+                return false;
+            }
+            
+            // Step 7: Link executable
+            if (!link_executable()) {
+                log_error("Linking failed");
+                return false;
+            }
+            
+            // Step 8: Validate executable
+            if (!validate_executable()) {
+                log_error("Executable validation failed");
+                return false;
+            }
+            
+            log_success("✅ Production build completed successfully!");
+            log_info("📦 Executable: " + config.output_dir + "/" + config.executable_name);
+            
+            return true;
+            
+        } catch (BuildException e) {
+            log_error("Build failed: " + e.message);
+            return false;
+        }
+    }
+    
+    /// Validate source code integrity
+    function validate_source_integrity() private returns (bool) {
+        log_info("🔍 Validating source code integrity...");
+        
+        // Check all required source files exist
+        for (string file : config.source_files) {
+            if (!fs.exists(file)) {
+                log_error("Missing source file: " + file);
+                return false;
+            }
+        }
+        
+        // Validate syntax of all MEGA files
+        for (string file : config.source_files) {
+            if (!validate_mega_syntax(file)) {
+                log_error("Syntax error in: " + file);
+                return false;
+            }
+        }
+        
+        log_success("✅ Source integrity validated");
+        return true;
+    }
+    
+    /// Create necessary build directories
+    function create_build_directories() private {
+        log_info("📁 Creating build directories...");
+        
+        fs.create_dir_all(config.output_dir);
+        fs.create_dir_all(config.output_dir + "/obj");
+        fs.create_dir_all(config.output_dir + "/deps");
+        fs.create_dir_all("target/debug");
+        
+        log_success("✅ Build directories created");
+    }
+    
+    /// Compile all source files to object files
+    function compile_source_files() private returns (bool) {
+        log_info("🔧 Compiling source files...");
+        
+        uint256 compiled_count = 0;
+        uint256 total_files = config.source_files.length;
+        
+        for (string source_file : config.source_files) {
+            string object_file = get_object_filename(source_file);
+            
+            if (compile_single_file(source_file, object_file)) {
+                compiled_count++;
+                log_info("  ✓ " + source_file + " -> " + object_file);
+            } else {
+                log_error("  ✗ Failed to compile: " + source_file);
+                return false;
+            }
+        }
+        
+        log_success("✅ Compiled " + string(compiled_count) + "/" + string(total_files) + " files");
+        return true;
+    }
+    
+    /// Compile single MEGA file to object code
+    function compile_single_file(string source_file, string object_file) private returns (bool) {
+        try {
+            // Lexical analysis
+            TokenStream tokens = pipeline.lexer.tokenize(source_file);
+            if (tokens.has_errors()) {
+                return false;
+            }
+            
+            // Parsing
+            AST ast = pipeline.parser.parse(tokens);
+            if (ast.has_errors()) {
+                return false;
+            }
+            
+            // Semantic analysis
+            SemanticInfo semantic_info = pipeline.semantic.analyze(ast);
+            if (semantic_info.has_errors()) {
+                return false;
+            }
+            
+            // Generate object code
+            ObjectCode obj_code = pipeline.codegen.generate_object(ast, semantic_info);
+            
+            // Write object file
+            fs.write_binary(object_file, obj_code.data);
+            
+            return true;
+            
+        } catch (CompilationException e) {
+            log_error("Compilation error in " + source_file + ": " + e.message);
+            return false;
+        }
+    }
+    
+    /// Generate intermediate representation
+    function generate_ir() private returns (bool) {
+        log_info("🔄 Generating intermediate representation...");
+        
+        try {
+            // Collect all object files
+            string[] object_files = collect_object_files();
+            
+            // Generate unified IR
+            IRModule ir_module = pipeline.ir_generator.generate_module(object_files);
+            
+            // Validate IR
+            if (!pipeline.ir_generator.validate_ir(ir_module)) {
+                log_error("IR validation failed");
+                return false;
+            }
+            
+            // Write IR to file
+            string ir_file = config.output_dir + "/omega.ir";
+            fs.write_text(ir_file, ir_module.serialize());
+            
+            log_success("✅ IR generated: " + ir_file);
+            return true;
+            
+        } catch (IRException e) {
+            log_error("IR generation failed: " + e.message);
+            return false;
+        }
+    }
+    
+    /// Apply production optimizations
+    function apply_optimizations() private returns (bool) {
+        log_info("⚡ Applying production optimizations...");
+        
+        try {
+            string ir_file = config.output_dir + "/omega.ir";
+            IRModule ir_module = IRModule.load(ir_file);
+            
+            // Apply optimization passes
+            ir_module = pipeline.optimizer.dead_code_elimination(ir_module);
+            ir_module = pipeline.optimizer.constant_folding(ir_module);
+            ir_module = pipeline.optimizer.function_inlining(ir_module);
+            ir_module = pipeline.optimizer.loop_optimization(ir_module);
+            ir_module = pipeline.optimizer.register_allocation(ir_module);
+            
+            // Write optimized IR
+            string optimized_ir = config.output_dir + "/omega_optimized.ir";
+            fs.write_text(optimized_ir, ir_module.serialize());
+            
+            log_success("✅ Optimizations applied");
+            return true;
+            
+        } catch (OptimizationException e) {
+            log_error("Optimization failed: " + e.message);
+            return false;
+        }
+    }
+    
+    /// Generate native machine code
+    function generate_native_code() private returns (bool) {
+        log_info("🎯 Generating native machine code...");
+        
+        try {
+            string ir_file = config.output_dir + "/omega_optimized.ir";
+            IRModule ir_module = IRModule.load(ir_file);
+            
+            // Generate native code for target platform
+            NativeCodeGenerator native_gen = new NativeCodeGenerator(generator.target_platform);
+            MachineCode machine_code = native_gen.generate(ir_module);
+            
+            // Write machine code
+            string obj_file = config.output_dir + "/omega.o";
+            fs.write_binary(obj_file, machine_code.data);
+            
+            log_success("✅ Native code generated: " + obj_file);
+            return true;
+            
+        } catch (CodegenException e) {
+            log_error("Native code generation failed: " + e.message);
+            return false;
+        }
+    }
+    
+    /// Link final executable
+    function link_executable() private returns (bool) {
+        log_info("🔗 Linking executable...");
+        
+        try {
+            // Prepare linker command
+            string[] linker_args = prepare_linker_args();
+            
+            // Execute linker
+            ProcessResult result = process.execute(generator.linker_path, linker_args);
+            
+            if (result.exit_code != 0) {
+                log_error("Linker failed with exit code: " + string(result.exit_code));
+                log_error("Linker output: " + result.stderr);
+                return false;
+            }
+            
+            // Verify executable was created
+            string exe_path = config.output_dir + "/" + config.executable_name;
+            if (!fs.exists(exe_path)) {
+                log_error("Executable not found after linking: " + exe_path);
+                return false;
+            }
+            
+            log_success("✅ Executable linked: " + exe_path);
+            return true;
+            
+        } catch (LinkException e) {
+            log_error("Linking failed: " + e.message);
+            return false;
+        }
+    }
+    
+    /// Validate final executable
+    function validate_executable() private returns (bool) {
+        log_info("✅ Validating executable...");
+        
+        string exe_path = config.output_dir + "/" + config.executable_name;
+        
+        try {
+            // Check file exists and is executable
+            if (!fs.exists(exe_path)) {
+                log_error("Executable not found: " + exe_path);
+                return false;
+            }
+            
+            // Check file size (should be reasonable)
+            uint256 file_size = fs.file_size(exe_path);
+            if (file_size < 1024 || file_size > 100 * 1024 * 1024) {
+                log_error("Executable size suspicious: " + string(file_size) + " bytes");
+                return false;
+            }
+            
+            // Test basic execution
+            ProcessResult test_result = process.execute(exe_path, ["--version"]);
+            if (test_result.exit_code != 0) {
+                log_error("Executable test failed");
+                return false;
+            }
+            
+            log_success("✅ Executable validation passed");
+            log_info("📊 Executable size: " + format_bytes(file_size));
+            
+            return true;
+            
+        } catch (ValidationException e) {
+            log_error("Executable validation failed: " + e.message);
+            return false;
+        }
+    }
+    
+    // Helper functions
+    function collect_source_files() private returns (string[]) {
+        string[] files;
+        files.push("src/main.mega");
+        files.push("src/lexer/lexer.mega");
+        files.push("src/parser/parser.mega");
+        files.push("src/parser/ast_nodes.mega");
+        files.push("src/semantic/analyzer.mega");
+        files.push("src/semantic/type_checker.mega");
+        files.push("src/semantic/symbol_table.mega");
+        files.push("src/ir/ir.mega");
+        files.push("src/ir/ir_generator.mega");
+        files.push("src/codegen/codegen.mega");
+        files.push("src/codegen/evm_generator.mega");
+        files.push("src/error/error.mega");
+        return files;
+    }
+    
+    function get_target_architecture() private returns (string) {
+        return "x86_64-pc-windows-msvc";
+    }
+    
+    function get_system_linker() private returns (string) {
+        return "link.exe"; // Microsoft linker
+    }
+    
+    function prepare_linker_args() private returns (string[]) {
+        string[] args;
+        args.push("/OUT:" + config.output_dir + "/" + config.executable_name);
+        args.push(config.output_dir + "/omega.o");
+        args.push("/SUBSYSTEM:CONSOLE");
+        args.push("/MACHINE:X64");
+        if (generator.strip_symbols) {
+            args.push("/RELEASE");
+        }
+        return args;
+    }
+    
+    function format_bytes(uint256 bytes) private pure returns (string) {
+        if (bytes < 1024) return string(bytes) + " B";
+        if (bytes < 1024 * 1024) return string(bytes / 1024) + " KB";
+        return string(bytes / (1024 * 1024)) + " MB";
+    }
+    
+    // Logging functions
+    function log_info(string message) private {
+        println("[INFO] " + message);
+    }
+    
+    function log_success(string message) private {
+        println("[SUCCESS] " + message);
+    }
+    
+    function log_error(string message) private {
+        println("[ERROR] " + message);
+    }
+}
+
+/// Main entry point for production build
+function main() public returns (int32) {
+    println("🚀 OMEGA Production Builder v1.0.0");
+    println("🎯 Building production-ready omega.exe...");
+    
+    OmegaProductionBuilder builder = new OmegaProductionBuilder();
+    
+    if (builder.build_production_executable()) {
+        println("🎉 Production build completed successfully!");
+        println("📦 omega.exe is ready for deployment");
+        return 0;
+    } else {
+        println("❌ Production build failed");
+        return 1;
+    }
+}

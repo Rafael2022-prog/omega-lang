@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Getting Started - OMEGA Blockchain Language</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" type="image/svg+xml" href="../logo.svg">
+    <meta name="description" content="Learn how to get started with OMEGA blockchain programming language">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="brand">
+                <img src="../logo.svg" alt="OMEGA" class="logo">
+                <span class="brand-text">OMEGA</span>
+            </a>
+            <div class="nav-menu">
+                <a href="../index.html" class="nav-link">Home</a>
+                <a href="../docs.html" class="nav-link">Docs</a>
+                <a href="../playground.html" class="nav-link">Playground</a>
+                <a href="https://github.com/Rafael2022-prog/omega-lang" class="nav-link github-link" target="_blank">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="docs-layout">
+                <aside class="docs-sidebar">
+                    <nav class="docs-nav">
+                        <h3>Documentation</h3>
+                        <ul>
+                            <li><a href="getting-started.html" class="active">Getting Started</a></li>
+                            <li><a href="language-spec.html">Language Specification</a></li>
+                            <li><a href="best-practices.html">Best Practices</a></li>
+                            <li><a href="examples.html">Examples</a></li>
+                        </ul>
+                    </nav>
+                </aside>
+
+                <article class="docs-content">
+                    <header class="docs-header">
+                        <h1>Getting Started with OMEGA</h1>
+                        <p class="lead">Learn how to install OMEGA and write your first blockchain smart contract</p>
+                    </header>
+
+                    <section class="docs-section">
+                        <h2>Installation</h2>
+                        
+                        <h3>Prerequisites</h3>
+                        <ul>
+                            <li>OMEGA Compiler (self-hosting native compiler)</li>
+                            <li>Node.js 18+ (for EVM tooling)</li>
+                            <li>Git</li>
+                        </ul>
+
+                        <h3>Install from Source</h3>
+                        <pre><code class="language-bash">git clone https://github.com/Rafael2022-prog/omega-lang.git
+cd omega
+make build
+make install</code></pre>
+
+                        <h3>Windows Installation</h3>
+                        <pre><code class="language-powershell"># Using PowerShell build script
+.\build.ps1 -Mode release
+.\build.ps1 -Install</code></pre>
+
+                        <h3>Native Build System</h3>
+                        <pre><code class="language-bash"># Using OMEGA native build system
+omega build --config omega.toml
+omega install --system-wide</code></pre>
+
+                        <h3>Install via Package Manager</h3>
+                        <pre><code class="language-bash"># Coming soon
+npm install -g @omega-lang/cli</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Quick Start</h2>
+                        
+                        <h3>1. Initialize New Project</h3>
+                        <pre><code class="language-bash">omega init my-dapp --template basic
+cd my-dapp</code></pre>
+
+                        <h3>2. Configure Target Blockchains</h3>
+                        <pre><code class="language-bash">omega config enable evm solana
+omega config show</code></pre>
+
+                        <h3>3. Write Your First Smart Contract</h3>
+                        <p>Create a file called <code>SimpleToken.mega</code>:</p>
+                        <pre><code class="language-mega">// contracts/SimpleToken.mega
+blockchain SimpleToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _initial_supply;
+        balances[msg.sender] = _initial_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+}</code></pre>
+
+                        <h3>4. Compile for Multiple Targets</h3>
+                        <pre><code class="language-bash">omega build
+# Output:
+# ✅ EVM: SimpleToken.sol generated
+# ✅ Solana: SimpleToken.rs + Cargo.toml generated  
+# ✅ Cosmos: SimpleToken.go generated
+# ✅ Build completed successfully</code></pre>
+
+                        <h3>5. Deploy to Testnet</h3>
+                        <pre><code class="language-bash">omega deploy --target evm --network sepolia
+omega deploy --target solana --network devnet
+omega deploy --target cosmos --network cosmoshub-testnet</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Project Structure</h2>
+                        <pre><code>my-dapp/
+├── contracts/
+│   └── SimpleToken.mega
+├── tests/
+│   └── token_tests.mega
+├── omega.toml
+├── build.mega
+└── README.md</code></pre>
+                    </section>
+
+                    <section class="docs-section">
+                        <h2>Next Steps</h2>
+                        <ul>
+                            <li><a href="language-spec.html">Learn the OMEGA Language Specification</a></li>
+                            <li><a href="best-practices.html">Follow Best Practices</a></li>
+                            <li><a href="examples.html">Explore More Examples</a></li>
+                            <li><a href="../playground.html">Try OMEGA Online</a></li>
+                        </ul>
+                    </section>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>OMEGA</h4>
+                    <p>Universal Blockchain Programming Language</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="getting-started.html">Getting Started</a></li>
+                        <li><a href="language-spec.html">Language Spec</a></li>
+                        <li><a href="best-practices.html">Best Practices</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang">GitHub</a></li>
+                        <li><a href="https://discord.gg/omega-lang">Discord</a></li>
+                        <li><a href="https://twitter.com/omega_lang">Twitter</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 OMEGA Language. Created by Emylton Leunufna.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="../script.js"></script>
+</body>
+</html>

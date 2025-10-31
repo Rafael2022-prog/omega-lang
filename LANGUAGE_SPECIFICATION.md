@@ -1,5 +1,5 @@
-# OMEGA Programming Language Specification v0.1
-## Universal Blockchain Development Language
+# OMEGA Programming Language Specification v1.1.0
+## Universal Blockchain Development Language - Enhanced Performance & Security Edition
 
 ### Design Philosophy
 OMEGA adalah bahasa pemrograman yang dirancang khusus untuk pengembangan blockchain dengan prinsip "Write Once, Deploy Everywhere" - kompatibel dengan EVM dan non-EVM chains.

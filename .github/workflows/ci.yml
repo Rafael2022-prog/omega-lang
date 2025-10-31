@@ -1,4 +1,4 @@
-name: 🚀 CI/CD Pipeline
+name: 🚀 OMEGA Native CI/CD Pipeline
 
 on:
   push:
@@ -8,45 +8,63 @@ on:
 
 jobs:
   test:
-    name: 🧪 Test Suite
+    name: 🧪 Native OMEGA Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [16.x, 18.x, 20.x]
 
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
 
-    - name: 🟢 Setup Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-
-    - name: 📦 Install LSP dependencies
+    - name: 🔧 Setup PowerShell (Linux/macOS)
+      if: runner.os != 'Windows'
       run: |
-        cd lsp-server
-        npm ci
-        cd ..
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          # Install PowerShell on Ubuntu
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          # Install PowerShell on macOS
+          brew install --cask powershell
+        fi
 
-    - name: 📦 Install VS Code extension dependencies
+    - name: ✅ Verify OMEGA Native Binary
       run: |
-        cd omega-vscode-extension
-        npm ci
-        cd ..
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          if (Test-Path "omega.exe") {
+            Write-Host "✅ OMEGA native binary found"
+            .\omega.exe --version
+          } else {
+            Write-Host "❌ OMEGA binary not found, building..."
+            .\build_omega_native.ps1
+          }
+        else
+          if [ -f "omega.exe" ]; then
+            echo "✅ OMEGA native binary found"
+            pwsh -c ".\omega.exe --version"
+          else
+            echo "❌ OMEGA binary not found, building..."
+            pwsh -File build_omega_native.ps1
+          fi
+        fi
+      shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
 
-    - name: 🧪 Run tests (Linux/macOS)
+    - name: 🧪 Run Native OMEGA Tests (Linux/macOS)
       if: runner.os != 'Windows'
       run: |
         chmod +x scripts/simple_test.ps1
-        ./scripts/simple_test.ps1
+        pwsh -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
 
-    - name: 🧪 Run tests (Windows)
+    - name: 🧪 Run Native OMEGA Tests (Windows)
       if: runner.os == 'Windows'
       run: |
-        powershell -ExecutionPolicy Bypass -File scripts/simple_test.ps1
+        powershell -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
 
     - name: 📊 Upload test results
       uses: actions/upload-artifact@v4

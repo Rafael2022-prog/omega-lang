@@ -1,4 +1,4 @@
-name: 🚀 Release
+name: 🚀 OMEGA Native Release
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   create-release:
-    name: 📦 Create Release
+    name: 📦 Create Native Release
     runs-on: ubuntu-latest
 
     steps:
@@ -16,24 +16,23 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: 🟢 Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18.x'
-        cache: 'npm'
-
-    - name: 📦 Install dependencies
+    - name: 🔧 Setup PowerShell
       run: |
-        cd lsp-server && npm ci && cd ..
-        cd omega-vscode-extension && npm ci && cd ..
+        # Install PowerShell on Ubuntu
+        sudo apt-get update
+        sudo apt-get install -y wget apt-transport-https software-properties-common
+        wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+        sudo dpkg -i packages-microsoft-prod.deb
+        sudo apt-get update
+        sudo apt-get install -y powershell
 
-    - name: 🏗️ Build all components
+    - name: 🏗️ Build OMEGA Native
       run: |
-        # Build VS Code extension
-        cd omega-vscode-extension
-        npm run compile
-        npx vsce package
-        cd ..
+        pwsh -ExecutionPolicy Bypass -File build_omega_native.ps1 -Clean
+
+    - name: ✅ Test Native Build
+      run: |
+        pwsh -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
 
     - name: 📝 Generate changelog
       id: changelog
@@ -42,12 +41,14 @@ jobs:
         VERSION=${GITHUB_REF#refs/tags/}
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         
-        # Generate changelog (you might want to use a tool like conventional-changelog)
+        # Generate changelog for native OMEGA
         echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-        echo "## What's Changed in $VERSION" >> $GITHUB_OUTPUT
+        echo "## OMEGA Native $VERSION" >> $GITHUB_OUTPUT
         echo "" >> $GITHUB_OUTPUT
-        echo "### 🚀 Features" >> $GITHUB_OUTPUT
-        echo "- New features and enhancements" >> $GITHUB_OUTPUT
+        echo "### 🚀 Native Features" >> $GITHUB_OUTPUT
+        echo "- Pure native OMEGA compiler implementation" >> $GITHUB_OUTPUT
+        echo "- Cross-platform PowerShell-based tooling" >> $GITHUB_OUTPUT
+        echo "- No external dependencies (Rust/Node.js free)" >> $GITHUB_OUTPUT
         echo "" >> $GITHUB_OUTPUT
         echo "### 🐛 Bug Fixes" >> $GITHUB_OUTPUT
         echo "- Bug fixes and improvements" >> $GITHUB_OUTPUT

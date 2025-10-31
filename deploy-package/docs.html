@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-lang="docs.page.title">OMEGA Documentation - Universal Blockchain Programming Language</title>
+    <meta name="description" content="Complete documentation for OMEGA programming language. Learn syntax, features, and best practices for cross-chain smart contract development.">
+    <meta name="keywords" content="OMEGA documentation, blockchain programming, smart contracts, EVM, Solana, cross-chain">
+    <meta name="author" content="Emylton Leunufna">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.omegalang.xyz/docs.html">
+    <meta property="og:title" content="OMEGA Documentation">
+    <meta property="og:description" content="Complete guide to OMEGA programming language for blockchain development">
+    <meta property="og:image" content="https://www.omegalang.xyz/logo.svg">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://www.omegalang.xyz/docs.html">
+    <meta property="twitter:title" content="OMEGA Documentation">
+    <meta property="twitter:description" content="Complete guide to OMEGA programming language for blockchain development">
+    <meta property="twitter:image" content="https://www.omegalang.xyz/logo.svg">
+    
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        :root {
+            --surface: var(--omega-light);
+            --border: var(--omega-gray-200);
+            --text-primary: var(--omega-gray-900);
+            --text-secondary: var(--omega-gray-600);
+            --primary: var(--omega-primary);
+            --accent: var(--omega-accent);
+        }
+        
+        .docs-container {
+            display: flex;
+            min-height: calc(100vh - 80px);
+            margin-top: 80px;
+        }
+        
+        .docs-sidebar {
+            width: 280px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 2rem 0;
+            position: fixed;
+            height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+        
+        .docs-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem 3rem;
+            max-width: calc(100% - 280px);
+        }
+        
+        .docs-nav {
+            padding: 0 1.5rem;
+        }
+        
+        .docs-nav h3 {
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 2rem 0 1rem 0;
+        }
+        
+        .docs-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .docs-nav li {
+            margin: 0.25rem 0;
+        }
+        
+        .docs-nav a {
+            display: block;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+        
+        .docs-nav a:hover,
+        .docs-nav a.active {
+            background: var(--primary-alpha);
+            color: var(--primary);
+        }
+        
+        .docs-article {
+            max-width: 800px;
+        }
+        
+        .docs-article h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+        
+        .docs-article h2 {
+            font-size: 1.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 3rem 0 1.5rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .docs-article h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 2rem 0 1rem 0;
+        }
+        
+        .docs-article p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+        
+        .docs-article code {
+            background: var(--surface);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--primary);
+        }
+        
+        .docs-article pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+        }
+        
+        .docs-article pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+        
+        .docs-toc {
+            position: fixed;
+            right: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 200px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        .docs-toc h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 1rem 0;
+        }
+        
+        .docs-toc ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .docs-toc li {
+            margin: 0.5rem 0;
+        }
+        
+        .docs-toc a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: color 0.2s ease;
+        }
+        
+        .docs-toc a:hover {
+            color: var(--primary);
+        }
+        
+        /* Ensure all text elements are properly colored */
+        .docs-article * {
+            color: inherit;
+        }
+        
+        .docs-article p,
+        .docs-article li,
+        .docs-article span,
+        .docs-article div {
+            color: var(--text-secondary) !important;
+        }
+        
+        .docs-article h1,
+        .docs-article h2,
+        .docs-article h3,
+        .docs-article h4,
+        .docs-article h5,
+        .docs-article h6 {
+            color: var(--text-primary) !important;
+        }
+        
+        .docs-article strong,
+        .docs-article b {
+            color: var(--text-primary) !important;
+        }
+        
+        .docs-article pre,
+        .docs-article code {
+            color: var(--text-primary) !important;
+        }
+        
+        .breadcrumb {
+            color: var(--text-secondary) !important;
+        }
+        
+        .breadcrumb a {
+            color: var(--primary) !important;
+        }
+        
+        .breadcrumb span {
+            color: var(--text-secondary) !important;
+        }
+        
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .breadcrumb a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        .breadcrumb span {
+            color: var(--text-muted);
+        }
+        
+        @media (max-width: 1200px) {
+            .docs-toc {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .docs-sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            
+            .docs-sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .docs-content {
+                margin-left: 0;
+                max-width: 100%;
+                padding: 1rem;
+            }
+            
+            .mobile-menu-toggle {
+                display: block;
+                position: fixed;
+                top: 1rem;
+                left: 1rem;
+                z-index: 1001;
+                background: var(--primary);
+                color: white;
+                border: none;
+                padding: 0.5rem;
+                border-radius: 6px;
+                cursor: pointer;
+            }
+        }
+        
+        .mobile-menu-toggle {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">
+                <img src="logo.svg" alt="OMEGA" width="32" height="32">
+                <span>OMEGA</span>
+            </a>
+            
+            <div class="nav-menu">
+                <a href="index.html" class="nav-link" data-lang="nav.home">Home</a>
+                <a href="docs.html" class="nav-link active" data-lang="nav.docs">Docs</a>
+                <a href="playground.html" class="nav-link" data-lang="nav.playground">Playground</a>
+                <a href="https://github.com/Rafael2022-prog/omega-lang" class="nav-link" target="_blank" rel="noopener noreferrer">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <span data-lang="nav.github">GitHub</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <button class="mobile-menu-toggle" onclick="toggleSidebar()">
+        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M3 12h18m-9-9v18"/>
+        </svg>
+    </button>
+
+    <div class="docs-container">
+        <aside class="docs-sidebar" id="sidebar">
+            <nav class="docs-nav">
+                <h3>Getting Started</h3>
+                <ul>
+                    <li><a href="#introduction" class="active">Introduction</a></li>
+                    <li><a href="#installation">Installation</a></li>
+                    <li><a href="#quick-start">Quick Start</a></li>
+                    <li><a href="#first-contract">Your First Contract</a></li>
+                </ul>
+                
+                <h3>Language Guide</h3>
+                <ul>
+                    <li><a href="#syntax">Syntax Overview</a></li>
+                    <li><a href="#types">Data Types</a></li>
+                    <li><a href="#functions">Functions</a></li>
+                    <li><a href="#state-management">State Management</a></li>
+                    <li><a href="#events">Events</a></li>
+                </ul>
+                
+                <h3>Blockchain Targets</h3>
+                <ul>
+                    <li><a href="#evm-target">EVM Target</a></li>
+                    <li><a href="#solana-target">Solana Target</a></li>
+                    <li><a href="#cosmos-target">Cosmos Target</a></li>
+                    <li><a href="#cross-chain">Cross-Chain</a></li>
+                </ul>
+                
+                <h3>Advanced Topics</h3>
+                <ul>
+                    <li><a href="#optimization">Optimization</a></li>
+                    <li><a href="#security">Security Patterns</a></li>
+                    <li><a href="#testing">Testing</a></li>
+                    <li><a href="#deployment">Deployment</a></li>
+                </ul>
+            </nav>
+        </aside>
+        
+        <main class="docs-content">
+            <div class="breadcrumb">
+                <a href="index.html">Home</a>
+                <span>/</span>
+                <a href="docs.html">Documentation</a>
+                <span>/</span>
+                <span>Introduction</span>
+            </div>
+            
+            <article class="docs-article" id="content">
+                <h1 data-lang="docs.introduction.title">OMEGA Documentation</h1>
+                <p data-lang="docs.introduction.welcome">Welcome to the comprehensive documentation for OMEGA, the universal blockchain programming language that enables you to write smart contracts once and deploy them across multiple blockchain platforms.</p>
+                
+                <h2 id="introduction">Introduction</h2>
+                <p>OMEGA is designed with the principle of <strong>"Write Once, Deploy Everywhere"</strong>. It provides a unified syntax and toolchain that compiles to various blockchain targets including EVM-compatible chains, Solana, Cosmos, and more.</p>
+                
+                <h3>Key Features</h3>
+                <ul>
+                    <li><strong>Universal Compatibility:</strong> Deploy to EVM, Solana, Cosmos, and other blockchain platforms</li>
+                    <li><strong>Type Safety:</strong> Strong typing system with compile-time checks</li>
+                    <li><strong>Security First:</strong> Built-in security patterns and vulnerability prevention</li>
+                    <li><strong>Performance Optimized:</strong> Target-specific optimizations for each blockchain</li>
+                </ul>
+                
+                <h2 id="installation">Installation</h2>
+                <p>Get started with OMEGA by installing the compiler and CLI tools.</p>
+                
+                <h3>Prerequisites</h3>
+                <ul>
+                    <li>OMEGA Compiler (native)</li>
+                    <li>Node.js 18+ (for EVM tooling)</li>
+                    <li>Git</li>
+                </ul>
+                
+                <h3>Install from Source</h3>
+                <pre><code>git clone https://github.com/Rafael2022-prog/omega-lang.git
+cd omega-lang
+cargo build --release
+cargo install --path .</code></pre>
+                
+                <h2 id="quick-start">Quick Start</h2>
+                <p>Create your first OMEGA project in minutes.</p>
+                
+                <h3>1. Initialize Project</h3>
+                <pre><code>omega init my-dapp --template basic
+cd my-dapp</code></pre>
+                
+                <h3>2. Configure Targets</h3>
+                <pre><code>omega config enable evm solana
+omega config show</code></pre>
+                
+                <h2 id="first-contract">Your First Contract</h2>
+                <p>Let's create a simple token contract that demonstrates OMEGA's cross-platform capabilities.</p>
+                
+                <pre><code>// contracts/SimpleToken.omega
+blockchain SimpleToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _initial_supply;
+        balances[msg.sender] = _initial_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+}</code></pre>
+                
+                <h3>Compile and Deploy</h3>
+                <pre><code># Compile for all configured targets
+omega build
+
+# Deploy to testnet
+omega deploy --target evm --network sepolia
+omega deploy --target solana --network devnet</code></pre>
+                
+                <h2 id="syntax">Syntax Overview</h2>
+                <p>OMEGA syntax is designed to be familiar to developers coming from Solidity, JavaScript, or other modern programming languages.</p>
+                
+                <h3>Basic Structure</h3>
+                <pre><code>blockchain ContractName {
+    // State variables
+    state {
+        uint256 public counter;
+        mapping(address => bool) authorized;
+    }
+    
+    // Constructor
+    constructor(uint256 initial_value) {
+        counter = initial_value;
+    }
+    
+    // Functions
+    function increment() public {
+        counter += 1;
+    }
+    
+    // Events
+    event CounterIncremented(uint256 new_value);
+}</code></pre>
+                
+                <p>Continue exploring the documentation to learn more about OMEGA's powerful features and capabilities.</p>
+            </article>
+        </main>
+        
+        <aside class="docs-toc">
+            <h4>On This Page</h4>
+            <ul>
+                <li><a href="#introduction">Introduction</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#quick-start">Quick Start</a></li>
+                <li><a href="#first-contract">Your First Contract</a></li>
+                <li><a href="#syntax">Syntax Overview</a></li>
+            </ul>
+        </aside>
+    </div>
+
+    <script src="lang.js"></script>
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+        
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+        
+        // Update active navigation based on scroll position
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('h2[id], h3[id]');
+            const navLinks = document.querySelectorAll('.docs-nav a, .docs-toc a');
+            
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (window.scrollY >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+            
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+blockchain IntegrationTest {
+    state {
+        uint256 test_value;
+        mapping(address => uint256) test_balances;
+        string test_name;
+    }
+    
+    constructor(string memory name) {
+        test_name = name;
+        test_value = 42;
+    }
+    
+    function set_test_value(uint256 new_value) public {
+        test_value = new_value;
+    }
+    
+    function get_test_value() public view returns (uint256) {
+        return test_value;
+    }
+    
+    function get_test_name() public view returns (string memory) {
+        return test_name;
+    }
+}

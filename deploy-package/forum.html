@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forum - OMEGA Blockchain Language</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <meta name="description" content="OMEGA community forum for discussions, support, and collaboration">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="brand">
+                <img src="logo.svg" alt="OMEGA" class="logo">
+                <span class="brand-text">OMEGA</span>
+            </a>
+            <div class="nav-menu">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="docs.html" class="nav-link">Docs</a>
+                <a href="playground.html" class="nav-link">Playground</a>
+                <a href="blog.html" class="nav-link">Blog</a>
+                <a href="https://github.com/Rafael2022-prog/omega-lang" class="nav-link github-link" target="_blank">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <header class="page-header">
+                <h1>OMEGA Community Forum</h1>
+                <p class="lead">Connect, collaborate, and get support from the OMEGA community</p>
+            </header>
+
+            <div class="forum-layout">
+                <div class="forum-sidebar">
+                    <div class="forum-stats">
+                        <h3>Community Stats</h3>
+                        <div class="stat-item">
+                            <span class="stat-number">1,247</span>
+                            <span class="stat-label">Members</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">3,892</span>
+                            <span class="stat-label">Posts</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">156</span>
+                            <span class="stat-label">Active Today</span>
+                        </div>
+                    </div>
+
+                    <div class="forum-categories">
+                        <h3>Categories</h3>
+                        <ul class="category-list">
+                            <li><a href="#general" class="active">General Discussion</a></li>
+                            <li><a href="#help">Help & Support</a></li>
+                            <li><a href="#development">Development</a></li>
+                            <li><a href="#showcase">Showcase</a></li>
+                            <li><a href="#announcements">Announcements</a></li>
+                            <li><a href="#feedback">Feedback</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="forum-actions">
+                        <a href="#new-topic" class="btn btn-primary">New Topic</a>
+                        <a href="#search" class="btn btn-outline">Search Forum</a>
+                    </div>
+                </div>
+
+                <div class="forum-main">
+                    <div class="forum-header">
+                        <div class="forum-breadcrumb">
+                            <a href="#home">Forum</a> > <span>General Discussion</span>
+                        </div>
+                        <div class="forum-controls">
+                            <select class="sort-select">
+                                <option>Latest Activity</option>
+                                <option>Most Replies</option>
+                                <option>Newest First</option>
+                                <option>Oldest First</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="forum-topics">
+                        <div class="topic-item pinned">
+                            <div class="topic-icon">📌</div>
+                            <div class="topic-content">
+                                <h3><a href="#topic-1">Welcome to the OMEGA Community Forum!</a></h3>
+                                <p>Guidelines, rules, and getting started information for new members.</p>
+                                <div class="topic-meta">
+                                    <span class="topic-author">by <strong>Emylton Leunufna</strong></span>
+                                    <span class="topic-date">Jan 15, 2025</span>
+                                    <span class="topic-category">Announcements</span>
+                                </div>
+                            </div>
+                            <div class="topic-stats">
+                                <div class="stat">
+                                    <span class="stat-number">42</span>
+                                    <span class="stat-label">replies</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-number">1.2k</span>
+                                    <span class="stat-label">views</span>
+                                </div>
+                            </div>
+                            <div class="topic-last-post">
+                                <div class="last-post-avatar">👤</div>
+                                <div class="last-post-info">
+                                    <span class="last-post-author">alice_dev</span>
+                                    <span class="last-post-time">2 hours ago</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="topic-item hot">
+                            <div class="topic-icon">🔥</div>
+                            <div class="topic-content">
+                                <h3><a href="#topic-2">Cross-chain bridge implementation questions</a></h3>
+                                <p>Having trouble with the cross-chain bridge example. Getting compilation errors when targeting Solana...</p>
+                                <div class="topic-meta">
+                                    <span class="topic-author">by <strong>blockchain_bob</strong></span>
+                                    <span class="topic-date">Jan 14, 2025</span>
+                                    <span class="topic-category">Help & Support</span>
+                                </div>
+                            </div>
+                            <div class="topic-stats">
+                                <div class="stat">
+                                    <span class="stat-number">18</span>
+                                    <span class="stat-label">replies</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-number">324</span>
+                                    <span class="stat-label">views</span>
+                                </div>
+                            </div>
+                            <div class="topic-last-post">
+                                <div class="last-post-avatar">👤</div>
+                                <div class="last-post-info">
+                                    <span class="last-post-author">omega_helper</span>
+                                    <span class="last-post-time">1 hour ago</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="topic-item">
+                            <div class="topic-icon">💡</div>
+                            <div class="topic-content">
+                                <h3><a href="#topic-3">Feature Request: Built-in Oracle Support</a></h3>
+                                <p>Would love to see native oracle integration in OMEGA. This would make DeFi development much easier...</p>
+                                <div class="topic-meta">
+                                    <span class="topic-author">by <strong>defi_developer</strong></span>
+                                    <span class="topic-date">Jan 13, 2025</span>
+                                    <span class="topic-category">Feedback</span>
+                                </div>
+                            </div>
+                            <div class="topic-stats">
+                                <div class="stat">
+                                    <span class="stat-number">7</span>
+                                    <span class="stat-label">replies</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-number">156</span>
+                                    <span class="stat-label">views</span>
+                                </div>
+                            </div>
+                            <div class="topic-last-post">
+                                <div class="last-post-avatar">👤</div>
+                                <div class="last-post-info">
+                                    <span class="last-post-author">core_team</span>
+                                    <span class="last-post-time">3 hours ago</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="topic-item">
+                            <div class="topic-icon">🚀</div>
+                            <div class="topic-content">
+                                <h3><a href="#topic-4">My First OMEGA DApp: Decentralized Voting System</a></h3>
+                                <p>Just deployed my first OMEGA smart contract! Here's what I learned and the challenges I faced...</p>
+                                <div class="topic-meta">
+                                    <span class="topic-author">by <strong>newbie_coder</strong></span>
+                                    <span class="topic-date">Jan 12, 2025</span>
+                                    <span class="topic-category">Showcase</span>
+                                </div>
+                            </div>
+                            <div class="topic-stats">
+                                <div class="stat">
+                                    <span class="stat-number">12</span>
+                                    <span class="stat-label">replies</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-number">289</span>
+                                    <span class="stat-label">views</span>
+                                </div>
+                            </div>
+                            <div class="topic-last-post">
+                                <div class="last-post-avatar">👤</div>
+                                <div class="last-post-info">
+                                    <span class="last-post-author">mentor_mike</span>
+                                    <span class="last-post-time">5 hours ago</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="topic-item">
+                            <div class="topic-icon">🔧</div>
+                            <div class="topic-content">
+                                <h3><a href="#topic-5">Performance optimization tips for OMEGA contracts</a></h3>
+                                <p>Sharing some performance optimization techniques I've discovered while working with OMEGA...</p>
+                                <div class="topic-meta">
+                                    <span class="topic-author">by <strong>performance_guru</strong></span>
+                                    <span class="topic-date">Jan 11, 2025</span>
+                                    <span class="topic-category">Development</span>
+                                </div>
+                            </div>
+                            <div class="topic-stats">
+                                <div class="stat">
+                                    <span class="stat-number">25</span>
+                                    <span class="stat-label">replies</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-number">567</span>
+                                    <span class="stat-label">views</span>
+                                </div>
+                            </div>
+                            <div class="topic-last-post">
+                                <div class="last-post-avatar">👤</div>
+                                <div class="last-post-info">
+                                    <span class="last-post-author">gas_optimizer</span>
+                                    <span class="last-post-time">1 day ago</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="topic-item">
+                            <div class="topic-icon">❓</div>
+                            <div class="topic-content">
+                                <h3><a href="#topic-6">How to handle errors in cross-chain transactions?</a></h3>
+                                <p>What's the best practice for error handling when a transaction fails on the target chain?...</p>
+                                <div class="topic-meta">
+                                    <span class="topic-author">by <strong>cross_chain_dev</strong></span>
+                                    <span class="topic-date">Jan 10, 2025</span>
+                                    <span class="topic-category">Help & Support</span>
+                                </div>
+                            </div>
+                            <div class="topic-stats">
+                                <div class="stat">
+                                    <span class="stat-number">9</span>
+                                    <span class="stat-label">replies</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-label">198</span>
+                                    <span class="stat-label">views</span>
+                                </div>
+                            </div>
+                            <div class="topic-last-post">
+                                <div class="last-post-avatar">👤</div>
+                                <div class="last-post-info">
+                                    <span class="last-post-author">bridge_expert</span>
+                                    <span class="last-post-time">1 day ago</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="forum-pagination">
+                        <a href="#" class="pagination-link active">1</a>
+                        <a href="#" class="pagination-link">2</a>
+                        <a href="#" class="pagination-link">3</a>
+                        <a href="#" class="pagination-link">Next →</a>
+                    </div>
+                </div>
+            </div>
+
+            <section class="forum-info">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3>🌟 Getting Started</h3>
+                        <p>New to the OMEGA community? Start here!</p>
+                        <ul>
+                            <li><a href="#introduction">Introduce yourself</a></li>
+                            <li><a href="#forum-rules">Read the forum rules</a></li>
+                            <li><a href="#search-tips">Learn to search effectively</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>💬 Community Guidelines</h3>
+                        <p>Help us maintain a welcoming environment:</p>
+                        <ul>
+                            <li>Be respectful and constructive</li>
+                            <li>Search before posting new topics</li>
+                            <li>Use descriptive titles</li>
+                            <li>Share code examples when asking for help</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>🏆 Top Contributors</h3>
+                        <div class="contributor-list">
+                            <div class="contributor-item">
+                                <span class="contributor-name">omega_helper</span>
+                                <span class="contributor-badge">🥇 Expert</span>
+                            </div>
+                            <div class="contributor-item">
+                                <span class="contributor-name">bridge_expert</span>
+                                <span class="contributor-badge">🥈 Mentor</span>
+                            </div>
+                            <div class="contributor-item">
+                                <span class="contributor-name">performance_guru</span>
+                                <span class="contributor-badge">🥉 Helper</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>🔗 Quick Links</h3>
+                        <ul>
+                            <li><a href="https://discord.gg/omega-lang">Discord Server</a></li>
+                            <li><a href="https://github.com/Rafael2022-prog/omega-lang">GitHub Repository</a></li>
+                            <li><a href="docs/getting-started.html">Documentation</a></li>
+                            <li><a href="playground.html">Online Playground</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section class="forum-notice">
+                <div class="notice-content">
+                    <h3>🚧 Forum Under Development</h3>
+                    <p>Our community forum is currently being developed. In the meantime, join our active Discord community for real-time discussions and support!</p>
+                    <div class="notice-actions">
+                        <a href="https://discord.gg/omega-lang" class="btn btn-primary">Join Discord</a>
+                        <a href="https://github.com/Rafael2022-prog/omega-lang/discussions" class="btn btn-secondary">GitHub Discussions</a>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>OMEGA</h4>
+                    <p>Universal Blockchain Programming Language</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="docs/getting-started.html">Getting Started</a></li>
+                        <li><a href="docs/language-spec.html">Language Spec</a></li>
+                        <li><a href="docs/best-practices.html">Best Practices</a></li>
+                        <li><a href="docs/examples.html">Examples</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="roadmap.html">Roadmap</a></li>
+                        <li><a href="security.html">Security</a></li>
+                        <li><a href="forum.html">Forum</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang">GitHub</a></li>
+                        <li><a href="https://discord.gg/omega-lang">Discord</a></li>
+                        <li><a href="https://twitter.com/omega_lang">Twitter</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 OMEGA Language. Created by Emylton Leunufna.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

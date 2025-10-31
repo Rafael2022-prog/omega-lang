@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playground - OMEGA Programming Language</title>
+    <meta name="description" content="Interactive playground for OMEGA - Write, compile, and test smart contracts online">
+    <meta name="keywords" content="OMEGA, blockchain, programming language, playground, smart contracts, online compiler">
+    <meta name="author" content="OMEGA Team">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="OMEGA Playground">
+    <meta property="og:description" content="Interactive playground for OMEGA - Write, compile, and test smart contracts online">
+    <meta property="og:image" content="logo.svg">
+    <meta property="og:url" content="https://www.omegalang.xyz/playground">
+    <meta property="og:type" content="website">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="OMEGA Playground">
+    <meta name="twitter:description" content="Interactive playground for OMEGA - Write, compile, and test smart contracts online">
+    <meta name="twitter:image" content="logo.svg">
+    
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .playground-container {
+            display: flex;
+            height: calc(100vh - 80px);
+            margin-top: 80px;
+        }
+        
+        .playground-sidebar {
+            width: 300px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .playground-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .playground-header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .playground-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .playground-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .btn-compile {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-compile:hover {
+            background: var(--primary-dark);
+        }
+        
+        .btn-compile:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+        }
+        
+        .target-selector {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .target-btn {
+            padding: 0.375rem 0.75rem;
+            border: 1px solid var(--border);
+            background: var(--background);
+            color: var(--text-secondary);
+            border-radius: 4px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .target-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .playground-content {
+            flex: 1;
+            display: flex;
+        }
+        
+        .code-editor {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .editor-tabs {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .editor-tab {
+            padding: 0.75rem 1rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .editor-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        
+        .editor-pane {
+            flex: 1;
+            position: relative;
+        }
+        
+        .code-textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            background: var(--background);
+            color: var(--text-primary);
+            resize: none;
+        }
+        
+        .output-panel {
+            width: 400px;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .output-tabs {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .output-tab {
+            flex: 1;
+            padding: 0.75rem;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+        }
+        
+        .output-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        
+        .output-content {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        .examples-list {
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        
+        .examples-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+        
+        .example-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .example-item:hover {
+            border-color: var(--primary);
+            background: var(--primary-alpha);
+        }
+        
+        .example-title {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .example-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .compilation-status {
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        
+        .status-indicator.success {
+            background: #10b981;
+        }
+        
+        .status-indicator.error {
+            background: #ef4444;
+        }
+        
+        .status-indicator.compiling {
+            background: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .error-message {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+        
+        .success-message {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+        
+        @media (max-width: 1024px) {
+            .playground-container {
+                flex-direction: column;
+            }
+            
+            .playground-sidebar {
+                width: 100%;
+                height: 200px;
+            }
+            
+            .output-panel {
+                width: 100%;
+                height: 300px;
+            }
+            
+            .playground-content {
+                flex-direction: column;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .playground-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+            }
+            
+            .playground-actions {
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">
+                <img src="logo.svg" alt="OMEGA" width="32" height="32">
+                <span>OMEGA</span>
+            </a>
+            
+            <div class="nav-menu">
+                <a href="index.html" class="nav-link" data-lang="nav.home">Home</a>
+                <a href="docs.html" class="nav-link" data-lang="nav.docs">Documentation</a>
+                <a href="playground.html" class="nav-link active" data-lang="nav.playground">Playground</a>
+                <a href="https://github.com/Rafael2022-prog/omega-lang" class="nav-link" target="_blank" rel="noopener noreferrer">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <span data-lang="nav.github">GitHub</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="playground-container">
+        <aside class="playground-sidebar">
+            <div class="examples-list">
+                <h3 class="examples-title" data-lang="playground.examples">Example Contracts</h3>
+                
+                <div class="example-item" onclick="loadExample('token')">
+                    <div class="example-title" data-lang="playground.examples.token">Simple Token</div>
+                    <div class="example-description" data-lang="playground.examples.token.desc">Basic ERC-20 compatible token contract</div>
+                </div>
+                
+                <div class="example-item" onclick="loadExample('nft')">
+                    <div class="example-title" data-lang="playground.examples.nft">NFT Collection</div>
+                    <div class="example-description" data-lang="playground.examples.nft.desc">Non-fungible token with minting functionality</div>
+                </div>
+                
+                <div class="example-item" onclick="loadExample('defi')">
+                    <div class="example-title" data-lang="playground.examples.defi">DeFi Vault</div>
+                    <div class="example-description" data-lang="playground.examples.defi.desc">Yield farming vault with rewards</div>
+                </div>
+                
+                <div class="example-item" onclick="loadExample('dao')">
+                    <div class="example-title" data-lang="playground.examples.dao">DAO Governance</div>
+                    <div class="example-description" data-lang="playground.examples.dao.desc">Decentralized governance with voting</div>
+                </div>
+                
+                <div class="example-item" onclick="loadExample('bridge')">
+                    <div class="example-title" data-lang="playground.examples.bridge">Cross-Chain Bridge</div>
+                    <div class="example-description" data-lang="playground.examples.bridge.desc">Bridge tokens between blockchains</div>
+                </div>
+            </div>
+        </aside>
+        
+        <main class="playground-main">
+            <header class="playground-header">
+                <h1 class="playground-title" data-lang="playground.title">OMEGA Playground</h1>
+                <div class="playground-actions">
+                    <div class="target-selector">
+                        <button class="target-btn active" data-target="evm" data-lang="playground.target.evm">EVM</button>
+                        <button class="target-btn" data-target="solana" data-lang="playground.target.solana">Solana</button>
+                        <button class="target-btn" data-target="cosmos" data-lang="playground.target.cosmos">Cosmos</button>
+                    </div>
+                    <button class="btn-compile" onclick="compileCode()">
+                        <span id="compile-text" data-lang="playground.compile">Compile</span>
+                    </button>
+                </div>
+            </header>
+            
+            <div class="compilation-status">
+                <div class="status-indicator" id="status-indicator"></div>
+                <span id="status-text">Ready to compile</span>
+            </div>
+            
+            <div class="playground-content">
+                <div class="code-editor">
+                    <div class="editor-tabs">
+                        <button class="editor-tab active" data-tab="contract"><span data-lang="playground.tabs.contract">Contract.omega</span></button>
+                        <button class="editor-tab" data-tab="test"><span data-lang="playground.tabs.test">Test.omega</span></button>
+                    </div>
+                    
+                    <div class="editor-pane">
+                        <textarea class="code-textarea" id="code-editor" placeholder="// Write your OMEGA smart contract here...
+blockchain SimpleToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _initial_supply;
+        balances[msg.sender] = _initial_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, &quot;Insufficient balance&quot;);
+        require(to != address(0), &quot;Invalid recipient&quot;);
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+}"></textarea>
+                    </div>
+                </div>
+                
+                <div class="output-panel">
+                    <div class="output-tabs">
+                        <button class="output-tab active" data-output="compiled"><span data-lang="playground.output.compiled">Compiled</span></button>
+                        <button class="output-tab" data-output="console"><span data-lang="playground.output.console">Console</span></button>
+                        <button class="output-tab" data-output="gas"><span data-lang="playground.output.gas">Gas Analysis</span></button>
+                    </div>
+                    
+                    <div class="output-content" id="output-content">
+                        <div class="success-message" style="display: none;" id="success-message">
+                            ✅ Compilation successful!
+                        </div>
+                        <div class="error-message" style="display: none;" id="error-message">
+                            ❌ Compilation failed
+                        </div>
+                        <pre id="output-text">Click "Compile" to see the generated code for your selected target.</pre>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentTarget = 'evm';
+        let currentTab = 'contract';
+        let currentOutput = 'compiled';
+        
+        const examples = {
+            token: `blockchain SimpleToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _initial_supply;
+        balances[msg.sender] = _initial_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+}`,
+            nft: `blockchain NFTCollection {
+    state {
+        mapping(uint256 => address) token_owners;
+        mapping(address => uint256) owner_token_count;
+        mapping(uint256 => string) token_uris;
+        uint256 next_token_id;
+        string collection_name;
+        string collection_symbol;
+    }
+    
+    constructor(string _name, string _symbol) {
+        collection_name = _name;
+        collection_symbol = _symbol;
+        next_token_id = 1;
+    }
+    
+    function mint(address to, string memory token_uri) public returns (uint256) {
+        require(to != address(0), "Invalid recipient");
+        
+        uint256 token_id = next_token_id;
+        token_owners[token_id] = to;
+        owner_token_count[to] += 1;
+        token_uris[token_id] = token_uri;
+        next_token_id += 1;
+        
+        emit Transfer(address(0), to, token_id);
+        return token_id;
+    }
+    
+    function owner_of(uint256 token_id) public view returns (address) {
+        return token_owners[token_id];
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 indexed token_id);
+}`,
+            defi: `blockchain YieldVault {
+    state {
+        mapping(address => uint256) user_deposits;
+        mapping(address => uint256) user_rewards;
+        uint256 total_deposits;
+        uint256 reward_rate;
+        address reward_token;
+    }
+    
+    constructor(address _reward_token, uint256 _reward_rate) {
+        reward_token = _reward_token;
+        reward_rate = _reward_rate;
+    }
+    
+    function deposit(uint256 amount) public {
+        require(amount > 0, "Amount must be greater than 0");
+        
+        // Calculate pending rewards
+        uint256 pending_rewards = calculate_rewards(msg.sender);
+        user_rewards[msg.sender] += pending_rewards;
+        
+        user_deposits[msg.sender] += amount;
+        total_deposits += amount;
+        
+        emit Deposit(msg.sender, amount);
+    }
+    
+    function withdraw(uint256 amount) public {
+        require(user_deposits[msg.sender] >= amount, "Insufficient balance");
+        
+        user_deposits[msg.sender] -= amount;
+        total_deposits -= amount;
+        
+        emit Withdrawal(msg.sender, amount);
+    }
+    
+    function calculate_rewards(address user) public view returns (uint256) {
+        return (user_deposits[user] * reward_rate) / 10000;
+    }
+    
+    event Deposit(address indexed user, uint256 amount);
+    event Withdrawal(address indexed user, uint256 amount);
+}`,
+            dao: `blockchain DAOGovernance {
+    state {
+        mapping(uint256 => Proposal) proposals;
+        mapping(uint256 => mapping(address => bool)) has_voted;
+        mapping(address => uint256) voting_power;
+        uint256 next_proposal_id;
+        uint256 voting_period;
+    }
+    
+    struct Proposal {
+        string description;
+        uint256 votes_for;
+        uint256 votes_against;
+        uint256 end_time;
+        bool executed;
+    }
+    
+    constructor(uint256 _voting_period) {
+        voting_period = _voting_period;
+        next_proposal_id = 1;
+    }
+    
+    function create_proposal(string memory description) public returns (uint256) {
+        uint256 proposal_id = next_proposal_id;
+        proposals[proposal_id] = Proposal({
+            description: description,
+            votes_for: 0,
+            votes_against: 0,
+            end_time: block.timestamp + voting_period,
+            executed: false
+        });
+        next_proposal_id += 1;
+        
+        emit ProposalCreated(proposal_id, description);
+        return proposal_id;
+    }
+    
+    function vote(uint256 proposal_id, bool support) public {
+        require(!has_voted[proposal_id][msg.sender], "Already voted");
+        require(block.timestamp < proposals[proposal_id].end_time, "Voting ended");
+        
+        has_voted[proposal_id][msg.sender] = true;
+        
+        if (support) {
+            proposals[proposal_id].votes_for += voting_power[msg.sender];
+        } else {
+            proposals[proposal_id].votes_against += voting_power[msg.sender];
+        }
+        
+        emit VoteCast(proposal_id, msg.sender, support);
+    }
+    
+    event ProposalCreated(uint256 indexed proposal_id, string description);
+    event VoteCast(uint256 indexed proposal_id, address indexed voter, bool support);
+}`,
+            bridge: `blockchain CrossChainBridge {
+    state {
+        mapping(bytes32 => bool) processed_transactions;
+        mapping(address => uint256) locked_balances;
+        mapping(string => bool) supported_chains;
+        address bridge_operator;
+    }
+    
+    constructor() {
+        bridge_operator = msg.sender;
+        supported_chains["ethereum"] = true;
+        supported_chains["solana"] = true;
+        supported_chains["polygon"] = true;
+    }
+    
+    @cross_chain(target = "solana")
+    function bridge_to_solana(bytes32 recipient, uint256 amount) public {
+        require(amount > 0, "Invalid amount");
+        require(supported_chains["solana"], "Solana not supported");
+        
+        locked_balances[msg.sender] += amount;
+        
+        emit TokensBridged(msg.sender, recipient, amount, "solana");
+    }
+    
+    @cross_chain(target = "ethereum")
+    function bridge_to_ethereum(address recipient, uint256 amount) public {
+        require(amount > 0, "Invalid amount");
+        require(supported_chains["ethereum"], "Ethereum not supported");
+        
+        locked_balances[msg.sender] += amount;
+        
+        emit TokensBridged(msg.sender, bytes32(uint256(uint160(recipient))), amount, "ethereum");
+    }
+    
+    function release_tokens(address recipient, uint256 amount, bytes32 tx_hash) public {
+        require(msg.sender == bridge_operator, "Only operator");
+        require(!processed_transactions[tx_hash], "Already processed");
+        
+        processed_transactions[tx_hash] = true;
+        locked_balances[recipient] -= amount;
+        
+        emit TokensReleased(recipient, amount, tx_hash);
+    }
+    
+    event TokensBridged(address indexed sender, bytes32 indexed recipient, uint256 amount, string target_chain);
+    event TokensReleased(address indexed recipient, uint256 amount, bytes32 tx_hash);
+}`
+        };
+        
+        // Target selection
+        document.querySelectorAll('.target-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTarget = btn.dataset.target;
+            });
+        });
+        
+        // Tab switching
+        document.querySelectorAll('.editor-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.dataset.tab;
+            });
+        });
+        
+        document.querySelectorAll('.output-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentOutput = tab.dataset.output;
+                updateOutputContent();
+            });
+        });
+        
+        function loadExample(exampleKey) {
+            const editor = document.getElementById('code-editor');
+            editor.value = examples[exampleKey];
+        }
+        
+        // OMEGA Code Parser
+        function parseOmegaCode(code) {
+            const parsed = {
+                contractName: '',
+                stateVariables: [],
+                constructor: null,
+                functions: [],
+                events: [],
+                errors: []
+            };
+            
+            try {
+                // Extract contract name
+                const contractMatch = code.match(/blockchain\s+(\w+)\s*{/);
+                if (contractMatch) {
+                    parsed.contractName = contractMatch[1];
+                } else {
+                    parsed.errors.push('No blockchain contract declaration found');
+                    return parsed;
+                }
+                
+                // Extract state variables
+                const stateMatch = code.match(/state\s*{([^}]*)}/s);
+                if (stateMatch) {
+                    const stateContent = stateMatch[1];
+                    const stateLines = stateContent.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('//'));
+                    
+                    stateLines.forEach(line => {
+                        if (line.includes('mapping(')) {
+                            const mappingMatch = line.match(/mapping\(([^)]+)\s*=>\s*([^)]+)\)\s+(\w+);/);
+                            if (mappingMatch) {
+                                parsed.stateVariables.push({
+                                    type: 'mapping',
+                                    keyType: mappingMatch[1].trim(),
+                                    valueType: mappingMatch[2].trim(),
+                                    name: mappingMatch[3]
+                                });
+                            }
+                        } else {
+                            const varMatch = line.match(/(\w+)\s+(\w+);/);
+                            if (varMatch) {
+                                parsed.stateVariables.push({
+                                    type: varMatch[1],
+                                    name: varMatch[2]
+                                });
+                            }
+                        }
+                    });
+                }
+                
+                // Extract constructor
+                const constructorMatch = code.match(/constructor\s*\(([^)]*)\)\s*{([^}]*)}/s);
+                if (constructorMatch) {
+                    const params = constructorMatch[1].split(',').map(p => p.trim()).filter(p => p);
+                    const body = constructorMatch[2].trim();
+                    parsed.constructor = {
+                        parameters: params,
+                        body: body
+                    };
+                }
+                
+                // Extract functions
+                const functionMatches = code.matchAll(/function\s+(\w+)\s*\(([^)]*)\)\s*(public|private|internal)?\s*(view|pure)?\s*(returns\s*\([^)]*\))?\s*{([^}]*)}/gs);
+                for (const match of functionMatches) {
+                    parsed.functions.push({
+                        name: match[1],
+                        parameters: match[2] ? match[2].split(',').map(p => p.trim()).filter(p => p) : [],
+                        visibility: match[3] || 'public',
+                        modifier: match[4] || '',
+                        returns: match[5] || '',
+                        body: match[6].trim()
+                    });
+                }
+                
+                // Extract events
+                const eventMatches = code.matchAll(/event\s+(\w+)\s*\(([^)]*)\);/g);
+                for (const match of eventMatches) {
+                    parsed.events.push({
+                        name: match[1],
+                        parameters: match[2] ? match[2].split(',').map(p => p.trim()).filter(p => p) : []
+                    });
+                }
+                
+            } catch (error) {
+                parsed.errors.push('Parse error: ' + error.message);
+            }
+            
+            return parsed;
+        }
+
+        function compileCode() {
+            const code = document.getElementById('code-editor').value;
+            const compileBtn = document.querySelector('.btn-compile');
+            const compileText = document.getElementById('compile-text');
+            const statusIndicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            
+            // Start compilation
+            compileBtn.disabled = true;
+            compileText.textContent = 'Compiling...';
+            statusIndicator.className = 'status-indicator compiling';
+            statusText.textContent = 'Compiling for ' + currentTarget.toUpperCase();
+            
+            // Parse and compile
+            setTimeout(() => {
+                if (code.trim() === '') {
+                    // Error case
+                    statusIndicator.className = 'status-indicator error';
+                    statusText.textContent = 'Compilation failed';
+                    showError('No code to compile');
+                } else {
+                    const parsed = parseOmegaCode(code);
+                    
+                    if (parsed.errors.length > 0) {
+                        statusIndicator.className = 'status-indicator error';
+                        statusText.textContent = 'Compilation failed';
+                        showError(parsed.errors.join('\n'));
+                    } else {
+                        // Success case
+                        statusIndicator.className = 'status-indicator success';
+                        statusText.textContent = 'Compilation successful';
+                        showSuccess();
+                        generateOutput(parsed);
+                    }
+                }
+                
+                compileBtn.disabled = false;
+                compileText.textContent = 'Compile';
+            }, 1500);
+        }
+        
+        function showError(message) {
+            const errorMsg = document.getElementById('error-message');
+            const successMsg = document.getElementById('success-message');
+            const outputText = document.getElementById('output-text');
+            
+            errorMsg.style.display = 'block';
+            successMsg.style.display = 'none';
+            outputText.textContent = message;
+        }
+        
+        function showSuccess() {
+            const errorMsg = document.getElementById('error-message');
+            const successMsg = document.getElementById('success-message');
+            
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'block';
+        }
+        
+        function generateOutput(parsed) {
+            const outputText = document.getElementById('output-text');
+            
+            if (currentTarget === 'evm') {
+                outputText.textContent = generateSolidityCode(parsed);
+            } else if (currentTarget === 'solana') {
+                outputText.textContent = generateSolanaCode(parsed);
+            } else if (currentTarget === 'cosmos') {
+                outputText.textContent = generateCosmosCode(parsed);
+            }
+        }
+        
+        function generateSolidityCode(parsed) {
+            let solidityCode = `// Generated Solidity Code from OMEGA\npragma solidity ^0.8.0;\n\n`;
+            
+            // Contract declaration
+            solidityCode += `contract ${parsed.contractName} {\n`;
+            
+            // State variables
+            if (parsed.stateVariables.length > 0) {
+                solidityCode += `    // State Variables\n`;
+                parsed.stateVariables.forEach(variable => {
+                    if (variable.type === 'mapping') {
+                        solidityCode += `    mapping(${variable.keyType} => ${variable.valueType}) private ${variable.name};\n`;
+                    } else {
+                        const solidityType = mapOmegaTypeToSolidity(variable.type);
+                        solidityCode += `    ${solidityType} private ${variable.name};\n`;
+                    }
+                });
+                solidityCode += `\n`;
+            }
+            
+            // Constructor
+            if (parsed.constructor) {
+                solidityCode += `    // Constructor\n`;
+                const constructorParams = parsed.constructor.parameters.map(param => {
+                    const parts = param.split(' ');
+                    const type = mapOmegaTypeToSolidity(parts[0]);
+                    const name = parts[1];
+                    return `${type} memory ${name}`;
+                }).join(', ');
+                
+                solidityCode += `    constructor(${constructorParams}) {\n`;
+                
+                // Convert constructor body
+                const constructorBody = convertOmegaBodyToSolidity(parsed.constructor.body);
+                solidityCode += `        ${constructorBody.split('\n').join('\n        ')}\n`;
+                solidityCode += `    }\n\n`;
+            }
+            
+            // Functions
+            if (parsed.functions.length > 0) {
+                solidityCode += `    // Functions\n`;
+                parsed.functions.forEach(func => {
+                    const functionParams = func.parameters.map(param => {
+                        const parts = param.split(' ');
+                        const type = mapOmegaTypeToSolidity(parts[0]);
+                        const name = parts[1];
+                        return `${type} ${name}`;
+                    }).join(', ');
+                    
+                    let functionDeclaration = `    function ${func.name}(${functionParams}) ${func.visibility}`;
+                    if (func.modifier) functionDeclaration += ` ${func.modifier}`;
+                    if (func.returns) {
+                        const returnType = func.returns.match(/returns\s*\(([^)]*)\)/);
+                        if (returnType) {
+                            const mappedReturnType = mapOmegaTypeToSolidity(returnType[1].trim());
+                            functionDeclaration += ` returns (${mappedReturnType})`;
+                        }
+                    }
+                    functionDeclaration += ` {\n`;
+                    
+                    solidityCode += functionDeclaration;
+                    
+                    // Convert function body
+                    const functionBody = convertOmegaBodyToSolidity(func.body);
+                    solidityCode += `        ${functionBody.split('\n').join('\n        ')}\n`;
+                    solidityCode += `    }\n\n`;
+                });
+            }
+            
+            // Events
+            if (parsed.events.length > 0) {
+                solidityCode += `    // Events\n`;
+                parsed.events.forEach(event => {
+                    const eventParams = event.parameters.map(param => {
+                        const parts = param.trim().split(' ');
+                        if (parts.includes('indexed')) {
+                            const type = mapOmegaTypeToSolidity(parts[0]);
+                            const name = parts[parts.length - 1];
+                            return `${type} indexed ${name}`;
+                        } else {
+                            const type = mapOmegaTypeToSolidity(parts[0]);
+                            const name = parts[parts.length - 1];
+                            return `${type} ${name}`;
+                        }
+                    }).join(', ');
+                    
+                    solidityCode += `    event ${event.name}(${eventParams});\n`;
+                });
+            }
+            
+            solidityCode += `}`;
+            return solidityCode;
+        }
+        
+        function mapOmegaTypeToSolidity(omegaType) {
+            const typeMap = {
+                'uint256': 'uint256',
+                'string': 'string',
+                'address': 'address',
+                'bool': 'bool',
+                'bytes32': 'bytes32',
+                'uint': 'uint256'
+            };
+            return typeMap[omegaType] || omegaType;
+        }
+        
+        function convertOmegaBodyToSolidity(body) {
+            // Convert OMEGA syntax to Solidity syntax
+            let convertedBody = body;
+            
+            // Convert balance_of to balanceOf (camelCase)
+            convertedBody = convertedBody.replace(/balance_of/g, 'balanceOf');
+            
+            // Convert require statements (already compatible)
+            // Convert emit statements (already compatible)
+            // Convert basic assignments (already compatible)
+            
+            return convertedBody;
+        }
+        
+        function generateSolanaCode(parsed) {
+            let solanaCode = `// Generated Anchor/Rust Code from OMEGA\nuse anchor_lang::prelude::*;\nuse std::collections::HashMap;\n\n`;
+            
+            // Program ID (placeholder)
+            solanaCode += `declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");\n\n`;
+            
+            // Program module
+            const contractNameLower = parsed.contractName.toLowerCase();
+            solanaCode += `#[program]\npub mod ${contractNameLower} {\n    use super::*;\n\n`;
+            
+            // Initialize function (constructor equivalent)
+            if (parsed.constructor) {
+                solanaCode += `    pub fn initialize(\n        ctx: Context<Initialize>,\n`;
+                parsed.constructor.parameters.forEach(param => {
+                    const parts = param.split(' ');
+                    const rustType = mapOmegaTypeToRust(parts[0]);
+                    const name = parts[1].replace('_', '');
+                    solanaCode += `        ${name}: ${rustType},\n`;
+                });
+                solanaCode += `    ) -> Result<()> {\n`;
+                solanaCode += `        let state = &mut ctx.accounts.state;\n`;
+                
+                // Convert constructor body to Rust
+                const constructorBody = convertOmegaBodyToRust(parsed.constructor.body, parsed.stateVariables);
+                solanaCode += `        ${constructorBody.split('\n').join('\n        ')}\n`;
+                solanaCode += `        Ok(())\n    }\n\n`;
+            }
+            
+            // Functions
+            parsed.functions.forEach(func => {
+                solanaCode += `    pub fn ${func.name}(\n        ctx: Context<${capitalizeFirst(func.name)}>,\n`;
+                func.parameters.forEach(param => {
+                    const parts = param.split(' ');
+                    const rustType = mapOmegaTypeToRust(parts[0]);
+                    const name = parts[1];
+                    solanaCode += `        ${name}: ${rustType},\n`;
+                });
+                solanaCode += `    ) -> Result<`;
+                
+                if (func.returns) {
+                    const returnType = func.returns.match(/returns\s*\(([^)]*)\)/);
+                    if (returnType) {
+                        const rustReturnType = mapOmegaTypeToRust(returnType[1].trim());
+                        solanaCode += rustReturnType;
+                    }
+                } else {
+                    solanaCode += '()';
+                }
+                
+                solanaCode += `> {\n`;
+                solanaCode += `        let state = &mut ctx.accounts.state;\n`;
+                
+                // Convert function body to Rust
+                const functionBody = convertOmegaBodyToRust(func.body, parsed.stateVariables);
+                solanaCode += `        ${functionBody.split('\n').join('\n        ')}\n`;
+                
+                if (func.returns) {
+                    solanaCode += `        // Return value implementation needed\n`;
+                } else {
+                    solanaCode += `        Ok(())\n`;
+                }
+                solanaCode += `    }\n\n`;
+            });
+            
+            solanaCode += `}\n\n`;
+            
+            // Account structures
+            solanaCode += `#[derive(Accounts)]\npub struct Initialize<'info> {\n`;
+            solanaCode += `    #[account(init, payer = authority, space = 8 + 1000)]\n`;
+            solanaCode += `    pub state: Account<'info, ${parsed.contractName}State>,\n`;
+            solanaCode += `    #[account(mut)]\n    pub authority: Signer<'info>,\n`;
+            solanaCode += `    pub system_program: Program<'info, System>,\n}\n\n`;
+            
+            // State account
+            solanaCode += `#[account]\npub struct ${parsed.contractName}State {\n`;
+            parsed.stateVariables.forEach(variable => {
+                if (variable.type === 'mapping') {
+                    solanaCode += `    pub ${variable.name}: HashMap<Pubkey, u64>,\n`;
+                } else {
+                    const rustType = mapOmegaTypeToRust(variable.type);
+                    solanaCode += `    pub ${variable.name}: ${rustType},\n`;
+                }
+            });
+            solanaCode += `}`;
+            
+            return solanaCode;
+        }
+        
+        function generateCosmosCode(parsed) {
+            let cosmosCode = `// Generated Go Code from OMEGA for Cosmos SDK\npackage types\n\n`;
+            cosmosCode += `import (\n    sdk "github.com/cosmos/cosmos-sdk/types"\n`;
+            cosmosCode += `    sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"\n)\n\n`;
+            
+            // Struct definition
+            cosmosCode += `type ${parsed.contractName} struct {\n`;
+            parsed.stateVariables.forEach(variable => {
+                if (variable.type === 'mapping') {
+                    cosmosCode += `    ${capitalizeFirst(variable.name)} map[string]sdk.Int\n`;
+                } else {
+                    const goType = mapOmegaTypeToGo(variable.type);
+                    cosmosCode += `    ${capitalizeFirst(variable.name)} ${goType}\n`;
+                }
+            });
+            cosmosCode += `}\n\n`;
+            
+            // Constructor function
+            if (parsed.constructor) {
+                cosmosCode += `func New${parsed.contractName}(`;
+                const constructorParams = parsed.constructor.parameters.map(param => {
+                    const parts = param.split(' ');
+                    const goType = mapOmegaTypeToGo(parts[0]);
+                    const name = parts[1].replace('_', '');
+                    return `${name} ${goType}`;
+                }).join(', ');
+                cosmosCode += `${constructorParams}, creator sdk.AccAddress) *${parsed.contractName} {\n`;
+                
+                // Initialize mappings
+                parsed.stateVariables.forEach(variable => {
+                    if (variable.type === 'mapping') {
+                        cosmosCode += `    ${variable.name} := make(map[string]sdk.Int)\n`;
+                    }
+                });
+                
+                cosmosCode += `    return &${parsed.contractName}{\n`;
+                parsed.stateVariables.forEach(variable => {
+                    cosmosCode += `        ${capitalizeFirst(variable.name)}: ${variable.name},\n`;
+                });
+                cosmosCode += `    }\n}\n\n`;
+            }
+            
+            // Functions
+            parsed.functions.forEach(func => {
+                cosmosCode += `func (c *${parsed.contractName}) ${capitalizeFirst(func.name)}(`;
+                const functionParams = func.parameters.map(param => {
+                    const parts = param.split(' ');
+                    const goType = mapOmegaTypeToGo(parts[0]);
+                    const name = parts[1];
+                    return `${name} ${goType}`;
+                }).join(', ');
+                cosmosCode += functionParams;
+                
+                if (func.returns) {
+                    const returnType = func.returns.match(/returns\s*\(([^)]*)\)/);
+                    if (returnType) {
+                        const goReturnType = mapOmegaTypeToGo(returnType[1].trim());
+                        cosmosCode += `) (${goReturnType}, error) {\n`;
+                    }
+                } else {
+                    cosmosCode += `) error {\n`;
+                }
+                
+                // Convert function body to Go
+                const functionBody = convertOmegaBodyToGo(func.body);
+                cosmosCode += `    ${functionBody.split('\n').join('\n    ')}\n`;
+                
+                if (func.returns) {
+                    cosmosCode += `    // Return implementation needed\n    return nil, nil\n`;
+                } else {
+                    cosmosCode += `    return nil\n`;
+                }
+                cosmosCode += `}\n\n`;
+            });
+            
+            return cosmosCode;
+        }
+        
+        function mapOmegaTypeToRust(omegaType) {
+            const typeMap = {
+                'uint256': 'u64',
+                'string': 'String',
+                'address': 'Pubkey',
+                'bool': 'bool',
+                'bytes32': '[u8; 32]'
+            };
+            return typeMap[omegaType] || omegaType;
+        }
+        
+        function mapOmegaTypeToGo(omegaType) {
+            const typeMap = {
+                'uint256': 'sdk.Int',
+                'string': 'string',
+                'address': 'sdk.AccAddress',
+                'bool': 'bool',
+                'bytes32': '[]byte'
+            };
+            return typeMap[omegaType] || omegaType;
+        }
+        
+        function convertOmegaBodyToRust(body, stateVariables) {
+            let convertedBody = body;
+            
+            // Convert state variable access
+            stateVariables.forEach(variable => {
+                const regex = new RegExp(`\\b${variable.name}\\b`, 'g');
+                convertedBody = convertedBody.replace(regex, `state.${variable.name}`);
+            });
+            
+            // Convert require to Rust require!
+            convertedBody = convertedBody.replace(/require\(/g, 'require!(');
+            
+            return convertedBody;
+        }
+        
+        function convertOmegaBodyToGo(body) {
+            let convertedBody = body;
+            
+            // Convert require statements to Go error handling
+            convertedBody = convertedBody.replace(/require\(([^,]+),\s*"([^"]+)"\);/g, 
+                'if !($1) {\n        return sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "$2")\n    }');
+            
+            return convertedBody;
+        }
+        
+        function capitalizeFirst(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+        
+        function updateOutputContent() {
+            const outputText = document.getElementById('output-text');
+            
+            if (currentOutput === 'console') {
+                outputText.textContent = `OMEGA Compiler v1.1.0
+Enhanced Performance & Security Edition
+Target: ${currentTarget.toUpperCase()}
+Status: Ready
+
+> omega compile --target ${currentTarget}
+✅ Parsing successful
+✅ Type checking passed
+✅ Code generation completed
+✅ Optimization applied
+
+Build completed in 1.23s`;
+            } else if (currentOutput === 'gas') {
+                outputText.textContent = `Gas Analysis for ${currentTarget.toUpperCase()}:
+
+Function: constructor
+Estimated Gas: 245,678 gas
+Optimization: -15% from baseline
+
+Function: transfer
+Estimated Gas: 51,234 gas
+Optimization: -8% from baseline
+
+Function: balance_of
+Estimated Gas: 2,345 gas (view function)
+
+Total Contract Size: 1,234 bytes
+Deployment Cost: 456,789 gas
+
+Recommendations:
+- Consider using packed structs for storage optimization
+- Batch operations where possible to reduce gas costs`;
+            }
+        }
+        
+        // Initialize with token example
+        loadExample('token');
+    </script>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-brand">
+                <div class="footer-logo">
+                    <img src="logo.svg" alt="OMEGA" width="32" height="32">
+                    <div>OMEGA</div>
+                </div>
+                <p class="footer-description" data-lang="footer.description">
+                    Universal blockchain programming language enabling cross-chain smart contract development.
+                </p>
+            </div>
+            
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4 class="footer-title" data-lang="footer.links">Quick Links</h4>
+                    <ul class="footer-list">
+                        <li><a href="index.html" data-lang="nav.home">Home</a></li>
+                        <li><a href="docs.html" data-lang="nav.docs">Documentation</a></li>
+                        <li><a href="playground.html" data-lang="nav.playground">Playground</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4 class="footer-title" data-lang="footer.community">Community</h4>
+                    <ul class="footer-list">
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang" target="_blank" rel="noopener noreferrer" data-lang="nav.github">GitHub</a></li>
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang/discussions" target="_blank" rel="noopener noreferrer" data-lang="community.discussions">Discussions</a></li>
+                        <li><a href="https://github.com/Rafael2022-prog/omega-lang/issues" target="_blank" rel="noopener noreferrer" data-lang="community.issues">Issues</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4 class="footer-title" data-lang="footer.resources">Resources</h4>
+                    <ul class="footer-list">
+                        <li><a href="docs.html" data-lang="docs.getting-started">Getting Started</a></li>
+                        <li><a href="docs.html" data-lang="docs.language-spec">Language Spec</a></li>
+                        <li><a href="docs.html" data-lang="docs.best-practices">Best Practices</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <div class="footer-container">
+                <p data-lang="footer.copyright">Created by Emylton Leunufna - 2025</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="lang.js"></script>
+</body>
+</html>

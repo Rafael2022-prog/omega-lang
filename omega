@@ -1,0 +1,2 @@
+#!/usr/bin/env pwsh
+& "R:\OMEGA\omega.ps1" @args
