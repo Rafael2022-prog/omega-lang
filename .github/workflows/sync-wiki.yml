@@ -1,0 +1,55 @@
+name: Sync Wiki from /wiki
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'wiki/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone Wiki repository
+        env:
+          WIKI_PAT: ${{ secrets.WIKI_PAT }}
+        run: |
+          if [ -z "$WIKI_PAT" ]; then
+            echo "❌ Missing WIKI_PAT secret. Create a repo secret WIKI_PAT with a Personal Access Token that has 'repo' scope and rights to push to wiki." >&2
+            exit 1
+          fi
+          set -e
+          git clone "https://$WIKI_PAT@github.com/Rafael2022-prog/omega-lang.wiki.git" wiki-repo
+          cd wiki-repo
+          # Remove existing content (keep .git directory)
+          find . -mindepth 1 -not -name ".git" -exec rm -rf {} +
+          cd ..
+
+      - name: Copy wiki content from repo
+        run: |
+          rsync -av --delete wiki/ wiki-repo/
+
+      - name: Commit and push updates to Wiki
+        run: |
+          set -e
+          cd wiki-repo
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No wiki changes to commit."
+            exit 0
+          fi
+          git add .
+          git commit -m "Sync wiki from main repo /wiki (automated)"
+          # Try pushing to master (default wiki branch), fallback to main
+          git push origin HEAD:master || git push origin HEAD:main || git push
