@@ -1,13 +1,15 @@
 # OMEGA Website Deployment Script
-# Deploy to Cloud Server: 103.27.206.177
-# Domain: www.omegalang.xyz
+# Note: Do NOT hardcode secrets. Use environment variables (OMEGA_SERVER_IP, OMEGA_SERVER_USER, OMEGA_SERVER_DOMAIN)
 
 param(
-    [string]$ServerIP = "103.27.206.177",
-    [string]$Username = "root",
-    [string]$Password = "!eL3H!Ue^Ik2",
-    [string]$Domain = "www.omegalang.xyz"
+    [string]$ServerIP = $env:OMEGA_SERVER_IP,
+    [string]$Username = $env:OMEGA_SERVER_USER,
+    [string]$Domain = $env:OMEGA_SERVER_DOMAIN
 )
+
+if (-not $ServerIP -or -not $Domain) {
+    Write-Host "ℹ️ ServerIP/Domain not provided; package will include placeholders. Set OMEGA_SERVER_IP and OMEGA_SERVER_DOMAIN if available." -ForegroundColor Yellow
+}
 
 Write-Host "🚀 OMEGA Website Deployment Script" -ForegroundColor Cyan
 Write-Host "=================================" -ForegroundColor Cyan

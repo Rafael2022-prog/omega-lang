@@ -2,10 +2,26 @@
 # Deploy to Cloud Server with proper error handling
 
 param(
-    [string]$ServerIP = "103.27.206.177",
-    [string]$Username = "root",
-    [string]$Password = "!eL3H!Ue^Ik2"
+    [string]$ServerIP = $env:OMEGA_SERVER_IP,
+    [string]$Username = $env:OMEGA_SERVER_USER,
+    [string]$Password = $env:OMEGA_SERVER_PASSWORD,
+    [string]$Domain = $env:OMEGA_SERVER_DOMAIN
 )
+
+$sshKeyPath = $env:OMEGA_SSH_KEY_PATH
+$usingKey = [bool]$sshKeyPath
+
+if (-not $ServerIP -or -not $Username -or ((-not $Password) -and -not $usingKey)) {
+    Write-Host "❌ Server credentials not set. Please export OMEGA_SERVER_IP, OMEGA_SERVER_USER, and either OMEGA_SERVER_PASSWORD or OMEGA_SSH_KEY_PATH (optionally OMEGA_SERVER_DOMAIN)." -ForegroundColor Red
+    exit 1
+}
+
+$sshAuthArgs = if ($usingKey) { "-i `"$sshKeyPath`"" } else { "-pw `"$Password`"" }
+
+if (-not $ServerIP -or -not $Username -or -not $Password) {
+    Write-Host "❌ Server credentials not set. Please export OMEGA_SERVER_IP, OMEGA_SERVER_USER, OMEGA_SERVER_PASSWORD (and optionally OMEGA_SERVER_DOMAIN)." -ForegroundColor Red
+    exit 1
+}
 
 Write-Host "🚀 OMEGA Website Deployment (Improved)" -ForegroundColor Cyan
 Write-Host "======================================" -ForegroundColor Cyan
@@ -32,7 +48,7 @@ systemctl enable nginx
 $sshPrep = @"
 @echo off
 echo Creating directories on server...
-plink -batch -pw "$Password" $Username@$ServerIP "$createDirCommands"
+plink -batch $sshAuthArgs $Username@$ServerIP "$createDirCommands"
 "@
 
 $sshPrep | Out-File -FilePath "temp-prep.bat" -Encoding ASCII
@@ -51,7 +67,7 @@ try {
     foreach ($file in $mainFiles) {
         if (Test-Path "deploy-package\$file") {
             Write-Host "   Uploading $file..." -ForegroundColor Gray
-            $uploadCmd = "pscp -batch -pw `"$Password`" `"deploy-package\$file`" $Username@${ServerIP}:/tmp/omega-deploy/"
+            $uploadCmd = "pscp -batch $sshAuthArgs `"deploy-package\$file`" $Username@${ServerIP}:/tmp/omega-deploy/"
             & cmd /c $uploadCmd
         }
     }
@@ -61,7 +77,7 @@ try {
     $configFiles = @("omega-nginx.conf", "setup-server.sh")
     foreach ($file in $configFiles) {
         if (Test-Path "deploy-package\$file") {
-            $uploadCmd = "pscp -batch -pw `"$Password`" `"deploy-package\$file`" $Username@${ServerIP}:/tmp/omega-deploy/"
+            $uploadCmd = "pscp -batch $sshAuthArgs `"deploy-package\$file`" $Username@${ServerIP}:/tmp/omega-deploy/"
             & cmd /c $uploadCmd
         }
     }
@@ -69,7 +85,7 @@ try {
     # Upload docs directory
     if (Test-Path "deploy-package\docs") {
         Write-Host "   Uploading docs directory..." -ForegroundColor Gray
-        $uploadCmd = "pscp -batch -r -pw `"$Password`" `"deploy-package\docs`" $Username@${ServerIP}:/tmp/omega-deploy/"
+        $uploadCmd = "pscp -batch -r $sshAuthArgs `"deploy-package\docs`" $Username@${ServerIP}:/tmp/omega-deploy/"
         & cmd /c $uploadCmd
     }
     
@@ -92,7 +108,7 @@ echo "Deployment completed!"
     $deployBatch = @"
 @echo off
 echo Executing deployment...
-plink -batch -pw "$Password" $Username@$ServerIP "$deployCommands"
+plink -batch $sshAuthArgs $Username@$ServerIP "$deployCommands"
 "@
     
     $deployBatch | Out-File -FilePath "temp-deploy.bat" -Encoding ASCII
@@ -132,15 +148,15 @@ Write-Host "🌐 Direct IP access: http://$ServerIP" -ForegroundColor White
 
 Write-Host "`n📋 Final Steps (Manual):" -ForegroundColor Cyan
 Write-Host "   1. 🌍 Configure DNS A record:" -ForegroundColor White
-Write-Host "      Domain: www.omegalang.xyz" -ForegroundColor Gray
+Write-Host "      Domain: $Domain" -ForegroundColor Gray
 Write-Host "      Type: A" -ForegroundColor Gray
 Write-Host "      Value: $ServerIP" -ForegroundColor Gray
 Write-Host "      TTL: 300 (5 minutes)" -ForegroundColor Gray
 Write-Host "`n   2. ⏳ Wait for DNS propagation (5-30 minutes)" -ForegroundColor White
 Write-Host "`n   3. 🧪 Test the website:" -ForegroundColor White
-Write-Host "      http://www.omegalang.xyz" -ForegroundColor Gray
+Write-Host "      http://$Domain" -ForegroundColor Gray
 Write-Host "      http://$ServerIP (direct IP)" -ForegroundColor Gray
 Write-Host "`n   4. 🔒 Optional: Setup SSL certificate" -ForegroundColor White
-Write-Host "      Use Let's Encrypt: certbot --nginx -d www.omegalang.xyz" -ForegroundColor Gray
+Write-Host "      Use Let's Encrypt: certbot --nginx -d $Domain" -ForegroundColor Gray
 
 Write-Host "`n🚀 OMEGA Website is now live!" -ForegroundColor Green

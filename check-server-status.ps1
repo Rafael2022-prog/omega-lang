@@ -2,10 +2,22 @@
 # Diagnose deployment issues
 
 param(
-    [string]$ServerIP = "103.27.206.177",
-    [string]$Username = "root",
-    [string]$Password = "!eL3H!Ue^Ik2"
+    [string]$ServerIP = $env:OMEGA_SERVER_IP,
+    [string]$Username = $env:OMEGA_SERVER_USER,
+    [string]$Password = $env:OMEGA_SERVER_PASSWORD
 )
+
+$sshKeyPath = $env:OMEGA_SSH_KEY_PATH
+$usingKey = [bool]$sshKeyPath
+
+if (-not $ServerIP -or -not $Username -or ((-not $Password) -and -not $usingKey)) {
+    Write-Host "❌ Kredensial server belum lengkap. Set OMEGA_SERVER_IP, OMEGA_SERVER_USER, dan OMEGA_SERVER_PASSWORD atau OMEGA_SSH_KEY_PATH." -ForegroundColor Red
+    Write-Host 'Contoh (password): $env:OMEGA_SERVER_IP = "203.0.113.10"; $env:OMEGA_SERVER_USER = "root"; $env:OMEGA_SERVER_PASSWORD = "<password>"' -ForegroundColor Gray
+    Write-Host 'Contoh (SSH key PuTTY): $env:OMEGA_SSH_KEY_PATH = "C:\\Users\\you\\.ssh\\id_rsa.ppk"' -ForegroundColor Gray
+    exit 1
+}
+
+$sshAuthArgs = if ($usingKey) { "-i `"$sshKeyPath`"" } else { "-pw `"$Password`"" }
 
 Write-Host "🔍 OMEGA Server Status Check" -ForegroundColor Cyan
 Write-Host "============================" -ForegroundColor Cyan
@@ -29,7 +41,7 @@ Write-Host "🔐 Testing SSH connectivity..." -ForegroundColor Yellow
 $sshTest = @"
 @echo off
 echo Testing SSH connection...
-plink -batch -pw "$Password" $Username@$ServerIP "echo 'SSH connection successful'"
+plink -batch $sshAuthArgs $Username@$ServerIP "echo 'SSH connection successful'"
 "@
 
 $sshTest | Out-File -FilePath "temp-ssh-test.bat" -Encoding ASCII
@@ -63,7 +75,7 @@ tail -n 10 /var/log/nginx/error.log
 $nginxBatch = @"
 @echo off
 echo Checking nginx status...
-plink -batch -pw "$Password" $Username@$ServerIP "$nginxCheck"
+plink -batch $sshAuthArgs $Username@$ServerIP "$nginxCheck"
 "@
 
 $nginxBatch | Out-File -FilePath "temp-nginx-check.bat" -Encoding ASCII
@@ -103,7 +115,7 @@ echo "Fix attempt completed"
 $fixBatch = @"
 @echo off
 echo Attempting fixes...
-plink -batch -pw "$Password" $Username@$ServerIP "$fixCommands"
+plink -batch $sshAuthArgs $Username@$ServerIP "$fixCommands"
 "@
 
 $fixBatch | Out-File -FilePath "temp-fix.bat" -Encoding ASCII

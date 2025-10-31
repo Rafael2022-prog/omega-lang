@@ -1,12 +1,18 @@
 # WWW Subdomain Configuration for OMEGA Website
-# This script helps configure and verify www.omegalang.xyz subdomain
+# This script helps configure and verify 'www.<your-domain>' subdomain (uses OMEGA_SERVER_DOMAIN)
 
 Write-Host "=== OMEGA Website WWW Subdomain Configuration ===" -ForegroundColor Cyan
-Write-Host "Configuring www.omegalang.xyz subdomain..." -ForegroundColor Yellow
+Write-Host "Configuring $wwwDomain subdomain..." -ForegroundColor Yellow
 
-$serverIP = "103.27.206.177"
-$domain = "omegalang.xyz"
-$wwwDomain = "www.omegalang.xyz"
+$serverIP = $env:OMEGA_SERVER_IP
+$domain = $env:OMEGA_SERVER_DOMAIN
+$wwwDomain = if ($domain) { "www.$domain" } else { $null }
+
+if (-not $serverIP -or -not $domain -or -not $wwwDomain) {
+    Write-Host "❌ OMEGA_SERVER_IP atau OMEGA_SERVER_DOMAIN belum di-set. Silakan set variabel lingkungan terlebih dahulu." -ForegroundColor Red
+    Write-Host 'Contoh: $env:OMEGA_SERVER_IP = "203.0.113.10"; $env:OMEGA_SERVER_DOMAIN = "example.com"' -ForegroundColor Gray
+    return
+}
 
 try {
     Write-Host "`n1. Checking current DNS configuration..." -ForegroundColor Green
@@ -26,7 +32,7 @@ try {
     Write-Host "`nChecking $wwwDomain DNS..." -ForegroundColor Yellow
     try {
         $wwwDNS = nslookup $wwwDomain 2>$null
-        if ($wwwDNS -match "103.27.206.177") {
+        if ($serverIP -and ($wwwDNS -like "*$serverIP*")) {
             Write-Host "✅ $wwwDomain already configured correctly" -ForegroundColor Green
         }
         else {
@@ -39,7 +45,7 @@ try {
     }
 
     Write-Host "`n2. DNS Configuration Instructions..." -ForegroundColor Green
-    Write-Host "To configure www.omegalang.xyz, add these DNS records:" -ForegroundColor Yellow
+    Write-Host "To configure $wwwDomain, add these DNS records:" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Option 1 - A Record (Recommended):" -ForegroundColor Cyan
     Write-Host "  Type: A" -ForegroundColor White
@@ -132,7 +138,7 @@ Write-Host "`nDNS verification completed!" -ForegroundColor Cyan
     Write-Host "1. Add DNS record for www subdomain in your domain registrar" -ForegroundColor White
     Write-Host "2. Wait 5-15 minutes for DNS propagation" -ForegroundColor White
     Write-Host "3. Run .\verify-www-dns.ps1 to verify configuration" -ForegroundColor White
-    Write-Host "4. Both omegalang.xyz and www.omegalang.xyz will work" -ForegroundColor White
+    Write-Host "4. Both $domain and $wwwDomain will work" -ForegroundColor White
 
 }
 catch {

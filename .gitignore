@@ -111,6 +111,8 @@ jspm_packages/
 
 # dotenv environment variables file
 .env
+# Allow env example file (override any earlier ignore)
+!.env.example
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
@@ -204,3 +206,13 @@ aws-config
 gcp-config
 azure-config
 *cloud*.conf
+
+# Test results and reports
+test-reports/
+test_results/
+
+# Release artifacts
+release-assets/
+
+# Allow env example file (override any earlier ignore rules)
+!.env.example
