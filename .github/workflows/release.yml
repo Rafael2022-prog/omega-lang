@@ -34,6 +34,20 @@ jobs:
       run: |
         pwsh -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
 
+    - name: 🔎 Detect VS Code Extension VSIX (optional)
+      id: vsix
+      shell: bash
+      run: |
+        if compgen -G "omega-vscode-extension/*.vsix" > /dev/null; then
+          P=$(ls omega-vscode-extension/*.vsix | head -n 1)
+          N=$(basename "$P")
+          echo "has=true" >> $GITHUB_OUTPUT
+          echo "path=$P" >> $GITHUB_OUTPUT
+          echo "name=$N" >> $GITHUB_OUTPUT
+        else
+          echo "has=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: 📝 Generate changelog
       id: changelog
       run: |
@@ -63,11 +77,17 @@ jobs:
         echo "EOF" >> $GITHUB_OUTPUT
 
     - name: 📦 Create release assets
+      shell: bash
       run: |
+        set -e
         mkdir -p release-assets
         
-        # Copy VS Code extension
-        cp omega-vscode-extension/*.vsix release-assets/
+        # Copy VS Code extension if exists
+        if compgen -G "omega-vscode-extension/*.vsix" > /dev/null; then
+          cp omega-vscode-extension/*.vsix release-assets/
+        else
+          echo "No VSIX found, skipping copy to release-assets."
+        fi
         
         # Create source archive
         git archive --format=zip --prefix=omega-lang-${{ steps.changelog.outputs.VERSION }}/ HEAD > release-assets/omega-lang-${{ steps.changelog.outputs.VERSION }}-source.zip
@@ -87,14 +107,15 @@ jobs:
         draft: false
         prerelease: false
 
-    - name: 📤 Upload VS Code Extension
+    - name: 📤 Upload VS Code Extension (if present)
+      if: steps.vsix.outputs.has == 'true'
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./omega-vscode-extension/omega-lang-${{ steps.changelog.outputs.VERSION }}.vsix
-        asset_name: omega-lang-${{ steps.changelog.outputs.VERSION }}.vsix
+        asset_path: ${{ steps.vsix.outputs.path }}
+        asset_name: ${{ steps.vsix.outputs.name }}
         asset_content_type: application/zip
 
     - name: 📤 Upload Source Archive
