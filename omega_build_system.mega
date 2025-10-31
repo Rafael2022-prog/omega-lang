@@ -1,0 +1,468 @@
+// OMEGA Native Build System - Production Implementation
+// Self-hosted build system in pure MEGA for production deployments
+
+import "src/utils/fs";
+import "src/utils/process";
+import "src/utils/env";
+import "omega_native_compiler";
+
+/// Production-ready build system for OMEGA projects
+/// Handles compilation, testing, packaging, and deployment
+blockchain OmegaNativeBuildSystem {
+    state {
+        BuildConfig config;
+        BuildStats stats;
+        Logger logger;
+        
+        // Build components
+        OmegaNativeCompiler compiler;
+        TestRunner test_runner;
+        PackageManager package_manager;
+        DeploymentManager deployment_manager;
+        
+        // Build artifacts
+        mapping(string => BuildArtifact) artifacts;
+        string[] build_targets;
+        
+        // Production features
+        CacheManager cache_manager;
+        DependencyResolver dependency_resolver;
+        SecurityScanner security_scanner;
+        PerformanceBenchmark performance_benchmark;
+    }
+    
+    /// Build configuration for production
+    struct BuildConfig {
+        string project_name;
+        string version;
+        string build_mode;           // "production", "development", "debug"
+        string[] targets;            // ["evm", "solana", "cosmos", "substrate"]
+        string output_dir;
+        string cache_dir;
+        string temp_dir;
+        
+        // Production settings
+        bool enable_optimizations;
+        bool enable_security_scan;
+        bool enable_testing;
+        bool enable_benchmarking;
+        bool enable_caching;
+        bool enable_parallel_build;
+        uint32 max_parallel_jobs;
+        
+        // Deployment settings
+        bool auto_deploy;
+        string[] deployment_targets;
+        mapping(string => DeploymentConfig) deployment_configs;
+    }
+    
+    /// Build statistics and metrics
+    struct BuildStats {
+        uint256 total_builds;
+        uint256 successful_builds;
+        uint256 failed_builds;
+        uint256 total_build_time_ms;
+        uint256 average_build_time_ms;
+        uint256 cache_hits;
+        uint256 cache_misses;
+        mapping(string => uint256) target_build_times;
+        mapping(string => uint256) target_success_rates;
+    }
+    
+    /// Build artifact information
+    struct BuildArtifact {
+        string name;
+        string target;
+        string file_path;
+        uint256 size;
+        string checksum;
+        uint256 build_time;
+        bool is_optimized;
+        bool security_scanned;
+        bool test_passed;
+    }
+    
+    constructor(string project_path) {
+        // Load build configuration
+        config = _load_build_config(project_path);
+        
+        // Initialize logger
+        logger = new Logger("info");
+        logger.info("Initializing OMEGA Native Build System");
+        
+        // Initialize core components
+        compiler = new OmegaNativeCompiler();
+        test_runner = new TestRunner();
+        package_manager = new PackageManager();
+        deployment_manager = new DeploymentManager();
+        
+        // Initialize production features
+        cache_manager = new CacheManager(config.cache_dir);
+        dependency_resolver = new DependencyResolver();
+        security_scanner = new SecurityScanner();
+        performance_benchmark = new PerformanceBenchmark();
+        
+        // Setup build targets
+        build_targets = config.targets;
+        
+        logger.info(string.concat("Build system initialized for project: ", config.project_name));
+    }
+    
+    /// Main build function for production
+    function build() public returns (BuildResult) {
+        logger.info("🚀 Starting production build...");
+        
+        BuildResult result = BuildResult::new();
+        uint256 start_time = block.timestamp;
+        
+        try {
+            // Pre-build validation
+            _validate_build_environment();
+            _resolve_dependencies();
+            
+            // Clean previous build artifacts if needed
+            if (!config.enable_caching) {
+                _clean_build_artifacts();
+            }
+            
+            // Run security scan if enabled
+            if (config.enable_security_scan) {
+                SecurityScanResult security_result = _run_security_scan();
+                if (security_result.has_critical_issues()) {
+                    result.success = false;
+                    result.errors.push("Critical security issues found");
+                    return result;
+                }
+            }
+            
+            // Build for each target
+            if (config.enable_parallel_build && build_targets.length > 1) {
+                result = _build_parallel();
+            } else {
+                result = _build_sequential();
+            }
+            
+            // Run tests if enabled and build successful
+            if (config.enable_testing && result.success) {
+                TestResult test_result = _run_tests();
+                result.test_results = test_result;
+                
+                if (!test_result.all_passed()) {
+                    result.success = false;
+                    result.errors.push("Tests failed");
+                }
+            }
+            
+            // Run performance benchmarks if enabled
+            if (config.enable_benchmarking && result.success) {
+                BenchmarkResult benchmark_result = _run_benchmarks();
+                result.benchmark_results = benchmark_result;
+            }
+            
+            // Package artifacts if build successful
+            if (result.success) {
+                _package_artifacts(result);
+            }
+            
+            // Auto-deploy if enabled and configured
+            if (config.auto_deploy && result.success) {
+                DeploymentResult deployment_result = _auto_deploy(result);
+                result.deployment_results = deployment_result;
+            }
+            
+        } catch (BuildError error) {
+            result.success = false;
+            result.errors.push(error.message);
+            logger.error(string.concat("Build failed: ", error.message));
+        }
+        
+        // Update build statistics
+        uint256 build_time = (block.timestamp - start_time) * 1000;
+        _update_build_stats(result, build_time);
+        
+        // Log build summary
+        _log_build_summary(result, build_time);
+        
+        return result;
+    }
+    
+    /// Build all targets sequentially
+    function _build_sequential() private returns (BuildResult) {
+        BuildResult result = BuildResult::new();
+        
+        for (uint256 i = 0; i < build_targets.length; i++) {
+            string target = build_targets[i];
+            logger.info(string.concat("Building target: ", target));
+            
+            TargetBuildResult target_result = _build_target(target);
+            result.target_results[target] = target_result;
+            
+            if (!target_result.success) {
+                result.success = false;
+                result.errors.extend(target_result.errors);
+                break;
+            }
+        }
+        
+        return result;
+    }
+    
+    /// Build all targets in parallel
+    function _build_parallel() private returns (BuildResult) {
+        BuildResult result = BuildResult::new();
+        
+        // Create parallel build jobs
+        ParallelBuildJob[] jobs = new ParallelBuildJob[](build_targets.length);
+        
+        for (uint256 i = 0; i < build_targets.length; i++) {
+            jobs[i] = ParallelBuildJob({
+                target: build_targets[i],
+                status: "pending",
+                result: TargetBuildResult::empty()
+            });
+        }
+        
+        // Execute parallel builds with job limit
+        uint256 active_jobs = 0;
+        uint256 completed_jobs = 0;
+        
+        while (completed_jobs < jobs.length) {
+            // Start new jobs up to the limit
+            while (active_jobs < config.max_parallel_jobs && completed_jobs + active_jobs < jobs.length) {
+                uint256 job_index = completed_jobs + active_jobs;
+                _start_parallel_build_job(jobs[job_index]);
+                active_jobs++;
+            }
+            
+            // Check for completed jobs
+            for (uint256 i = completed_jobs; i < completed_jobs + active_jobs; i++) {
+                if (jobs[i].status == "completed") {
+                    result.target_results[jobs[i].target] = jobs[i].result;
+                    
+                    if (!jobs[i].result.success) {
+                        result.success = false;
+                        result.errors.extend(jobs[i].result.errors);
+                    }
+                    
+                    completed_jobs++;
+                    active_jobs--;
+                }
+            }
+            
+            // Small delay to prevent busy waiting
+            _sleep(100); // 100ms
+        }
+        
+        return result;
+    }
+    
+    /// Build specific target
+    function _build_target(string target) private returns (TargetBuildResult) {
+        TargetBuildResult result = TargetBuildResult::new(target);
+        
+        try {
+            // Check cache first
+            if (config.enable_caching) {
+                CacheEntry cache_entry = cache_manager.get(target);
+                if (cache_entry.is_valid()) {
+                    logger.info(string.concat("Using cached build for target: ", target));
+                    result = cache_entry.build_result;
+                    stats.cache_hits++;
+                    return result;
+                }
+                stats.cache_misses++;
+            }
+            
+            // Compile for target
+            CompilationResult compilation_result = compiler.compile_project(".", target);
+            result.compilation_result = compilation_result;
+            
+            if (!compilation_result.success) {
+                result.success = false;
+                result.errors.extend(compilation_result.errors);
+                return result;
+            }
+            
+            // Create build artifact
+            BuildArtifact artifact = _create_build_artifact(compilation_result, target);
+            artifacts[target] = artifact;
+            result.artifact = artifact;
+            
+            // Cache successful build
+            if (config.enable_caching) {
+                cache_manager.store(target, result);
+            }
+            
+            result.success = true;
+            logger.info(string.concat("Successfully built target: ", target));
+            
+        } catch (BuildError error) {
+            result.success = false;
+            result.errors.push(error.message);
+            logger.error(string.concat("Failed to build target ", target, ": ", error.message));
+        }
+        
+        return result;
+    }
+    
+    /// Load build configuration from omega.toml
+    function _load_build_config(string project_path) private returns (BuildConfig) {
+        string config_path = path.join(project_path, "omega.toml");
+        require(fs.exists(config_path), "omega.toml not found");
+        
+        string config_content = fs.read_file(config_path);
+        TOMLParser parser = new TOMLParser();
+        TOMLValue config_toml = parser.parse(config_content);
+        
+        BuildConfig config = BuildConfig({
+            project_name: config_toml.get_string("name", "omega-project"),
+            version: config_toml.get_string("version", "1.0.0"),
+            build_mode: config_toml.get_string("build_mode", "production"),
+            targets: config_toml.get_string_array("targets", ["evm"]),
+            output_dir: config_toml.get_string("output_dir", "./build"),
+            cache_dir: config_toml.get_string("cache_dir", "./.omega_cache"),
+            temp_dir: config_toml.get_string("temp_dir", "./temp"),
+            
+            enable_optimizations: config_toml.get_bool("enable_optimizations", true),
+            enable_security_scan: config_toml.get_bool("enable_security_scan", true),
+            enable_testing: config_toml.get_bool("enable_testing", true),
+            enable_benchmarking: config_toml.get_bool("enable_benchmarking", false),
+            enable_caching: config_toml.get_bool("enable_caching", true),
+            enable_parallel_build: config_toml.get_bool("enable_parallel_build", true),
+            max_parallel_jobs: config_toml.get_uint32("max_parallel_jobs", 4),
+            
+            auto_deploy: config_toml.get_bool("auto_deploy", false),
+            deployment_targets: config_toml.get_string_array("deployment_targets", [])
+        });
+        
+        return config;
+    }
+    
+    /// Run comprehensive test suite
+    function _run_tests() private returns (TestResult) {
+        logger.info("🧪 Running test suite...");
+        
+        TestResult result = test_runner.run_all_tests();
+        
+        logger.info(string.concat("Tests completed: ", 
+            _to_string(result.passed), " passed, ",
+            _to_string(result.failed), " failed"));
+        
+        return result;
+    }
+    
+    /// Run performance benchmarks
+    function _run_benchmarks() private returns (BenchmarkResult) {
+        logger.info("⚡ Running performance benchmarks...");
+        
+        BenchmarkResult result = performance_benchmark.run_all_benchmarks();
+        
+        logger.info(string.concat("Benchmarks completed: ",
+            "avg compilation time: ", _to_string(result.avg_compilation_time_ms), "ms, ",
+            "peak memory usage: ", _to_string(result.peak_memory_usage_mb), "MB"));
+        
+        return result;
+    }
+    
+    /// Clean build command
+    function clean() public returns (bool) {
+        logger.info("🧹 Cleaning build artifacts...");
+        
+        try {
+            // Remove output directory
+            if (fs.exists(config.output_dir)) {
+                fs.remove_dir_recursive(config.output_dir);
+            }
+            
+            // Remove cache directory
+            if (fs.exists(config.cache_dir)) {
+                fs.remove_dir_recursive(config.cache_dir);
+            }
+            
+            // Remove temp directory
+            if (fs.exists(config.temp_dir)) {
+                fs.remove_dir_recursive(config.temp_dir);
+            }
+            
+            // Clear artifacts mapping
+            delete artifacts;
+            
+            logger.info("✅ Clean completed successfully");
+            return true;
+            
+        } catch (Error error) {
+            logger.error(string.concat("Clean failed: ", error.message));
+            return false;
+        }
+    }
+    
+    /// Get build statistics
+    function get_build_stats() public view returns (BuildStats) {
+        return stats;
+    }
+    
+    /// Get build configuration
+    function get_build_config() public view returns (BuildConfig) {
+        return config;
+    }
+    
+    /// Check if build system is ready
+    function is_ready() public view returns (bool) {
+        return compiler.is_production_ready() &&
+               test_runner.is_initialized() &&
+               fs.exists(config.output_dir);
+    }
+}
+
+/// Build result structures
+struct BuildResult {
+    bool success;
+    string[] errors;
+    string[] warnings;
+    mapping(string => TargetBuildResult) target_results;
+    TestResult test_results;
+    BenchmarkResult benchmark_results;
+    DeploymentResult deployment_results;
+    uint256 total_build_time_ms;
+}
+
+struct TargetBuildResult {
+    string target;
+    bool success;
+    string[] errors;
+    CompilationResult compilation_result;
+    BuildArtifact artifact;
+}
+
+/// Parallel build job structure
+struct ParallelBuildJob {
+    string target;
+    string status;  // "pending", "running", "completed", "failed"
+    TargetBuildResult result;
+}
+
+/// Main entry point for build system
+function main(string[] args) public returns (int32) {
+    string command = args.length > 1 ? args[1] : "build";
+    string project_path = args.length > 2 ? args[2] : ".";
+    
+    OmegaNativeBuildSystem build_system = new OmegaNativeBuildSystem(project_path);
+    
+    if (!build_system.is_ready()) {
+        println("❌ Build system not ready");
+        return 1;
+    }
+    
+    println("🏗️  OMEGA Native Build System - Production Mode");
+    
+    if (command == "build") {
+        BuildResult result = build_system.build();
+        return result.success ? 0 : 1;
+    } else if (command == "clean") {
+        bool success = build_system.clean();
+        return success ? 0 : 1;
+    } else {
+        println("Usage: omega_build [build|clean] [project_path]");
+        return 1;
+    }
+}

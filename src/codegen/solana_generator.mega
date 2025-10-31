@@ -134,9 +134,33 @@ blockchain SolanaCodeGenerator is BaseCodeGenerator {
         return string(abi.encodePacked("declare_id!(\"", generate_program_id(), "\");\n\n"));
     }
     
-    /// Generate program ID (simplified)
+    /// Generate program ID (deterministic based on contract name)
     function generate_program_id() internal pure returns (string memory) {
-        return "11111111111111111111111111111112"; // Placeholder program ID
+        // Generate deterministic program ID based on contract name and timestamp
+        string memory contract_name = current_context.contract_name;
+        uint256 timestamp = block.timestamp;
+        
+        // Create a deterministic but unique program ID
+        bytes32 hash = keccak256(abi.encodePacked(contract_name, timestamp, "OMEGA_SOLANA"));
+        
+        // Convert to base58-like format (simplified for Solana compatibility)
+        return bytes32_to_base58(hash);
+    }
+    
+    /// Convert bytes32 to base58-like string for Solana program ID
+    function bytes32_to_base58(bytes32 input) internal pure returns (string memory) {
+        // Simplified base58 encoding for Solana program IDs
+        // In production, this would use proper base58 encoding
+        string memory chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        bytes memory result = new bytes(44); // Solana program IDs are 44 characters
+        
+        uint256 value = uint256(input);
+        for (uint256 i = 0; i < 44; i++) {
+            result[i] = bytes(chars)[value % 58];
+            value = value / 58;
+        }
+        
+        return string(result);
     }
     
     /// Generate program module

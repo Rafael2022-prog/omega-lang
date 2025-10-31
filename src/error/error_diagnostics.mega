@@ -1,0 +1,383 @@
+// OMEGA Error Diagnostics System - Written in MEGA
+// Advanced error diagnostics dan reporting untuk production compiler
+// Mendukung rich error messages, suggestions, dan context-aware diagnostics
+
+import "./error_types.mega";
+import "../parser/ast_nodes.mega";
+
+/// Advanced error diagnostics system untuk OMEGA compiler
+/// Menyediakan rich error reporting dengan context dan suggestions
+blockchain ErrorDiagnosticsSystem {
+    state {
+        DiagnosticEngine engine;                // Core diagnostic engine
+        DiagnosticFormatter formatter;          // Error message formatter
+        DiagnosticContext context_manager;      // Context management
+        DiagnosticCache cache;                  // Caching untuk performance
+        DiagnosticConfig config;                // Configuration settings
+        bool enhanced_diagnostics_enabled;      // Enhanced diagnostics flag
+    }
+    
+    constructor() {
+        engine = DiagnosticEngine::new();
+        formatter = DiagnosticFormatter::new();
+        context_manager = DiagnosticContext::new();
+        cache = DiagnosticCache::new();
+        config = DiagnosticConfig::default();
+        enhanced_diagnostics_enabled = true;
+    }
+    
+    /// Generate comprehensive diagnostic for error
+    /// @param error The error to diagnose
+    /// @param source_code Source code context
+    /// @param compilation_context Current compilation context
+    /// @return Comprehensive diagnostic information
+    function generate_diagnostic(OmegaError memory error, SourceCode memory source_code, 
+                               CompilationContext memory compilation_context) 
+        public returns (ComprehensiveDiagnostic memory) {
+        
+        // Check cache first for performance
+        bytes32 diagnostic_key = generate_diagnostic_key(error, source_code);
+        if (cache.has_diagnostic(diagnostic_key)) {
+            return cache.get_diagnostic(diagnostic_key);
+        }
+        
+        // Generate new diagnostic
+        ComprehensiveDiagnostic memory diagnostic = ComprehensiveDiagnostic({
+            error: error,
+            primary_message: generate_primary_message(error),
+            secondary_messages: generate_secondary_messages(error, source_code),
+            code_snippet: extract_code_snippet(error.location, source_code),
+            suggestions: generate_suggestions(error, compilation_context),
+            related_errors: find_related_errors(error, compilation_context),
+            severity_explanation: explain_severity(error.severity),
+            fix_suggestions: generate_fix_suggestions(error, source_code),
+            documentation_links: generate_documentation_links(error),
+            similar_cases: find_similar_cases(error)
+        });
+        
+        // Cache the diagnostic
+        cache.store_diagnostic(diagnostic_key, diagnostic);
+        
+        return diagnostic;
+    }
+    
+    /// Generate primary error message with rich context
+    function generate_primary_message(OmegaError memory error) private view returns (string memory) {
+        string memory base_message = error.message;
+        
+        // Enhance message based on error type
+        if (error.error_type == ErrorType.SyntaxError) {
+            return enhance_syntax_error_message(error);
+        } else if (error.error_type == ErrorType.TypeError) {
+            return enhance_type_error_message(error);
+        } else if (error.error_type == ErrorType.SemanticError) {
+            return enhance_semantic_error_message(error);
+        } else if (error.error_type == ErrorType.CompilationError) {
+            return enhance_compilation_error_message(error);
+        }
+        
+        return base_message;
+    }
+    
+    /// Generate secondary messages for additional context
+    function generate_secondary_messages(OmegaError memory error, SourceCode memory source_code) 
+        private view returns (string[] memory) {
+        
+        string[] memory messages;
+        
+        // Add context-specific secondary messages
+        if (error.error_type == ErrorType.SyntaxError) {
+            messages = generate_syntax_secondary_messages(error, source_code);
+        } else if (error.error_type == ErrorType.TypeError) {
+            messages = generate_type_secondary_messages(error, source_code);
+        }
+        
+        // Add general context information
+        string[] memory general_messages = generate_general_context_messages(error, source_code);
+        
+        // Combine messages
+        return combine_message_arrays(messages, general_messages);
+    }
+    
+    /// Extract relevant code snippet with highlighting
+    function extract_code_snippet(SourceLocation memory location, SourceCode memory source_code) 
+        private pure returns (CodeSnippet memory) {
+        
+        // Calculate snippet boundaries
+        uint256 start_line = location.line > 2 ? location.line - 2 : 1;
+        uint256 end_line = location.line + 2;
+        
+        // Extract lines
+        string[] memory lines = extract_lines(source_code, start_line, end_line);
+        
+        // Generate line numbers
+        uint256[] memory line_numbers = generate_line_numbers(start_line, end_line);
+        
+        // Create highlighting information
+        HighlightInfo memory highlight = HighlightInfo({
+            line: location.line,
+            start_column: location.column,
+            end_column: location.column + location.length,
+            highlight_type: HighlightType.Error
+        });
+        
+        return CodeSnippet({
+            lines: lines,
+            line_numbers: line_numbers,
+            highlights: [highlight],
+            file_path: source_code.file_path
+        });
+    }
+    
+    /// Generate intelligent suggestions based on error context
+    function generate_suggestions(OmegaError memory error, CompilationContext memory context) 
+        private view returns (Suggestion[] memory) {
+        
+        Suggestion[] memory suggestions;
+        
+        // Generate suggestions based on error type
+        if (error.error_type == ErrorType.SyntaxError) {
+            suggestions = generate_syntax_suggestions(error, context);
+        } else if (error.error_type == ErrorType.TypeError) {
+            suggestions = generate_type_suggestions(error, context);
+        } else if (error.error_type == ErrorType.SemanticError) {
+            suggestions = generate_semantic_suggestions(error, context);
+        }
+        
+        // Add general suggestions
+        Suggestion[] memory general_suggestions = generate_general_suggestions(error);
+        
+        return combine_suggestion_arrays(suggestions, general_suggestions);
+    }
+    
+    /// Generate syntax-specific suggestions
+    function generate_syntax_suggestions(OmegaError memory error, CompilationContext memory context) 
+        private view returns (Suggestion[] memory) {
+        
+        Suggestion[] memory suggestions;
+        
+        // Common syntax error patterns
+        if (contains_pattern(error.message, "expected ';'")) {
+            suggestions = append_suggestion(suggestions, Suggestion({
+                type: SuggestionType.AddToken,
+                description: "Add missing semicolon",
+                code_fix: ";",
+                confidence: 90
+            }));
+        }
+        
+        if (contains_pattern(error.message, "expected '}'")) {
+            suggestions = append_suggestion(suggestions, Suggestion({
+                type: SuggestionType.AddToken,
+                description: "Add missing closing brace",
+                code_fix: "}",
+                confidence: 85
+            }));
+        }
+        
+        if (contains_pattern(error.message, "unexpected token")) {
+            suggestions = append_suggestion(suggestions, Suggestion({
+                type: SuggestionType.RemoveToken,
+                description: "Remove unexpected token",
+                code_fix: "",
+                confidence: 70
+            }));
+        }
+        
+        return suggestions;
+    }
+    
+    /// Generate type-specific suggestions
+    function generate_type_suggestions(OmegaError memory error, CompilationContext memory context) 
+        private view returns (Suggestion[] memory) {
+        
+        Suggestion[] memory suggestions;
+        
+        // Type mismatch suggestions
+        if (contains_pattern(error.message, "type mismatch")) {
+            suggestions = append_suggestion(suggestions, Suggestion({
+                type: SuggestionType.TypeCast,
+                description: "Add explicit type cast",
+                code_fix: generate_type_cast_suggestion(error),
+                confidence: 80
+            }));
+        }
+        
+        // Undefined variable suggestions
+        if (contains_pattern(error.message, "undefined variable")) {
+            string variable_name = extract_variable_name(error.message);
+            string[] memory similar_variables = find_similar_variable_names(variable_name, context);
+            
+            for (uint256 i = 0; i < similar_variables.length; i++) {
+                suggestions = append_suggestion(suggestions, Suggestion({
+                    type: SuggestionType.VariableRename,
+                    description: string.concat("Did you mean '", similar_variables[i], "'?"),
+                    code_fix: similar_variables[i],
+                    confidence: calculate_similarity_confidence(variable_name, similar_variables[i])
+                }));
+            }
+        }
+        
+        return suggestions;
+    }
+    
+    /// Generate fix suggestions with code examples
+    function generate_fix_suggestions(OmegaError memory error, SourceCode memory source_code) 
+        private view returns (FixSuggestion[] memory) {
+        
+        FixSuggestion[] memory fixes;
+        
+        // Generate fixes based on error type and context
+        if (error.error_type == ErrorType.SyntaxError) {
+            fixes = generate_syntax_fixes(error, source_code);
+        } else if (error.error_type == ErrorType.TypeError) {
+            fixes = generate_type_fixes(error, source_code);
+        }
+        
+        return fixes;
+    }
+    
+    /// Find related errors that might be connected
+    function find_related_errors(OmegaError memory error, CompilationContext memory context) 
+        private view returns (RelatedError[] memory) {
+        
+        RelatedError[] memory related;
+        
+        // Find errors in same function/scope
+        RelatedError[] memory scope_related = find_scope_related_errors(error, context);
+        
+        // Find errors with similar patterns
+        RelatedError[] memory pattern_related = find_pattern_related_errors(error, context);
+        
+        return combine_related_error_arrays(scope_related, pattern_related);
+    }
+    
+    /// Generate documentation links for error types
+    function generate_documentation_links(OmegaError memory error) 
+        private pure returns (DocumentationLink[] memory) {
+        
+        DocumentationLink[] memory links;
+        
+        // Base documentation URL
+        string memory base_url = "https://docs.omega-lang.org/errors/";
+        
+        // Generate specific links based on error type
+        links = append_documentation_link(links, DocumentationLink({
+            title: "Error Reference",
+            url: string.concat(base_url, error_type_to_string(error.error_type)),
+            description: "Detailed explanation of this error type"
+        }));
+        
+        // Add language-specific links
+        if (error.error_type == ErrorType.SyntaxError) {
+            links = append_documentation_link(links, DocumentationLink({
+                title: "OMEGA Syntax Guide",
+                url: string.concat(base_url, "syntax-guide"),
+                description: "Complete syntax reference for OMEGA language"
+            }));
+        }
+        
+        return links;
+    }
+    
+    /// Format diagnostic for console output
+    function format_for_console(ComprehensiveDiagnostic memory diagnostic) 
+        public view returns (string memory) {
+        
+        return formatter.format_console_output(diagnostic, config.console_format);
+    }
+    
+    /// Format diagnostic for IDE integration
+    function format_for_ide(ComprehensiveDiagnostic memory diagnostic) 
+        public view returns (string memory) {
+        
+        return formatter.format_ide_output(diagnostic, config.ide_format);
+    }
+    
+    /// Format diagnostic for JSON output
+    function format_for_json(ComprehensiveDiagnostic memory diagnostic) 
+        public view returns (string memory) {
+        
+        return formatter.format_json_output(diagnostic);
+    }
+}
+
+/// Comprehensive diagnostic structure
+struct ComprehensiveDiagnostic {
+    OmegaError error;
+    string primary_message;
+    string[] secondary_messages;
+    CodeSnippet code_snippet;
+    Suggestion[] suggestions;
+    RelatedError[] related_errors;
+    string severity_explanation;
+    FixSuggestion[] fix_suggestions;
+    DocumentationLink[] documentation_links;
+    SimilarCase[] similar_cases;
+}
+
+/// Code snippet with highlighting
+struct CodeSnippet {
+    string[] lines;
+    uint256[] line_numbers;
+    HighlightInfo[] highlights;
+    string file_path;
+}
+
+/// Suggestion for fixing errors
+struct Suggestion {
+    SuggestionType type;
+    string description;
+    string code_fix;
+    uint256 confidence;
+}
+
+/// Fix suggestion with before/after code
+struct FixSuggestion {
+    string description;
+    string before_code;
+    string after_code;
+    uint256 confidence;
+    bool automatic_fix_available;
+}
+
+/// Related error information
+struct RelatedError {
+    OmegaError error;
+    string relationship_description;
+    uint256 confidence;
+}
+
+/// Documentation link
+struct DocumentationLink {
+    string title;
+    string url;
+    string description;
+}
+
+/// Similar case from error database
+struct SimilarCase {
+    string description;
+    string solution;
+    uint256 similarity_score;
+}
+
+/// Suggestion types
+enum SuggestionType {
+    AddToken,
+    RemoveToken,
+    ReplaceToken,
+    TypeCast,
+    VariableRename,
+    FunctionRename,
+    ImportAdd,
+    ConfigurationChange
+}
+
+/// Highlight types for code snippets
+enum HighlightType {
+    Error,
+    Warning,
+    Info,
+    Suggestion
+}

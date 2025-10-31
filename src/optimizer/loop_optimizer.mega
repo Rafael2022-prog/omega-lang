@@ -179,11 +179,58 @@ blockchain LoopOptimizerPass {
         IRInstruction[] memory instructions,
         uint256 header_index
     ) private pure returns (uint256 exit_block, uint256[] memory body_blocks) {
-        // Simplified implementation - would use proper CFG analysis in real compiler
-        exit_block = header_index + 10; // Placeholder
-        body_blocks = new uint256[](1);
-        body_blocks[0] = header_index + 1;
+        // Analyze control flow to find actual loop bounds
+        uint256 current_index = header_index;
+        uint256[] memory temp_body = new uint256[](instructions.length);
+        uint256 body_count = 0;
+        
+        // Find loop body by following control flow
+        for (uint256 i = header_index + 1; i < instructions.length; i++) {
+            IRInstruction memory instr = instructions[i];
+            
+            // Check if this instruction is part of loop body
+            if (is_loop_body_instruction(instr, header_index)) {
+                temp_body[body_count] = i;
+                body_count++;
+            }
+            
+            // Check for loop exit conditions
+            if (is_loop_exit_instruction(instr)) {
+                exit_block = i + 1;
+                break;
+            }
+        }
+        
+        // If no explicit exit found, use heuristic
+        if (exit_block == 0) {
+            exit_block = header_index + (body_count > 0 ? body_count + 2 : 10);
+        }
+        
+        // Copy body blocks to properly sized array
+        body_blocks = new uint256[](body_count);
+        for (uint256 i = 0; i < body_count; i++) {
+            body_blocks[i] = temp_body[i];
+        }
+        
         return (exit_block, body_blocks);
+    }
+    
+    /// Check if instruction is part of loop body
+    function is_loop_body_instruction(IRInstruction memory instr, uint256 header_index) private pure returns (bool) {
+        // Instructions that modify loop variables or are within loop scope
+        return (instr.opcode == IROpcode.Store || 
+                instr.opcode == IROpcode.Load ||
+                instr.opcode == IROpcode.Add ||
+                instr.opcode == IROpcode.Sub ||
+                instr.opcode == IROpcode.Call);
+    }
+    
+    /// Check if instruction is a loop exit
+    function is_loop_exit_instruction(IRInstruction memory instr) private pure returns (bool) {
+        // Branch instructions that could exit the loop
+        return (instr.opcode == IROpcode.BranchConditional ||
+                instr.opcode == IROpcode.Branch ||
+                instr.opcode == IROpcode.Return);
     }
     
     /// Find loop invariant instructions

@@ -1,0 +1,306 @@
+// OMEGA Error Recovery System - Written in MEGA
+// Advanced error recovery mechanisms untuk production compiler
+// Mendukung graceful degradation dan intelligent error recovery
+
+import "./error_types.mega";
+import "../parser/ast_nodes.mega";
+
+/// Advanced error recovery system untuk OMEGA compiler
+/// Mengimplementasikan multiple recovery strategies dan graceful degradation
+blockchain ErrorRecoverySystem {
+    state {
+        RecoveryStrategies strategies;          // Available recovery strategies
+        RecoveryContext current_context;        // Current recovery context
+        RecoveryHistory history;                // History of recovery attempts
+        RecoveryMetrics metrics;                // Performance metrics
+        bool adaptive_recovery_enabled;         // Adaptive recovery flag
+        uint256 max_recovery_attempts;          // Maximum recovery attempts per error
+    }
+    
+    constructor() {
+        strategies = initialize_recovery_strategies();
+        current_context = RecoveryContext::new();
+        history = RecoveryHistory::new();
+        metrics = RecoveryMetrics::new();
+        adaptive_recovery_enabled = true;
+        max_recovery_attempts = 3;
+    }
+    
+    /// Attempt comprehensive error recovery
+    /// @param error The error to recover from
+    /// @param context Current compilation context
+    /// @return Recovery result with success status and recovered state
+    function attempt_recovery(OmegaError memory error, CompilationContext memory context) 
+        public returns (RecoveryResult memory) {
+        
+        // Check if recovery is possible for this error type
+        if (!is_recoverable_error(error)) {
+            return RecoveryResult({
+                success: false,
+                strategy_used: RecoveryStrategy.None,
+                recovered_state: context,
+                error_message: "Error is not recoverable",
+                recovery_time: 0
+            });
+        }
+        
+        uint256 start_time = block.timestamp;
+        
+        // Select optimal recovery strategy
+        RecoveryStrategy strategy = select_recovery_strategy(error, context);
+        
+        // Attempt recovery with selected strategy
+        RecoveryResult memory result = execute_recovery_strategy(error, context, strategy);
+        
+        // Update metrics and history
+        uint256 recovery_time = block.timestamp - start_time;
+        result.recovery_time = recovery_time;
+        
+        metrics.record_recovery_attempt(error.error_type, strategy, result.success, recovery_time);
+        history.add_recovery_attempt(error, strategy, result);
+        
+        // Adaptive learning from recovery results
+        if (adaptive_recovery_enabled) {
+            update_strategy_effectiveness(strategy, result.success);
+        }
+        
+        return result;
+    }
+    
+    /// Select optimal recovery strategy based on error type and context
+    function select_recovery_strategy(OmegaError memory error, CompilationContext memory context) 
+        private returns (RecoveryStrategy) {
+        
+        // Strategy selection based on error type
+        if (error.error_type == ErrorType.SyntaxError) {
+            return select_syntax_recovery_strategy(error, context);
+        } else if (error.error_type == ErrorType.TypeError) {
+            return select_type_recovery_strategy(error, context);
+        } else if (error.error_type == ErrorType.SemanticError) {
+            return select_semantic_recovery_strategy(error, context);
+        } else if (error.error_type == ErrorType.CompilationError) {
+            return select_compilation_recovery_strategy(error, context);
+        }
+        
+        return RecoveryStrategy.PanicMode;
+    }
+    
+    /// Execute specific recovery strategy
+    function execute_recovery_strategy(OmegaError memory error, CompilationContext memory context, 
+                                     RecoveryStrategy strategy) private returns (RecoveryResult memory) {
+        
+        switch (strategy) {
+            case RecoveryStrategy.TokenInsertion:
+                return execute_token_insertion_recovery(error, context);
+            case RecoveryStrategy.TokenDeletion:
+                return execute_token_deletion_recovery(error, context);
+            case RecoveryStrategy.TokenSubstitution:
+                return execute_token_substitution_recovery(error, context);
+            case RecoveryStrategy.SynchronizationPoint:
+                return execute_synchronization_recovery(error, context);
+            case RecoveryStrategy.PanicMode:
+                return execute_panic_mode_recovery(error, context);
+            case RecoveryStrategy.ErrorProduction:
+                return execute_error_production_recovery(error, context);
+            case RecoveryStrategy.LocalCorrection:
+                return execute_local_correction_recovery(error, context);
+            case RecoveryStrategy.GlobalCorrection:
+                return execute_global_correction_recovery(error, context);
+            default:
+                return RecoveryResult({
+                    success: false,
+                    strategy_used: strategy,
+                    recovered_state: context,
+                    error_message: "Unknown recovery strategy",
+                    recovery_time: 0
+                });
+        }
+    }
+    
+    /// Token insertion recovery for missing tokens
+    function execute_token_insertion_recovery(OmegaError memory error, CompilationContext memory context) 
+        private returns (RecoveryResult memory) {
+        
+        // Analyze context to determine what token should be inserted
+        Token missing_token = infer_missing_token(error, context);
+        
+        if (missing_token.token_type != TokenType.Unknown) {
+            // Insert the missing token
+            context.token_stream = insert_token_at_position(
+                context.token_stream, 
+                missing_token, 
+                error.location.position
+            );
+            
+            return RecoveryResult({
+                success: true,
+                strategy_used: RecoveryStrategy.TokenInsertion,
+                recovered_state: context,
+                error_message: string.concat("Inserted missing token: ", missing_token.value),
+                recovery_time: 0
+            });
+        }
+        
+        return RecoveryResult({
+            success: false,
+            strategy_used: RecoveryStrategy.TokenInsertion,
+            recovered_state: context,
+            error_message: "Could not infer missing token",
+            recovery_time: 0
+        });
+    }
+    
+    /// Synchronization point recovery for parser resynchronization
+    function execute_synchronization_recovery(OmegaError memory error, CompilationContext memory context) 
+        private returns (RecoveryResult memory) {
+        
+        // Find next synchronization point (e.g., semicolon, closing brace)
+        uint256 sync_position = find_synchronization_point(context.token_stream, error.location.position);
+        
+        if (sync_position != type(uint256).max) {
+            // Skip tokens until synchronization point
+            context.current_position = sync_position + 1;
+            
+            return RecoveryResult({
+                success: true,
+                strategy_used: RecoveryStrategy.SynchronizationPoint,
+                recovered_state: context,
+                error_message: "Synchronized at next statement boundary",
+                recovery_time: 0
+            });
+        }
+        
+        return RecoveryResult({
+            success: false,
+            strategy_used: RecoveryStrategy.SynchronizationPoint,
+            recovered_state: context,
+            error_message: "No synchronization point found",
+            recovery_time: 0
+        });
+    }
+    
+    /// Panic mode recovery for severe errors
+    function execute_panic_mode_recovery(OmegaError memory error, CompilationContext memory context) 
+        private returns (RecoveryResult memory) {
+        
+        // Enter panic mode - skip tokens until stable state
+        uint256 stable_position = find_stable_parsing_state(context.token_stream, error.location.position);
+        
+        context.current_position = stable_position;
+        context.panic_mode = true;
+        
+        return RecoveryResult({
+            success: true,
+            strategy_used: RecoveryStrategy.PanicMode,
+            recovered_state: context,
+            error_message: "Entered panic mode recovery",
+            recovery_time: 0
+        });
+    }
+    
+    /// Local correction recovery for minor syntax errors
+    function execute_local_correction_recovery(OmegaError memory error, CompilationContext memory context) 
+        private returns (RecoveryResult memory) {
+        
+        // Attempt local corrections based on common patterns
+        LocalCorrection[] corrections = generate_local_corrections(error, context);
+        
+        for (uint256 i = 0; i < corrections.length; i++) {
+            if (validate_correction(corrections[i], context)) {
+                apply_correction(corrections[i], context);
+                
+                return RecoveryResult({
+                    success: true,
+                    strategy_used: RecoveryStrategy.LocalCorrection,
+                    recovered_state: context,
+                    error_message: string.concat("Applied local correction: ", corrections[i].description),
+                    recovery_time: 0
+                });
+            }
+        }
+        
+        return RecoveryResult({
+            success: false,
+            strategy_used: RecoveryStrategy.LocalCorrection,
+            recovered_state: context,
+            error_message: "No valid local corrections found",
+            recovery_time: 0
+        });
+    }
+    
+    /// Check if error is recoverable
+    function is_recoverable_error(OmegaError memory error) private pure returns (bool) {
+        return error.severity != ErrorSeverity.Fatal && 
+               error.error_type != ErrorType.InternalError &&
+               error.error_type != ErrorType.SystemError;
+    }
+    
+    /// Initialize recovery strategies with effectiveness weights
+    function initialize_recovery_strategies() private pure returns (RecoveryStrategies memory) {
+        return RecoveryStrategies({
+            token_insertion_weight: 80,
+            token_deletion_weight: 70,
+            token_substitution_weight: 75,
+            synchronization_weight: 90,
+            panic_mode_weight: 95,
+            error_production_weight: 60,
+            local_correction_weight: 85,
+            global_correction_weight: 50
+        });
+    }
+    
+    /// Update strategy effectiveness based on success rate
+    function update_strategy_effectiveness(RecoveryStrategy strategy, bool success) private {
+        if (success) {
+            strategies.increase_weight(strategy, 5);
+        } else {
+            strategies.decrease_weight(strategy, 2);
+        }
+    }
+    
+    /// Generate recovery suggestions for user
+    function generate_recovery_suggestions(OmegaError memory error) public view returns (string[] memory) {
+        string[] memory suggestions;
+        
+        if (error.error_type == ErrorType.SyntaxError) {
+            suggestions = generate_syntax_suggestions(error);
+        } else if (error.error_type == ErrorType.TypeError) {
+            suggestions = generate_type_suggestions(error);
+        } else if (error.error_type == ErrorType.SemanticError) {
+            suggestions = generate_semantic_suggestions(error);
+        }
+        
+        return suggestions;
+    }
+}
+
+/// Recovery strategy enumeration
+enum RecoveryStrategy {
+    None,
+    TokenInsertion,
+    TokenDeletion,
+    TokenSubstitution,
+    SynchronizationPoint,
+    PanicMode,
+    ErrorProduction,
+    LocalCorrection,
+    GlobalCorrection
+}
+
+/// Recovery result structure
+struct RecoveryResult {
+    bool success;
+    RecoveryStrategy strategy_used;
+    CompilationContext recovered_state;
+    string error_message;
+    uint256 recovery_time;
+}
+
+/// Recovery metrics for performance tracking
+struct RecoveryMetrics {
+    mapping(ErrorType => uint256) recovery_attempts;
+    mapping(ErrorType => uint256) successful_recoveries;
+    mapping(RecoveryStrategy => uint256) strategy_usage;
+    mapping(RecoveryStrategy => uint256) strategy_success;
+    uint256 total_recovery_time;
+}

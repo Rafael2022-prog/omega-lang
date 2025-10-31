@@ -498,7 +498,25 @@ blockchain SolanaCodeGenerator : CodeGenerator {
     }
 
     function _generate_program_id() private pure returns (string) {
-        return "11111111111111111111111111111112"; // Placeholder
+        // Generate deterministic program ID based on contract context
+        string memory contract_name = current_context.contract_name;
+        uint256 seed = uint256(keccak256(abi.encodePacked(contract_name, "OMEGA_LEGACY")));
+        
+        // Convert to Solana-compatible base58 format
+        return _uint256_to_base58(seed);
+    }
+    
+    function _uint256_to_base58(uint256 value) private pure returns (string memory) {
+        // Simplified base58 encoding for legacy compatibility
+        string memory alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        bytes memory result = new bytes(44);
+        
+        for (uint256 i = 0; i < 44; i++) {
+            result[i] = bytes(alphabet)[value % 58];
+            value = value / 58;
+        }
+        
+        return string(result);
     }
 
     function _generate_solana_imports() private pure returns (string) {

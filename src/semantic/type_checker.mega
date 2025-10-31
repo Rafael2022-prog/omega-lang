@@ -337,7 +337,30 @@ blockchain TypeChecker {
         
         if (return_stmt.value.expression_type != ExpressionType.None) {
             Type memory return_type = type_check_expression(return_stmt.value);
-            // TODO: Check against function return type
+            
+            // Check against function's declared return type
+            if (current_function.return_type.type_name != "void") {
+                if (!types_compatible(return_type, current_function.return_type)) {
+                    add_error(string.concat(
+                        "Return type mismatch: expected '", 
+                        current_function.return_type.type_name,
+                        "', got '", 
+                        return_type.type_name,
+                        "'"
+                    ));
+                }
+            }
+        } else {
+            // Empty return statement
+            if (current_function.return_type.type_name != "void") {
+                add_error(string.concat(
+                    "Function '", 
+                    current_function.name, 
+                    "' must return a value of type '", 
+                    current_function.return_type.type_name,
+                    "'"
+                ));
+            }
         }
     }
     
@@ -627,9 +650,54 @@ blockchain TypeChecker {
         
         Type memory object_type = type_check_expression(member_expr.object);
         
-        // TODO: Implement member access type checking based on object type
-        
-        return get_error_type();
+        // Implement member access type checking based on object type
+        if (object_type.type_name == "struct") {
+            // Check if member exists in struct definition
+            StructDefinition memory struct_def = get_struct_definition(object_type.struct_name);
+            
+            for (uint256 i = 0; i < struct_def.fields.length; i++) {
+                if (keccak256(bytes(struct_def.fields[i].name)) == keccak256(bytes(member_expr.member_name))) {
+                    return struct_def.fields[i].field_type;
+                }
+            }
+            
+            report_type_error(
+                string.concat("Struct '", object_type.struct_name, "' has no member '", member_expr.member_name, "'"),
+                0, 0
+            );
+            return get_error_type();
+            
+        } else if (object_type.type_name == "mapping") {
+            // For mappings, return the value type
+            return object_type.value_type;
+            
+        } else if (object_type.type_name == "array") {
+            // Built-in array properties
+            if (keccak256(bytes(member_expr.member_name)) == keccak256(bytes("length"))) {
+                return Type({
+                    type_name: "uint256",
+                    is_array: false,
+                    is_mapping: false,
+                    array_size: 0,
+                    key_type: Type({type_name: "", is_array: false, is_mapping: false, array_size: 0, key_type: Type({}), value_type: Type({}), struct_name: ""}),
+                    value_type: Type({type_name: "", is_array: false, is_mapping: false, array_size: 0, key_type: Type({}), value_type: Type({}), struct_name: ""}),
+                    struct_name: ""
+                });
+            }
+            
+            report_type_error(
+                string.concat("Array type has no member '", member_expr.member_name, "'"),
+                0, 0
+            );
+            return get_error_type();
+            
+        } else {
+            report_type_error(
+                string.concat("Type '", object_type.type_name, "' has no members"),
+                0, 0
+            );
+            return get_error_type();
+        }
     }
     
     /// Type check array/index access
@@ -667,7 +735,46 @@ blockchain TypeChecker {
     
     /// Validate return paths in function
     function validate_return_paths(Block memory block, Type memory expected_type) public {
-        // TODO: Implement return path validation
+        // Implement return path validation
+        bool has_return = false;
+        bool all_paths_return = true;
+        
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            Statement memory stmt = block.statements[i];
+            
+            if (stmt.statement_type == StatementType.Return) {
+                has_return = true;
+                // Return statement found, validate its type
+                if (stmt.return_statement.expression.expression_type != ExpressionType.None) {
+                    Type memory return_type = type_check_expression(stmt.return_statement.expression);
+                    if (!types_compatible(expected_type, return_type)) {
+                        report_type_error(
+                            string.concat("Return type mismatch: expected '", expected_type.type_name, "', got '", return_type.type_name, "'"),
+                            0, 0
+                        );
+                    }
+                }
+            } else if (stmt.statement_type == StatementType.If) {
+                // Check if all branches have return statements
+                validate_return_paths(stmt.if_statement.then_block, expected_type);
+                if (stmt.if_statement.else_block.statements.length > 0) {
+                    validate_return_paths(stmt.if_statement.else_block, expected_type);
+                } else {
+                    all_paths_return = false;
+                }
+            } else if (stmt.statement_type == StatementType.While || stmt.statement_type == StatementType.For) {
+                // Loops don't guarantee return paths
+                all_paths_return = false;
+            }
+        }
+        
+        // Check if function requires return but doesn't have one
+        if (expected_type.type_name != "void" && !has_return) {
+            report_type_error(
+                string.concat("Function must return a value of type '", expected_type.type_name, "'"),
+                0, 0
+            );
+        }
     }
     
     /// Check if type is valid

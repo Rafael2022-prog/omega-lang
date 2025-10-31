@@ -348,11 +348,53 @@ blockchain OmegaCompiler {
         // Start deployment process
         _print_info(string.concat("Deploying to ", target_platform, " on ", network, " network..."));
         
-        // TODO: Implement actual deployment logic
-        // - Load compiled contracts
-        // - Connect to target network
-        // - Deploy contracts
-        // - Verify deployment
+        // Implement actual deployment logic
+        try {
+            // Load compiled contracts from build directory
+            string[] contract_files = _discover_compiled_contracts();
+            if (contract_files.length == 0) {
+                _print_error("No compiled contracts found. Run 'omega build' first.");
+                return 1;
+            }
+            
+            // Initialize deployment manager for target platform
+            DeploymentManager memory deploy_manager = _create_deployment_manager(target_platform, network);
+            
+            // Connect to target network
+            bool connected = deploy_manager.connect_to_network();
+            if (!connected) {
+                _print_error(string.concat("Failed to connect to ", network, " network"));
+                return 1;
+            }
+            
+            // Deploy each contract
+            for (uint256 i = 0; i < contract_files.length; i++) {
+                _print_info(string.concat("Deploying contract: ", contract_files[i]));
+                
+                DeploymentResult memory result = deploy_manager.deploy_contract(contract_files[i]);
+                
+                if (!result.success) {
+                    _print_error(string.concat("Failed to deploy ", contract_files[i], ": ", result.error_message));
+                    return 1;
+                }
+                
+                _print_success(string.concat("Contract deployed at: ", result.contract_address));
+                
+                // Verify deployment if requested
+                if (_has_flag(args, "--verify")) {
+                    bool verified = deploy_manager.verify_contract(result.contract_address, contract_files[i]);
+                    if (verified) {
+                        _print_success("Contract verification successful");
+                    } else {
+                        _print_warning("Contract verification failed");
+                    }
+                }
+            }
+            
+        } catch (Error memory e) {
+            _print_error(string.concat("Deployment failed: ", e.message));
+            return 1;
+        }
         
         _print_success("Deployment completed successfully!");
         return 0;
@@ -365,14 +407,72 @@ blockchain OmegaCompiler {
     function _handle_test(string[] args) private returns (int) {
         _print_info("Running OMEGA tests...");
         
-        // TODO: Implement test execution logic
-        // - Discover test files
-        // - Compile test contracts
-        // - Execute tests
-        // - Generate test reports
-        
-        _print_success("All tests passed!");
-        return 0;
+        // Implement test execution logic
+        try {
+            // Parse test options
+            string test_pattern = _get_flag_value(args, "--pattern");
+            bool verbose = _has_flag(args, "--verbose");
+            bool cross_chain = _has_flag(args, "--cross-chain");
+            
+            // Discover test files
+            string[] test_files = _discover_test_files(test_pattern);
+            if (test_files.length == 0) {
+                _print_warning("No test files found matching pattern");
+                return 0;
+            }
+            
+            _print_info(string.concat("Found ", uint256_to_string(test_files.length), " test files"));
+            
+            // Initialize test runner
+            TestRunner memory test_runner = _create_test_runner(verbose, cross_chain);
+            TestResults memory overall_results = TestResults({
+                total_tests: 0,
+                passed_tests: 0,
+                failed_tests: 0,
+                skipped_tests: 0,
+                execution_time: 0
+            });
+            
+            // Compile and execute each test file
+            for (uint256 i = 0; i < test_files.length; i++) {
+                _print_info(string.concat("Running tests in: ", test_files[i]));
+                
+                // Compile test contract
+                CompilationResult memory compile_result = _compile_test_file(test_files[i]);
+                if (!compile_result.success) {
+                    _print_error(string.concat("Failed to compile test: ", compile_result.error_message));
+                    overall_results.failed_tests++;
+                    continue;
+                }
+                
+                // Execute tests in the file
+                TestResults memory file_results = test_runner.execute_test_file(test_files[i], compile_result);
+                
+                // Aggregate results
+                overall_results.total_tests += file_results.total_tests;
+                overall_results.passed_tests += file_results.passed_tests;
+                overall_results.failed_tests += file_results.failed_tests;
+                overall_results.skipped_tests += file_results.skipped_tests;
+                overall_results.execution_time += file_results.execution_time;
+                
+                if (verbose) {
+                    _print_test_file_summary(test_files[i], file_results);
+                }
+            }
+            
+            // Generate comprehensive test report
+            _generate_test_report(overall_results, test_files);
+            
+            // Print final summary
+            _print_test_summary(overall_results);
+            
+            // Return appropriate exit code
+            return overall_results.failed_tests > 0 ? 1 : 0;
+            
+        } catch (Error memory e) {
+            _print_error(string.concat("Test execution failed: ", e.message));
+            return 1;
+        }
     }
 
     /// Handler untuk init command - inisialisasi project baru

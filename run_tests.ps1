@@ -71,10 +71,10 @@ Generated: $timestamp
         $totalTests++
         if ($Results[$test]) {
             $passedTests++
-            $report += "`n- ✅ $test: PASSED"
+            $report += "`n- ✅ ${test}: PASSED"
         } else {
             $failedTests++
-            $report += "`n- ❌ $test: FAILED"
+            $report += "`n- ❌ ${test}: FAILED"
         }
     }
     

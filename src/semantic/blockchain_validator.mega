@@ -507,57 +507,648 @@ blockchain BlockchainValidator {
     
     /// Validate storage access patterns
     function validate_storage_access_patterns(Block memory block) public {
-        // TODO: Implement storage access pattern validation
+        // Implement storage access pattern validation
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            Statement memory stmt = block.statements[i];
+            
+            if (stmt.statement_type == StatementType.Assignment) {
+                // Check for inefficient storage patterns
+                if (_is_storage_variable(stmt.assignment.target)) {
+                    // Warn about repeated storage writes in loops
+                    if (_is_in_loop_context()) {
+                        _report_warning(
+                            "Storage write inside loop detected - consider batching operations",
+                            stmt.line_number, stmt.column_number
+                        );
+                    }
+                    
+                    // Check for unnecessary storage reads
+                    if (_has_redundant_storage_read(stmt.assignment.value)) {
+                        _report_warning(
+                            "Redundant storage read detected - consider caching in memory",
+                            stmt.line_number, stmt.column_number
+                        );
+                    }
+                }
+            } else if (stmt.statement_type == StatementType.Expression) {
+                // Check for storage access in expressions
+                _validate_expression_storage_access(stmt.expression_statement.expression);
+            } else if (stmt.statement_type == StatementType.Block) {
+                // Recursively validate nested blocks
+                validate_storage_access_patterns(stmt.block_statement);
+            }
+        }
     }
     
     /// Validate loop optimizations
     function validate_loop_optimizations(Block memory block) public {
-        // TODO: Implement loop optimization validation
+        // Implement loop optimization validation
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            Statement memory stmt = block.statements[i];
+            
+            if (stmt.statement_type == StatementType.For) {
+                ForStatement memory for_stmt = stmt.for_statement;
+                
+                // Check for expensive operations in loop condition
+                if (_has_expensive_operation(for_stmt.condition)) {
+                    _report_warning(
+                        "Expensive operation in loop condition - consider caching result",
+                        stmt.line_number, stmt.column_number
+                    );
+                }
+                
+                // Check for array length access in loop condition
+                if (_accesses_array_length(for_stmt.condition)) {
+                    _report_warning(
+                        "Array length access in loop condition - cache length in variable",
+                        stmt.line_number, stmt.column_number
+                    );
+                }
+                
+                // Check for nested loops with high complexity
+                if (_has_nested_loops(for_stmt.body)) {
+                    _report_warning(
+                        "Nested loops detected - consider optimization for gas efficiency",
+                        stmt.line_number, stmt.column_number
+                    );
+                }
+                
+                // Recursively validate loop body
+                validate_loop_optimizations(for_stmt.body);
+                
+            } else if (stmt.statement_type == StatementType.While) {
+                WhileStatement memory while_stmt = stmt.while_statement;
+                
+                // Similar checks for while loops
+                if (_has_expensive_operation(while_stmt.condition)) {
+                    _report_warning(
+                        "Expensive operation in while condition - consider optimization",
+                        stmt.line_number, stmt.column_number
+                    );
+                }
+                
+                validate_loop_optimizations(while_stmt.body);
+                
+            } else if (stmt.statement_type == StatementType.Block) {
+                // Recursively validate nested blocks
+                validate_loop_optimizations(stmt.block_statement);
+            }
+        }
     }
     
     /// Validate data type efficiency
     function validate_data_type_efficiency(Function memory func) public {
-        // TODO: Implement data type efficiency validation
+        // Implement data type efficiency validation
+        for (uint256 i = 0; i < func.parameters.length; i++) {
+            Parameter memory param = func.parameters[i];
+            
+            // Check for inefficient data types
+            if (keccak256(bytes(param.type_name)) == keccak256(bytes("uint8")) && 
+                param.is_array) {
+                add_warning(ValidationWarning({
+                    message: "Consider using uint256[] instead of uint8[] for gas efficiency",
+                    severity: WarningSeverity.Medium,
+                    location: param.location
+                }));
+            }
+            
+            // Check for unnecessary precision
+            if (keccak256(bytes(param.type_name)) == keccak256(bytes("uint256")) &&
+                string_contains(param.name, "count")) {
+                add_warning(ValidationWarning({
+                    message: "Consider using smaller uint type for counters if range is limited",
+                    severity: WarningSeverity.Low,
+                    location: param.location
+                }));
+            }
+        }
+        
+        // Check return type efficiency
+        if (keccak256(bytes(func.return_type)) == keccak256(bytes("string")) &&
+            func.visibility == Visibility.Public) {
+            add_warning(ValidationWarning({
+                message: "Returning strings from public functions is gas-expensive",
+                severity: WarningSeverity.Medium,
+                location: func.location
+            }));
+        }
     }
     
     /// Validate require statements
     function validate_require_statements(Block memory block) public {
-        // TODO: Implement require statement validation
+        // Implement require statement validation
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            Statement memory stmt = block.statements[i];
+            
+            if (stmt.statement_type == StatementType.Expression) {
+                Expression memory expr = stmt.expression;
+                
+                // Check for require statements
+                if (keccak256(bytes(expr.function_name)) == keccak256(bytes("require"))) {
+                    // Validate require has proper error message
+                    if (expr.arguments.length < 2) {
+                        add_error(ValidationError({
+                            message: "require() statements should include error messages",
+                            severity: ErrorSeverity.Medium,
+                            location: stmt.location
+                        }));
+                    }
+                    
+                    // Check for meaningful error messages
+                    if (expr.arguments.length >= 2) {
+                        string memory error_msg = expr.arguments[1].value;
+                        if (bytes(error_msg).length < 10) {
+                            add_warning(ValidationWarning({
+                                message: "Error messages should be descriptive",
+                                severity: WarningSeverity.Low,
+                                location: stmt.location
+                            }));
+                        }
+                    }
+                    
+                    // Check for common require patterns
+                    if (expr.arguments.length >= 1) {
+                        string memory condition = expr.arguments[0].value;
+                        if (string_contains(condition, "msg.sender")) {
+                            // Good: Access control check
+                        } else if (string_contains(condition, "balance")) {
+                            // Good: Balance check
+                        } else {
+                            add_info(ValidationInfo({
+                                message: "Consider adding context to require condition",
+                                location: stmt.location
+                            }));
+                        }
+                    }
+                }
+            }
+        }
     }
     
     /// Validate revert conditions
     function validate_revert_conditions(Block memory block) public {
-        // TODO: Implement revert condition validation
+        // Implement revert condition validation
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            Statement memory stmt = block.statements[i];
+            
+            if (stmt.statement_type == StatementType.Expression) {
+                Expression memory expr = stmt.expression;
+                
+                // Check for revert statements
+                if (keccak256(bytes(expr.function_name)) == keccak256(bytes("revert"))) {
+                    // Validate revert has proper error message
+                    if (expr.arguments.length == 0) {
+                        add_warning(ValidationWarning({
+                            message: "revert() should include error message for better debugging",
+                            severity: WarningSeverity.Medium,
+                            location: stmt.location
+                        }));
+                    }
+                    
+                    // Check for custom error usage (more gas efficient)
+                    if (expr.arguments.length >= 1) {
+                        string memory error_msg = expr.arguments[0].value;
+                        if (!string_contains(error_msg, "Error(")) {
+                            add_info(ValidationInfo({
+                                message: "Consider using custom errors for gas efficiency",
+                                location: stmt.location
+                            }));
+                        }
+                    }
+                }
+                
+                // Check for conditional reverts
+                if (stmt.statement_type == StatementType.If) {
+                    IfStatement memory if_stmt = stmt.if_statement;
+                    if (contains_revert(if_stmt.then_block)) {
+                        // Good: Conditional revert pattern
+                        add_info(ValidationInfo({
+                            message: "Good use of conditional revert pattern",
+                            location: stmt.location
+                        }));
+                    }
+                }
+            }
+        }
     }
     
     /// Validate overflow protection
     function validate_overflow_protection(Block memory block) public {
-        // TODO: Implement overflow protection validation
+        // Implement overflow protection validation
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            Statement memory stmt = block.statements[i];
+            
+            if (stmt.statement_type == StatementType.Assignment) {
+                Assignment memory assignment = stmt.assignment;
+                
+                // Check for arithmetic operations without SafeMath
+                if (contains_arithmetic_operation(assignment.value)) {
+                    string memory operation = get_arithmetic_operation(assignment.value);
+                    
+                    if (keccak256(bytes(operation)) == keccak256(bytes("+"))) {
+                        add_warning(ValidationWarning({
+                            message: "Consider using SafeMath or checked arithmetic for addition",
+                            severity: WarningSeverity.High,
+                            location: stmt.location
+                        }));
+                    } else if (keccak256(bytes(operation)) == keccak256(bytes("-"))) {
+                        add_warning(ValidationWarning({
+                            message: "Consider using SafeMath or checked arithmetic for subtraction",
+                            severity: WarningSeverity.High,
+                            location: stmt.location
+                        }));
+                    } else if (keccak256(bytes(operation)) == keccak256(bytes("*"))) {
+                        add_warning(ValidationWarning({
+                            message: "Consider using SafeMath or checked arithmetic for multiplication",
+                            severity: WarningSeverity.High,
+                            location: stmt.location
+                        }));
+                    }
+                }
+                
+                // Check for unchecked blocks (Solidity 0.8+)
+                if (string_contains(assignment.value, "unchecked")) {
+                    add_warning(ValidationWarning({
+                        message: "Unchecked arithmetic detected - ensure overflow is intended",
+                        severity: WarningSeverity.High,
+                        location: stmt.location
+                    }));
+                }
+            }
+        }
+        
+        // Check for proper bounds checking
+        validate_array_bounds_checking(block);
     }
     
     /// Validate access control patterns
     function validate_access_control_patterns(Blockchain memory blockchain) public {
-        // TODO: Implement access control pattern validation
+        // Implement access control pattern validation
+        bool has_owner_modifier = false;
+        bool has_role_based_access = false;
+        bool has_multi_sig = false;
+        
+        // Check for common access control patterns
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            Function memory func = blockchain.functions[i];
+            
+            // Check for onlyOwner modifier
+            for (uint256 j = 0; j < func.modifiers.length; j++) {
+                string memory modifier_name = func.modifiers[j];
+                if (keccak256(bytes(modifier_name)) == keccak256(bytes("onlyOwner"))) {
+                    has_owner_modifier = true;
+                } else if (string_contains(modifier_name, "onlyRole")) {
+                    has_role_based_access = true;
+                } else if (string_contains(modifier_name, "multiSig")) {
+                    has_multi_sig = true;
+                }
+            }
+            
+            // Check for manual access control in function body
+            if (contains_access_control_check(func.body)) {
+                add_info(ValidationInfo({
+                    message: "Manual access control detected - consider using modifiers",
+                    location: func.location
+                }));
+            }
+            
+            // Validate critical functions have access control
+            if (is_critical_function(func.name) && func.modifiers.length == 0) {
+                add_error(ValidationError({
+                    message: "Critical function lacks access control protection",
+                    severity: ErrorSeverity.High,
+                    location: func.location
+                }));
+            }
+        }
+        
+        // Provide recommendations based on patterns found
+        if (!has_owner_modifier && !has_role_based_access && !has_multi_sig) {
+            add_warning(ValidationWarning({
+                message: "No access control patterns detected - consider implementing Ownable or AccessControl",
+                severity: WarningSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        if (has_owner_modifier && !has_multi_sig) {
+            add_info(ValidationInfo({
+                message: "Consider implementing multi-signature for enhanced security",
+                location: blockchain.location
+            }));
+        }
     }
     
     /// Validate emergency stop patterns
     function validate_emergency_stop_patterns(Blockchain memory blockchain) public {
-        // TODO: Implement emergency stop pattern validation
+        // Implement emergency stop pattern validation
+        bool has_pause_mechanism = false;
+        bool has_emergency_withdraw = false;
+        bool has_circuit_breaker = false;
+        
+        // Check for pausable patterns
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            Function memory func = blockchain.functions[i];
+            
+            // Check for pause/unpause functions
+            if (keccak256(bytes(func.name)) == keccak256(bytes("pause")) ||
+                keccak256(bytes(func.name)) == keccak256(bytes("unpause"))) {
+                has_pause_mechanism = true;
+            }
+            
+            // Check for emergency withdraw
+            if (string_contains(func.name, "emergency") && 
+                string_contains(func.name, "withdraw")) {
+                has_emergency_withdraw = true;
+            }
+            
+            // Check for whenNotPaused modifier
+            for (uint256 j = 0; j < func.modifiers.length; j++) {
+                if (keccak256(bytes(func.modifiers[j])) == keccak256(bytes("whenNotPaused"))) {
+                    has_pause_mechanism = true;
+                }
+            }
+            
+            // Check for circuit breaker patterns
+            if (contains_circuit_breaker_logic(func.body)) {
+                has_circuit_breaker = true;
+            }
+        }
+        
+        // Check state variables for pause flags
+        for (uint256 i = 0; i < blockchain.state_variables.length; i++) {
+            StateVariable memory state_var = blockchain.state_variables[i];
+            if (keccak256(bytes(state_var.name)) == keccak256(bytes("paused")) ||
+                string_contains(state_var.name, "emergency")) {
+                has_pause_mechanism = true;
+            }
+        }
+        
+        // Provide recommendations
+        if (!has_pause_mechanism) {
+            add_warning(ValidationWarning({
+                message: "Consider implementing pausable pattern for emergency stops",
+                severity: WarningSeverity.Medium,
+                location: blockchain.location
+            }));
+        }
+        
+        if (!has_emergency_withdraw && contains_value_transfer(blockchain)) {
+            add_warning(ValidationWarning({
+                message: "Consider implementing emergency withdraw for value-holding contracts",
+                severity: WarningSeverity.Medium,
+                location: blockchain.location
+            }));
+        }
+        
+        if (has_pause_mechanism) {
+            add_info(ValidationInfo({
+                message: "Good: Emergency stop mechanism detected",
+                location: blockchain.location
+            }));
+        }
     }
     
     /// Validate upgrade patterns
     function validate_upgrade_patterns(Blockchain memory blockchain) public {
-        // TODO: Implement upgrade pattern validation
+        // Implement upgrade pattern validation
+        bool has_proxy_pattern = false;
+        bool has_diamond_pattern = false;
+        bool has_beacon_pattern = false;
+        bool has_transparent_proxy = false;
+        bool has_uups_pattern = false;
+        
+        // Check for upgrade-related functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            Function memory func = blockchain.functions[i];
+            
+            // Check for proxy patterns
+            if (keccak256(bytes(func.name)) == keccak256(bytes("upgradeTo")) ||
+                keccak256(bytes(func.name)) == keccak256(bytes("upgradeToAndCall"))) {
+                has_uups_pattern = true;
+            } else if (string_contains(func.name, "proxy")) {
+                has_proxy_pattern = true;
+            } else if (string_contains(func.name, "diamond")) {
+                has_diamond_pattern = true;
+            } else if (string_contains(func.name, "beacon")) {
+                has_beacon_pattern = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("implementation"))) {
+                has_transparent_proxy = true;
+            }
+            
+            // Check for initialization functions
+            if (keccak256(bytes(func.name)) == keccak256(bytes("initialize"))) {
+                validate_initializer_function(func);
+            }
+        }
+        
+        // Check for upgrade-related state variables
+        for (uint256 i = 0; i < blockchain.state_variables.length; i++) {
+            StateVariable memory state_var = blockchain.state_variables[i];
+            if (string_contains(state_var.name, "implementation") ||
+                string_contains(state_var.name, "proxy") ||
+                string_contains(state_var.name, "version")) {
+                has_proxy_pattern = true;
+            }
+        }
+        
+        // Validate upgrade security
+        if (has_proxy_pattern || has_uups_pattern) {
+            validate_upgrade_security(blockchain);
+        }
+        
+        // Provide recommendations
+        if (has_proxy_pattern) {
+            add_info(ValidationInfo({
+                message: "Proxy pattern detected - ensure proper access control for upgrades",
+                location: blockchain.location
+            }));
+        }
+        
+        if (has_uups_pattern) {
+            add_info(ValidationInfo({
+                message: "UUPS pattern detected - validate upgrade authorization logic",
+                location: blockchain.location
+            }));
+        }
+        
+        if (has_diamond_pattern) {
+            add_info(ValidationInfo({
+                message: "Diamond pattern detected - ensure facet management security",
+                location: blockchain.location
+            }));
+        }
+        
+        // Check for storage collision risks
+        validate_storage_layout_safety(blockchain);
     }
     
     /// Validate ERC20 implementation
     function validate_erc20_implementation(Blockchain memory blockchain) public {
-        // TODO: Implement ERC20 validation
+        // Implement ERC20 validation
+        bool has_total_supply = false;
+        bool has_balance_of = false;
+        bool has_transfer = false;
+        bool has_transfer_from = false;
+        bool has_approve = false;
+        bool has_allowance = false;
+        
+        // Check required ERC20 functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            Function memory func = blockchain.functions[i];
+            
+            if (keccak256(bytes(func.name)) == keccak256(bytes("totalSupply"))) {
+                has_total_supply = true;
+                validate_erc20_total_supply(func);
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("balanceOf"))) {
+                has_balance_of = true;
+                validate_erc20_balance_of(func);
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("transfer"))) {
+                has_transfer = true;
+                validate_erc20_transfer(func);
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("transferFrom"))) {
+                has_transfer_from = true;
+                validate_erc20_transfer_from(func);
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("approve"))) {
+                has_approve = true;
+                validate_erc20_approve(func);
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("allowance"))) {
+                has_allowance = true;
+                validate_erc20_allowance(func);
+            }
+        }
+        
+        // Check required state variables
+        bool has_balances = false;
+        bool has_allowances = false;
+        
+        for (uint256 i = 0; i < blockchain.state_variables.length; i++) {
+            StateVariable memory state_var = blockchain.state_variables[i];
+            if (string_contains(state_var.name, "balance")) {
+                has_balances = true;
+            } else if (string_contains(state_var.name, "allowance")) {
+                has_allowances = true;
+            }
+        }
+        
+        // Report missing ERC20 components
+        if (!has_total_supply) {
+            add_error(ValidationError({
+                message: "ERC20: Missing totalSupply() function",
+                severity: ErrorSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        if (!has_balance_of) {
+            add_error(ValidationError({
+                message: "ERC20: Missing balanceOf() function",
+                severity: ErrorSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        if (!has_transfer) {
+            add_error(ValidationError({
+                message: "ERC20: Missing transfer() function",
+                severity: ErrorSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        if (!has_transfer_from) {
+            add_error(ValidationError({
+                message: "ERC20: Missing transferFrom() function",
+                severity: ErrorSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        if (!has_approve) {
+            add_error(ValidationError({
+                message: "ERC20: Missing approve() function",
+                severity: ErrorSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        if (!has_allowance) {
+            add_error(ValidationError({
+                message: "ERC20: Missing allowance() function",
+                severity: ErrorSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        // Check for Transfer and Approval events
+        validate_erc20_events(blockchain);
     }
     
     /// Validate ERC721 implementation
     function validate_erc721_implementation(Blockchain memory blockchain) public {
-        // TODO: Implement ERC721 validation
+        // Implement ERC721 validation
+        bool has_balance_of = false;
+        bool has_owner_of = false;
+        bool has_safe_transfer_from = false;
+        bool has_transfer_from = false;
+        bool has_approve = false;
+        bool has_get_approved = false;
+        bool has_set_approval_for_all = false;
+        bool has_is_approved_for_all = false;
+        bool has_supports_interface = false;
+        
+        // Check required ERC721 functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            Function memory func = blockchain.functions[i];
+            
+            if (keccak256(bytes(func.name)) == keccak256(bytes("balanceOf"))) {
+                has_balance_of = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("ownerOf"))) {
+                has_owner_of = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("safeTransferFrom"))) {
+                has_safe_transfer_from = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("transferFrom"))) {
+                has_transfer_from = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("approve"))) {
+                has_approve = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("getApproved"))) {
+                has_get_approved = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("setApprovalForAll"))) {
+                has_set_approval_for_all = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("isApprovedForAll"))) {
+                has_is_approved_for_all = true;
+            } else if (keccak256(bytes(func.name)) == keccak256(bytes("supportsInterface"))) {
+                has_supports_interface = true;
+            }
+        }
+        
+        // Report missing ERC721 components
+        string[] memory missing_functions;
+        uint256 missing_count = 0;
+        
+        if (!has_balance_of) missing_count++;
+        if (!has_owner_of) missing_count++;
+        if (!has_safe_transfer_from) missing_count++;
+        if (!has_transfer_from) missing_count++;
+        if (!has_approve) missing_count++;
+        if (!has_get_approved) missing_count++;
+        if (!has_set_approval_for_all) missing_count++;
+        if (!has_is_approved_for_all) missing_count++;
+        if (!has_supports_interface) missing_count++;
+        
+        if (missing_count > 0) {
+            add_error(ValidationError({
+                message: "ERC721: Missing required functions for NFT standard compliance",
+                severity: ErrorSeverity.High,
+                location: blockchain.location
+            }));
+        }
+        
+        // Check for required events
+        validate_erc721_events(blockchain);
+        
+        // Validate token URI functionality if present
+        validate_erc721_metadata(blockchain);
     }
     
     // Helper functions for validation checks

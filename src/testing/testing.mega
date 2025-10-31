@@ -536,10 +536,74 @@ function uint_to_string(uint256 value) private pure returns (string memory) {
 
 function serialize_results_to_json(TestResults results) private pure returns (string memory) {
     // JSON serialization implementation
-    return "{}"; // Placeholder
+    string memory json = "{";
+    json = string.concat(json, '"total_tests":', uint256_to_string(results.total_tests), ',');
+    json = string.concat(json, '"passed_tests":', uint256_to_string(results.passed_tests), ',');
+    json = string.concat(json, '"failed_tests":', uint256_to_string(results.failed_tests), ',');
+    json = string.concat(json, '"execution_time":', uint256_to_string(results.execution_time), ',');
+    json = string.concat(json, '"success_rate":', uint256_to_string(results.success_rate), ',');
+    
+    // Add test cases array
+    json = string.concat(json, '"test_cases":[');
+    for (uint256 i = 0; i < results.test_cases.length; i++) {
+        if (i > 0) json = string.concat(json, ',');
+        json = string.concat(json, '{');
+        json = string.concat(json, '"name":"', results.test_cases[i].name, '",');
+        json = string.concat(json, '"status":"', results.test_cases[i].passed ? "PASSED" : "FAILED", '",');
+        json = string.concat(json, '"execution_time":', uint256_to_string(results.test_cases[i].execution_time));
+        json = string.concat(json, '}');
+    }
+    json = string.concat(json, ']}');
+    
+    return json;
 }
 
 function serialize_results_to_xml(TestResults results) private pure returns (string memory) {
     // XML serialization implementation
-    return "<testsuites></testsuites>"; // Placeholder
+    string memory xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml = string.concat(xml, '<testsuites tests="', uint256_to_string(results.total_tests), '"');
+    xml = string.concat(xml, ' failures="', uint256_to_string(results.failed_tests), '"');
+    xml = string.concat(xml, ' time="', uint256_to_string(results.execution_time), '">\n');
+    
+    // Add testsuite
+    xml = string.concat(xml, '  <testsuite name="OMEGA Tests"');
+    xml = string.concat(xml, ' tests="', uint256_to_string(results.total_tests), '"');
+    xml = string.concat(xml, ' failures="', uint256_to_string(results.failed_tests), '">\n');
+    
+    // Add individual test cases
+    for (uint256 i = 0; i < results.test_cases.length; i++) {
+        xml = string.concat(xml, '    <testcase name="', results.test_cases[i].name, '"');
+        xml = string.concat(xml, ' time="', uint256_to_string(results.test_cases[i].execution_time), '"');
+        
+        if (!results.test_cases[i].passed) {
+            xml = string.concat(xml, '>\n      <failure message="Test failed"/>');
+            xml = string.concat(xml, '\n    </testcase>\n');
+        } else {
+            xml = string.concat(xml, '/>\n');
+        }
+    }
+    
+    xml = string.concat(xml, '  </testsuite>\n</testsuites>');
+    return xml;
+}
+
+// Helper function to convert uint256 to string
+function uint256_to_string(uint256 value) private pure returns (string memory) {
+    if (value == 0) return "0";
+    
+    uint256 temp = value;
+    uint256 digits = 0;
+    while (temp != 0) {
+        digits++;
+        temp /= 10;
+    }
+    
+    bytes memory buffer = new bytes(digits);
+    while (value != 0) {
+        digits -= 1;
+        buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+        value /= 10;
+    }
+    
+    return string(buffer);
 }

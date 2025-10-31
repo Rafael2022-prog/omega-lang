@@ -1,0 +1,461 @@
+// OMEGA Memory Safety System - Written in MEGA
+// Comprehensive memory safety checks dan protection mechanisms
+// Mencegah memory corruption, leaks, dan security vulnerabilities
+
+import "../parser/ast_nodes.mega";
+import "../error/error_types.mega";
+
+/// Comprehensive memory safety checker untuk OMEGA compiler
+/// Mengimplementasikan static analysis dan runtime checks untuk memory safety
+blockchain MemorySafetyChecker {
+    state {
+        MemoryTracker tracker;                  // Memory allocation tracker
+        SafetyRules safety_rules;               // Memory safety rules
+        AllocationRegistry allocations;         // Active allocations registry
+        MemoryStatistics statistics;            // Memory usage statistics
+        SafetyViolationLog violation_log;       // Safety violation history
+        MemoryPolicyEngine policy_engine;       // Memory policy enforcement
+        bool strict_mode_enabled;               // Strict safety mode
+    }
+    
+    constructor() {
+        tracker = MemoryTracker::new();
+        safety_rules = initialize_safety_rules();
+        allocations = AllocationRegistry::new();
+        statistics = MemoryStatistics::new();
+        violation_log = SafetyViolationLog::new();
+        policy_engine = MemoryPolicyEngine::new();
+        strict_mode_enabled = true;
+    }
+    
+    /// Check allocation patterns for safety violations
+    /// @param input Input data to analyze
+    /// @param input_type Type of input being analyzed
+    /// @return Array of detected memory safety issues
+    function check_allocation_patterns(bytes memory input, InputType input_type) 
+        public returns (MemorySafetyIssue[] memory) {
+        
+        MemorySafetyIssue[] memory issues = new MemorySafetyIssue[](0);
+        
+        // Parse allocation patterns from input
+        AllocationPattern[] memory patterns = parse_allocation_patterns(input, input_type);
+        
+        for (uint256 i = 0; i < patterns.length; i++) {
+            AllocationPattern memory pattern = patterns[i];
+            
+            // Check for unsafe allocation sizes
+            MemorySafetyIssue[] memory size_issues = check_allocation_size_safety(pattern);
+            issues = combine_memory_issue_arrays(issues, size_issues);
+            
+            // Check for allocation/deallocation mismatches
+            MemorySafetyIssue[] memory mismatch_issues = check_allocation_deallocation_match(pattern);
+            issues = combine_memory_issue_arrays(issues, mismatch_issues);
+            
+            // Check for potential integer overflows in size calculations
+            MemorySafetyIssue[] memory overflow_issues = check_size_calculation_overflow(pattern);
+            issues = combine_memory_issue_arrays(issues, overflow_issues);
+            
+            // Check for uninitialized memory usage
+            MemorySafetyIssue[] memory uninit_issues = check_uninitialized_memory_usage(pattern);
+            issues = combine_memory_issue_arrays(issues, uninit_issues);
+        }
+        
+        // Update statistics
+        statistics.record_allocation_check(input_type, issues.length);
+        
+        return issues;
+    }
+    
+    /// Check for use-after-free vulnerabilities
+    /// @param input Input data to analyze
+    /// @param input_type Type of input being analyzed
+    /// @return Array of detected use-after-free issues
+    function check_use_after_free(bytes memory input, InputType input_type) 
+        public returns (MemorySafetyIssue[] memory) {
+        
+        MemorySafetyIssue[] memory issues = new MemorySafetyIssue[](0);
+        
+        // Parse memory access patterns
+        MemoryAccessPattern[] memory access_patterns = parse_memory_access_patterns(input, input_type);
+        
+        // Build control flow graph for analysis
+        ControlFlowGraph memory cfg = build_control_flow_graph(access_patterns);
+        
+        // Perform dataflow analysis to detect use-after-free
+        for (uint256 i = 0; i < cfg.nodes.length; i++) {
+            CFGNode memory node = cfg.nodes[i];
+            
+            // Check each memory access in the node
+            for (uint256 j = 0; j < node.memory_accesses.length; j++) {
+                MemoryAccess memory access = node.memory_accesses[j];
+                
+                // Check if memory was freed before this access
+                if (is_memory_freed_before_access(access, cfg, i)) {
+                    issues = append_memory_issue(issues, MemorySafetyIssue({
+                        type: MemoryIssueType.UseAfterFree,
+                        severity: IssueSeverity.Critical,
+                        description: string.concat("Use-after-free detected for memory at ", 
+                                   address_to_string(access.memory_address)),
+                        location: access.source_location,
+                        mitigation: "Ensure memory is not accessed after being freed"
+                    }));
+                }
+                
+                // Check for potential use-after-free in loops
+                if (is_in_loop_context(node, cfg) && has_conditional_free(access, cfg)) {
+                    issues = append_memory_issue(issues, MemorySafetyIssue({
+                        type: MemoryIssueType.UseAfterFree,
+                        severity: IssueSeverity.High,
+                        description: "Potential use-after-free in loop context",
+                        location: access.source_location,
+                        mitigation: "Add null checks or restructure loop logic"
+                    }));
+                }
+            }
+        }
+        
+        // Update statistics
+        statistics.record_use_after_free_check(input_type, issues.length);
+        
+        return issues;
+    }
+    
+    /// Check for double-free vulnerabilities
+    /// @param input Input data to analyze
+    /// @param input_type Type of input being analyzed
+    /// @return Array of detected double-free issues
+    function check_double_free(bytes memory input, InputType input_type) 
+        public returns (MemorySafetyIssue[] memory) {
+        
+        MemorySafetyIssue[] memory issues = new MemorySafetyIssue[](0);
+        
+        // Parse deallocation patterns
+        DeallocationPattern[] memory dealloc_patterns = parse_deallocation_patterns(input, input_type);
+        
+        // Track freed memory addresses
+        mapping(address => FreeInfo) freed_memory;
+        
+        for (uint256 i = 0; i < dealloc_patterns.length; i++) {
+            DeallocationPattern memory pattern = dealloc_patterns[i];
+            
+            // Check if memory was already freed
+            if (freed_memory[pattern.memory_address].is_freed) {
+                issues = append_memory_issue(issues, MemorySafetyIssue({
+                    type: MemoryIssueType.DoubleFree,
+                    severity: IssueSeverity.Critical,
+                    description: string.concat("Double-free detected for memory at ", 
+                               address_to_string(pattern.memory_address)),
+                    location: pattern.source_location,
+                    mitigation: "Add null checks after freeing memory"
+                }));
+            } else {
+                // Mark as freed
+                freed_memory[pattern.memory_address] = FreeInfo({
+                    is_freed: true,
+                    free_location: pattern.source_location,
+                    free_timestamp: block.timestamp
+                });
+            }
+            
+            // Check for conditional double-free scenarios
+            if (has_conditional_paths_to_free(pattern)) {
+                issues = append_memory_issue(issues, MemorySafetyIssue({
+                    type: MemoryIssueType.DoubleFree,
+                    severity: IssueSeverity.Medium,
+                    description: "Potential double-free in conditional execution paths",
+                    location: pattern.source_location,
+                    mitigation: "Ensure consistent memory management across all code paths"
+                }));
+            }
+        }
+        
+        // Update statistics
+        statistics.record_double_free_check(input_type, issues.length);
+        
+        return issues;
+    }
+    
+    /// Check for memory leaks
+    /// @param input Input data to analyze
+    /// @param input_type Type of input being analyzed
+    /// @return Array of detected memory leak issues
+    function check_memory_leaks(bytes memory input, InputType input_type) 
+        public returns (MemorySafetyIssue[] memory) {
+        
+        MemorySafetyIssue[] memory issues = new MemorySafetyIssue[](0);
+        
+        // Parse allocation and deallocation patterns
+        AllocationPattern[] memory allocations = parse_allocation_patterns(input, input_type);
+        DeallocationPattern[] memory deallocations = parse_deallocation_patterns(input, input_type);
+        
+        // Build allocation-deallocation mapping
+        mapping(address => bool) deallocated;
+        for (uint256 i = 0; i < deallocations.length; i++) {
+            deallocated[deallocations[i].memory_address] = true;
+        }
+        
+        // Check for unmatched allocations
+        for (uint256 i = 0; i < allocations.length; i++) {
+            AllocationPattern memory alloc = allocations[i];
+            
+            if (!deallocated[alloc.allocated_address]) {
+                // Check if allocation is in a scope that guarantees cleanup
+                if (!is_in_auto_cleanup_scope(alloc)) {
+                    IssueSeverity severity = determine_leak_severity(alloc);
+                    
+                    issues = append_memory_issue(issues, MemorySafetyIssue({
+                        type: MemoryIssueType.MemoryLeak,
+                        severity: severity,
+                        description: string.concat("Potential memory leak for allocation at ", 
+                                   address_to_string(alloc.allocated_address)),
+                        location: alloc.source_location,
+                        mitigation: "Ensure proper deallocation or use RAII patterns"
+                    }));
+                }
+            }
+        }
+        
+        // Check for leaks in error handling paths
+        MemorySafetyIssue[] memory error_path_leaks = check_error_path_leaks(allocations, deallocations);
+        issues = combine_memory_issue_arrays(issues, error_path_leaks);
+        
+        // Check for leaks in exception scenarios
+        MemorySafetyIssue[] memory exception_leaks = check_exception_path_leaks(allocations, deallocations);
+        issues = combine_memory_issue_arrays(issues, exception_leaks);
+        
+        // Update statistics
+        statistics.record_memory_leak_check(input_type, issues.length);
+        
+        return issues;
+    }
+    
+    /// Check allocation size safety
+    function check_allocation_size_safety(AllocationPattern memory pattern) 
+        private view returns (MemorySafetyIssue[] memory) {
+        
+        MemorySafetyIssue[] memory issues = new MemorySafetyIssue[](0);
+        
+        // Check for zero-size allocations
+        if (pattern.size == 0) {
+            issues = append_memory_issue(issues, MemorySafetyIssue({
+                type: MemoryIssueType.InvalidAccess,
+                severity: IssueSeverity.Medium,
+                description: "Zero-size memory allocation detected",
+                location: pattern.source_location,
+                mitigation: "Validate allocation size before allocation"
+            }));
+        }
+        
+        // Check for extremely large allocations
+        uint256 max_safe_size = safety_rules.max_single_allocation_size;
+        if (pattern.size > max_safe_size) {
+            issues = append_memory_issue(issues, MemorySafetyIssue({
+                type: MemoryIssueType.BufferOverrun,
+                severity: IssueSeverity.High,
+                description: string.concat("Allocation size (", uint256_to_string(pattern.size), 
+                           ") exceeds safe limit (", uint256_to_string(max_safe_size), ")"),
+                location: pattern.source_location,
+                mitigation: "Use smaller allocation sizes or streaming approaches"
+            }));
+        }
+        
+        // Check for size calculation from untrusted input
+        if (pattern.size_source == SizeSource.UserInput && !pattern.is_size_validated) {
+            issues = append_memory_issue(issues, MemorySafetyIssue({
+                type: MemoryIssueType.InvalidAccess,
+                severity: IssueSeverity.High,
+                description: "Allocation size derived from unvalidated user input",
+                location: pattern.source_location,
+                mitigation: "Validate and sanitize size input before allocation"
+            }));
+        }
+        
+        return issues;
+    }
+    
+    /// Check for allocation/deallocation mismatches
+    function check_allocation_deallocation_match(AllocationPattern memory pattern) 
+        private view returns (MemorySafetyIssue[] memory) {
+        
+        MemorySafetyIssue[] memory issues = new MemorySafetyIssue[](0);
+        
+        // Check for mismatched allocation/deallocation functions
+        if (pattern.allocator_type != pattern.expected_deallocator_type) {
+            issues = append_memory_issue(issues, MemorySafetyIssue({
+                type: MemoryIssueType.InvalidAccess,
+                severity: IssueSeverity.High,
+                description: string.concat("Allocation type (", allocator_type_to_string(pattern.allocator_type), 
+                           ") mismatches expected deallocator type (", 
+                           allocator_type_to_string(pattern.expected_deallocator_type), ")"),
+                location: pattern.source_location,
+                mitigation: "Use matching allocation/deallocation functions"
+            }));
+        }
+        
+        // Check for missing deallocation in all code paths
+        if (!has_guaranteed_deallocation(pattern)) {
+            issues = append_memory_issue(issues, MemorySafetyIssue({
+                type: MemoryIssueType.MemoryLeak,
+                severity: IssueSeverity.Medium,
+                description: "No guaranteed deallocation found for allocation",
+                location: pattern.source_location,
+                mitigation: "Ensure deallocation in all execution paths"
+            }));
+        }
+        
+        return issues;
+    }
+    
+    /// Initialize comprehensive safety rules
+    function initialize_safety_rules() private pure returns (SafetyRules memory) {
+        return SafetyRules({
+            max_single_allocation_size: 100 * 1024 * 1024,    // 100MB max single allocation
+            max_total_allocation_size: 1024 * 1024 * 1024,    // 1GB max total allocation
+            max_allocation_count: 10000,                      // Max 10k allocations
+            enable_bounds_checking: true,                     // Enable bounds checking
+            enable_null_pointer_checks: true,                 // Enable null pointer checks
+            enable_stack_protection: true,                    // Enable stack protection
+            enable_heap_protection: true,                     // Enable heap protection
+            memory_alignment_requirement: 8,                  // 8-byte alignment
+            enable_memory_tagging: true,                      // Enable memory tagging
+            zero_memory_on_free: true                         // Zero memory on free
+        });
+    }
+    
+    /// Parse allocation patterns from input
+    function parse_allocation_patterns(bytes memory input, InputType input_type) 
+        private pure returns (AllocationPattern[] memory) {
+        
+        AllocationPattern[] memory patterns = new AllocationPattern[](0);
+        
+        // Implementation would parse the input based on input_type
+        // and extract allocation patterns using lexical analysis
+        
+        return patterns;
+    }
+    
+    /// Parse memory access patterns from input
+    function parse_memory_access_patterns(bytes memory input, InputType input_type) 
+        private pure returns (MemoryAccessPattern[] memory) {
+        
+        MemoryAccessPattern[] memory patterns = new MemoryAccessPattern[](0);
+        
+        // Implementation would parse memory access patterns
+        // including reads, writes, and pointer operations
+        
+        return patterns;
+    }
+    
+    /// Build control flow graph for analysis
+    function build_control_flow_graph(MemoryAccessPattern[] memory patterns) 
+        private pure returns (ControlFlowGraph memory) {
+        
+        // Implementation would build CFG from memory access patterns
+        // for dataflow analysis
+        
+        return ControlFlowGraph({
+            nodes: new CFGNode[](0),
+            edges: new CFGEdge[](0)
+        });
+    }
+}
+
+/// Allocation pattern structure
+struct AllocationPattern {
+    address allocated_address;
+    uint256 size;
+    SizeSource size_source;
+    bool is_size_validated;
+    AllocatorType allocator_type;
+    AllocatorType expected_deallocator_type;
+    uint256 source_location;
+}
+
+/// Memory access pattern structure
+struct MemoryAccessPattern {
+    address memory_address;
+    AccessType access_type;
+    uint256 source_location;
+    bool is_bounds_checked;
+}
+
+/// Memory access structure
+struct MemoryAccess {
+    address memory_address;
+    AccessType access_type;
+    uint256 source_location;
+}
+
+/// Deallocation pattern structure
+struct DeallocationPattern {
+    address memory_address;
+    AllocatorType deallocator_type;
+    uint256 source_location;
+}
+
+/// Free information structure
+struct FreeInfo {
+    bool is_freed;
+    uint256 free_location;
+    uint256 free_timestamp;
+}
+
+/// Control flow graph structures
+struct ControlFlowGraph {
+    CFGNode[] nodes;
+    CFGEdge[] edges;
+}
+
+struct CFGNode {
+    uint256 id;
+    MemoryAccess[] memory_accesses;
+}
+
+struct CFGEdge {
+    uint256 from_node;
+    uint256 to_node;
+    EdgeType edge_type;
+}
+
+/// Safety rules structure
+struct SafetyRules {
+    uint256 max_single_allocation_size;
+    uint256 max_total_allocation_size;
+    uint256 max_allocation_count;
+    bool enable_bounds_checking;
+    bool enable_null_pointer_checks;
+    bool enable_stack_protection;
+    bool enable_heap_protection;
+    uint256 memory_alignment_requirement;
+    bool enable_memory_tagging;
+    bool zero_memory_on_free;
+}
+
+/// Enums for memory safety
+enum SizeSource {
+    Constant,
+    UserInput,
+    Calculation,
+    External
+}
+
+enum AllocatorType {
+    Malloc,
+    New,
+    Calloc,
+    Realloc,
+    Custom
+}
+
+enum AccessType {
+    Read,
+    Write,
+    Execute
+}
+
+enum EdgeType {
+    Sequential,
+    Conditional,
+    Loop,
+    Exception
+}

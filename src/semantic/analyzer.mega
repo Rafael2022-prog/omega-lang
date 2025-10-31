@@ -426,25 +426,92 @@ blockchain OmegaSemanticAnalyzer {
     
     /// Print analysis summary
     function print_analysis_summary() public view {
-        // TODO: Implement analysis summary printing
+        println("=== OMEGA Semantic Analysis Summary ===");
+        println(string.concat("Total errors: ", _to_string(analysis_result.errors.length)));
+        println(string.concat("Total warnings: ", _to_string(analysis_result.warnings.length)));
+        println(string.concat("Type checks performed: ", _to_string(get_type_check_count())));
+        println(string.concat("Validations performed: ", _to_string(get_validation_count())));
+        println(string.concat("Analysis status: ", analysis_result.success ? "PASSED" : "FAILED"));
+        
+        if (analysis_result.errors.length > 0) {
+            println("\n--- Errors ---");
+            for (uint256 i = 0; i < analysis_result.errors.length; i++) {
+                println(string.concat("  ", _to_string(i + 1), ". ", analysis_result.errors[i]));
+            }
+        }
+        
+        if (analysis_result.warnings.length > 0) {
+            println("\n--- Warnings ---");
+            for (uint256 i = 0; i < analysis_result.warnings.length; i++) {
+                println(string.concat("  ", _to_string(i + 1), ". ", analysis_result.warnings[i]));
+            }
+        }
+        println("=====================================");
     }
     
     /// Export analysis results to JSON
     function export_results_json() public view returns (string memory) {
-        // TODO: Implement JSON export
-        return "{}";
+        string memory json = "{";
+        json = string.concat(json, "\"success\":", analysis_result.success ? "true" : "false", ",");
+        json = string.concat(json, "\"errors\":[");
+        
+        for (uint256 i = 0; i < analysis_result.errors.length; i++) {
+            if (i > 0) json = string.concat(json, ",");
+            json = string.concat(json, "\"", analysis_result.errors[i], "\"");
+        }
+        
+        json = string.concat(json, "],\"warnings\":[");
+        
+        for (uint256 i = 0; i < analysis_result.warnings.length; i++) {
+            if (i > 0) json = string.concat(json, ",");
+            json = string.concat(json, "\"", analysis_result.warnings[i], "\"");
+        }
+        
+        json = string.concat(json, "],\"stats\":{");
+        json = string.concat(json, "\"type_checks\":", _to_string(get_type_check_count()), ",");
+        json = string.concat(json, "\"validations\":", _to_string(get_validation_count()));
+        json = string.concat(json, "}}");
+        
+        return json;
     }
     
     /// Helper functions
     
-    function get_type_check_count() private pure returns (uint256) {
-        // TODO: Implement type check counting
-        return 0;
+    function get_type_check_count() private view returns (uint256) {
+        // Count type checks performed during analysis
+        uint256 count = 0;
+        
+        // Count function parameter type checks
+        for (uint256 i = 0; i < analysis_result.validated_functions.length; i++) {
+            count += analysis_result.validated_functions[i].parameters.length;
+        }
+        
+        // Count variable type checks
+        count += analysis_result.validated_variables.length;
+        
+        // Count expression type checks (estimated)
+        count += analysis_result.validated_expressions.length;
+        
+        return count;
     }
     
-    function get_validation_count() private pure returns (uint256) {
-        // TODO: Implement validation counting
-        return 0;
+    function get_validation_count() private view returns (uint256) {
+        // Count total validations performed
+        uint256 count = 0;
+        
+        // Function validations
+        count += analysis_result.validated_functions.length;
+        
+        // Variable validations
+        count += analysis_result.validated_variables.length;
+        
+        // Expression validations
+        count += analysis_result.validated_expressions.length;
+        
+        // Blockchain-specific validations
+        count += analysis_result.blockchain_validations.length;
+        
+        return count;
     }
     
     function initialize_default_config() private pure returns (AnalysisConfig memory) {

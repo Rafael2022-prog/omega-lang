@@ -1,0 +1,421 @@
+// OMEGA Input Validation System - Written in MEGA
+// Comprehensive input validation dan memory safety untuk production compiler
+// Mencegah buffer overflows, injection attacks, dan memory corruption
+
+import "../parser/ast_nodes.mega";
+import "../error/error_types.mega";
+
+/// Comprehensive input validation system untuk OMEGA compiler
+/// Mengimplementasikan multiple layers of validation untuk security dan safety
+blockchain InputValidationSystem {
+    state {
+        ValidationRules rules;                  // Validation rules registry
+        SecurityPolicies policies;              // Security policies
+        MemorySafetyChecker memory_checker;     // Memory safety validation
+        InputSanitizer sanitizer;               // Input sanitization
+        ValidationCache cache;                  // Validation result cache
+        ValidationMetrics metrics;              // Performance metrics
+        bool strict_validation_enabled;         // Strict validation flag
+    }
+    
+    constructor() {
+        rules = initialize_validation_rules();
+        policies = initialize_security_policies();
+        memory_checker = MemorySafetyChecker::new();
+        sanitizer = InputSanitizer::new();
+        cache = ValidationCache::new();
+        metrics = ValidationMetrics::new();
+        strict_validation_enabled = true;
+    }
+    
+    /// Comprehensive input validation entry point
+    /// @param input Raw input data to validate
+    /// @param input_type Type of input being validated
+    /// @param context Validation context
+    /// @return Validation result with sanitized input
+    function validate_input(bytes memory input, InputType input_type, 
+                          ValidationContext memory context) public returns (ValidationResult memory) {
+        
+        uint256 start_time = block.timestamp;
+        
+        // Check cache first for performance
+        bytes32 validation_key = generate_validation_key(input, input_type, context);
+        if (cache.has_result(validation_key)) {
+            ValidationResult memory cached_result = cache.get_result(validation_key);
+            metrics.record_cache_hit(input_type);
+            return cached_result;
+        }
+        
+        // Perform comprehensive validation
+        ValidationResult memory result = perform_validation(input, input_type, context);
+        
+        // Update metrics
+        uint256 validation_time = block.timestamp - start_time;
+        metrics.record_validation(input_type, result.is_valid, validation_time);
+        
+        // Cache result if appropriate
+        if (should_cache_result(result, input_type)) {
+            cache.store_result(validation_key, result);
+        }
+        
+        return result;
+    }
+    
+    /// Perform comprehensive validation
+    function perform_validation(bytes memory input, InputType input_type, 
+                              ValidationContext memory context) private returns (ValidationResult memory) {
+        
+        ValidationResult memory result = ValidationResult({
+            is_valid: true,
+            sanitized_input: input,
+            violations: new SecurityViolation[](0),
+            warnings: new ValidationWarning[](0),
+            memory_safety_issues: new MemorySafetyIssue[](0),
+            performance_impact: 0
+        });
+        
+        // Layer 1: Basic input validation
+        ValidationResult memory basic_result = perform_basic_validation(input, input_type);
+        if (!basic_result.is_valid) {
+            return basic_result;
+        }
+        
+        // Layer 2: Security validation
+        ValidationResult memory security_result = perform_security_validation(input, input_type, context);
+        result = merge_validation_results(result, security_result);
+        
+        // Layer 3: Memory safety validation
+        ValidationResult memory memory_result = perform_memory_safety_validation(input, input_type, context);
+        result = merge_validation_results(result, memory_result);
+        
+        // Layer 4: Content validation
+        ValidationResult memory content_result = perform_content_validation(input, input_type, context);
+        result = merge_validation_results(result, content_result);
+        
+        // Layer 5: Performance impact validation
+        ValidationResult memory performance_result = perform_performance_validation(input, input_type, context);
+        result = merge_validation_results(result, performance_result);
+        
+        // Final sanitization if validation passed
+        if (result.is_valid) {
+            result.sanitized_input = sanitizer.sanitize_input(input, input_type);
+        }
+        
+        return result;
+    }
+    
+    /// Basic input validation (length, format, encoding)
+    function perform_basic_validation(bytes memory input, InputType input_type) 
+        private view returns (ValidationResult memory) {
+        
+        ValidationResult memory result = ValidationResult({
+            is_valid: true,
+            sanitized_input: input,
+            violations: new SecurityViolation[](0),
+            warnings: new ValidationWarning[](0),
+            memory_safety_issues: new MemorySafetyIssue[](0),
+            performance_impact: 0
+        });
+        
+        // Check input length limits
+        uint256 max_length = rules.get_max_length(input_type);
+        if (input.length > max_length) {
+            result.is_valid = false;
+            result.violations = append_violation(result.violations, SecurityViolation({
+                type: ViolationType.InputTooLarge,
+                severity: ViolationSeverity.High,
+                description: string.concat("Input exceeds maximum length of ", uint256_to_string(max_length)),
+                location: 0,
+                suggested_fix: "Reduce input size or increase limits"
+            }));
+            return result;
+        }
+        
+        // Check minimum length requirements
+        uint256 min_length = rules.get_min_length(input_type);
+        if (input.length < min_length) {
+            result.is_valid = false;
+            result.violations = append_violation(result.violations, SecurityViolation({
+                type: ViolationType.InputTooSmall,
+                severity: ViolationSeverity.Medium,
+                description: string.concat("Input below minimum length of ", uint256_to_string(min_length)),
+                location: 0,
+                suggested_fix: "Provide more input data"
+            }));
+            return result;
+        }
+        
+        // Validate encoding (UTF-8 for text inputs)
+        if (input_type == InputType.SourceCode || input_type == InputType.StringLiteral) {
+            if (!is_valid_utf8(input)) {
+                result.is_valid = false;
+                result.violations = append_violation(result.violations, SecurityViolation({
+                    type: ViolationType.InvalidEncoding,
+                    severity: ViolationSeverity.High,
+                    description: "Input contains invalid UTF-8 sequences",
+                    location: find_invalid_utf8_position(input),
+                    suggested_fix: "Ensure input is properly UTF-8 encoded"
+                }));
+                return result;
+            }
+        }
+        
+        return result;
+    }
+    
+    /// Security validation (injection attacks, malicious patterns)
+    function perform_security_validation(bytes memory input, InputType input_type, 
+                                       ValidationContext memory context) 
+        private view returns (ValidationResult memory) {
+        
+        ValidationResult memory result = ValidationResult({
+            is_valid: true,
+            sanitized_input: input,
+            violations: new SecurityViolation[](0),
+            warnings: new ValidationWarning[](0),
+            memory_safety_issues: new MemorySafetyIssue[](0),
+            performance_impact: 0
+        });
+        
+        // Check for code injection patterns
+        if (input_type == InputType.SourceCode) {
+            SecurityViolation[] memory injection_violations = detect_code_injection(input);
+            if (injection_violations.length > 0) {
+                result.is_valid = false;
+                result.violations = combine_violation_arrays(result.violations, injection_violations);
+            }
+        }
+        
+        // Check for path traversal attacks
+        if (input_type == InputType.FilePath) {
+            if (contains_path_traversal(input)) {
+                result.is_valid = false;
+                result.violations = append_violation(result.violations, SecurityViolation({
+                    type: ViolationType.PathTraversal,
+                    severity: ViolationSeverity.Critical,
+                    description: "Path traversal attack detected",
+                    location: find_path_traversal_position(input),
+                    suggested_fix: "Use absolute paths or validate path components"
+                }));
+            }
+        }
+        
+        // Check for buffer overflow patterns
+        SecurityViolation[] memory buffer_violations = detect_buffer_overflow_patterns(input, input_type);
+        if (buffer_violations.length > 0) {
+            result.violations = combine_violation_arrays(result.violations, buffer_violations);
+            if (has_critical_violations(buffer_violations)) {
+                result.is_valid = false;
+            }
+        }
+        
+        // Check for format string vulnerabilities
+        if (input_type == InputType.FormatString) {
+            SecurityViolation[] memory format_violations = detect_format_string_vulnerabilities(input);
+            if (format_violations.length > 0) {
+                result.violations = combine_violation_arrays(result.violations, format_violations);
+                if (has_high_severity_violations(format_violations)) {
+                    result.is_valid = false;
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    /// Memory safety validation
+    function perform_memory_safety_validation(bytes memory input, InputType input_type, 
+                                            ValidationContext memory context) 
+        private returns (ValidationResult memory) {
+        
+        ValidationResult memory result = ValidationResult({
+            is_valid: true,
+            sanitized_input: input,
+            violations: new SecurityViolation[](0),
+            warnings: new ValidationWarning[](0),
+            memory_safety_issues: new MemorySafetyIssue[](0),
+            performance_impact: 0
+        });
+        
+        // Check for memory allocation patterns
+        MemorySafetyIssue[] memory allocation_issues = memory_checker.check_allocation_patterns(input, input_type);
+        result.memory_safety_issues = combine_memory_issue_arrays(result.memory_safety_issues, allocation_issues);
+        
+        // Check for use-after-free patterns
+        MemorySafetyIssue[] memory uaf_issues = memory_checker.check_use_after_free(input, input_type);
+        result.memory_safety_issues = combine_memory_issue_arrays(result.memory_safety_issues, uaf_issues);
+        
+        // Check for double-free patterns
+        MemorySafetyIssue[] memory double_free_issues = memory_checker.check_double_free(input, input_type);
+        result.memory_safety_issues = combine_memory_issue_arrays(result.memory_safety_issues, double_free_issues);
+        
+        // Check for memory leaks
+        MemorySafetyIssue[] memory leak_issues = memory_checker.check_memory_leaks(input, input_type);
+        result.memory_safety_issues = combine_memory_issue_arrays(result.memory_safety_issues, leak_issues);
+        
+        // Determine if memory safety issues are critical
+        if (has_critical_memory_issues(result.memory_safety_issues)) {
+            result.is_valid = false;
+        }
+        
+        return result;
+    }
+    
+    /// Content validation (semantic correctness, business rules)
+    function perform_content_validation(bytes memory input, InputType input_type, 
+                                      ValidationContext memory context) 
+        private view returns (ValidationResult memory) {
+        
+        ValidationResult memory result = ValidationResult({
+            is_valid: true,
+            sanitized_input: input,
+            violations: new SecurityViolation[](0),
+            warnings: new ValidationWarning[](0),
+            memory_safety_issues: new MemorySafetyIssue[](0),
+            performance_impact: 0
+        });
+        
+        // Validate content based on input type
+        if (input_type == InputType.SourceCode) {
+            ValidationWarning[] memory syntax_warnings = validate_syntax_patterns(input);
+            result.warnings = combine_warning_arrays(result.warnings, syntax_warnings);
+        } else if (input_type == InputType.ConfigFile) {
+            ValidationResult memory config_result = validate_configuration_content(input, context);
+            result = merge_validation_results(result, config_result);
+        } else if (input_type == InputType.ContractABI) {
+            ValidationResult memory abi_result = validate_abi_content(input, context);
+            result = merge_validation_results(result, abi_result);
+        }
+        
+        return result;
+    }
+    
+    /// Performance impact validation
+    function perform_performance_validation(bytes memory input, InputType input_type, 
+                                          ValidationContext memory context) 
+        private view returns (ValidationResult memory) {
+        
+        ValidationResult memory result = ValidationResult({
+            is_valid: true,
+            sanitized_input: input,
+            violations: new SecurityViolation[](0),
+            warnings: new ValidationWarning[](0),
+            memory_safety_issues: new MemorySafetyIssue[](0),
+            performance_impact: 0
+        });
+        
+        // Estimate processing complexity
+        uint256 complexity = estimate_processing_complexity(input, input_type);
+        result.performance_impact = complexity;
+        
+        // Check against performance limits
+        uint256 max_complexity = policies.get_max_complexity(input_type);
+        if (complexity > max_complexity) {
+            result.warnings = append_warning(result.warnings, ValidationWarning({
+                type: WarningType.PerformanceImpact,
+                severity: WarningSeverity.Medium,
+                description: string.concat("Input complexity (", uint256_to_string(complexity), 
+                           ") exceeds recommended limit (", uint256_to_string(max_complexity), ")"),
+                suggested_optimization: "Consider simplifying input or increasing processing limits"
+            }));
+        }
+        
+        return result;
+    }
+    
+    /// Initialize comprehensive validation rules
+    function initialize_validation_rules() private pure returns (ValidationRules memory) {
+        return ValidationRules({
+            max_source_code_length: 1000000,      // 1MB max source code
+            max_file_path_length: 4096,           // 4KB max file path
+            max_string_literal_length: 65536,     // 64KB max string literal
+            max_config_file_length: 100000,       // 100KB max config file
+            min_source_code_length: 1,            // Minimum 1 byte
+            min_file_path_length: 1,              // Minimum 1 byte
+            allowed_file_extensions: [".mega", ".toml", ".json", ".md"],
+            blocked_patterns: ["../", "..\\", "<script>", "javascript:", "eval("],
+            required_encoding: "UTF-8"
+        });
+    }
+    
+    /// Initialize security policies
+    function initialize_security_policies() private pure returns (SecurityPolicies memory) {
+        return SecurityPolicies({
+            max_processing_complexity: 1000000,   // Maximum processing complexity
+            enable_path_validation: true,         // Enable path traversal protection
+            enable_injection_detection: true,     // Enable injection attack detection
+            enable_memory_safety_checks: true,    // Enable memory safety validation
+            strict_encoding_validation: true,     // Strict UTF-8 validation
+            max_nested_depth: 100,               // Maximum nesting depth
+            timeout_seconds: 30                   // Processing timeout
+        });
+    }
+}
+
+/// Input types for validation
+enum InputType {
+    SourceCode,
+    FilePath,
+    StringLiteral,
+    ConfigFile,
+    ContractABI,
+    FormatString,
+    UserInput,
+    NetworkData
+}
+
+/// Validation result structure
+struct ValidationResult {
+    bool is_valid;
+    bytes sanitized_input;
+    SecurityViolation[] violations;
+    ValidationWarning[] warnings;
+    MemorySafetyIssue[] memory_safety_issues;
+    uint256 performance_impact;
+}
+
+/// Security violation structure
+struct SecurityViolation {
+    ViolationType type;
+    ViolationSeverity severity;
+    string description;
+    uint256 location;
+    string suggested_fix;
+}
+
+/// Memory safety issue structure
+struct MemorySafetyIssue {
+    MemoryIssueType type;
+    IssueSeverity severity;
+    string description;
+    uint256 location;
+    string mitigation;
+}
+
+/// Validation warning structure
+struct ValidationWarning {
+    WarningType type;
+    WarningSeverity severity;
+    string description;
+    string suggested_optimization;
+}
+
+/// Violation types
+enum ViolationType {
+    InputTooLarge,
+    InputTooSmall,
+    InvalidEncoding,
+    PathTraversal,
+    CodeInjection,
+    BufferOverflow,
+    FormatStringVulnerability
+}
+
+/// Memory issue types
+enum MemoryIssueType {
+    UseAfterFree,
+    DoubleFree,
+    MemoryLeak,
+    BufferOverrun,
+    InvalidAccess
+}

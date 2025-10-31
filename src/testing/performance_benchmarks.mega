@@ -936,7 +936,19 @@ library BenchmarkRunner {
     
     function get_memory_usage() public view returns (uint256) {
         // Platform-specific memory usage implementation
-        return 0; // Placeholder
+        // Estimate based on contract state and stack usage
+        uint256 base_memory = 1024; // Base memory usage in bytes
+        uint256 state_memory = 0;
+        
+        // Estimate memory usage from state variables
+        // This is a simplified estimation for benchmarking
+        state_memory += benchmark_results.length * 256; // Each result ~256 bytes
+        state_memory += current_test_name.length * 32; // String storage
+        
+        // Add stack and temporary variable estimation
+        uint256 stack_memory = 512; // Estimated stack usage
+        
+        return base_memory + state_memory + stack_memory;
     }
     
     function execute_test_function(string memory function_name) public {
