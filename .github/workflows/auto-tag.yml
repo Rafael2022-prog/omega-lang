@@ -85,7 +85,10 @@ jobs:
             exit 0
           fi
 
-          PREV_SHA=$(git rev-parse HEAD~1 2>/dev/null || true)
+          PREV_SHA="${{ github.event.before }}"
+          if [[ -z "$PREV_SHA" || "$PREV_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            PREV_SHA=$(git rev-parse HEAD~1 2>/dev/null || true)
+          fi
           if [[ -z "$PREV_SHA" ]]; then
             echo "No previous commit found (first commit on branch)."
             echo "prev_sha=" >> $GITHUB_OUTPUT
