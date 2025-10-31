@@ -1,0 +1,96 @@
+name: 📦 Publish Packages (GHCR)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to publish (e.g., 1.2.3). If empty, uses current commit SHA.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+jobs:
+  publish-ghcr:
+    name: Publish Docker image to GHCR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # refs/tags/v1.2.3 -> v1.2.3
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG_NAME#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+            if [ -z "$VERSION" ]; then
+              VERSION="manual-${GITHUB_SHA::7}"
+            fi
+          fi
+          echo "resolved=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute image tags
+        id: tags
+        shell: bash
+        run: |
+          REPO="${{ github.repository }}"
+          REPO_LC="$(echo "$REPO" | tr '[:upper:]' '[:lower:]')"
+          VERSION="$VERSION"
+          IMAGE_BASE="ghcr.io/$REPO_LC"
+
+          TAGS_ARG="--tag $IMAGE_BASE:$VERSION"
+          # Add latest tag only for proper semver tag builds (no pre-release hyphen and event is push)
+          if [ "${{ github.event_name }}" = "push" ] && [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            TAGS_ARG="$TAGS_ARG --tag $IMAGE_BASE:latest"
+          fi
+
+          echo "tags=$TAGS_ARG" >> $GITHUB_OUTPUT
+          echo "IMAGE=$IMAGE_BASE" >> $GITHUB_OUTPUT
+
+      - name: Build and push (linux/amd64)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            BUILD_VERSION=${{ steps.version.outputs.resolved }}
+          labels: |
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+            org.opencontainers.image.description=OMEGA compiler and tooling image
+            org.opencontainers.image.version=${{ steps.version.outputs.resolved }}
+            org.opencontainers.image.licenses=MIT
+          tags: ${{ steps.tags.outputs.tags }}
+
+      - name: Summary
+        shell: bash
+        run: |
+          echo "Published image: ${{ steps.tags.outputs.IMAGE }}:${{ steps.version.outputs.resolved }}"
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ steps.version.outputs.resolved }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Also tagged as: latest"
+          fi
