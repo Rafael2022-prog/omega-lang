@@ -1,0 +1,128 @@
+// OMEGA Native Build Script - 100% Pure OMEGA
+// Menggantikan Cargo build dengan native OMEGA build system
+
+import "omega_build_system";
+import "omega_native_compiler";
+import "src/std/io";
+import "src/std/env";
+import "src/std/process";
+
+/// Main build function untuk OMEGA native compiler
+function main() public returns (int32) {
+    println("🚀 OMEGA Native Build System v1.1.0");
+    println("📦 Building 100% Native OMEGA Compiler...");
+    println();
+    
+    // Initialize native build system
+    OmegaNativeBuildSystem build_system = new OmegaNativeBuildSystem();
+    
+    // Configure build for production
+    BuildConfig config = BuildConfig({
+        project_name: "omega-compiler",
+        version: "1.1.0",
+        build_mode: "production",
+        targets: ["evm", "solana", "native"],
+        output_dir: "target/omega",
+        cache_dir: "target/cache",
+        temp_dir: "target/temp",
+        enable_optimizations: true,
+        enable_security_scan: true,
+        enable_testing: true,
+        enable_benchmarking: false,
+        enable_caching: true,
+        enable_parallel_build: true
+    });
+    
+    // Set build configuration
+    build_system.configure(config);
+    
+    println("⚙️  Configuration:");
+    println("   📁 Project: " + config.project_name);
+    println("   🔢 Version: " + config.version);
+    println("   🎯 Targets: EVM ✅, Solana ✅, Native ✅");
+    println("   🚀 Mode: " + config.build_mode);
+    println();
+    
+    // Execute build phases
+    println("🔨 Phase 1: Compiling OMEGA Source...");
+    bool compile_success = build_system.compile_sources();
+    if (!compile_success) {
+        println("❌ Compilation failed!");
+        return 1;
+    }
+    println("✅ Compilation successful");
+    
+    println("🔨 Phase 2: Generating Blockchain Targets...");
+    bool codegen_success = build_system.generate_targets();
+    if (!codegen_success) {
+        println("❌ Code generation failed!");
+        return 1;
+    }
+    println("✅ EVM & Solana targets generated");
+    
+    println("🔨 Phase 3: Running Tests...");
+    bool test_success = build_system.run_tests();
+    if (!test_success) {
+        println("❌ Tests failed!");
+        return 1;
+    }
+    println("✅ All tests passed");
+    
+    println("🔨 Phase 4: Security Scan...");
+    bool security_success = build_system.security_scan();
+    if (!security_success) {
+        println("⚠️  Security warnings detected");
+    } else {
+        println("✅ Security scan passed");
+    }
+    
+    println("🔨 Phase 5: Creating Executable...");
+    bool package_success = build_system.create_executable();
+    if (!package_success) {
+        println("❌ Executable creation failed!");
+        return 1;
+    }
+    println("✅ Executable created: target/omega/omega");
+    
+    println();
+    println("🎉 OMEGA Native Build Completed Successfully!");
+    println("📊 Build Statistics:");
+    
+    BuildStats stats = build_system.get_stats();
+    println("   ⏱️  Total Time: " + stats.total_time + "s");
+    println("   📁 Files Compiled: " + stats.files_compiled);
+    println("   🎯 Targets Generated: " + stats.targets_generated);
+    println("   🧪 Tests Passed: " + stats.tests_passed + "/" + stats.tests_total);
+    println("   📦 Binary Size: " + stats.binary_size + " KB");
+    println();
+    println("🚀 Ready for deployment! 100% Native OMEGA Compiler");
+    
+    return 0;
+}
+
+/// Build configuration structure
+struct BuildConfig {
+    string project_name;
+    string version;
+    string build_mode;
+    string[] targets;
+    string output_dir;
+    string cache_dir;
+    string temp_dir;
+    bool enable_optimizations;
+    bool enable_security_scan;
+    bool enable_testing;
+    bool enable_benchmarking;
+    bool enable_caching;
+    bool enable_parallel_build;
+}
+
+/// Build statistics structure
+struct BuildStats {
+    uint256 total_time;
+    uint256 files_compiled;
+    uint256 targets_generated;
+    uint256 tests_passed;
+    uint256 tests_total;
+    uint256 binary_size;
+}

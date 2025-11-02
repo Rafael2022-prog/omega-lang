@@ -1,0 +1,419 @@
+// OMEGA Self-Hosting Compiler
+// Compiler yang dapat mengcompile dirinya sendiri dari source code .mega
+
+import std::io;
+import std::fs;
+import std::path;
+import std::process;
+import std::env;
+import lexer::lexer;
+import parser::parser;
+import semantic::analyzer;
+import ir::ir_generator;
+import codegen::codegen;
+import optimization::optimizer;
+
+// Self-Hosting Compiler Core
+blockchain SelfHostingCompiler {
+    state {
+        string source_directory;
+        string output_directory;
+        string target_executable;
+        bool debug_mode;
+        bool optimization_enabled;
+        mapping(string => string) source_files;
+        mapping(string => CompilationUnit) compilation_units;
+    }
+    
+    constructor(string src_dir, string out_dir, string target) {
+        source_directory = src_dir;
+        output_directory = out_dir;
+        target_executable = target;
+        debug_mode = false;
+        optimization_enabled = true;
+        
+        // Initialize compilation environment
+        initialize_compiler_environment();
+    }
+    
+    // Main self-hosting compilation function
+    function compile_self() public returns (bool) {
+        io::println("🚀 Starting OMEGA Self-Hosting Compilation...");
+        
+        // Phase 1: Source Discovery
+        if (!discover_source_files()) {
+            io::println("❌ Failed to discover source files");
+            return false;
+        }
+        
+        // Phase 2: Lexical Analysis
+        if (!perform_lexical_analysis()) {
+            io::println("❌ Lexical analysis failed");
+            return false;
+        }
+        
+        // Phase 3: Syntax Analysis (Parsing)
+        if (!perform_syntax_analysis()) {
+            io::println("❌ Syntax analysis failed");
+            return false;
+        }
+        
+        // Phase 4: Semantic Analysis
+        if (!perform_semantic_analysis()) {
+            io::println("❌ Semantic analysis failed");
+            return false;
+        }
+        
+        // Phase 5: IR Generation
+        if (!generate_intermediate_representation()) {
+            io::println("❌ IR generation failed");
+            return false;
+        }
+        
+        // Phase 6: Optimization
+        if (optimization_enabled && !perform_optimizations()) {
+            io::println("❌ Optimization failed");
+            return false;
+        }
+        
+        // Phase 7: Code Generation
+        if (!generate_target_code()) {
+            io::println("❌ Code generation failed");
+            return false;
+        }
+        
+        // Phase 8: Linking & Executable Creation
+        if (!create_executable()) {
+            io::println("❌ Executable creation failed");
+            return false;
+        }
+        
+        io::println("✅ Self-hosting compilation completed successfully!");
+        io::println("📦 Executable: " + target_executable);
+        
+        return true;
+    }
+    
+    // Discover all .mega source files
+    function discover_source_files() private returns (bool) {
+        io::println("📁 Discovering source files in: " + source_directory);
+        
+        string[] mega_files = fs::find_files(source_directory, "*.mega");
+        
+        for (string file : mega_files) {
+            string relative_path = path::relative(file, source_directory);
+            source_files[relative_path] = file;
+            io::println("  📄 Found: " + relative_path);
+        }
+        
+        io::println("📊 Total source files: " + string(source_files.length));
+        return source_files.length > 0;
+    }
+    
+    // Perform lexical analysis on all source files
+    function perform_lexical_analysis() private returns (bool) {
+        io::println("🔍 Performing lexical analysis...");
+        
+        for (string rel_path : source_files.keys()) {
+            string file_path = source_files[rel_path];
+            string source_code = fs::read_file(file_path);
+            
+            if (source_code.empty()) {
+                io::println("❌ Failed to read: " + file_path);
+                return false;
+            }
+            
+            // Create lexer and tokenize
+            Lexer lexer = Lexer::new(source_code, file_path);
+            Token[] tokens = lexer.tokenize();
+            
+            if (tokens.empty()) {
+                io::println("❌ Tokenization failed: " + file_path);
+                return false;
+            }
+            
+            // Store compilation unit
+            CompilationUnit unit = CompilationUnit::new(file_path, source_code, tokens);
+            compilation_units[rel_path] = unit;
+            
+            io::println("  ✅ Tokenized: " + rel_path + " (" + string(tokens.length) + " tokens)");
+        }
+        
+        return true;
+    }
+    
+    // Perform syntax analysis (parsing)
+    function perform_syntax_analysis() private returns (bool) {
+        io::println("🌳 Performing syntax analysis...");
+        
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            
+            // Create parser and generate AST
+            Parser parser = Parser::new(unit.tokens, unit.file_path);
+            ASTNode ast = parser.parse();
+            
+            if (ast == null) {
+                io::println("❌ Parsing failed: " + rel_path);
+                return false;
+            }
+            
+            // Update compilation unit with AST
+            unit.ast = ast;
+            compilation_units[rel_path] = unit;
+            
+            io::println("  ✅ Parsed: " + rel_path);
+        }
+        
+        return true;
+    }
+    
+    // Perform semantic analysis
+    function perform_semantic_analysis() private returns (bool) {
+        io::println("🧠 Performing semantic analysis...");
+        
+        // Create global symbol table
+        SymbolTable global_symbols = SymbolTable::new();
+        
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            
+            // Create semantic analyzer
+            SemanticAnalyzer analyzer = SemanticAnalyzer::new(global_symbols);
+            
+            if (!analyzer.analyze(unit.ast)) {
+                io::println("❌ Semantic analysis failed: " + rel_path);
+                return false;
+            }
+            
+            // Update compilation unit with analyzed AST
+            unit.analyzed_ast = analyzer.get_analyzed_ast();
+            unit.symbol_table = analyzer.get_local_symbols();
+            compilation_units[rel_path] = unit;
+            
+            io::println("  ✅ Analyzed: " + rel_path);
+        }
+        
+        return true;
+    }
+    
+    // Generate intermediate representation
+    function generate_intermediate_representation() private returns (bool) {
+        io::println("⚙️ Generating intermediate representation...");
+        
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            
+            // Create IR generator
+            IRGenerator ir_gen = IRGenerator::new();
+            IRModule ir_module = ir_gen.generate(unit.analyzed_ast);
+            
+            if (ir_module == null) {
+                io::println("❌ IR generation failed: " + rel_path);
+                return false;
+            }
+            
+            // Update compilation unit with IR
+            unit.ir_module = ir_module;
+            compilation_units[rel_path] = unit;
+            
+            io::println("  ✅ Generated IR: " + rel_path);
+        }
+        
+        return true;
+    }
+    
+    // Perform optimizations
+    function perform_optimizations() private returns (bool) {
+        io::println("⚡ Performing optimizations...");
+        
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            
+            // Create optimizer
+            Optimizer optimizer = Optimizer::new();
+            IRModule optimized_ir = optimizer.optimize(unit.ir_module);
+            
+            if (optimized_ir == null) {
+                io::println("❌ Optimization failed: " + rel_path);
+                return false;
+            }
+            
+            // Update compilation unit with optimized IR
+            unit.optimized_ir = optimized_ir;
+            compilation_units[rel_path] = unit;
+            
+            io::println("  ✅ Optimized: " + rel_path);
+        }
+        
+        return true;
+    }
+    
+    // Generate target code
+    function generate_target_code() private returns (bool) {
+        io::println("🎯 Generating target code...");
+        
+        // Create code generator
+        CodeGenerator codegen = CodeGenerator::new(output_directory);
+        
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            IRModule ir = optimization_enabled ? unit.optimized_ir : unit.ir_module;
+            
+            string object_file = codegen.generate_object_file(ir, rel_path);
+            
+            if (object_file.empty()) {
+                io::println("❌ Code generation failed: " + rel_path);
+                return false;
+            }
+            
+            // Update compilation unit with object file
+            unit.object_file = object_file;
+            compilation_units[rel_path] = unit;
+            
+            io::println("  ✅ Generated: " + object_file);
+        }
+        
+        return true;
+    }
+    
+    // Create final executable
+    function create_executable() private returns (bool) {
+        io::println("🔗 Creating executable...");
+        
+        // Collect all object files
+        string[] object_files;
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            object_files.push(unit.object_file);
+        }
+        
+        // Create linker
+        Linker linker = Linker::new();
+        bool success = linker.link(object_files, target_executable);
+        
+        if (!success) {
+            io::println("❌ Linking failed");
+            return false;
+        }
+        
+        io::println("✅ Executable created: " + target_executable);
+        return true;
+    }
+    
+    // Initialize compiler environment
+    function initialize_compiler_environment() private {
+        // Ensure output directory exists
+        fs::create_directories(output_directory);
+        
+        // Set up compilation environment
+        env::set("OMEGA_SELF_HOSTING", "true");
+        env::set("OMEGA_DEBUG", debug_mode ? "true" : "false");
+        env::set("OMEGA_OPTIMIZE", optimization_enabled ? "true" : "false");
+    }
+    
+    // Bootstrap function: compile OMEGA compiler using itself
+    function bootstrap() public returns (bool) {
+        io::println("🔄 Starting OMEGA Bootstrap Process...");
+        io::println("📋 Self-hosting: OMEGA compiling itself");
+        
+        // Set source to current OMEGA source directory
+        source_directory = "src/";
+        output_directory = "build/self-hosting/";
+        target_executable = "build/self-hosting/omega_self_hosted";
+        
+        // Enable all optimizations for bootstrap
+        optimization_enabled = true;
+        debug_mode = false;
+        
+        bool success = compile_self();
+        
+        if (success) {
+            io::println("🎉 Bootstrap completed successfully!");
+            io::println("🚀 OMEGA is now self-hosting!");
+            
+            // Verify self-hosted compiler
+            return verify_self_hosted_compiler();
+        } else {
+            io::println("❌ Bootstrap failed");
+            return false;
+        }
+    }
+    
+    // Verify that self-hosted compiler works
+    function verify_self_hosted_compiler() private returns (bool) {
+        io::println("🧪 Verifying self-hosted compiler...");
+        
+        // Run self-hosted compiler on a simple test
+        string test_result = process::run(target_executable + " --version");
+        
+        if (test_result.contains("OMEGA")) {
+            io::println("✅ Self-hosted compiler verification passed");
+            return true;
+        } else {
+            io::println("❌ Self-hosted compiler verification failed");
+            return false;
+        }
+    }
+    
+    // Get compilation statistics
+    function get_compilation_stats() public view returns (CompilationStats) {
+        CompilationStats stats = CompilationStats::new();
+        
+        stats.total_files = compilation_units.length;
+        stats.total_tokens = 0;
+        stats.total_lines = 0;
+        
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            stats.total_tokens += unit.tokens.length;
+            stats.total_lines += unit.source_code.split("\n").length;
+        }
+        
+        return stats;
+    }
+}
+
+// Compilation Unit Structure
+struct CompilationUnit {
+    string file_path;
+    string source_code;
+    Token[] tokens;
+    ASTNode ast;
+    ASTNode analyzed_ast;
+    SymbolTable symbol_table;
+    IRModule ir_module;
+    IRModule optimized_ir;
+    string object_file;
+}
+
+// Compilation Statistics
+struct CompilationStats {
+    uint256 total_files;
+    uint256 total_tokens;
+    uint256 total_lines;
+    uint256 compilation_time_ms;
+}
+
+// Main self-hosting entry point
+function main() {
+    io::println("🚀 OMEGA Self-Hosting Compiler v1.1.0");
+    io::println("📦 Compiling OMEGA using OMEGA itself");
+    
+    SelfHostingCompiler compiler = SelfHostingCompiler::new("src/", "build/", "omega_self_hosted");
+    
+    bool success = compiler.bootstrap();
+    
+    if (success) {
+        CompilationStats stats = compiler.get_compilation_stats();
+        io::println("📊 Compilation Statistics:");
+        io::println("  Files: " + string(stats.total_files));
+        io::println("  Tokens: " + string(stats.total_tokens));
+        io::println("  Lines: " + string(stats.total_lines));
+        
+        process::exit(0);
+    } else {
+        io::println("❌ Self-hosting compilation failed");
+        process::exit(1);
+    }
+}

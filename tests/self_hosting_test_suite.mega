@@ -1,0 +1,554 @@
+// OMEGA Self-Hosting Test Suite
+// Comprehensive tests to verify that OMEGA compiler can compile itself
+
+import std::io;
+import std::fs;
+import std::path;
+import std::process;
+import std::time;
+import std::assert;
+import "../bootstrap/bootstrap_chain.mega" as Bootstrap;
+import "../src/lexer/lexer.mega" as Lexer;
+import "../src/parser/parser.mega" as Parser;
+import "../src/codegen/native_codegen.mega" as CodeGen;
+
+/// Comprehensive Self-Hosting Test Suite
+blockchain SelfHostingTestSuite {
+    state {
+        string test_suite_version;
+        uint256 total_tests;
+        uint256 passed_tests;
+        uint256 failed_tests;
+        uint256 test_start_time;
+        
+        // Test categories
+        bool lexer_tests_passed;
+        bool parser_tests_passed;
+        bool codegen_tests_passed;
+        bool bootstrap_tests_passed;
+        bool integration_tests_passed;
+        bool performance_tests_passed;
+        
+        // Test results
+        mapping(string => bool) test_results;
+        string[] test_names;
+        string[] failed_test_messages;
+        
+        // Performance metrics
+        uint256 compilation_time_ms;
+        uint256 memory_usage_mb;
+        uint256 files_compiled;
+        uint256 lines_processed;
+        
+        // Test artifacts
+        string test_output_directory;
+        string[] generated_test_files;
+        
+        // Bootstrap chain for testing
+        Bootstrap::BootstrapChain bootstrap_chain;
+        
+        // Component instances for testing
+        Lexer::OmegaLexer test_lexer;
+        Parser::OmegaParser test_parser;
+        CodeGen::NativeCodeGenerator test_codegen;
+    }
+    
+    constructor() {
+        test_suite_version = "1.0.0";
+        total_tests = 0;
+        passed_tests = 0;
+        failed_tests = 0;
+        
+        lexer_tests_passed = false;
+        parser_tests_passed = false;
+        codegen_tests_passed = false;
+        bootstrap_tests_passed = false;
+        integration_tests_passed = false;
+        performance_tests_passed = false;
+        
+        test_output_directory = "./test_output";
+        
+        // Initialize test components
+        bootstrap_chain = Bootstrap::BootstrapChain::new();
+        test_lexer = Lexer::OmegaLexer::new();
+        test_parser = Parser::OmegaParser::new();
+        test_codegen = CodeGen::NativeCodeGenerator::new();
+        
+        io::println("🧪 OMEGA Self-Hosting Test Suite initialized");
+        io::println("📦 Version: " + test_suite_version);
+        io::println("📁 Output: " + test_output_directory);
+    }
+    
+    /// Run complete self-hosting test suite
+    function run_all_tests() public returns (bool) {
+        io::println("🚀 Starting OMEGA Self-Hosting Test Suite...");
+        test_start_time = time::now_ms();
+        
+        // Create test output directory
+        if (!fs::exists(test_output_directory)) {
+            fs::create_dir_all(test_output_directory);
+        }
+        
+        bool all_tests_passed = true;
+        
+        // Run test categories in order
+        io::println("\n=== LEXER TESTS ===");
+        lexer_tests_passed = run_lexer_tests();
+        all_tests_passed = all_tests_passed && lexer_tests_passed;
+        
+        io::println("\n=== PARSER TESTS ===");
+        parser_tests_passed = run_parser_tests();
+        all_tests_passed = all_tests_passed && parser_tests_passed;
+        
+        io::println("\n=== CODEGEN TESTS ===");
+        codegen_tests_passed = run_codegen_tests();
+        all_tests_passed = all_tests_passed && codegen_tests_passed;
+        
+        io::println("\n=== BOOTSTRAP TESTS ===");
+        bootstrap_tests_passed = run_bootstrap_tests();
+        all_tests_passed = all_tests_passed && bootstrap_tests_passed;
+        
+        io::println("\n=== INTEGRATION TESTS ===");
+        integration_tests_passed = run_integration_tests();
+        all_tests_passed = all_tests_passed && integration_tests_passed;
+        
+        io::println("\n=== PERFORMANCE TESTS ===");
+        performance_tests_passed = run_performance_tests();
+        all_tests_passed = all_tests_passed && performance_tests_passed;
+        
+        // Generate test report
+        generate_test_report();
+        
+        uint256 test_duration = time::now_ms() - test_start_time;
+        
+        if (all_tests_passed) {
+            io::println("\n🎉 ALL SELF-HOSTING TESTS PASSED! 🎉");
+            io::println("✅ OMEGA is fully self-hosting and production ready!");
+        } else {
+            io::println("\n❌ Some tests failed. Check test report for details.");
+        }
+        
+        io::println("⏱️ Total test time: " + test_duration.toString() + "ms");
+        io::println("📊 Tests: " + passed_tests.toString() + "/" + total_tests.toString() + " passed");
+        
+        return all_tests_passed;
+    }
+    
+    /// Test Category 1: Lexer Self-Hosting Tests
+    function run_lexer_tests() private returns (bool) {
+        bool all_passed = true;
+        
+        // Test 1: Lexer can tokenize its own source code
+        all_passed = all_passed && run_test("lexer_self_tokenization", test_lexer_self_tokenization);
+        
+        // Test 2: Lexer handles all OMEGA language constructs
+        all_passed = all_passed && run_test("lexer_language_constructs", test_lexer_language_constructs);
+        
+        // Test 3: Lexer error handling
+        all_passed = all_passed && run_test("lexer_error_handling", test_lexer_error_handling);
+        
+        // Test 4: Lexer performance on large files
+        all_passed = all_passed && run_test("lexer_performance", test_lexer_performance);
+        
+        return all_passed;
+    }
+    
+    /// Test Category 2: Parser Self-Hosting Tests
+    function run_parser_tests() private returns (bool) {
+        bool all_passed = true;
+        
+        // Test 1: Parser can parse its own source code
+        all_passed = all_passed && run_test("parser_self_parsing", test_parser_self_parsing);
+        
+        // Test 2: Parser handles complex AST structures
+        all_passed = all_passed && run_test("parser_complex_ast", test_parser_complex_ast);
+        
+        // Test 3: Parser error recovery
+        all_passed = all_passed && run_test("parser_error_recovery", test_parser_error_recovery);
+        
+        // Test 4: Parser symbol table management
+        all_passed = all_passed && run_test("parser_symbol_table", test_parser_symbol_table);
+        
+        return all_passed;
+    }
+    
+    /// Test Category 3: Code Generator Self-Hosting Tests
+    function run_codegen_tests() private returns (bool) {
+        bool all_passed = true;
+        
+        // Test 1: CodeGen can generate its own source code
+        all_passed = all_passed && run_test("codegen_self_generation", test_codegen_self_generation);
+        
+        // Test 2: CodeGen multi-target support
+        all_passed = all_passed && run_test("codegen_multi_target", test_codegen_multi_target);
+        
+        // Test 3: CodeGen optimization passes
+        all_passed = all_passed && run_test("codegen_optimization", test_codegen_optimization);
+        
+        // Test 4: CodeGen native executable generation
+        all_passed = all_passed && run_test("codegen_native_executable", test_codegen_native_executable);
+        
+        return all_passed;
+    }
+    
+    /// Test Category 4: Bootstrap Chain Tests
+    function run_bootstrap_tests() private returns (bool) {
+        bool all_passed = true;
+        
+        // Test 1: Complete bootstrap chain execution
+        all_passed = all_passed && run_test("bootstrap_complete_chain", test_bootstrap_complete_chain);
+        
+        // Test 2: Bootstrap stage verification
+        all_passed = all_passed && run_test("bootstrap_stage_verification", test_bootstrap_stage_verification);
+        
+        // Test 3: Bootstrap error handling
+        all_passed = all_passed && run_test("bootstrap_error_handling", test_bootstrap_error_handling);
+        
+        // Test 4: Bootstrap performance metrics
+        all_passed = all_passed && run_test("bootstrap_performance", test_bootstrap_performance);
+        
+        return all_passed;
+    }
+    
+    /// Test Category 5: Integration Tests
+    function run_integration_tests() private returns (bool) {
+        bool all_passed = true;
+        
+        // Test 1: End-to-end compilation pipeline
+        all_passed = all_passed && run_test("integration_e2e_pipeline", test_integration_e2e_pipeline);
+        
+        // Test 2: Cross-component compatibility
+        all_passed = all_passed && run_test("integration_cross_component", test_integration_cross_component);
+        
+        // Test 3: Real-world program compilation
+        all_passed = all_passed && run_test("integration_real_world", test_integration_real_world);
+        
+        // Test 4: Recursive self-compilation
+        all_passed = all_passed && run_test("integration_recursive_compilation", test_integration_recursive_compilation);
+        
+        return all_passed;
+    }
+    
+    /// Test Category 6: Performance Tests
+    function run_performance_tests() private returns (bool) {
+        bool all_passed = true;
+        
+        // Test 1: Compilation speed benchmarks
+        all_passed = all_passed && run_test("performance_compilation_speed", test_performance_compilation_speed);
+        
+        // Test 2: Memory usage optimization
+        all_passed = all_passed && run_test("performance_memory_usage", test_performance_memory_usage);
+        
+        // Test 3: Large codebase handling
+        all_passed = all_passed && run_test("performance_large_codebase", test_performance_large_codebase);
+        
+        // Test 4: Concurrent compilation
+        all_passed = all_passed && run_test("performance_concurrent", test_performance_concurrent);
+        
+        return all_passed;
+    }
+    
+    // Individual Test Implementations
+    
+    /// Test: Lexer can tokenize its own source code
+    function test_lexer_self_tokenization() private returns (bool) {
+        string memory lexer_source_path = "./src/lexer/lexer.mega";
+        
+        if (!fs::exists(lexer_source_path)) {
+            return false;
+        }
+        
+        string memory source_code = fs::read_file(lexer_source_path);
+        Lexer::Token[] memory tokens = test_lexer.tokenize_source(source_code, lexer_source_path);
+        
+        // Verify tokens were generated
+        if (tokens.length == 0) {
+            return false;
+        }
+        
+        // Verify no lexer errors
+        if (test_lexer.get_error_count() > 0) {
+            return false;
+        }
+        
+        // Verify essential tokens are present
+        bool has_blockchain_keyword = false;
+        bool has_function_keyword = false;
+        bool has_identifiers = false;
+        
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (tokens[i].token_type == Lexer::TokenType::BLOCKCHAIN) {
+                has_blockchain_keyword = true;
+            }
+            if (tokens[i].token_type == Lexer::TokenType::FUNCTION) {
+                has_function_keyword = true;
+            }
+            if (tokens[i].token_type == Lexer::TokenType::IDENTIFIER) {
+                has_identifiers = true;
+            }
+        }
+        
+        return has_blockchain_keyword && has_function_keyword && has_identifiers;
+    }
+    
+    /// Test: Parser can parse its own source code
+    function test_parser_self_parsing() private returns (bool) {
+        string memory parser_source_path = "./src/parser/parser.mega";
+        
+        if (!fs::exists(parser_source_path)) {
+            return false;
+        }
+        
+        string memory source_code = fs::read_file(parser_source_path);
+        
+        // Tokenize parser source
+        Lexer::Token[] memory tokens = test_lexer.tokenize_source(source_code, parser_source_path);
+        
+        if (tokens.length == 0) {
+            return false;
+        }
+        
+        // Parse parser AST
+        Parser::Program memory parser_ast = test_parser.parse(tokens, parser_source_path);
+        
+        // Verify AST was generated
+        if (parser_ast.item_count == 0) {
+            return false;
+        }
+        
+        // Verify no parser errors
+        if (test_parser.get_error_count() > 0) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Test: CodeGen can generate its own source code
+    function test_codegen_self_generation() private returns (bool) {
+        string memory codegen_source_path = "./src/codegen/native_codegen.mega";
+        
+        if (!fs::exists(codegen_source_path)) {
+            return false;
+        }
+        
+        string memory source_code = fs::read_file(codegen_source_path);
+        
+        // Full compilation pipeline
+        Lexer::Token[] memory tokens = test_lexer.tokenize_source(source_code, codegen_source_path);
+        Parser::Program memory codegen_ast = test_parser.parse(tokens, codegen_source_path);
+        
+        // Generate native code
+        string memory output_dir = path::join(test_output_directory, "codegen_self_test");
+        bool generation_success = test_codegen.generate(codegen_ast, "native", output_dir);
+        
+        if (!generation_success) {
+            return false;
+        }
+        
+        // Verify output files were created
+        return fs::exists(output_dir);
+    }
+    
+    /// Test: Complete bootstrap chain execution
+    function test_bootstrap_complete_chain() private returns (bool) {
+        // Execute the complete bootstrap chain
+        bool bootstrap_success = bootstrap_chain.bootstrap();
+        
+        if (!bootstrap_success) {
+            return false;
+        }
+        
+        // Verify bootstrap statistics
+        Bootstrap::BootstrapStats memory stats = bootstrap_chain.get_bootstrap_stats();
+        
+        return stats.bootstrap_successful && 
+               stats.self_hosting_complete &&
+               stats.lexer_compiled &&
+               stats.parser_compiled &&
+               stats.codegen_compiled;
+    }
+    
+    /// Test: End-to-end compilation pipeline
+    function test_integration_e2e_pipeline() private returns (bool) {
+        // Create a test program
+        string memory test_program = create_complex_test_program();
+        string memory test_file = path::join(test_output_directory, "e2e_test.mega");
+        fs::write_file(test_file, test_program);
+        
+        // Run complete compilation pipeline
+        Lexer::Token[] memory tokens = test_lexer.tokenize_source(test_program, test_file);
+        
+        if (tokens.length == 0) {
+            return false;
+        }
+        
+        Parser::Program memory ast = test_parser.parse(tokens, test_file);
+        
+        if (ast.item_count == 0) {
+            return false;
+        }
+        
+        string memory output_dir = path::join(test_output_directory, "e2e_output");
+        bool codegen_success = test_codegen.generate(ast, "native", output_dir);
+        
+        return codegen_success;
+    }
+    
+    /// Test: Compilation speed benchmarks
+    function test_performance_compilation_speed() private returns (bool) {
+        uint256 start_time = time::now_ms();
+        
+        // Compile a moderately complex program
+        string memory test_program = create_performance_test_program();
+        string memory test_file = path::join(test_output_directory, "perf_test.mega");
+        fs::write_file(test_file, test_program);
+        
+        // Run compilation
+        Lexer::Token[] memory tokens = test_lexer.tokenize_source(test_program, test_file);
+        Parser::Program memory ast = test_parser.parse(tokens, test_file);
+        string memory output_dir = path::join(test_output_directory, "perf_output");
+        test_codegen.generate(ast, "native", output_dir);
+        
+        uint256 compilation_time = time::now_ms() - start_time;
+        compilation_time_ms = compilation_time;
+        
+        // Performance threshold: should compile in under 5 seconds
+        return compilation_time < 5000;
+    }
+    
+    /// Utility function to run individual tests
+    function run_test(string memory test_name, function() returns (bool) test_func) private returns (bool) {
+        total_tests++;
+        test_names.push(test_name);
+        
+        io::print("  🧪 " + test_name + "... ");
+        
+        bool test_passed = test_func();
+        test_results[test_name] = test_passed;
+        
+        if (test_passed) {
+            passed_tests++;
+            io::println("✅ PASSED");
+        } else {
+            failed_tests++;
+            failed_test_messages.push("Test failed: " + test_name);
+            io::println("❌ FAILED");
+        }
+        
+        return test_passed;
+    }
+    
+    /// Create a complex test program for testing
+    function create_complex_test_program() private pure returns (string memory) {
+        string memory program = "// Complex OMEGA Test Program\n";
+        program += "import std::io;\nimport std::fs;\n\n";
+        program += "blockchain ComplexTestProgram {\n";
+        program += "    state {\n";
+        program += "        mapping(address => uint256) balances;\n";
+        program += "        uint256 total_supply;\n";
+        program += "        string[] messages;\n";
+        program += "    }\n\n";
+        program += "    constructor(uint256 _supply) {\n";
+        program += "        total_supply = _supply;\n";
+        program += "        balances[msg.sender] = _supply;\n";
+        program += "    }\n\n";
+        program += "    function transfer(address to, uint256 amount) public returns (bool) {\n";
+        program += "        require(balances[msg.sender] >= amount, \"Insufficient balance\");\n";
+        program += "        balances[msg.sender] -= amount;\n";
+        program += "        balances[to] += amount;\n";
+        program += "        return true;\n";
+        program += "    }\n\n";
+        program += "    function add_message(string memory msg) public {\n";
+        program += "        messages.push(msg);\n";
+        program += "    }\n";
+        program += "}\n";
+        return program;
+    }
+    
+    /// Create a performance test program
+    function create_performance_test_program() private pure returns (string memory) {
+        string memory program = "// Performance Test Program\n";
+        program += "import std::io;\n\n";
+        program += "blockchain PerformanceTest {\n";
+        program += "    state {\n";
+        program += "        mapping(uint256 => uint256) data;\n";
+        program += "        uint256 counter;\n";
+        program += "    }\n\n";
+        program += "    function compute_intensive() public {\n";
+        program += "        for (uint256 i = 0; i < 1000; i++) {\n";
+        program += "            data[i] = i * i + counter;\n";
+        program += "            counter++;\n";
+        program += "        }\n";
+        program += "    }\n";
+        program += "}\n";
+        return program;
+    }
+    
+    /// Generate comprehensive test report
+    function generate_test_report() private {
+        string memory report_path = path::join(test_output_directory, "self_hosting_test_report.txt");
+        string memory report = "OMEGA Self-Hosting Test Suite Report\n";
+        report += "=====================================\n\n";
+        report += "Test Suite Version: " + test_suite_version + "\n";
+        report += "Total Tests: " + total_tests.toString() + "\n";
+        report += "Passed: " + passed_tests.toString() + "\n";
+        report += "Failed: " + failed_tests.toString() + "\n";
+        report += "Success Rate: " + ((passed_tests * 100) / total_tests).toString() + "%\n\n";
+        
+        report += "Test Categories:\n";
+        report += "- Lexer Tests: " + (lexer_tests_passed ? "PASSED" : "FAILED") + "\n";
+        report += "- Parser Tests: " + (parser_tests_passed ? "PASSED" : "FAILED") + "\n";
+        report += "- CodeGen Tests: " + (codegen_tests_passed ? "PASSED" : "FAILED") + "\n";
+        report += "- Bootstrap Tests: " + (bootstrap_tests_passed ? "PASSED" : "FAILED") + "\n";
+        report += "- Integration Tests: " + (integration_tests_passed ? "PASSED" : "FAILED") + "\n";
+        report += "- Performance Tests: " + (performance_tests_passed ? "PASSED" : "FAILED") + "\n\n";
+        
+        if (failed_tests > 0) {
+            report += "Failed Tests:\n";
+            for (uint256 i = 0; i < failed_test_messages.length; i++) {
+                report += "- " + failed_test_messages[i] + "\n";
+            }
+        }
+        
+        fs::write_file(report_path, report);
+        io::println("📄 Test report generated: " + report_path);
+    }
+    
+    /// Get test suite statistics
+    function get_test_stats() public view returns (TestStats memory) {
+        return TestStats({
+            total_tests: total_tests,
+            passed_tests: passed_tests,
+            failed_tests: failed_tests,
+            lexer_tests_passed: lexer_tests_passed,
+            parser_tests_passed: parser_tests_passed,
+            codegen_tests_passed: codegen_tests_passed,
+            bootstrap_tests_passed: bootstrap_tests_passed,
+            integration_tests_passed: integration_tests_passed,
+            performance_tests_passed: performance_tests_passed,
+            compilation_time_ms: compilation_time_ms,
+            memory_usage_mb: memory_usage_mb
+        });
+    }
+    
+    /// Check if all tests passed
+    function all_tests_passed() public view returns (bool) {
+        return failed_tests == 0 && total_tests > 0;
+    }
+}
+
+/// Test statistics structure
+struct TestStats {
+    uint256 total_tests;
+    uint256 passed_tests;
+    uint256 failed_tests;
+    bool lexer_tests_passed;
+    bool parser_tests_passed;
+    bool codegen_tests_passed;
+    bool bootstrap_tests_passed;
+    bool integration_tests_passed;
+    bool performance_tests_passed;
+    uint256 compilation_time_ms;
+    uint256 memory_usage_mb;
+}

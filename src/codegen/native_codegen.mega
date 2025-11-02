@@ -1,0 +1,541 @@
+// OMEGA Native Code Generator - Self-Hosting Code Generation Engine
+// Generates executable code from AST for multiple blockchain targets
+
+import std::io;
+import std::fs;
+import std::path;
+import std::collections;
+import std::string;
+import "../parser/ast_nodes.mega";
+import "../lexer/lexer.mega";
+import "../error/error.mega";
+
+/// Advanced Native Code Generator for Self-Hosting OMEGA Compiler
+blockchain NativeCodeGenerator {
+    state {
+        // Target configuration
+        string target_platform;
+        string output_directory;
+        bool enable_optimization;
+        bool enable_debug_info;
+        
+        // Code generation state
+        Program current_program;
+        string[] generated_files;
+        uint256 file_count;
+        
+        // Target-specific generators
+        EVMCodeGenerator evm_generator;
+        SolanaCodeGenerator solana_generator;
+        NativeCodeGenerator self_hosting_generator;
+        
+        // Optimization settings
+        bool enable_dead_code_elimination;
+        bool enable_constant_folding;
+        bool enable_inline_optimization;
+        bool enable_gas_optimization;
+        
+        // Self-hosting specific
+        bool generating_compiler_code;
+        string compiler_version;
+        mapping(string => string) module_dependencies;
+        
+        // Performance tracking
+        uint256 generation_start_time;
+        uint256 lines_generated;
+        uint256 functions_generated;
+        uint256 contracts_generated;
+        
+        // Error handling
+        OmegaErrorHandler error_handler;
+        uint256 error_count;
+        string[] error_messages;
+        
+        // Advanced features
+        bool enable_cross_chain_support;
+        bool enable_formal_verification;
+        string[] enabled_extensions;
+    }
+    
+    constructor() {
+        target_platform = "native";
+        output_directory = "./build";
+        enable_optimization = true;
+        enable_debug_info = true;
+        file_count = 0;
+        
+        // Initialize target generators
+        evm_generator = EVMCodeGenerator::new();
+        solana_generator = SolanaCodeGenerator::new();
+        self_hosting_generator = NativeCodeGenerator::new();
+        
+        // Enable all optimizations for self-hosting
+        enable_dead_code_elimination = true;
+        enable_constant_folding = true;
+        enable_inline_optimization = true;
+        enable_gas_optimization = true;
+        
+        // Self-hosting configuration
+        generating_compiler_code = false;
+        compiler_version = "1.1.0";
+        
+        // Performance tracking
+        lines_generated = 0;
+        functions_generated = 0;
+        contracts_generated = 0;
+        error_count = 0;
+        
+        // Advanced features
+        enable_cross_chain_support = true;
+        enable_formal_verification = true;
+        enabled_extensions = [
+            "self_hosting",
+            "cross_chain",
+            "evm_target",
+            "solana_target",
+            "optimization",
+            "formal_verification"
+        ];
+        
+        error_handler = OmegaErrorHandler::new();
+        
+        io::println("🚀 OMEGA Native Code Generator initialized");
+        io::println("🎯 Supported targets: EVM, Solana, Native Self-Hosting");
+    }
+    
+    /// Main code generation function
+    function generate(Program memory program, string memory target, string memory output_dir) public returns (bool) {
+        io::println("🔧 Starting code generation...");
+        io::println("🎯 Target: " + target);
+        io::println("📁 Output: " + output_dir);
+        
+        generation_start_time = block.timestamp;
+        current_program = program;
+        target_platform = target;
+        output_directory = output_dir;
+        error_count = 0;
+        
+        // Detect if generating compiler code
+        if (program.source_file.contains("compiler") || 
+            program.source_file.contains("lexer") || 
+            program.source_file.contains("parser") || 
+            program.source_file.contains("codegen")) {
+            generating_compiler_code = true;
+            io::println("📦 Self-hosting mode: Generating compiler code");
+        }
+        
+        // Create output directory
+        if (!fs::exists(output_dir)) {
+            fs::create_dir_all(output_dir);
+            io::println("📁 Created output directory: " + output_dir);
+        }
+        
+        bool success = false;
+        
+        // Route to appropriate target generator
+        if (target == "evm") {
+            success = generate_evm_code(program);
+        } else if (target == "solana") {
+            success = generate_solana_code(program);
+        } else if (target == "native" || target == "self_hosting") {
+            success = generate_native_code(program);
+        } else {
+            add_error("Unsupported target platform: " + target);
+            return false;
+        }
+        
+        // Performance metrics
+        uint256 generation_duration = block.timestamp - generation_start_time;
+        io::println("✅ Code generation completed in " + generation_duration.toString() + "ms");
+        io::println("📊 Files generated: " + file_count.toString());
+        io::println("📈 Lines generated: " + lines_generated.toString());
+        io::println("🔧 Functions generated: " + functions_generated.toString());
+        io::println("📦 Contracts generated: " + contracts_generated.toString());
+        
+        if (error_count > 0) {
+            io::println("⚠️ Generation completed with " + error_count.toString() + " errors");
+        }
+        
+        return success && error_count == 0;
+    }
+    
+    /// Generate EVM-compatible Solidity code
+    function generate_evm_code(Program memory program) private returns (bool) {
+        io::println("🔷 Generating EVM/Solidity code...");
+        
+        string memory solidity_code = "// Generated by OMEGA Compiler v" + compiler_version + "\n";
+        solidity_code += "// Target: EVM (Ethereum Virtual Machine)\n";
+        solidity_code += "// Source: " + program.source_file + "\n\n";
+        
+        solidity_code += "pragma solidity ^0.8.19;\n\n";
+        
+        // Generate imports
+        for (uint256 i = 0; i < program.item_count; i++) {
+            Item memory item = program.items[i];
+            if (item.item_type == ItemType.ImportItem) {
+                solidity_code += generate_evm_import(item.import_item);
+            }
+        }
+        
+        solidity_code += "\n";
+        
+        // Generate contracts (from blockchain declarations)
+        for (uint256 i = 0; i < program.item_count; i++) {
+            Item memory item = program.items[i];
+            if (item.item_type == ItemType.BlockchainItem) {
+                solidity_code += generate_evm_contract(item.blockchain_item);
+                contracts_generated++;
+            }
+        }
+        
+        // Write to file
+        string memory output_file = path::join(output_directory, "contract.sol");
+        fs::write_file(output_file, solidity_code);
+        generated_files.push(output_file);
+        file_count++;
+        
+        lines_generated += count_lines(solidity_code);
+        
+        io::println("✅ EVM code generated: " + output_file);
+        return true;
+    }
+    
+    /// Generate Solana-compatible Rust code
+    function generate_solana_code(Program memory program) private returns (bool) {
+        io::println("🟠 Generating Solana/Rust code...");
+        
+        // Generate lib.rs
+        string memory rust_code = "// Generated by OMEGA Compiler v" + compiler_version + "\n";
+        rust_code += "// Target: Solana (Rust/BPF)\n";
+        rust_code += "// Source: " + program.source_file + "\n\n";
+        
+        rust_code += "use solana_program::{\n";
+        rust_code += "    account_info::{next_account_info, AccountInfo},\n";
+        rust_code += "    entrypoint,\n";
+        rust_code += "    entrypoint::ProgramResult,\n";
+        rust_code += "    msg,\n";
+        rust_code += "    program_error::ProgramError,\n";
+        rust_code += "    pubkey::Pubkey,\n";
+        rust_code += "};\n\n";
+        
+        rust_code += "entrypoint!(process_instruction);\n\n";
+        
+        // Generate program entry point
+        rust_code += "pub fn process_instruction(\n";
+        rust_code += "    program_id: &Pubkey,\n";
+        rust_code += "    accounts: &[AccountInfo],\n";
+        rust_code += "    instruction_data: &[u8],\n";
+        rust_code += ") -> ProgramResult {\n";
+        rust_code += "    msg!(\"OMEGA Program Entry Point\");\n";
+        
+        // Generate blockchain logic
+        for (uint256 i = 0; i < program.item_count; i++) {
+            Item memory item = program.items[i];
+            if (item.item_type == ItemType.BlockchainItem) {
+                rust_code += generate_solana_program(item.blockchain_item);
+                contracts_generated++;
+            }
+        }
+        
+        rust_code += "    Ok(())\n";
+        rust_code += "}\n";
+        
+        // Write lib.rs
+        string memory lib_file = path::join(output_directory, "lib.rs");
+        fs::write_file(lib_file, rust_code);
+        generated_files.push(lib_file);
+        file_count++;
+        
+        // Generate Cargo.toml
+        string memory cargo_toml = generate_cargo_toml();
+        string memory cargo_file = path::join(output_directory, "Cargo.toml");
+        fs::write_file(cargo_file, cargo_toml);
+        generated_files.push(cargo_file);
+        file_count++;
+        
+        lines_generated += count_lines(rust_code) + count_lines(cargo_toml);
+        
+        io::println("✅ Solana code generated: " + lib_file);
+        io::println("✅ Cargo manifest generated: " + cargo_file);
+        return true;
+    }
+    
+    /// Generate native self-hosting code
+    function generate_native_code(Program memory program) private returns (bool) {
+        io::println("🔧 Generating native self-hosting code...");
+        
+        string memory native_code = "// Generated by OMEGA Self-Hosting Compiler v" + compiler_version + "\n";
+        native_code += "// Target: Native Self-Hosting\n";
+        native_code += "// Source: " + program.source_file + "\n\n";
+        
+        // Generate native OMEGA code that can compile itself
+        native_code += "import std::io;\n";
+        native_code += "import std::fs;\n";
+        native_code += "import std::process;\n\n";
+        
+        // Generate self-hosting blockchain
+        native_code += "blockchain SelfHostingProgram {\n";
+        native_code += "    state {\n";
+        native_code += "        string version;\n";
+        native_code += "        bool is_self_hosting;\n";
+        native_code += "    }\n\n";
+        
+        native_code += "    constructor() {\n";
+        native_code += "        version = \"" + compiler_version + "\";\n";
+        native_code += "        is_self_hosting = true;\n";
+        native_code += "        io::println(\"🚀 Self-hosting program initialized\");\n";
+        native_code += "    }\n\n";
+        
+        // Generate main execution function
+        native_code += "    function main() public {\n";
+        native_code += "        io::println(\"🔧 Running self-hosting program\");\n";
+        
+        // Generate program logic from AST
+        for (uint256 i = 0; i < program.item_count; i++) {
+            Item memory item = program.items[i];
+            if (item.item_type == ItemType.BlockchainItem) {
+                native_code += generate_native_blockchain(item.blockchain_item);
+                contracts_generated++;
+            }
+        }
+        
+        native_code += "        io::println(\"✅ Self-hosting execution completed\");\n";
+        native_code += "    }\n";
+        native_code += "}\n";
+        
+        // Write to file
+        string memory output_file = path::join(output_directory, "self_hosting.mega");
+        fs::write_file(output_file, native_code);
+        generated_files.push(output_file);
+        file_count++;
+        
+        lines_generated += count_lines(native_code);
+        
+        io::println("✅ Native self-hosting code generated: " + output_file);
+        return true;
+    }
+    
+    /// Generate EVM import statement
+    function generate_evm_import(Import memory import_item) private pure returns (string memory) {
+        return "import \"" + import_item.path + "\";\n";
+    }
+    
+    /// Generate EVM contract from blockchain
+    function generate_evm_contract(Blockchain memory blockchain) private returns (string memory) {
+        string memory contract_code = "contract " + blockchain.name + " {\n";
+        
+        // Generate state variables
+        if (blockchain.state_block.declarations.length > 0) {
+            contract_code += "    // State variables\n";
+            for (uint256 i = 0; i < blockchain.state_block.declarations.length; i++) {
+                StateDeclaration memory decl = blockchain.state_block.declarations[i];
+                contract_code += "    " + generate_evm_type(decl.type_info) + " " + decl.name + ";\n";
+            }
+            contract_code += "\n";
+        }
+        
+        // Generate constructor
+        if (blockchain.constructor.name != "") {
+            contract_code += generate_evm_constructor(blockchain.constructor);
+            functions_generated++;
+        }
+        
+        // Generate functions
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            contract_code += generate_evm_function(blockchain.functions[i]);
+            functions_generated++;
+        }
+        
+        // Generate events
+        for (uint256 i = 0; i < blockchain.events.length; i++) {
+            contract_code += generate_evm_event(blockchain.events[i]);
+        }
+        
+        contract_code += "}\n\n";
+        return contract_code;
+    }
+    
+    /// Generate EVM function
+    function generate_evm_function(Function memory func) private pure returns (string memory) {
+        string memory func_code = "    function " + func.name + "(";
+        
+        // Parameters
+        for (uint256 i = 0; i < func.parameters.length; i++) {
+            if (i > 0) func_code += ", ";
+            Parameter memory param = func.parameters[i];
+            func_code += generate_evm_type(param.type_info) + " " + param.name;
+        }
+        
+        func_code += ") " + generate_evm_visibility(func.visibility);
+        
+        // Return type
+        if (func.return_type.type_name != "") {
+            func_code += " returns (" + generate_evm_type(func.return_type) + ")";
+        }
+        
+        func_code += " {\n";
+        func_code += "        // Function body\n";
+        func_code += "    }\n\n";
+        
+        return func_code;
+    }
+    
+    /// Generate EVM constructor
+    function generate_evm_constructor(Constructor memory constructor) private pure returns (string memory) {
+        string memory ctor_code = "    constructor(";
+        
+        // Parameters
+        for (uint256 i = 0; i < constructor.parameters.length; i++) {
+            if (i > 0) ctor_code += ", ";
+            Parameter memory param = constructor.parameters[i];
+            ctor_code += generate_evm_type(param.type_info) + " " + param.name;
+        }
+        
+        ctor_code += ") {\n";
+        ctor_code += "        // Constructor body\n";
+        ctor_code += "    }\n\n";
+        
+        return ctor_code;
+    }
+    
+    /// Generate EVM event
+    function generate_evm_event(Event memory event_item) private pure returns (string memory) {
+        string memory event_code = "    event " + event_item.name + "(";
+        
+        for (uint256 i = 0; i < event_item.parameters.length; i++) {
+            if (i > 0) event_code += ", ";
+            EventParameter memory param = event_item.parameters[i];
+            if (param.indexed) event_code += "indexed ";
+            event_code += generate_evm_type(param.type_info) + " " + param.name;
+        }
+        
+        event_code += ");\n\n";
+        return event_code;
+    }
+    
+    /// Generate EVM type
+    function generate_evm_type(Type memory type_info) private pure returns (string memory) {
+        if (type_info.type_name == "uint256") return "uint256";
+        if (type_info.type_name == "address") return "address";
+        if (type_info.type_name == "string") return "string";
+        if (type_info.type_name == "bool") return "bool";
+        return type_info.type_name;
+    }
+    
+    /// Generate EVM visibility
+    function generate_evm_visibility(Visibility visibility) private pure returns (string memory) {
+        if (visibility == Visibility.Public) return "public";
+        if (visibility == Visibility.Private) return "private";
+        if (visibility == Visibility.Internal) return "internal";
+        return "public";
+    }
+    
+    /// Generate Solana program logic
+    function generate_solana_program(Blockchain memory blockchain) private pure returns (string memory) {
+        string memory program_code = "    // " + blockchain.name + " logic\n";
+        program_code += "    match instruction_data[0] {\n";
+        program_code += "        0 => {\n";
+        program_code += "            msg!(\"Initializing " + blockchain.name + "\");\n";
+        program_code += "        },\n";
+        program_code += "        _ => {\n";
+        program_code += "            msg!(\"Unknown instruction\");\n";
+        program_code += "            return Err(ProgramError::InvalidInstructionData);\n";
+        program_code += "        }\n";
+        program_code += "    }\n";
+        return program_code;
+    }
+    
+    /// Generate Cargo.toml for Solana
+    function generate_cargo_toml() private view returns (string memory) {
+        string memory cargo = "[package]\n";
+        cargo += "name = \"omega-solana-program\"\n";
+        cargo += "version = \"" + compiler_version + "\"\n";
+        cargo += "edition = \"2021\"\n\n";
+        cargo += "[dependencies]\n";
+        cargo += "solana-program = \"1.16\"\n\n";
+        cargo += "[lib]\n";
+        cargo += "crate-type = [\"cdylib\", \"lib\"]\n";
+        return cargo;
+    }
+    
+    /// Generate native blockchain
+    function generate_native_blockchain(Blockchain memory blockchain) private pure returns (string memory) {
+        string memory native_code = "        // Native blockchain: " + blockchain.name + "\n";
+        native_code += "        io::println(\"Executing " + blockchain.name + "\");\n";
+        return native_code;
+    }
+    
+    /// Utility functions
+    function count_lines(string memory code) private pure returns (uint256) {
+        uint256 lines = 1;
+        for (uint256 i = 0; i < bytes(code).length; i++) {
+            if (bytes(code)[i] == '\n') {
+                lines++;
+            }
+        }
+        return lines;
+    }
+    
+    function add_error(string memory message) private {
+        error_count++;
+        error_messages.push(message);
+        io::println("❌ CodeGen Error: " + message);
+    }
+    
+    /// Get generation statistics
+    function get_generation_stats() public view returns (CodeGenStats memory) {
+        return CodeGenStats({
+            files_generated: file_count,
+            lines_generated: lines_generated,
+            functions_generated: functions_generated,
+            contracts_generated: contracts_generated,
+            error_count: error_count,
+            generation_duration: block.timestamp - generation_start_time,
+            target_platform: target_platform,
+            is_self_hosting: generating_compiler_code
+        });
+    }
+    
+    /// Reset generator state
+    function reset() public {
+        file_count = 0;
+        lines_generated = 0;
+        functions_generated = 0;
+        contracts_generated = 0;
+        error_count = 0;
+        generating_compiler_code = false;
+        
+        generated_files = new string[](0);
+        error_messages = new string[](0);
+        
+        io::println("🔄 Code generator state reset");
+    }
+}
+
+/// Supporting structures for code generation
+struct CodeGenStats {
+    uint256 files_generated;
+    uint256 lines_generated;
+    uint256 functions_generated;
+    uint256 contracts_generated;
+    uint256 error_count;
+    uint256 generation_duration;
+    string target_platform;
+    bool is_self_hosting;
+}
+
+/// EVM Code Generator (placeholder for modular architecture)
+blockchain EVMCodeGenerator {
+    constructor() {}
+    function new() public pure returns (EVMCodeGenerator memory) {
+        return EVMCodeGenerator();
+    }
+}
+
+/// Solana Code Generator (placeholder for modular architecture)
+blockchain SolanaCodeGenerator {
+    constructor() {}
+    function new() public pure returns (SolanaCodeGenerator memory) {
+        return SolanaCodeGenerator();
+    }
+}

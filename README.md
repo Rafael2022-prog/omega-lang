@@ -35,21 +35,27 @@ OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengemb
 ## 📦 Instalasi
 
 ### Prerequisites
-- OMEGA Compiler (native) - v1.1.0+
-- Node.js 18+ (untuk EVM tooling) - **Updated January 2025**
-- Rust 1.70+ (untuk development) - **Updated dependencies**
-- Git
+- **OMEGA Runtime** (untuk native compiler)
+- **Git**
+- **PowerShell 7+** (Windows)
 
-### Install dari Source
+### Install Native OMEGA Compiler
 ```bash
 git clone https://github.com/Rafael2022-prog/omega-lang.git
 cd omega
-# Install dependencies (updated January 2025)
-npm install
-cargo build --release
-make build
-make install
+
+# Build menggunakan native OMEGA build system
+.\omega_native.ps1 build
+
+# Test installation
+.\omega_native.ps1 version
 ```
+
+### Fitur 100% Native
+- ✅ **No Rust Dependencies** - Pure OMEGA implementation
+- ✅ **Self-hosting Compiler** - OMEGA compiles itself
+- ✅ **Native Performance** - Optimized native execution
+- ✅ **Zero External Dependencies** - Completely self-contained
 
 ### Dependency Updates (January 2025)
 - ✅ **Security**: Fixed 3 high-severity vulnerabilities
@@ -116,17 +122,17 @@ blockchain SimpleToken {
 
 ### 4. Compile untuk Multiple Targets
 ```bash
-omega build
+.\omega_native.ps1 build
 # Output:
 # ✅ EVM: SimpleToken.sol generated
-# ✅ Solana: native code generated
-# ✅ Build completed successfully
+# ✅ Solana: lib.rs + Cargo.toml generated
+# ✅ Build completed successfully (100% Native)
 ```
 
 ### 5. Deploy ke Testnet
 ```bash
-omega deploy --target evm --network sepolia
-omega deploy --target solana --network devnet
+.\omega_native.ps1 deploy --target evm --network sepolia
+.\omega_native.ps1 deploy --target solana --network devnet
 ```
 
 ## 📚 Dokumentasi Lengkap

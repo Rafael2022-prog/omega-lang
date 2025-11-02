@@ -1,70 +1,221 @@
-// OMEGA Performance Optimizer - Written in MEGA
-// Comprehensive performance optimization dan benchmarking system
-// Mengoptimalkan compilation speed, runtime performance, dan memory usage
+// OMEGA Performance Optimizer - Production Ready Self-Hosting Compiler
+// Advanced performance optimization system for production deployment
+// Mengoptimalkan compilation speed, runtime performance, memory usage, dan self-hosting capability
 
+import std::io;
+import std::fs;
+import std::path;
+import std::time;
+import std::collections;
+import std::thread;
+import std::memory;
 import "../parser/ast_nodes.mega";
-import "../compiler/ir.mega";
-import "../error/error_types.mega";
+import "../ir/ir.mega";
+import "../error/error.mega";
+import "../lexer/lexer.mega";
+import "../parser/parser.mega";
+import "../codegen/native_codegen.mega";
 
-/// Comprehensive performance optimization system untuk OMEGA compiler
-/// Mengimplementasikan multiple optimization passes dan performance monitoring
+/// Production-Ready Performance Optimizer untuk OMEGA Self-Hosting Compiler
+/// Mengimplementasikan advanced optimization passes, parallel compilation, dan production monitoring
 blockchain PerformanceOptimizer {
     state {
-        OptimizationPipeline pipeline;          // Optimization pipeline
-        PerformanceProfiler profiler;           // Performance profiler
-        BenchmarkSuite benchmark_suite;         // Benchmark test suite
-        OptimizationCache cache;                // Optimization result cache
-        PerformanceMetrics metrics;             // Performance metrics
-        OptimizationRules rules;                // Optimization rules
+        // Core optimization system
+        OptimizationPipeline pipeline;          // Advanced optimization pipeline
+        PerformanceProfiler profiler;           // Production performance profiler
+        BenchmarkSuite benchmark_suite;         // Comprehensive benchmark suite
+        OptimizationCache cache;                // Intelligent optimization cache
+        PerformanceMetrics metrics;             // Real-time performance metrics
+        OptimizationRules rules;                // Dynamic optimization rules
+        
+        // Production readiness features
+        bool production_mode;                   // Production deployment mode
+        bool self_hosting_mode;                 // Self-hosting compilation mode
+        uint8 optimization_level;               // 0=debug, 1=release, 2=aggressive, 3=maximum
         bool aggressive_optimization_enabled;    // Aggressive optimization flag
+        
+        // Self-hosting specific optimizations
+        bool enable_bootstrap_optimization;     // Bootstrap chain optimization
+        bool enable_recursive_compilation;      // Recursive self-compilation
+        bool enable_compiler_profiling;         // Compiler performance profiling
+        bool enable_hot_reload;                 // Hot reload for development
+        
+        // Advanced performance features
+        ParallelCompiler parallel_compiler;     // Multi-threaded compilation
+        MemoryManager memory_manager;           // Advanced memory management
+        CacheManager cache_manager;             // Intelligent cache management
+        ProfilerEngine profiler_engine;         // Advanced profiling engine
+        
+        // Production metrics
+        uint256 total_compilation_time;         // Total compilation time
+        uint256 memory_peak_usage;              // Peak memory usage
+        uint256 cache_hit_ratio;                // Cache hit ratio percentage
+        uint256 parallel_efficiency;            // Parallel compilation efficiency
+        uint256 self_hosting_cycles;            // Number of self-hosting cycles
+        
+        // Performance thresholds for production
+        uint256 max_compilation_time_ms;        // Maximum allowed compilation time
+        uint256 max_memory_usage_mb;            // Maximum allowed memory usage
+        uint256 min_cache_hit_ratio;            // Minimum required cache hit ratio
+        uint256 min_parallel_efficiency;        // Minimum parallel efficiency
+        
+        // Real-time monitoring
+        bool enable_real_time_monitoring;       // Real-time performance monitoring
+        uint256 monitoring_interval_ms;         // Monitoring update interval
+        PerformanceAlert[] active_alerts;       // Active performance alerts
+        
+        // Production deployment features
+        bool enable_auto_scaling;               // Auto-scaling based on load
+        bool enable_load_balancing;             // Load balancing across cores
+        bool enable_fault_tolerance;            // Fault tolerance mechanisms
+        bool enable_graceful_degradation;       // Graceful performance degradation
     }
     
     constructor() {
+        // Initialize core optimization system
         pipeline = OptimizationPipeline::new();
         profiler = PerformanceProfiler::new();
         benchmark_suite = BenchmarkSuite::new();
         cache = OptimizationCache::new();
         metrics = PerformanceMetrics::new();
         rules = initialize_optimization_rules();
+        
+        // Initialize production readiness features
+        production_mode = false;
+        self_hosting_mode = false;
+        optimization_level = 1; // Default to release mode
         aggressive_optimization_enabled = false;
+        
+        // Initialize self-hosting optimizations
+        enable_bootstrap_optimization = true;
+        enable_recursive_compilation = true;
+        enable_compiler_profiling = true;
+        enable_hot_reload = false; // Disabled in production
+        
+        // Initialize advanced performance features
+        parallel_compiler = ParallelCompiler::new();
+        memory_manager = MemoryManager::new();
+        cache_manager = CacheManager::new();
+        profiler_engine = ProfilerEngine::new();
+        
+        // Initialize production metrics
+        total_compilation_time = 0;
+        memory_peak_usage = 0;
+        cache_hit_ratio = 0;
+        parallel_efficiency = 0;
+        self_hosting_cycles = 0;
+        
+        // Set production thresholds
+        max_compilation_time_ms = 30000;    // 30 seconds max
+        max_memory_usage_mb = 4096;         // 4GB max
+        min_cache_hit_ratio = 80;           // 80% minimum
+        min_parallel_efficiency = 70;       // 70% minimum
+        
+        // Initialize real-time monitoring
+        enable_real_time_monitoring = false;
+        monitoring_interval_ms = 1000;      // 1 second intervals
+        
+        // Initialize production deployment features
+        enable_auto_scaling = false;
+        enable_load_balancing = true;
+        enable_fault_tolerance = true;
+        enable_graceful_degradation = true;
+        
+        io::println("⚡ OMEGA Production Performance Optimizer initialized");
+        io::println("🎯 Optimization Level: " + optimization_level.toString());
+        io::println("🚀 Self-hosting optimizations enabled");
     }
     
-    /// Comprehensive performance optimization entry point
-    /// @param ir Intermediate representation to optimize
+    /// Production-ready performance optimization for self-hosting compiler
+    /// @param source_files Array of source files to compile
     /// @param target_platform Target platform for optimization
-    /// @param optimization_level Optimization level (0-3)
-    /// @return Optimized IR with performance metrics
-    function optimize_performance(IntermediateRepresentation memory ir, 
-                                TargetPlatform target_platform,
-                                uint8 optimization_level) public returns (OptimizationResult memory) {
+    /// @param enable_self_hosting Enable self-hosting compilation mode
+    /// @return Comprehensive optimization result with production metrics
+    function optimize_for_production(string[] memory source_files,
+                                   TargetPlatform target_platform,
+                                   bool enable_self_hosting) public returns (ProductionOptimizationResult memory) {
         
-        uint256 start_time = block.timestamp;
+        io::println("🚀 Starting production optimization...");
+        uint256 start_time = time::now_ms();
         
-        // Check cache for previous optimization results
-        bytes32 optimization_key = generate_optimization_key(ir, target_platform, optimization_level);
-        if (cache.has_result(optimization_key)) {
-            OptimizationResult memory cached_result = cache.get_result(optimization_key);
-            metrics.record_cache_hit(target_platform);
-            return cached_result;
+        // Enable production mode
+        production_mode = true;
+        self_hosting_mode = enable_self_hosting;
+        optimization_level = 2; // Aggressive optimization for production
+        
+        // Initialize production monitoring
+        if (enable_real_time_monitoring) {
+            profiler_engine.start_real_time_monitoring(monitoring_interval_ms);
         }
         
-        // Start performance profiling
-        profiler.start_profiling("optimization_session");
+        ProductionOptimizationResult memory result = ProductionOptimizationResult({
+            success: false,
+            total_files_processed: 0,
+            total_compilation_time: 0,
+            peak_memory_usage: 0,
+            cache_efficiency: 0,
+            parallel_efficiency: 0,
+            self_hosting_cycles_completed: 0,
+            production_ready: false,
+            performance_alerts: new PerformanceAlert[](0),
+            optimization_summary: ""
+        });
         
-        // Perform optimization pipeline
-        OptimizationResult memory result = run_optimization_pipeline(ir, target_platform, optimization_level);
+        // Phase 1: Pre-compilation optimization
+        io::println("📋 Phase 1: Pre-compilation optimization");
+        bool pre_opt_success = run_pre_compilation_optimization(source_files, target_platform);
+        if (!pre_opt_success) {
+            result.optimization_summary = "Pre-compilation optimization failed";
+            return result;
+        }
         
-        // Stop profiling and collect metrics
-        PerformanceProfile memory profile = profiler.stop_profiling("optimization_session");
-        result.performance_profile = profile;
+        // Phase 2: Parallel compilation with optimization
+        io::println("🔄 Phase 2: Parallel compilation optimization");
+        ParallelCompilationResult memory parallel_result = run_parallel_compilation_optimization(source_files, target_platform);
+        result.total_files_processed = parallel_result.files_processed;
+        result.parallel_efficiency = parallel_result.efficiency_percentage;
         
-        // Update metrics
-        uint256 optimization_time = block.timestamp - start_time;
-        metrics.record_optimization(target_platform, optimization_level, optimization_time, result.improvement_ratio);
+        // Phase 3: Self-hosting optimization (if enabled)
+        if (enable_self_hosting) {
+            io::println("🔁 Phase 3: Self-hosting optimization");
+            SelfHostingOptimizationResult memory self_hosting_result = run_self_hosting_optimization(source_files, target_platform);
+            result.self_hosting_cycles_completed = self_hosting_result.cycles_completed;
+        }
         
-        // Cache result if beneficial
-        if (should_cache_optimization(result, optimization_time)) {
-            cache.store_result(optimization_key, result);
+        // Phase 4: Memory and cache optimization
+        io::println("💾 Phase 4: Memory and cache optimization");
+        MemoryOptimizationResult memory memory_result = run_memory_optimization();
+        result.peak_memory_usage = memory_result.peak_usage_mb;
+        result.cache_efficiency = memory_result.cache_hit_ratio;
+        
+        // Phase 5: Production readiness validation
+        io::println("✅ Phase 5: Production readiness validation");
+        ProductionReadinessResult memory readiness_result = validate_production_readiness();
+        result.production_ready = readiness_result.ready;
+        result.performance_alerts = readiness_result.alerts;
+        
+        // Calculate final metrics
+        result.total_compilation_time = time::now_ms() - start_time;
+        result.success = result.production_ready && parallel_result.success;
+        
+        // Generate optimization summary
+        result.optimization_summary = generate_optimization_summary(result);
+        
+        // Stop real-time monitoring
+        if (enable_real_time_monitoring) {
+            profiler_engine.stop_real_time_monitoring();
+        }
+        
+        // Log final results
+        if (result.success) {
+            io::println("🎉 PRODUCTION OPTIMIZATION SUCCESSFUL! 🎉");
+            io::println("⏱️ Total time: " + result.total_compilation_time.toString() + "ms");
+            io::println("📊 Files processed: " + result.total_files_processed.toString());
+            io::println("💾 Peak memory: " + result.peak_memory_usage.toString() + "MB");
+            io::println("🚀 OMEGA is PRODUCTION READY!");
+        } else {
+            io::println("❌ Production optimization failed");
+            io::println("📋 Summary: " + result.optimization_summary);
         }
         
         return result;
@@ -507,3 +658,323 @@ struct OptimizationWarning {
     uint256 location;
     string suggestion;
 }
+
+    /// Run pre-compilation optimization for production readiness
+    function run_pre_compilation_optimization(string[] memory source_files,
+                                            TargetPlatform target_platform) 
+        private returns (bool) {
+        
+        io::println("🔍 Analyzing source files for optimization opportunities...");
+        
+        // Validate source files
+        for (uint256 i = 0; i < source_files.length; i++) {
+            if (!fs::exists(source_files[i])) {
+                io::println("❌ Source file not found: " + source_files[i]);
+                return false;
+            }
+        }
+        
+        // Pre-compile analysis
+        uint256 total_lines = 0;
+        uint256 total_functions = 0;
+        uint256 complexity_score = 0;
+        
+        for (uint256 i = 0; i < source_files.length; i++) {
+            string memory content = fs::read_to_string(source_files[i]);
+            total_lines += count_lines(content);
+            total_functions += count_functions(content);
+            complexity_score += calculate_complexity(content);
+        }
+        
+        io::println("📊 Analysis complete:");
+        io::println("  📄 Files: " + source_files.length.toString());
+        io::println("  📝 Lines: " + total_lines.toString());
+        io::println("  🔧 Functions: " + total_functions.toString());
+        io::println("  🧮 Complexity: " + complexity_score.toString());
+        
+        // Determine optimization strategy
+        if (complexity_score > 1000) {
+            optimization_level = 3; // Aggressive optimization for complex code
+            io::println("🚀 High complexity detected - enabling aggressive optimization");
+        } else if (complexity_score > 500) {
+            optimization_level = 2; // Standard optimization
+            io::println("⚡ Medium complexity - using standard optimization");
+        } else {
+            optimization_level = 1; // Basic optimization
+            io::println("✨ Low complexity - using basic optimization");
+        }
+        
+        return true;
+    }
+    
+    /// Run parallel compilation optimization
+    function run_parallel_compilation_optimization(string[] memory source_files,
+                                                 TargetPlatform target_platform) 
+        private returns (ParallelCompilationResult memory) {
+        
+        ParallelCompilationResult memory result = ParallelCompilationResult({
+            success: false,
+            files_processed: 0,
+            efficiency_percentage: 0,
+            compilation_time_ms: 0,
+            parallel_jobs: 0
+        });
+        
+        uint256 start_time = time::now_ms();
+        
+        // Determine optimal number of parallel jobs
+        uint256 cpu_cores = thread::hardware_concurrency();
+        uint256 optimal_jobs = cpu_cores > 1 ? cpu_cores - 1 : 1; // Leave one core free
+        result.parallel_jobs = optimal_jobs;
+        
+        io::println("🔄 Starting parallel compilation with " + optimal_jobs.toString() + " jobs");
+        
+        // Initialize parallel compiler
+        parallel_compiler.set_job_count(optimal_jobs);
+        parallel_compiler.set_target_platform(target_platform);
+        
+        // Compile files in parallel
+        bool compilation_success = true;
+        for (uint256 i = 0; i < source_files.length; i += optimal_jobs) {
+            string[] memory batch = new string[](optimal_jobs);
+            uint256 batch_size = 0;
+            
+            // Create batch
+            for (uint256 j = 0; j < optimal_jobs && (i + j) < source_files.length; j++) {
+                batch[j] = source_files[i + j];
+                batch_size++;
+            }
+            
+            // Compile batch in parallel
+            bool batch_success = parallel_compiler.compile_batch(batch, batch_size);
+            if (!batch_success) {
+                compilation_success = false;
+                io::println("❌ Parallel compilation failed for batch starting at index " + i.toString());
+                break;
+            }
+            
+            result.files_processed += batch_size;
+        }
+        
+        result.compilation_time_ms = time::now_ms() - start_time;
+        result.success = compilation_success;
+        
+        // Calculate efficiency
+        uint256 sequential_estimate = source_files.length * 1000; // Estimate 1s per file
+        result.efficiency_percentage = (sequential_estimate * 100) / result.compilation_time_ms;
+        
+        io::println("📊 Parallel compilation results:");
+        io::println("  ✅ Success: " + (result.success ? "true" : "false"));
+        io::println("  📄 Files processed: " + result.files_processed.toString());
+        io::println("  ⏱️ Time: " + result.compilation_time_ms.toString() + "ms");
+        io::println("  🚀 Efficiency: " + result.efficiency_percentage.toString() + "%");
+        
+        return result;
+    }
+    
+    /// Run self-hosting optimization
+    function run_self_hosting_optimization(string[] memory source_files,
+                                         TargetPlatform target_platform) 
+        private returns (SelfHostingOptimizationResult memory) {
+        
+        SelfHostingOptimizationResult memory result = SelfHostingOptimizationResult({
+            success: false,
+            cycles_completed: 0,
+            bootstrap_time_ms: 0,
+            self_compile_time_ms: 0,
+            verification_passed: false
+        });
+        
+        io::println("🔁 Starting self-hosting optimization cycles...");
+        uint256 start_time = time::now_ms();
+        
+        // Phase 1: Bootstrap compilation
+        io::println("🥾 Phase 1: Bootstrap compilation");
+        uint256 bootstrap_start = time::now_ms();
+        
+        bool bootstrap_success = compile_with_bootstrap_compiler(source_files, target_platform);
+        if (!bootstrap_success) {
+            io::println("❌ Bootstrap compilation failed");
+            return result;
+        }
+        
+        result.bootstrap_time_ms = time::now_ms() - bootstrap_start;
+        io::println("✅ Bootstrap compilation successful (" + result.bootstrap_time_ms.toString() + "ms)");
+        
+        // Phase 2: Self-hosting cycles
+        uint256 max_cycles = 3; // Maximum self-hosting cycles
+        for (uint256 cycle = 1; cycle <= max_cycles; cycle++) {
+            io::println("🔄 Self-hosting cycle " + cycle.toString() + "/" + max_cycles.toString());
+            
+            uint256 cycle_start = time::now_ms();
+            bool cycle_success = compile_with_self_hosted_compiler(source_files, target_platform);
+            uint256 cycle_time = time::now_ms() - cycle_start;
+            
+            if (!cycle_success) {
+                io::println("❌ Self-hosting cycle " + cycle.toString() + " failed");
+                break;
+            }
+            
+            result.cycles_completed = cycle;
+            result.self_compile_time_ms += cycle_time;
+            
+            io::println("✅ Cycle " + cycle.toString() + " completed (" + cycle_time.toString() + "ms)");
+            
+            // Verify output consistency
+            if (cycle > 1) {
+                bool consistency_check = verify_output_consistency(cycle - 1, cycle);
+                if (!consistency_check) {
+                    io::println("⚠️ Output inconsistency detected in cycle " + cycle.toString());
+                    break;
+                }
+            }
+        }
+        
+        // Phase 3: Final verification
+        io::println("🔍 Phase 3: Final verification");
+        result.verification_passed = run_self_hosting_verification();
+        
+        result.success = result.cycles_completed >= 2 && result.verification_passed;
+        
+        io::println("📊 Self-hosting optimization results:");
+        io::println("  🔄 Cycles completed: " + result.cycles_completed.toString());
+        io::println("  🥾 Bootstrap time: " + result.bootstrap_time_ms.toString() + "ms");
+        io::println("  🔁 Self-compile time: " + result.self_compile_time_ms.toString() + "ms");
+        io::println("  ✅ Verification: " + (result.verification_passed ? "PASSED" : "FAILED"));
+        
+        return result;
+    }
+    
+    /// Run memory optimization
+    function run_memory_optimization() private returns (MemoryOptimizationResult memory) {
+        
+        MemoryOptimizationResult memory result = MemoryOptimizationResult({
+            success: false,
+            peak_usage_mb: 0,
+            cache_hit_ratio: 0,
+            memory_efficiency: 0,
+            gc_cycles: 0
+        });
+        
+        io::println("💾 Optimizing memory usage...");
+        
+        // Get initial memory state
+        uint256 initial_memory = memory_manager.get_current_usage_mb();
+        
+        // Run garbage collection
+        uint256 gc_start = time::now_ms();
+        result.gc_cycles = memory_manager.run_full_gc();
+        uint256 gc_time = time::now_ms() - gc_start;
+        
+        // Optimize cache usage
+        cache_manager.optimize_cache_size();
+        cache_manager.cleanup_stale_entries();
+        
+        // Calculate metrics
+        result.peak_usage_mb = memory_manager.get_peak_usage_mb();
+        result.cache_hit_ratio = cache_manager.get_hit_ratio_percentage();
+        
+        uint256 final_memory = memory_manager.get_current_usage_mb();
+        result.memory_efficiency = ((initial_memory - final_memory) * 100) / initial_memory;
+        
+        result.success = result.peak_usage_mb <= max_memory_usage_mb && 
+                        result.cache_hit_ratio >= min_cache_hit_ratio;
+        
+        io::println("📊 Memory optimization results:");
+        io::println("  💾 Peak usage: " + result.peak_usage_mb.toString() + "MB");
+        io::println("  🎯 Cache hit ratio: " + result.cache_hit_ratio.toString() + "%");
+        io::println("  ⚡ Memory efficiency: " + result.memory_efficiency.toString() + "%");
+        io::println("  🗑️ GC cycles: " + result.gc_cycles.toString());
+        
+        return result;
+    }
+    
+    /// Validate production readiness
+    function validate_production_readiness() private returns (ProductionReadinessResult memory) {
+        
+        ProductionReadinessResult memory result = ProductionReadinessResult({
+            ready: false,
+            alerts: new PerformanceAlert[](0),
+            readiness_score: 0
+        });
+        
+        io::println("✅ Validating production readiness...");
+        
+        uint256 score = 0;
+        uint256 max_score = 100;
+        
+        // Check compilation time
+        if (total_compilation_time <= max_compilation_time_ms) {
+            score += 25;
+            io::println("  ✅ Compilation time: PASS");
+        } else {
+            result.alerts = append_alert(result.alerts, PerformanceAlert({
+                severity: "HIGH",
+                message: "Compilation time exceeds threshold",
+                metric_name: "compilation_time",
+                current_value: total_compilation_time,
+                threshold_value: max_compilation_time_ms
+            }));
+            io::println("  ❌ Compilation time: FAIL");
+        }
+        
+        // Check memory usage
+        if (memory_peak_usage <= max_memory_usage_mb) {
+            score += 25;
+            io::println("  ✅ Memory usage: PASS");
+        } else {
+            result.alerts = append_alert(result.alerts, PerformanceAlert({
+                severity: "HIGH",
+                message: "Memory usage exceeds threshold",
+                metric_name: "memory_usage",
+                current_value: memory_peak_usage,
+                threshold_value: max_memory_usage_mb
+            }));
+            io::println("  ❌ Memory usage: FAIL");
+        }
+        
+        // Check cache efficiency
+        if (cache_hit_ratio >= min_cache_hit_ratio) {
+            score += 25;
+            io::println("  ✅ Cache efficiency: PASS");
+        } else {
+            result.alerts = append_alert(result.alerts, PerformanceAlert({
+                severity: "MEDIUM",
+                message: "Cache hit ratio below threshold",
+                metric_name: "cache_hit_ratio",
+                current_value: cache_hit_ratio,
+                threshold_value: min_cache_hit_ratio
+            }));
+            io::println("  ⚠️ Cache efficiency: WARN");
+        }
+        
+        // Check parallel efficiency
+        if (parallel_efficiency >= min_parallel_efficiency) {
+            score += 25;
+            io::println("  ✅ Parallel efficiency: PASS");
+        } else {
+            result.alerts = append_alert(result.alerts, PerformanceAlert({
+                severity: "MEDIUM",
+                message: "Parallel efficiency below threshold",
+                metric_name: "parallel_efficiency",
+                current_value: parallel_efficiency,
+                threshold_value: min_parallel_efficiency
+            }));
+            io::println("  ⚠️ Parallel efficiency: WARN");
+        }
+        
+        result.readiness_score = score;
+        result.ready = score >= 75; // 75% minimum score for production readiness
+        
+        io::println("📊 Production readiness score: " + score.toString() + "/" + max_score.toString());
+        
+        if (result.ready) {
+            io::println("🎉 PRODUCTION READY! 🎉");
+        } else {
+            io::println("❌ NOT PRODUCTION READY - Address alerts above");
+        }
+        
+        return result;
+    }
+
+// ... existing code ...

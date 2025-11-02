@@ -3,10 +3,10 @@
 
 [package]
 name = "omega"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2025"
-authors = ["Emylton Leunufna <emylton@omegalang.xyz>"]
-description = "OMEGA - Universal Blockchain Programming Language (Self-Hosting)"
+authors = ["Emylton Leunufna <emylton@omega-lang.org>"]
+description = "OMEGA - Universal Blockchain Programming Language (100% Native Self-Hosting)"
 license = "MIT"
 repository = "https://github.com/Rafael2022-prog/omega-lang"
 keywords = ["blockchain", "compiler", "evm", "solana", "cosmos", "self-hosting", "mega"]

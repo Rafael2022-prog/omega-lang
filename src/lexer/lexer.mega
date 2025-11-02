@@ -724,26 +724,26 @@ enum TokenType {
 /// Enhanced error handling functions for lexer
 impl OmegaLexer {
     /// Set current file being processed
-    function set_current_file(string file_path) public {
+    function set_current_file(string memory file_path) public {
         current_file = file_path;
     }
     
     /// Report lexical error with context
-    function report_error(string message, uint256 error_position) private {
-        let location = SourceLocation {
+    function report_error(string memory message, uint256 error_position) private {
+        SourceLocation memory location = SourceLocation({
             file: current_file,
             line: line,
             column: column,
             position: error_position
-        };
+        });
         
-        let context = ErrorContext {
+        ErrorContext memory context = ErrorContext({
             context_type: ContextType.Lexical,
             source_code: get_line_content(line),
             additional_info: message
-        };
+        });
         
-        let error = OmegaError {
+        OmegaError memory error = OmegaError({
             error_type: ErrorType.LexicalError,
             severity: ErrorSeverity.Error,
             code: ErrorCode.InvalidToken,
@@ -751,7 +751,7 @@ impl OmegaLexer {
             location: location,
             context: context,
             suggestions: generate_suggestions(message)
-        };
+        });
         
         error_handler.report_error(error);
         error_messages.push(message);
@@ -759,30 +759,119 @@ impl OmegaLexer {
     }
     
     /// Get line content for error context
-    function get_line_content(uint256 line_number) private view returns (string) {
-        string[] lines = input.split("\n");
+    function get_line_content(uint256 line_number) private view returns (string memory) {
+        string[] memory lines = split_string(input, "\n");
         if (line_number > 0 && line_number <= lines.length) {
             return lines[line_number - 1];
         }
         return "";
     }
     
-    /// Generate suggestions for common lexical errors
-    function generate_suggestions(string error_message) private pure returns (string[]) {
-        string[] suggestions = [];
+    /// Split string by delimiter
+    function split_string(string memory str, string memory delimiter) private pure returns (string[] memory) {
+        // Simple implementation for splitting strings
+        bytes memory str_bytes = bytes(str);
+        bytes memory delim_bytes = bytes(delimiter);
         
-        if (error_message.contains("unterminated string")) {
-            suggestions.push("Add closing quote to string literal");
-            suggestions.push("Check for escaped quotes in string");
-        } else if (error_message.contains("invalid character")) {
-            suggestions.push("Check for non-ASCII characters");
-            suggestions.push("Verify character encoding");
-        } else if (error_message.contains("invalid number")) {
-            suggestions.push("Check number format (decimal, hex, binary)");
-            suggestions.push("Verify number is within valid range");
+        // Count occurrences
+        uint256 count = 1;
+        for (uint256 i = 0; i <= str_bytes.length - delim_bytes.length; i++) {
+            bool match = true;
+            for (uint256 j = 0; j < delim_bytes.length; j++) {
+                if (str_bytes[i + j] != delim_bytes[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                count++;
+                i += delim_bytes.length - 1;
+            }
+        }
+        
+        string[] memory result = new string[](count);
+        uint256 index = 0;
+        uint256 start = 0;
+        
+        for (uint256 i = 0; i <= str_bytes.length - delim_bytes.length; i++) {
+            bool match = true;
+            for (uint256 j = 0; j < delim_bytes.length; j++) {
+                if (str_bytes[i + j] != delim_bytes[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                result[index] = substring(str, start, i);
+                index++;
+                start = i + delim_bytes.length;
+                i += delim_bytes.length - 1;
+            }
+        }
+        
+        if (start < str_bytes.length) {
+            result[index] = substring(str, start, str_bytes.length);
+        }
+        
+        return result;
+    }
+    
+    /// Extract substring
+    function substring(string memory str, uint256 start, uint256 end) private pure returns (string memory) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory result = new bytes(end - start);
+        
+        for (uint256 i = start; i < end; i++) {
+            result[i - start] = str_bytes[i];
+        }
+        
+        return string(result);
+    }
+    
+    /// Generate suggestions for common lexical errors
+    function generate_suggestions(string memory error_message) private pure returns (string[] memory) {
+        string[] memory suggestions = new string[](0);
+        
+        if (contains_string(error_message, "unterminated string")) {
+            suggestions = new string[](2);
+            suggestions[0] = "Add closing quote to string literal";
+            suggestions[1] = "Check for escaped quotes in string";
+        } else if (contains_string(error_message, "invalid character")) {
+            suggestions = new string[](2);
+            suggestions[0] = "Check for non-ASCII characters";
+            suggestions[1] = "Verify character encoding";
+        } else if (contains_string(error_message, "invalid number")) {
+            suggestions = new string[](2);
+            suggestions[0] = "Check number format (decimal, hex, binary)";
+            suggestions[1] = "Verify number is within valid range";
         }
         
         return suggestions;
+    }
+    
+    /// Check if string contains substring
+    function contains_string(string memory str, string memory substr) private pure returns (bool) {
+        bytes memory str_bytes = bytes(str);
+        bytes memory substr_bytes = bytes(substr);
+        
+        if (substr_bytes.length > str_bytes.length) {
+            return false;
+        }
+        
+        for (uint256 i = 0; i <= str_bytes.length - substr_bytes.length; i++) {
+            bool match = true;
+            for (uint256 j = 0; j < substr_bytes.length; j++) {
+                if (str_bytes[i + j] != substr_bytes[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /// Check if lexer has encountered errors
@@ -791,18 +880,18 @@ impl OmegaLexer {
     }
     
     /// Get all error messages
-    function get_errors() public view returns (string[]) {
+    function get_errors() public view returns (string[] memory) {
         return error_messages;
     }
     
     /// Get error statistics
-    function get_error_stats() public view returns (ErrorStatistics) {
+    function get_error_stats() public view returns (ErrorStatistics memory) {
         return error_handler.get_statistics();
     }
     
     /// Clear all errors (for testing)
     function clear_errors() public {
-        error_messages = [];
+        delete error_messages;
         has_errors_flag = false;
         error_handler.clear_errors();
     }
@@ -815,4 +904,186 @@ impl OmegaLexer {
     Virtual,             // virtual functions
     Abstract,            // abstract contracts
     Interface,           // interface definitions
+    Library,             // library definitions
+    Using,               // using directives
+    
+    // ========================================================================
+    // KEYWORDS - DATA TYPES
+    // ========================================================================
+    Mapping,             // mapping types
+    Address,             // address type
+    Bool,                // boolean type
+    String,              // string type
+    Bytes,               // bytes type
+    Uint,                // unsigned integer types
+    Int,                 // signed integer types
+    
+    // ========================================================================
+    // KEYWORDS - LITERALS
+    // ========================================================================
+    True,                // boolean true literal
+    False,               // boolean false literal
+    Null,                // null literal
+    
+    // ========================================================================
+    // KEYWORDS - SPECIAL IDENTIFIERS
+    // ========================================================================
+    This,                // current contract reference
+    Super,               // parent contract reference
+    
+    // ========================================================================
+    // KEYWORDS - GLOBAL VARIABLES
+    // ========================================================================
+    Msg,                 // message context
+    Block,               // block context
+    Tx,                  // transaction context
+    Gas,                 // gas-related operations
+    Value,               // ether value
+    Sender,              // message sender
+    Origin,              // transaction origin
+    Timestamp,           // block timestamp
+    Number,              // block number
+    Difficulty,          // block difficulty
+    GasLimit,            // block gas limit
+    Coinbase,            // block coinbase
+    
+    // ========================================================================
+    // KEYWORDS - EXCEPTION HANDLING
+    // ========================================================================
+    Try,                 // try blocks
+    Catch,               // catch blocks
+    Throw,               // throw statements
+    
+    // ========================================================================
+    // KEYWORDS - OBJECT OPERATIONS
+    // ========================================================================
+    New,                 // object instantiation
+    Delete,              // object deletion
+    Typeof,              // type checking
+    Is,                  // type testing
+    As,                  // type casting
+    In,                  // membership testing
+    
+    // ========================================================================
+    // KEYWORDS - EVENT MODIFIERS
+    // ========================================================================
+    Indexed,             // indexed event parameters
+    Anonymous,           // anonymous events
+    
+    // ========================================================================
+    // KEYWORDS - MEMORY LOCATIONS
+    // ========================================================================
+    Memory,              // memory storage
+    Storage,             // storage location
+    Calldata,            // calldata location
+    Stack,               // stack location
+    
+    // ========================================================================
+    // KEYWORDS - ASSEMBLY
+    // ========================================================================
+    Assembly,            // inline assembly
+    Let,                 // assembly let bindings
+    Switch,              // assembly switch statements
+    Case,                // assembly case labels
+    Default,             // assembly default case
+    Leave,               // assembly leave statements
+    
+    // ========================================================================
+    // KEYWORDS - CROSS-CHAIN (OMEGA EXTENSION)
+    // ========================================================================
+    CrossChain,          // cross-chain annotations
+    Target,              // target platform specification
+    Solana,              // solana target
+    Cosmos,              // cosmos target
+    Substrate,           // substrate target
+    Move,                // move VM target
+    Near,                // NEAR protocol target
+    
+    // ========================================================================
+    // OPERATORS - PUNCTUATION
+    // ========================================================================
+    LeftParen,           // (
+    RightParen,          // )
+    LeftBrace,           // {
+    RightBrace,          // }
+    LeftBracket,         // [
+    RightBracket,        // ]
+    Comma,               // ,
+    Dot,                 // .
+    Semicolon,           // ;
+    Colon,               // :
+    Question,            // ?
+    Tilde,               // ~
+    
+    // ========================================================================
+    // OPERATORS - ARITHMETIC
+    // ========================================================================
+    Plus,                // +
+    Minus,               // -
+    Star,                // *
+    Slash,               // /
+    Percent,             // %
+    StarStar,            // ** (exponentiation)
+    
+    // ========================================================================
+    // OPERATORS - ASSIGNMENT
+    // ========================================================================
+    Equal,               // =
+    PlusEqual,           // +=
+    MinusEqual,          // -=
+    StarEqual,           // *=
+    SlashEqual,          // /=
+    PercentEqual,        // %=
+    
+    // ========================================================================
+    // OPERATORS - COMPARISON
+    // ========================================================================
+    EqualEqual,          // ==
+    BangEqual,           // !=
+    Less,                // <
+    Greater,             // >
+    LessEqual,           // <=
+    GreaterEqual,        // >=
+    
+    // ========================================================================
+    // OPERATORS - LOGICAL
+    // ========================================================================
+    Bang,                // !
+    AmpersandAmpersand,  // &&
+    PipePipe,            // ||
+    
+    // ========================================================================
+    // OPERATORS - BITWISE
+    // ========================================================================
+    Ampersand,           // &
+    Pipe,                // |
+    Caret,               // ^
+    LeftShift,           // <<
+    RightShift,          // >>
+    AmpersandEqual,      // &=
+    PipeEqual,           // |=
+    CaretEqual,          // ^=
+    LeftShiftEqual,      // <<=
+    RightShiftEqual,     // >>=
+    
+    // ========================================================================
+    // OPERATORS - INCREMENT/DECREMENT
+    // ========================================================================
+    PlusPlus,            // ++
+    MinusMinus,          // --
+    
+    // ========================================================================
+    // OPERATORS - SPECIAL
+    // ========================================================================
+    Arrow,               // ->
+    FatArrow,            // =>
+    
+    // ========================================================================
+    // SPECIAL TOKENS
+    // ========================================================================
+    Annotation,          // @annotation
+    Whitespace,          // spaces, tabs
+    Comment,             // comments
+    Unknown,             // unknown tokens
+    EOF                  // end of file
 }

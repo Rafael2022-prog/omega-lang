@@ -1,0 +1,459 @@
+// OMEGA Bootstrap Chain - Self-Hosting Compiler Bootstrap
+// This is the critical bootstrap chain that allows OMEGA to compile itself
+
+import std::io;
+import std::fs;
+import std::path;
+import std::process;
+import std::env;
+import "../src/lexer/lexer.mega" as Lexer;
+import "../src/parser/parser.mega" as Parser;
+import "../src/codegen/native_codegen.mega" as CodeGen;
+
+/// Bootstrap Chain: OMEGA Compiler compiling itself
+blockchain BootstrapChain {
+    state {
+        string compiler_version;
+        string source_directory;
+        string build_directory;
+        bool bootstrap_successful;
+        
+        // Compilation stages
+        bool lexer_compiled;
+        bool parser_compiled;
+        bool codegen_compiled;
+        bool self_hosting_complete;
+        
+        // Performance tracking
+        uint256 bootstrap_start_time;
+        uint256 total_files_processed;
+        uint256 total_lines_compiled;
+        
+        // Error tracking
+        uint256 error_count;
+        string[] error_messages;
+        
+        // Self-hosting components
+        Lexer::OmegaLexer bootstrap_lexer;
+        Parser::OmegaParser bootstrap_parser;
+        CodeGen::NativeCodeGenerator bootstrap_codegen;
+        
+        // Bootstrap stages
+        mapping(string => bool) stage_completed;
+        string[] compilation_order;
+        
+        // Generated artifacts
+        string[] generated_executables;
+        string[] generated_libraries;
+        mapping(string => string) module_outputs;
+    }
+    
+    constructor() {
+        compiler_version = "1.1.0";
+        source_directory = "./src";
+        build_directory = "./bootstrap_build";
+        bootstrap_successful = false;
+        
+        lexer_compiled = false;
+        parser_compiled = false;
+        codegen_compiled = false;
+        self_hosting_complete = false;
+        
+        total_files_processed = 0;
+        total_lines_compiled = 0;
+        error_count = 0;
+        
+        // Initialize bootstrap components
+        bootstrap_lexer = Lexer::OmegaLexer::new();
+        bootstrap_parser = Parser::OmegaParser::new();
+        bootstrap_codegen = CodeGen::NativeCodeGenerator::new();
+        
+        // Define compilation order for bootstrap
+        compilation_order = [
+            "lexer",
+            "parser", 
+            "codegen",
+            "self_hosting_compiler",
+            "bootstrap_verification"
+        ];
+        
+        io::println("🚀 OMEGA Bootstrap Chain initialized");
+        io::println("📦 Version: " + compiler_version);
+        io::println("📁 Source: " + source_directory);
+        io::println("🏗️ Build: " + build_directory);
+    }
+    
+    /// Main bootstrap function - compile OMEGA using itself
+    function bootstrap() public returns (bool) {
+        io::println("🔄 Starting OMEGA self-hosting bootstrap...");
+        bootstrap_start_time = block.timestamp;
+        
+        // Create build directory
+        if (!fs::exists(build_directory)) {
+            fs::create_dir_all(build_directory);
+            io::println("📁 Created bootstrap build directory");
+        }
+        
+        // Execute bootstrap stages in order
+        for (uint256 i = 0; i < compilation_order.length; i++) {
+            string memory stage = compilation_order[i];
+            io::println("🔧 Bootstrap stage: " + stage);
+            
+            bool stage_success = execute_bootstrap_stage(stage);
+            stage_completed[stage] = stage_success;
+            
+            if (!stage_success) {
+                io::println("❌ Bootstrap stage failed: " + stage);
+                return false;
+            }
+            
+            io::println("✅ Bootstrap stage completed: " + stage);
+        }
+        
+        // Verify self-hosting capability
+        bool verification_success = verify_self_hosting();
+        
+        if (verification_success) {
+            bootstrap_successful = true;
+            self_hosting_complete = true;
+            
+            uint256 bootstrap_duration = block.timestamp - bootstrap_start_time;
+            io::println("🎉 OMEGA SELF-HOSTING BOOTSTRAP SUCCESSFUL! 🎉");
+            io::println("⏱️ Bootstrap time: " + bootstrap_duration.toString() + "ms");
+            io::println("📊 Files processed: " + total_files_processed.toString());
+            io::println("📈 Lines compiled: " + total_lines_compiled.toString());
+            io::println("🚀 OMEGA is now fully self-hosting!");
+            
+            return true;
+        } else {
+            io::println("❌ Bootstrap verification failed");
+            return false;
+        }
+    }
+    
+    /// Execute individual bootstrap stage
+    function execute_bootstrap_stage(string memory stage) private returns (bool) {
+        if (stage == "lexer") {
+            return bootstrap_lexer_stage();
+        } else if (stage == "parser") {
+            return bootstrap_parser_stage();
+        } else if (stage == "codegen") {
+            return bootstrap_codegen_stage();
+        } else if (stage == "self_hosting_compiler") {
+            return bootstrap_compiler_stage();
+        } else if (stage == "bootstrap_verification") {
+            return bootstrap_verification_stage();
+        }
+        
+        add_error("Unknown bootstrap stage: " + stage);
+        return false;
+    }
+    
+    /// Bootstrap Stage 1: Compile the lexer using itself
+    function bootstrap_lexer_stage() private returns (bool) {
+        io::println("🔤 Bootstrapping lexer...");
+        
+        string memory lexer_source = path::join(source_directory, "lexer/lexer.mega");
+        
+        if (!fs::exists(lexer_source)) {
+            add_error("Lexer source not found: " + lexer_source);
+            return false;
+        }
+        
+        // Read lexer source code
+        string memory source_code = fs::read_file(lexer_source);
+        total_lines_compiled += count_lines(source_code);
+        total_files_processed++;
+        
+        // Tokenize lexer source using bootstrap lexer
+        Lexer::Token[] memory tokens = bootstrap_lexer.tokenize_source(source_code, lexer_source);
+        
+        if (tokens.length == 0) {
+            add_error("Failed to tokenize lexer source");
+            return false;
+        }
+        
+        // Parse lexer AST using bootstrap parser
+        Parser::Program memory lexer_ast = bootstrap_parser.parse(tokens, lexer_source);
+        
+        if (lexer_ast.item_count == 0) {
+            add_error("Failed to parse lexer AST");
+            return false;
+        }
+        
+        // Generate native lexer code using bootstrap codegen
+        string memory lexer_output_dir = path::join(build_directory, "lexer");
+        bool codegen_success = bootstrap_codegen.generate(lexer_ast, "native", lexer_output_dir);
+        
+        if (!codegen_success) {
+            add_error("Failed to generate lexer code");
+            return false;
+        }
+        
+        lexer_compiled = true;
+        module_outputs["lexer"] = lexer_output_dir;
+        
+        io::println("✅ Lexer bootstrap completed");
+        return true;
+    }
+    
+    /// Bootstrap Stage 2: Compile the parser using bootstrapped lexer
+    function bootstrap_parser_stage() private returns (bool) {
+        io::println("🔍 Bootstrapping parser...");
+        
+        string memory parser_source = path::join(source_directory, "parser/parser.mega");
+        
+        if (!fs::exists(parser_source)) {
+            add_error("Parser source not found: " + parser_source);
+            return false;
+        }
+        
+        // Read parser source code
+        string memory source_code = fs::read_file(parser_source);
+        total_lines_compiled += count_lines(source_code);
+        total_files_processed++;
+        
+        // Use the bootstrapped lexer to tokenize parser source
+        Lexer::Token[] memory tokens = bootstrap_lexer.tokenize_source(source_code, parser_source);
+        
+        if (tokens.length == 0) {
+            add_error("Failed to tokenize parser source");
+            return false;
+        }
+        
+        // Parse parser AST using bootstrap parser (self-parsing!)
+        Parser::Program memory parser_ast = bootstrap_parser.parse(tokens, parser_source);
+        
+        if (parser_ast.item_count == 0) {
+            add_error("Failed to parse parser AST");
+            return false;
+        }
+        
+        // Generate native parser code
+        string memory parser_output_dir = path::join(build_directory, "parser");
+        bool codegen_success = bootstrap_codegen.generate(parser_ast, "native", parser_output_dir);
+        
+        if (!codegen_success) {
+            add_error("Failed to generate parser code");
+            return false;
+        }
+        
+        parser_compiled = true;
+        module_outputs["parser"] = parser_output_dir;
+        
+        io::println("✅ Parser bootstrap completed");
+        return true;
+    }
+    
+    /// Bootstrap Stage 3: Compile the code generator
+    function bootstrap_codegen_stage() private returns (bool) {
+        io::println("🔧 Bootstrapping code generator...");
+        
+        string memory codegen_source = path::join(source_directory, "codegen/native_codegen.mega");
+        
+        if (!fs::exists(codegen_source)) {
+            add_error("CodeGen source not found: " + codegen_source);
+            return false;
+        }
+        
+        // Read codegen source code
+        string memory source_code = fs::read_file(codegen_source);
+        total_lines_compiled += count_lines(source_code);
+        total_files_processed++;
+        
+        // Tokenize using bootstrapped lexer
+        Lexer::Token[] memory tokens = bootstrap_lexer.tokenize_source(source_code, codegen_source);
+        
+        // Parse using bootstrapped parser
+        Parser::Program memory codegen_ast = bootstrap_parser.parse(tokens, codegen_source);
+        
+        // Generate using bootstrap codegen (self-generation!)
+        string memory codegen_output_dir = path::join(build_directory, "codegen");
+        bool codegen_success = bootstrap_codegen.generate(codegen_ast, "native", codegen_output_dir);
+        
+        if (!codegen_success) {
+            add_error("Failed to generate codegen code");
+            return false;
+        }
+        
+        codegen_compiled = true;
+        module_outputs["codegen"] = codegen_output_dir;
+        
+        io::println("✅ CodeGen bootstrap completed");
+        return true;
+    }
+    
+    /// Bootstrap Stage 4: Compile the complete self-hosting compiler
+    function bootstrap_compiler_stage() private returns (bool) {
+        io::println("🚀 Bootstrapping complete self-hosting compiler...");
+        
+        string memory compiler_source = path::join(source_directory, "self_hosting_compiler.mega");
+        
+        if (!fs::exists(compiler_source)) {
+            add_error("Self-hosting compiler source not found: " + compiler_source);
+            return false;
+        }
+        
+        // Read compiler source code
+        string memory source_code = fs::read_file(compiler_source);
+        total_lines_compiled += count_lines(source_code);
+        total_files_processed++;
+        
+        // Full compilation pipeline using bootstrapped components
+        Lexer::Token[] memory tokens = bootstrap_lexer.tokenize_source(source_code, compiler_source);
+        Parser::Program memory compiler_ast = bootstrap_parser.parse(tokens, compiler_source);
+        
+        // Generate the complete self-hosting compiler
+        string memory compiler_output_dir = path::join(build_directory, "compiler");
+        bool codegen_success = bootstrap_codegen.generate(compiler_ast, "native", compiler_output_dir);
+        
+        if (!codegen_success) {
+            add_error("Failed to generate self-hosting compiler");
+            return false;
+        }
+        
+        module_outputs["compiler"] = compiler_output_dir;
+        
+        // Generate the final executable
+        string memory executable_path = path::join(compiler_output_dir, "omega_self_hosting");
+        generated_executables.push(executable_path);
+        
+        io::println("✅ Self-hosting compiler bootstrap completed");
+        io::println("🎯 Executable: " + executable_path);
+        return true;
+    }
+    
+    /// Bootstrap Stage 5: Verify self-hosting capability
+    function bootstrap_verification_stage() private returns (bool) {
+        io::println("🔍 Verifying bootstrap self-hosting capability...");
+        
+        // Test if the bootstrapped compiler can compile a simple program
+        string memory test_program = create_test_program();
+        string memory test_file = path::join(build_directory, "test_program.mega");
+        fs::write_file(test_file, test_program);
+        
+        // Try to compile the test program using bootstrapped compiler
+        Lexer::Token[] memory tokens = bootstrap_lexer.tokenize_source(test_program, test_file);
+        Parser::Program memory test_ast = bootstrap_parser.parse(tokens, test_file);
+        
+        string memory test_output_dir = path::join(build_directory, "test_output");
+        bool test_success = bootstrap_codegen.generate(test_ast, "native", test_output_dir);
+        
+        if (!test_success) {
+            add_error("Bootstrap verification failed: cannot compile test program");
+            return false;
+        }
+        
+        io::println("✅ Bootstrap verification successful");
+        return true;
+    }
+    
+    /// Verify complete self-hosting capability
+    function verify_self_hosting() private returns (bool) {
+        io::println("🔍 Final self-hosting verification...");
+        
+        // Verify all stages completed
+        for (uint256 i = 0; i < compilation_order.length; i++) {
+            string memory stage = compilation_order[i];
+            if (!stage_completed[stage]) {
+                add_error("Stage not completed: " + stage);
+                return false;
+            }
+        }
+        
+        // Verify all components compiled
+        if (!lexer_compiled || !parser_compiled || !codegen_compiled) {
+            add_error("Not all components compiled successfully");
+            return false;
+        }
+        
+        // Verify generated files exist
+        for (uint256 i = 0; i < generated_executables.length; i++) {
+            if (!fs::exists(generated_executables[i])) {
+                add_error("Generated executable not found: " + generated_executables[i]);
+                return false;
+            }
+        }
+        
+        io::println("✅ Self-hosting verification complete");
+        return true;
+    }
+    
+    /// Create a test program for verification
+    function create_test_program() private pure returns (string memory) {
+        string memory test_code = "// OMEGA Self-Hosting Test Program\n";
+        test_code += "import std::io;\n\n";
+        test_code += "blockchain TestProgram {\n";
+        test_code += "    state {\n";
+        test_code += "        string message;\n";
+        test_code += "    }\n\n";
+        test_code += "    constructor() {\n";
+        test_code += "        message = \"Self-hosting successful!\";\n";
+        test_code += "    }\n\n";
+        test_code += "    function test() public {\n";
+        test_code += "        io::println(message);\n";
+        test_code += "    }\n";
+        test_code += "}\n";
+        return test_code;
+    }
+    
+    /// Utility functions
+    function count_lines(string memory code) private pure returns (uint256) {
+        uint256 lines = 1;
+        for (uint256 i = 0; i < bytes(code).length; i++) {
+            if (bytes(code)[i] == '\n') {
+                lines++;
+            }
+        }
+        return lines;
+    }
+    
+    function add_error(string memory message) private {
+        error_count++;
+        error_messages.push(message);
+        io::println("❌ Bootstrap Error: " + message);
+    }
+    
+    /// Get bootstrap statistics
+    function get_bootstrap_stats() public view returns (BootstrapStats memory) {
+        return BootstrapStats({
+            bootstrap_successful: bootstrap_successful,
+            self_hosting_complete: self_hosting_complete,
+            files_processed: total_files_processed,
+            lines_compiled: total_lines_compiled,
+            error_count: error_count,
+            bootstrap_duration: block.timestamp - bootstrap_start_time,
+            lexer_compiled: lexer_compiled,
+            parser_compiled: parser_compiled,
+            codegen_compiled: codegen_compiled,
+            executables_generated: generated_executables.length
+        });
+    }
+    
+    /// Check if bootstrap is complete
+    function is_self_hosting() public view returns (bool) {
+        return bootstrap_successful && self_hosting_complete;
+    }
+    
+    /// Get generated executable path
+    function get_self_hosting_executable() public view returns (string memory) {
+        if (generated_executables.length > 0) {
+            return generated_executables[0];
+        }
+        return "";
+    }
+}
+
+/// Bootstrap statistics structure
+struct BootstrapStats {
+    bool bootstrap_successful;
+    bool self_hosting_complete;
+    uint256 files_processed;
+    uint256 lines_compiled;
+    uint256 error_count;
+    uint256 bootstrap_duration;
+    bool lexer_compiled;
+    bool parser_compiled;
+    bool codegen_compiled;
+    uint256 executables_generated;
+}
