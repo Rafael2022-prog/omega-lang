@@ -6,6 +6,7 @@
 // untuk bahasa OMEGA termasuk keywords, operators, literals, dan identifiers.
 
 import "./error/error.mega";
+import "../std/fs.mega";
 
 /// OMEGA Lexical Analyzer blockchain
 /// Mengimplementasikan tokenization untuk bahasa OMEGA dengan dukungan penuh
@@ -189,9 +190,17 @@ blockchain OmegaLexer {
         return tokenize();
     }
 
+    /// Tokenize file source by path
+    function tokenize_file(string memory file_path) public returns (Token[] memory) {
+        // Read file content using std fs
+        string memory content = fs.read_file(file_path);
+        set_source(content, file_path);
+        return tokenize();
+    }
+
     /// Main tokenization function.
     function tokenize() public returns (Token[] memory) {
-        Token[] memory tokens;
+        Token[] memory temp_tokens = new Token[](8192);
         uint256 token_count = 0;
         
         while (!is_at_end()) {
@@ -199,18 +208,28 @@ blockchain OmegaLexer {
             Token memory token = scan_token();
             
             if (token.token_type != TokenType.Whitespace && token.token_type != TokenType.Comment) {
-                tokens[token_count] = token;
+                if (token_count >= 8192) {
+                    report_error("Source file contains too many tokens.", position);
+                    break;
+                }
+                temp_tokens[token_count] = token;
                 token_count++;
             }
         }
         
-        tokens[token_count] = Token({
+        temp_tokens[token_count] = Token({
             token_type: TokenType.EOF,
             lexeme: "",
             line: line,
             column: column,
             position: position
         });
+        token_count++;
+
+        Token[] memory tokens = new Token[](token_count);
+        for (uint i = 0; i < token_count; i++) {
+            tokens[i] = temp_tokens[i];
+        }
         
         return tokens;
     }

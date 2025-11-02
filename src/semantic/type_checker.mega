@@ -921,9 +921,14 @@ blockchain TypeChecker {
     }
     
     /// Set current file for error reporting
-    function set_current_file(string memory file_path) public {
-        current_file = file_path;
-    }
+     function set_current_file(string memory file_path) public {
+         current_file = file_path;
+     }
+     
+     /// Get current type environment snapshot
+     function get_type_environment() public view returns (TypeEnvironment memory) {
+         return type_env;
+     }
     
     /// Report type error
     function report_type_error(string memory message, uint256 line, uint256 column) private {

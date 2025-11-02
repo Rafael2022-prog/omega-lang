@@ -19,7 +19,7 @@ Windows Registry Editor Version 5.00
 "InfoTip"="OMEGA blockchain programming language source file"
 
 [HKEY_CLASSES_ROOT\OmegaSourceFile\DefaultIcon]
-@="r:\\OMEGA\\temp-logo.svg,0"
+@="r:\\OMEGA\\omega-icon.ico,0"
 
 ; Shell commands for context menu
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell]
@@ -28,7 +28,7 @@ Windows Registry Editor Version 5.00
 ; Open with default editor
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\open]
 @="&Open"
-"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+"Icon"="r:\\OMEGA\\omega-icon.ico,0"
 
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\open\command]
 @="\"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
@@ -44,7 +44,7 @@ Windows Registry Editor Version 5.00
 ; Compile OMEGA file
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\compile]
 @="&Compile with OMEGA"
-"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+"Icon"="r:\\OMEGA\\omega-icon.ico,0"
 
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\compile\command]
 @="cmd /k \"cd /d \"%~dp1\" && omega build \"%1\" && pause\""
@@ -52,7 +52,7 @@ Windows Registry Editor Version 5.00
 ; Run OMEGA file
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\run]
 @="&Run with OMEGA"
-"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+"Icon"="r:\\OMEGA\\omega-icon.ico,0"
 
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\run\command]
 @="cmd /k \"cd /d \"%~dp1\" && omega run \"%1\" && pause\""
@@ -60,7 +60,7 @@ Windows Registry Editor Version 5.00
 ; Test OMEGA file
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\test]
 @="&Test with OMEGA"
-"Icon"="r:\\OMEGA\\temp-logo.svg,0"
+"Icon"="r:\\OMEGA\\omega-icon.ico,0"
 
 [HKEY_CLASSES_ROOT\OmegaSourceFile\shell\test\command]
 @="cmd /k \"cd /d \"%~dp1\" && omega test \"%1\" && pause\""
@@ -86,7 +86,7 @@ Windows Registry Editor Version 5.00
 "PerceivedType"="text"
 
 [HKEY_CLASSES_ROOT\SystemFileAssociations\.mega\DefaultIcon]
-@="r:\\OMEGA\\temp-logo.svg,0"
+@="r:\\OMEGA\\omega-icon.ico,0"
 
 [HKEY_CLASSES_ROOT\SystemFileAssociations\.mega\shell\open]
 @="&Open"

@@ -1,0 +1,19 @@
+{
+  "name": "OMEGA Workspace",
+  "version": "1.0.0",
+  "settings": {
+    "files.associations": {
+      "*.mega": "omega"
+    },
+    "workbench.iconTheme": "omega-icons",
+    "editor.fileIconTheme": "omega-icons"
+  },
+  "extensions": {
+    "recommendations": []
+  },
+  "folders": [
+    {
+      "path": "."
+    }
+  ]
+}

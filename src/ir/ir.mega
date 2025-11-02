@@ -28,6 +28,7 @@ blockchain OmegaIR {
         IRConfig config;                                    // Konfigurasi IR
         bool debug_mode;                                    // Mode debug
         uint256 generation_count;                           // Counter generasi
+        IRStatistics statistics;                            // Statistik IR terkini
     }
     
     /// Konstruktor untuk inisialisasi IR
@@ -48,17 +49,18 @@ blockchain OmegaIR {
         
         config = create_default_config();
         metadata = create_default_metadata();
+        statistics = create_default_statistics();
     }
     
     /// Fungsi utama untuk generate IR dari AST yang sudah dianalisis
-    function generate_ir(AnalyzedAST memory analyzed_ast) public returns (IRModule memory) {
+    function generate_ir(AnalysisResults memory analysis_results) public returns (IRModule memory) {
         generation_count++;
         
         // Reset state untuk generasi baru
         reset_generation_state();
         
         // Validate input
-        if (!validate_analyzed_ast(analyzed_ast)) {
+        if (!validate_analyzed_ast(analysis_results)) {
             error_handler.report_error(
                 ErrorType.IRGenerationError,
                 "Invalid analyzed AST provided",
@@ -67,21 +69,27 @@ blockchain OmegaIR {
             return create_empty_ir_module();
         }
         
-        // Initialize IR module
-        current_module = create_ir_module(analyzed_ast.program.name);
+        // Initialize IR module - **Note: This might need adjustment if multiple modules are returned**
+        current_module = create_ir_module(analysis_results.program.name);
         
         // Set context untuk generation
-        ir_utils.push_context(IRContextType.Global, analyzed_ast.program.name);
+        ir_utils.push_context(IRContextType.Global, analysis_results.program.name);
         
         // Generate IR untuk program
-        if (!ir_generator.generate_program_ir(analyzed_ast.program, current_module)) {
+        IRModule[] memory generated_modules = ir_generator.generate_program_ir(analysis_results.program, analysis_results);
+        
+        if (generated_modules.length == 0) {
             error_handler.report_error(
                 ErrorType.IRGenerationError,
-                "Failed to generate IR for program",
+                "Failed to generate any IR modules for program",
                 0, 0
             );
             return create_empty_ir_module();
         }
+        
+        // For now, we will work with the first generated module.
+        // This simplification assumes one blockchain per file for now.
+        current_module = generated_modules[0];
         
         // Validate generated IR
         if (config.validate_ir && !ir_validator.validate_ir_module(current_module)) {
@@ -100,6 +108,7 @@ blockchain OmegaIR {
         
         // Update metadata
         update_metadata();
+        update_statistics();
         
         // Pop context
         ir_utils.pop_context();
@@ -293,6 +302,46 @@ blockchain OmegaIR {
         metadata.target_platform = target_platform;
         metadata.optimization_level = optimization_level;
     }
+
+    function update_statistics() private {
+        IRStatistics memory stats;
+        
+        // Count functions
+        stats.total_functions = current_module.functions.length;
+        
+        // Count instructions across all basic blocks in all functions
+        uint256 instr_count = 0;
+        for (uint256 i = 0; i < current_module.functions.length; i++) {
+            for (uint256 j = 0; j < current_module.functions[i].body.length; j++) {
+                instr_count += current_module.functions[i].body[j].instructions.length;
+            }
+        }
+        stats.total_instructions = instr_count;
+        
+        // Blocks generated
+        uint256 blocks = 0;
+        for (uint256 i = 0; i < current_module.functions.length; i++) {
+            blocks += current_module.functions[i].body.length;
+        }
+        stats.blocks_generated = blocks;
+        
+        // Additional entity counts
+        stats.types_defined = current_module.types.length;
+        stats.state_variables = current_module.state_variables.length;
+        stats.events_defined = current_module.events.length;
+        // New counts
+        stats.imports_count = current_module.imports.length;
+        stats.modifiers_defined = current_module.modifiers.length;
+        
+        // Extended fields alignment (placeholders)
+        stats.nodes_generated = stats.total_instructions;
+        stats.functions_processed = stats.total_functions;
+        stats.optimizations_applied = 0;
+        stats.memory_usage = 0;
+        stats.generation_time = 0;
+        
+        statistics = stats;
+    }
     
     function create_default_config() private pure returns (IRConfig memory) {
         IRConfig memory config;
@@ -311,6 +360,24 @@ blockchain OmegaIR {
         metadata.last_generation_time = 0;
         metadata.generation_count = 0;
         return metadata;
+    }
+
+    function create_default_statistics() private pure returns (IRStatistics memory) {
+        IRStatistics memory stats;
+        stats.total_instructions = 0;
+        stats.total_functions = 0;
+        stats.types_defined = 0;
+        stats.state_variables = 0;
+        stats.events_defined = 0;
+        stats.blocks_generated = 0;
+        stats.nodes_generated = 0;
+        stats.functions_processed = 0;
+        stats.optimizations_applied = 0;
+        stats.memory_usage = 0;
+        stats.generation_time = 0;
+        stats.imports_count = 0;
+        stats.modifiers_defined = 0;
+        return stats;
     }
     
     /// Configuration functions
@@ -358,6 +425,10 @@ blockchain OmegaIR {
     
     function get_generation_count() public view returns (uint256) {
         return generation_count;
+    }
+    
+    function get_statistics() public view returns (IRStatistics memory) {
+        return statistics;
     }
     
     /// Error handling
@@ -417,3 +488,24 @@ enum TargetPlatform {
     Substrate,  // Substrate Framework
     Move        // Move VM
 }
+
+/// Struktur untuk statistics IR
+struct IRStatistics {
+    uint256 total_instructions;
+    uint256 total_functions;
+    uint256 types_defined;
+    uint256 state_variables;
+    uint256 events_defined;
+    uint256 blocks_generated;
+    // Extended fields for documentation alignment
+    uint256 nodes_generated;
+    uint256 functions_processed;
+    uint256 optimizations_applied;
+    uint256 memory_usage;
+    uint256 generation_time;
+    // New statistics fields
+    uint256 imports_count;
+    uint256 modifiers_defined;
+}
+
+// Duplicate global functions removed to avoid conflicts; these are defined within the OmegaIR blockchain context.

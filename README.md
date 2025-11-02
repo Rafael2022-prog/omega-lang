@@ -35,17 +35,27 @@ OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengemb
 ## 📦 Instalasi
 
 ### Prerequisites
-- OMEGA Compiler (native)
-- Node.js 18+ (untuk EVM tooling)
+- OMEGA Compiler (native) - v1.1.0+
+- Node.js 18+ (untuk EVM tooling) - **Updated January 2025**
+- Rust 1.70+ (untuk development) - **Updated dependencies**
 - Git
 
 ### Install dari Source
 ```bash
 git clone https://github.com/Rafael2022-prog/omega-lang.git
 cd omega
+# Install dependencies (updated January 2025)
+npm install
+cargo build --release
 make build
 make install
 ```
+
+### Dependency Updates (January 2025)
+- ✅ **Security**: Fixed 3 high-severity vulnerabilities
+- ✅ **Performance**: Added new performance monitoring tools
+- ✅ **Compatibility**: Updated to latest stable versions
+- ✅ **Blockchain Targets**: EVM & Solana fully restored and functional
 
 ### Install via Package Manager
 ```bash
@@ -355,3 +365,41 @@ Terima kasih kepada:
 **Created by Emylton Leunufna - 2025**
 
 *"Bridging the gap between blockchain ecosystems, one smart contract at a time."*
+
+## 🔌 Backend API Server (Example)
+
+Jalankan server HTTP backend untuk tooling OMEGA:
+
+- PowerShell (disarankan):
+```powershell
+scripts\run_api_server.ps1 -Port 8080 -Address 127.0.0.1
+```
+- CLI langsung:
+```powershell
+.\omega.cmd run examples\omega_api_server.mega
+```
+
+Catatan:
+- Perintah `omega run` kini menjalankan runner native sementara berbasis PowerShell/.NET HttpListener. Ini belum merupakan runtime OMEGA penuh, tetapi cukup untuk menjalankan server API contoh secara persisten.
+- Endpoint yang tersedia:
+  - `GET /health` → `{"status":"ok","server":"omega-native-runner"}`
+  - `GET /version` → `{"compiler_version":"1.1.0"}`
+  - `GET /info` → menampilkan versi, jumlah permintaan yang ditangani, waktu mulai, alamat, dan port
+  - `POST /compile` (Content-Type: text/plain) → mengembalikan statistik tokenisasi dan jumlah `import`.
+
+Contoh curl:
+```bash
+curl -s http://127.0.0.1:8080/health
+curl -s http://127.0.0.1:8080/version
+curl -s http://127.0.0.1:8080/info | jq
+curl -s -X POST -H "Content-Type: text/plain" --data-binary @examples/contracts/SimpleToken.mega http://127.0.0.1:8080/compile
+```
+
+## 🪟 Windows Icon Associations
+
+Perbaikan integrasi ikon untuk file `.mega` di Windows:
+- `system-integration/windows/omega-context-menu.reg` sekarang menggunakan `omega-icon.ico` untuk `DefaultIcon` dan ikon perintah.
+- `system-integration/cross-platform/omega-file-handler.js` menambahkan fallback: jika `omega-icon.ico` tidak ditemukan, ikon VS Code akan digunakan.
+- `trae.config.json` diperbaiki agar menggunakan pemisah path Windows (`r:\\OMEGA\\temp-logo.svg`) untuk kompatibilitas IDE.
+
+Jika ikon tidak muncul, jalankan ulang eksplorasi shell (atau logout/login) setelah mengimpor registri.

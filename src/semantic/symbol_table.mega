@@ -242,6 +242,11 @@ blockchain SymbolTableManager {
     function string_equal(string memory a, string memory b) private pure returns (bool) {
         return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
     }
+    
+    /// Get complete symbol table snapshot
+    function get_symbol_table() public view returns (SymbolTable memory) {
+        return symbol_table;
+    }
 }
 
 /// Symbol representation

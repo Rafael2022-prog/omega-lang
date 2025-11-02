@@ -4,10 +4,10 @@
   },
   "trae.fileIcons": {
     "mega": {
-      "iconPath": "r:/OMEGA/temp-logo.svg",
+      "iconPath": "./temp-logo.svg",
       "theme": {
-        "light": "r:/OMEGA/temp-logo.svg",
-        "dark": "r:/OMEGA/temp-logo.svg"
+        "light": "./temp-logo.svg",
+        "dark": "./temp-logo.svg"
       }
     }
   },
@@ -15,10 +15,16 @@
     "omega": {
       "extensions": [".mega"],
       "displayName": "OMEGA Blockchain Language",
-      "icon": "r:/OMEGA/temp-logo.svg",
+      "icon": "./temp-logo.svg",
       "mimeType": "text/x-omega"
     }
   },
   "editor.fileIconTheme": "omega-icons",
-  "workbench.iconTheme": "omega-icons"
+  "workbench.iconTheme": "omega-icons",
+  "files.associations": {
+    "*.mega": "omega"
+  },
+  "workbench.editorAssociations": {
+    "*.mega": "default"
+  }
 }

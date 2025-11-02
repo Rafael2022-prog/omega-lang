@@ -61,18 +61,24 @@ function start(HttpServerConfig cfg, HttpHandler handler) public {
 
     emit HttpServerStarted(cfg.address, cfg.port);
 
-    // Loop accept (simulasi satu permintaan)
-    emit HttpServerAcceptLoop();
-    TcpSocket c = tcp.accept(s);
-    bytes buf = tcp.read(c, 4096);
-    HttpRequest req = http.parse_request(buf);
-    HttpResponse resp = handler.handle(req);
-    bytes out = http.build_response(resp);
-    int32 written = tcp.write(c, out);
-    tcp.close(c);
-    emit HttpServerRequestHandled(resp.status_code);
+    // Loop accept (persisten)
+    while (true) {
+        emit HttpServerAcceptLoop();
+        TcpSocket c = tcp.accept(s);
+        bytes buf = tcp.read(c, 65536);
+        if (buf.length == 0) {
+            tcp.close(c);
+            continue;
+        }
+        HttpRequest req = http.parse_request(buf);
+        HttpResponse resp = handler.handle(req);
+        bytes out = http.build_response(resp);
+        int32 written = tcp.write(c, out);
+        tcp.close(c);
+        emit HttpServerRequestHandled(resp.status_code);
+    }
 
-    // Shutdown
-    tcp.close(s);
-    emit HttpServerShutdownRequested();
+    // Shutdown (tidak akan tercapai dalam loop persisten)
+    // tcp.close(s);
+    // emit HttpServerShutdownRequested();
 }

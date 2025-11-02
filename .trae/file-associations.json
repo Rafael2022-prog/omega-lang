@@ -3,7 +3,7 @@
     "*.mega": {
       "language": "omega",
       "icon": {
-        "path": "r:/OMEGA/temp-logo.svg",
+        "path": "./temp-logo.svg",
         "type": "svg"
       },
       "description": "OMEGA Blockchain Source File",
@@ -16,8 +16,8 @@
       "displayName": "OMEGA",
       "extensions": [".mega"],
       "icon": {
-        "light": "r:/OMEGA/temp-logo.svg",
-        "dark": "r:/OMEGA/temp-logo.svg"
+        "light": "./temp-logo.svg",
+        "dark": "./temp-logo.svg"
       },
       "syntaxHighlighting": {
         "enabled": true,
@@ -30,7 +30,7 @@
     "version": "1.0.0",
     "icons": {
       "mega-file": {
-        "iconPath": "r:/OMEGA/temp-logo.svg",
+        "iconPath": "./temp-logo.svg",
         "fileExtensions": ["mega"],
         "fileNames": []
       }

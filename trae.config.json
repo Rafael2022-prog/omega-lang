@@ -6,7 +6,7 @@
       "language": "omega",
       "displayName": "OMEGA Source File",
       "icon": {
-        "path": "r:/OMEGA/temp-logo.svg",
+        "path": "./temp-logo.svg",
         "size": "16x16"
       },
       "syntax": "omega",
@@ -17,14 +17,14 @@
     "omega": {
       "name": "OMEGA",
       "extensions": [".mega"],
-      "icon": "r:/OMEGA/temp-logo.svg",
+      "icon": "./temp-logo.svg",
       "description": "OMEGA Universal Blockchain Programming Language"
     }
   },
   "icons": {
     "fileIcons": {
       "mega": {
-        "iconPath": "r:/OMEGA/temp-logo.svg",
+        "iconPath": "./temp-logo.svg",
         "extensions": [".mega"]
       }
     }

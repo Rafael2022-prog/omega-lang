@@ -1,0 +1,9 @@
+// Test file untuk debug ikon .mega di Trae IDE
+// File ini dibuat untuk memverifikasi apakah ikon OMEGA muncul
+
+contract TestIconDebug {
+    function test() {
+        // Jika ikon muncul, konfigurasi Trae IDE berhasil
+        println("Icon test successful!");
+    }
+}

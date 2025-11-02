@@ -77,6 +77,11 @@ blockchain OmegaSemanticAnalyzer {
         
         return results;
     }
+
+    /// Convenience: analyze with default file path
+    function analyze(Program memory program) public returns (AnalysisResults memory) {
+        return analyze(program, "");
+    }
     
     /// Phase 1: Collect all definitions and build symbol table
     function collect_definitions(Program memory program) public {

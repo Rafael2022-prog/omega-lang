@@ -1,0 +1,141 @@
+// Omega Backend API Server (native)
+// Endpoints:
+// - GET /health -> {status: "ok"}
+// - POST /compile (body = OMEGA source code as text) -> basic compilation stats
+
+import "std/net/http/server";
+import "std/net/http/core";
+import "std/io";
+import "std/env";
+import "std/time";
+
+// Compiler subsystems
+import "../src/lexer/lexer.mega" as Lexer;
+import "../src/parser/parser.mega";
+
+blockchain OmegaApiHandler is HttpHandler {
+    // Runtime status
+    uint256 requests_handled;
+    uint256 started_at_ms;
+    string compiler_version;
+
+    constructor() {
+        // Initialize runtime status
+        started_at_ms = time.now_ms();
+        requests_handled = 0;
+        // Try to read version from env, fallback to project version
+        string v = env.get_var("OMEGA_VERSION");
+        if (string.length(v) == 0) { v = "1.1.0"; }
+        compiler_version = v;
+    }
+
+    function handle(HttpRequest req) public returns (HttpResponse) {
+        // Basic routing
+        requests_handled = requests_handled + 1;
+        println(string.concat("[OmegaApiHandler] ", req.method, " ", req.path));
+
+        if (req.method == "GET" && (req.path == "/" || req.path == "/health")) {
+            string body = string.concat(
+                "{",
+                "\"status\":\"ok\",") ,
+                "\"server\":\"omega-native\",",
+                "\"version\":\"", compiler_version, "\"",
+                "}"
+            );
+            HttpResponse resp = http.make_text_response(200, "OK", body);
+            return resp;
+        }
+        
+        if (req.method == "GET" && req.path == "/version") {
+            string version_json = string.concat("{\"compiler_version\":\"", compiler_version, "\"}");
+            return http.make_text_response(200, "OK", version_json);
+        }
+        
+        if (req.method == "GET" && req.path == "/info") {
+            string port = env.get_var("OMEGA_SERVER_PORT");
+            if (string.length(port) == 0) { port = "8080"; }
+            string addr = env.get_var("OMEGA_SERVER_IP");
+            if (string.length(addr) == 0) { addr = "0.0.0.0"; }
+            string info_json = string.concat(
+                "{",
+                "\"server\":\"omega-native\",",
+                "\"version\":\"", compiler_version, "\"",
+                ",\"requests_handled\":", _num_to_string(requests_handled),
+                ",\"started_at_ms\":", _num_to_string(started_at_ms),
+                ",\"address\":\"", addr, "\"",
+                ",\"port\":", port,
+                "}"
+            );
+            return http.make_text_response(200, "OK", info_json);
+        }
+        
+        if (req.method == "POST" && req.path == "/compile") {
+            // Interpret request body as UTF-8 text source
+            string source = string(req.body);
+            
+            // Tokenize and parse
+            Lexer.OmegaLexer lx = Lexer.OmegaLexer::new();
+            Token[] tokens = lx.tokenize_string(source);
+            OmegaParser parser = OmegaParser::new();
+            Program program = parser.parse(tokens, "api_input.mega");
+            
+            // Compute simple stats
+            uint256 token_count = tokens.length;
+            uint256 import_tokens = 0;
+            for (uint256 i = 0; i < tokens.length; i++) {
+                if (tokens[i].token_type == TokenType.Import) {
+                    import_tokens = import_tokens + 1;
+                }
+            }
+            
+            string json = string.concat(
+                "{",
+                "\"success\":true,",
+                "\"tokens_count\":", _num_to_string(token_count), ",",
+                "\"imports_count\":", _num_to_string(import_tokens), ",",
+                "\"message\":\"Parsed source successfully\",",
+                "\"version\":\"", compiler_version, "\"",
+                "}"
+            );
+            HttpResponse ok = http.make_text_response(200, "OK", json);
+            return ok;
+        }
+        
+        // Fallback
+        string not_found = string.concat("{\"error\":\"Not Found\",\"path\":\"", req.path, "\"}");
+        return http.make_text_response(404, "Not Found", not_found);
+    }
+    
+    // Minimal integer to string conversion (copy of core logic)
+    function _num_to_string(uint256 n) private returns (string) {
+        if (n == 0) { return "0"; }
+        uint256 temp = n;
+        uint256 digits = 0;
+        while (temp > 0) { digits = digits + 1; temp = temp / 10; }
+        bytes buf = bytes(digits);
+        uint256 i = digits;
+        uint256 v = n;
+        while (v > 0) {
+            i = i - 1;
+            uint8 d = uint8(v % 10);
+            buf[i] = bytes1(uint8(48 + d));
+            v = v / 10;
+        }
+        return string(buf);
+    }
+}
+
+function main(string[] args) public returns (int32) {
+    println("Starting Omega Backend API server...");
+    HttpServerConfig cfg = server.default_config();
+    // Allow custom port via env OMEGA_SERVER_PORT if present
+    string p = env.get_var("OMEGA_SERVER_PORT");
+    if (string.length(p) > 0) {
+        // naive parse to uint16
+        uint256 acc = 0; for (uint256 i = 0; i < string.length(p); i++) { acc = acc * 10 + uint256(bytes(p)[i] - 48); }
+        cfg.port = uint16(acc);
+    }
+    OmegaApiHandler handler = OmegaApiHandler::new();
+    server.start(cfg, handler);
+    return 0;
+}

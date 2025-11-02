@@ -51,8 +51,10 @@ class OmegaFileHandler {
             console.log('✅ File associations installed successfully!');
             this.saveConfig();
         } catch (error) {
-            console.error('❌ Installation failed:', error.message);
-            process.exit(1);
+            console.error('⚠️ OMEGA file association could not complete automatically:', error.message);
+            console.warn('Hint: On Windows, you may need to run "npm run icons:install" in an elevated (Administrator) PowerShell to register icons.');
+            console.warn('Postinstall will continue without failing to avoid interrupting your setup.');
+            // Do not fail postinstall; allow setup to continue
         }
     }
 
@@ -65,9 +67,42 @@ class OmegaFileHandler {
         if (!fs.existsSync(regFile)) {
             throw new Error('Windows registry file not found');
         }
-
-        // Import registry file
-        execSync(`reg import "${regFile}"`, { stdio: 'inherit' });
+    
+        // Prepare icon fallback handling
+        const icoPath = path.join(this.omegaPath, 'omega-icon.ico');
+        let regContent = fs.readFileSync(regFile, 'utf8');
+    
+        if (fs.existsSync(icoPath)) {
+            // Ensure .ico is used instead of .svg
+            regContent = regContent.replace(/r:\\OMEGA\\temp-logo\.svg,0/g, 'r:\\OMEGA\\omega-icon.ico,0');
+        } else {
+            // Fallback to VS Code icon if OMEGA .ico is not available
+            const vsCodeIcon = '"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",0';
+            // Replace DefaultIcon entries
+            regContent = regContent.replace(/@="r:\\OMEGA\\[^"]+,0"/g, `@="${vsCodeIcon}"`);
+            // Replace menu Icon entries pointing to OMEGA paths
+            regContent = regContent.replace(/"Icon"="r:\\OMEGA\\[^"]+"/g, `"Icon"="${vsCodeIcon}"`);
+        }
+    
+        // Write temp registry file and attempt import (HKCR)
+        const tempRegFile = path.join(this.configPath, 'omega-context-menu.reg');
+        fs.writeFileSync(tempRegFile, regContent, 'utf8');
+    
+        try {
+            // Try system-wide import (requires admin)
+            execSync(`reg import "${tempRegFile}"`, { stdio: 'inherit' });
+        } catch (error) {
+            console.warn('HKCR import failed, falling back to per-user registry (HKCU)');
+            // Fallback: rewrite registry to HKCU\Software\Classes paths
+            let userRegContent = regContent
+                .replace(/\[HKEY_CLASSES_ROOT\\\.mega\]/g, '[HKEY_CURRENT_USER\\Software\\Classes\\.mega]')
+                .replace(/\[HKEY_CLASSES_ROOT\\OmegaSourceFile/g, '[HKEY_CURRENT_USER\\Software\\Classes\\OmegaSourceFile')
+                .replace(/\[HKEY_CLASSES_ROOT\\SystemFileAssociations\\\.mega/g, '[HKEY_CURRENT_USER\\Software\\Classes\\SystemFileAssociations\\.mega')
+                .replace(/\[HKEY_CLASSES_ROOT\\MIME\\Database\\Content Type\\/g, '[HKEY_CURRENT_USER\\Software\\Classes\\MIME\\Database\\Content Type\\');
+            const tempUserReg = path.join(this.configPath, 'omega-context-menu-user.reg');
+            fs.writeFileSync(tempUserReg, userRegContent, 'utf8');
+            execSync(`reg import "${tempUserReg}"`, { stdio: 'inherit' });
+        }
         
         // Refresh shell icons
         execSync('ie4uinit.exe -show', { stdio: 'inherit' });

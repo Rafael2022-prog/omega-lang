@@ -337,6 +337,27 @@ blockchain OmegaParser {
         sync_current_with_statement_parser();
         return type_info;
     }
+
+    /// Parse function declaration (delegate to declaration parser)
+    function parse_function_declaration() public returns (Function memory) {
+        // Ensure declaration parser is synced with current tokens/index
+        declaration_parser.set_tokens(tokens, current);
+        Annotation[] memory annotations; // no annotations in this convenience API
+        Function memory function_item = declaration_parser.parse_function(annotations);
+        // Sync current index back to master parser and other sub-parsers
+        sync_current_with_declaration_parser();
+        return function_item;
+    }
+
+    /// Parse state declaration (delegate to declaration parser)
+    function parse_state_declaration() public returns (StateBlock memory) {
+        // Ensure declaration parser is synced with current tokens/index
+        declaration_parser.set_tokens(tokens, current);
+        StateBlock memory state_block = declaration_parser.parse_state_block();
+        // Sync current index back to master parser and other sub-parsers
+        sync_current_with_declaration_parser();
+        return state_block;
+    }
     
     // Helper functions
     function match(TokenType token_type) private returns (bool) {

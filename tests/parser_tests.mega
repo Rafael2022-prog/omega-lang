@@ -4,6 +4,7 @@
 import "test_framework.mega";
 import "../src/parser/parser.mega";
 import "../src/lexer/lexer.mega";
+import "./test_adapter.mega";
 
 /// Test suite untuk OmegaParser
 blockchain ParserTests {
@@ -341,12 +342,10 @@ blockchain ParserTests {
 
     // ===== HELPER FUNCTIONS =====
 
-    /// Parse source code and return AST
+    /// Parse source code and return test AST
     function _parse_source(string source) private returns (ASTNode) {
-        lexer.set_source(source);
-        Token[] tokens = lexer.tokenize();
-        parser.set_tokens(tokens);
-        return parser.parse();
+        // Gunakan shim adapter terpusat agar bridging konsisten di semua pengujian
+        return parse_program_from_source_as_ast(lexer, parser, source);
     }
 
     /// Verify AST node type
@@ -441,7 +440,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode function_node = parser.parse_function_declaration();
+        ASTNode function_node = parse_function_declaration_as_ast(parser);
         _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
         TestAssertions.assert_string_equal("simple", function_node.value, "Function name should match");
     }
@@ -453,7 +452,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode function_node = parser.parse_function_declaration();
+        ASTNode function_node = parse_function_declaration_as_ast(parser);
         _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
         
         // Should have parameter list as child
@@ -467,7 +466,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode function_node = parser.parse_function_declaration();
+        ASTNode function_node = parse_function_declaration_as_ast(parser);
         _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
         
         // Should have return type information
@@ -481,7 +480,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode function_node = parser.parse_function_declaration();
+        ASTNode function_node = parse_function_declaration_as_ast(parser);
         _verify_node_type(function_node, ASTNodeType.FunctionDeclaration, "Should be function declaration");
         
         // Should parse modifiers correctly
@@ -495,7 +494,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode state_node = parser.parse_state_declaration();
+        ASTNode state_node = parse_state_declaration_as_ast(parser);
         _verify_node_type(state_node, ASTNodeType.StateDeclaration, "Should be state declaration");
         TestAssertions.assert_equal(2, state_node.children.length, "Should have two state variables");
     }
@@ -507,7 +506,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode state_node = parser.parse_state_declaration();
+        ASTNode state_node = parse_state_declaration_as_ast(parser);
         _verify_node_type(state_node, ASTNodeType.StateDeclaration, "Should be state declaration");
         TestAssertions.assert_equal(1, state_node.children.length, "Should have one mapping");
         
@@ -522,7 +521,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode state_node = parser.parse_state_declaration();
+        ASTNode state_node = parse_state_declaration_as_ast(parser);
         _verify_node_type(state_node, ASTNodeType.StateDeclaration, "Should be state declaration");
         TestAssertions.assert_equal(2, state_node.children.length, "Should have two arrays");
     }
@@ -534,7 +533,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode struct_node = parser.parse_struct_declaration();
+        ASTNode struct_node = parse_struct_declaration_as_ast(parser);
         _verify_node_type(struct_node, ASTNodeType.StructDeclaration, "Should be struct declaration");
         TestAssertions.assert_string_equal("User", struct_node.value, "Struct name should match");
     }
@@ -546,7 +545,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode expr = parser.parse_expression();
+        ASTNode expr = parse_expression_as_ast(parser);
         _verify_node_type(expr, ASTNodeType.BinaryExpression, "Should be binary expression");
         
         // Should respect operator precedence
@@ -560,7 +559,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode expr = parser.parse_expression();
+        ASTNode expr = parse_expression_as_ast(parser);
         _verify_node_type(expr, ASTNodeType.BinaryExpression, "Should be binary expression");
     }
 
@@ -571,7 +570,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode expr = parser.parse_expression();
+        ASTNode expr = parse_expression_as_ast(parser);
         _verify_node_type(expr, ASTNodeType.FunctionCall, "Should be function call");
         TestAssertions.assert_string_equal("myFunction", expr.value, "Function name should match");
     }
@@ -583,7 +582,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode expr = parser.parse_expression();
+        ASTNode expr = parse_expression_as_ast(parser);
         _verify_node_type(expr, ASTNodeType.MemberAccess, "Should be member access");
     }
 
@@ -594,7 +593,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode expr = parser.parse_expression();
+        ASTNode expr = parse_expression_as_ast(parser);
         
         // Should parse as: a + (b * c)
         // Root should be + operator
@@ -612,7 +611,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode stmt = parser.parse_statement();
+        ASTNode stmt = parse_statement_as_ast(parser);
         _verify_node_type(stmt, ASTNodeType.VariableDeclaration, "Should be variable declaration");
     }
 
@@ -623,7 +622,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode stmt = parser.parse_statement();
+        ASTNode stmt = parse_statement_as_ast(parser);
         _verify_node_type(stmt, ASTNodeType.AssignmentStatement, "Should be assignment statement");
     }
 
@@ -634,7 +633,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode stmt = parser.parse_statement();
+        ASTNode stmt = parse_statement_as_ast(parser);
         _verify_node_type(stmt, ASTNodeType.IfStatement, "Should be if statement");
         TestAssertions.assert_equal(3, stmt.children.length, "Should have condition, then-block, and else-block");
     }
@@ -646,7 +645,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode stmt = parser.parse_statement();
+        ASTNode stmt = parse_statement_as_ast(parser);
         _verify_node_type(stmt, ASTNodeType.ForStatement, "Should be for statement");
     }
 
@@ -657,7 +656,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode stmt = parser.parse_statement();
+        ASTNode stmt = parse_statement_as_ast(parser);
         _verify_node_type(stmt, ASTNodeType.ReturnStatement, "Should be return statement");
     }
 
@@ -670,7 +669,7 @@ blockchain ParserTests {
             Token[] tokens = lexer.tokenize();
             parser.set_tokens(tokens);
             
-            ASTNode type_node = parser.parse_type();
+            ASTNode type_node = parse_type_as_ast(parser);
             _verify_node_type(type_node, ASTNodeType.TypeName, "Should be type name");
             TestAssertions.assert_string_equal(types[i], type_node.value, format("Type should be {}", types[i]));
         }
@@ -683,7 +682,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode type_node = parser.parse_type();
+        ASTNode type_node = parse_type_as_ast(parser);
         _verify_node_type(type_node, ASTNodeType.MappingType, "Should be mapping type");
     }
 
@@ -694,7 +693,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode type_node = parser.parse_type();
+        ASTNode type_node = parse_type_as_ast(parser);
         _verify_node_type(type_node, ASTNodeType.GenericType, "Should be generic type");
     }
 
@@ -742,7 +741,7 @@ blockchain ParserTests {
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
         
-        ASTNode stmt = parser.parse_statement();
+        ASTNode stmt = parse_statement_as_ast(parser);
         _verify_node_type(stmt, ASTNodeType.IfStatement, "Should be if statement");
         
         // Should handle nested structure correctly

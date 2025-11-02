@@ -7,6 +7,7 @@ import "../src/ir/ir.mega";
 import "../src/semantic/analyzer.mega";
 import "../src/parser/parser.mega";
 import "../src/lexer/lexer.mega";
+import "./test_adapter.mega";
 
 /// Test suite untuk OmegaCodeGenerator
 blockchain CodeGenTests {
@@ -357,9 +358,9 @@ blockchain CodeGenTests {
         lexer.set_source(source);
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
-        ASTNode ast = parser.parse();
-        AnalysisResult analysis = analyzer.analyze(ast);
-        IRModule ir_module = ir_generator.generate_ir(analysis.ast, analysis.symbol_table);
+        Program program_ast = parser.parse();
+        AnalysisResults analysis = analyzer.analyze(program_ast);
+        IRModule ir_module = ir_generator.generate_ir(analysis);
         
         code_generator.set_target_platform(target);
         return code_generator.generate_code(ir_module);

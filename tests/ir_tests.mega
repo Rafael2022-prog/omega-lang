@@ -6,6 +6,7 @@ import "../src/ir/ir.mega";
 import "../src/semantic/analyzer.mega";
 import "../src/parser/parser.mega";
 import "../src/lexer/lexer.mega";
+import "./test_adapter.mega";
 
 /// Test suite untuk OmegaIR (IR Generator)
 blockchain IRTests {
@@ -33,6 +34,8 @@ blockchain IRTests {
         _setup_optimization_tests();
         _setup_validation_tests();
         _setup_target_specific_tests();
+        // New statistics tests
+        _setup_statistics_tests();
     }
 
     /// Setup basic IR generation tests
@@ -378,9 +381,9 @@ blockchain IRTests {
         lexer.set_source(source);
         Token[] tokens = lexer.tokenize();
         parser.set_tokens(tokens);
-        ASTNode ast = parser.parse();
-        AnalysisResult analysis = analyzer.analyze(ast);
-        return ir_generator.generate_ir(analysis.ast, analysis.symbol_table);
+        Program program_ast = parser.parse();
+        AnalysisResults analysis = analyzer.analyze(program_ast);
+        return ir_generator.generate_ir(analysis);
     }
 
     /// Verify IR module is valid
@@ -1127,5 +1130,67 @@ blockchain IRTests {
     /// Run specific test suite
     function run_test_suite(string suite_name) public returns (TestResult[]) {
         return test_framework.run_test_suite(suite_name);
+    }
+
+    /// Setup statistics IR tests
+    function _setup_statistics_tests() private {
+        test_framework.add_test_suite("IRStatistics", "Tests for IR statistics fields");
+        
+        test_framework.add_test_case(
+            "IRStatistics",
+            "test_imports_count_statistics",
+            "Should count number of imports in IR statistics",
+            TestType.Unit,
+            test_imports_count_statistics
+        );
+        
+        test_framework.add_test_case(
+            "IRStatistics",
+            "test_modifiers_defined_statistics",
+            "Should count number of modifiers defined in IR statistics",
+            TestType.Unit,
+            test_modifiers_defined_statistics
+        );
+    }
+
+    /// Test imports_count statistics
+    function test_imports_count_statistics() public {
+        string source = `
+            blockchain StatsBC {
+                function f() public {}
+            }
+            import "lib/math.mega";
+            import "lib/utils.mega";
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        _verify_ir_module_valid(module, "Should generate valid IR module for imports stats");
+        IRStatistics stats = ir_generator.get_statistics();
+        TestAssertions.assert_equal(2, stats.imports_count, "Should count 2 imports in IR statistics");
+    }
+    
+    /// Test modifiers_defined statistics
+    function test_modifiers_defined_statistics() public {
+        string source = `
+            blockchain StatsBC2 {
+                modifier onlyOwner() {
+                    _;
+                }
+                
+                modifier validAmount(uint256 amount) {
+                    require(amount > 0);
+                    _;
+                }
+                
+                function foo() public {
+                    // function without applying modifiers; definitions are enough for stats
+                }
+            }
+        `;
+        
+        IRModule module = _generate_ir_from_source(source);
+        _verify_ir_module_valid(module, "Should generate valid IR module for modifiers stats");
+        IRStatistics stats = ir_generator.get_statistics();
+        TestAssertions.assert_equal(2, stats.modifiers_defined, "Should count 2 modifiers in IR statistics");
     }
 }

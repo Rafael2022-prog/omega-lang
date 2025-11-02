@@ -201,7 +201,6 @@ foreach ($doc in $DocFiles) {
     } else {
         Test-Result "documentation" "FAIL" "Documentation file missing: $doc"
     }
-    }
 }
 
 # 6. Configuration Check
@@ -384,10 +383,3 @@ function Main {
 
 # Run the main function
 Main
-    }
-    exit 0
-} else {
-    Write-Host "❌ CRITICAL ISSUES FOUND" -ForegroundColor $Red
-    Write-Host "$FailedTests critical issues must be resolved before deployment." -ForegroundColor $Red
-    exit 1
-}

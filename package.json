@@ -13,7 +13,11 @@
     "test": "powershell -ExecutionPolicy Bypass -File test_omega.ps1",
     "test:security": "powershell -ExecutionPolicy Bypass -File test_security.ps1",
     "benchmark": "powershell -ExecutionPolicy Bypass -File benchmark.ps1",
-    "start": "./omega.cmd --help"
+    "start": "./omega.cmd --help",
+    "icons:install": "node system-integration/cross-platform/omega-file-handler.js install",
+    "icons:uninstall": "node system-integration/cross-platform/omega-file-handler.js uninstall",
+    "icons:status": "node system-integration/cross-platform/omega-file-handler.js status",
+    "postinstall": "node system-integration/cross-platform/omega-file-handler.js install"
   },
   "keywords": [
     "blockchain",
@@ -45,7 +49,7 @@
     "typescript": "^5.0.0"
   },
   "optionalDependencies": {
-    "rust": ">=1.70.0"
+    "rust": "^0.1.6"
   },
   "omega": {
     "version": "1.1.0",
