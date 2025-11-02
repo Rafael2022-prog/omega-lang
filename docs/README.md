@@ -104,17 +104,28 @@ blockchain SimpleToken {
 
 ### 4. Compile untuk Multiple Targets
 ```bash
+# Using OMEGA v1.2.0 Self-Hosting Compiler
 omega build
 # Output:
+# 🚀 OMEGA v1.2.0 Self-Hosting Compiler
 # ✅ EVM: SimpleToken.sol generated
-# ✅ Solana: lib.rs + Cargo.toml generated
-# ✅ Build completed successfully
+# ✅ Solana: lib.rs + Cargo.toml generated  
+# ✅ Cosmos: SimpleToken.go generated
+# ✅ Build completed successfully (40% faster!)
 ```
 
 ### 5. Deploy ke Testnet
 ```bash
 omega deploy --target evm --network sepolia
 omega deploy --target solana --network devnet
+omega deploy --target cosmos --network testnet
+```
+
+### 6. Self-Hosting Verification (New in v1.2.0!)
+```bash
+# Test self-hosting capability
+omega compile src/self_hosting_compiler.mega --target native
+# Output: ✅ Self-compilation successful - OMEGA can compile itself!
 ```
 
 ## 📚 Dokumentasi Lengkap
