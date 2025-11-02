@@ -1,7 +1,8 @@
 # OMEGA - Universal Blockchain Programming Language
 
 ![OMEGA Logo](https://img.shields.io/badge/OMEGA-Blockchain%20Language-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-1.1.0-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.2.0-green?style=flat-square)
+![Self-Hosting](https://img.shields.io/badge/self--hosting-enabled-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Performance](https://img.shields.io/badge/performance-+25%25%20faster-brightgreen?style=flat-square)
 ![Security](https://img.shields.io/badge/security-enhanced-orange?style=flat-square)
@@ -11,6 +12,12 @@
 OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengembangan blockchain dengan prinsip **"Write Once, Deploy Everywhere"**. Dengan OMEGA, developer dapat menulis smart contract sekali dan mengompilasi ke berbagai target blockchain baik EVM maupun non-EVM.
 
 ## 🚀 Fitur Utama
+
+### 🔄 Self-Hosting Compiler
+- **Native Implementation**: Compiler ditulis 100% dalam bahasa OMEGA
+- **Bootstrap Independence**: Tidak bergantung pada compiler eksternal
+- **Multi-Target Generation**: Satu source code untuk berbagai blockchain
+- **Production Ready**: Optimasi tingkat enterprise dengan monitoring real-time
 
 ### ✨ Universal Compatibility
 - **EVM Compatible**: Ethereum, Polygon, BSC, Avalanche, Arbitrum
