@@ -34,44 +34,130 @@ jobs:
           brew install --cask powershell
         fi
 
-    - name: ✅ Verify OMEGA Native Binary
+    - name: 🚀 Build Self-Hosting Compiler
+      run: |
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          Write-Host "🏗️ Building OMEGA self-hosting compiler..."
+          .\omega_native.ps1
+        else
+          echo "🏗️ Building OMEGA self-hosting compiler..."
+          pwsh -File omega_native.ps1
+        fi
+      shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+
+    - name: ✅ Verify Self-Hosting Capability
       run: |
         if [ "$RUNNER_OS" == "Windows" ]; then
           if (Test-Path "omega.exe") {
-            Write-Host "✅ OMEGA native binary found"
+            Write-Host "✅ OMEGA self-hosting binary created successfully"
             .\omega.exe --version
+            Write-Host "🔄 Testing self-compilation..."
+            .\omega.exe compile src/self_hosting_compiler.mega --target native
           } else {
-            Write-Host "❌ OMEGA binary not found, building..."
-            .\build_omega_native.ps1
+            Write-Host "❌ Self-hosting build failed"
+            exit 1
           }
         else
           if [ -f "omega.exe" ]; then
-            echo "✅ OMEGA native binary found"
+            echo "✅ OMEGA self-hosting binary created successfully"
             pwsh -c ".\omega.exe --version"
+            echo "🔄 Testing self-compilation..."
+            pwsh -c ".\omega.exe compile src/self_hosting_compiler.mega --target native"
           else
-            echo "❌ OMEGA binary not found, building..."
-            pwsh -File build_omega_native.ps1
+            echo "❌ Self-hosting build failed"
+            exit 1
           fi
         fi
       shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
 
-    - name: 🧪 Run Native OMEGA Tests (Linux/macOS)
-      if: runner.os != 'Windows'
+    - name: 🧪 Run Self-Hosting Test Suite
       run: |
-        chmod +x scripts/simple_test.ps1
-        pwsh -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          Write-Host "🧪 Running self-hosting test suite..."
+          .\omega.exe test tests/self_hosting_test_suite.mega
+        else
+          echo "🧪 Running self-hosting test suite..."
+          pwsh -c ".\omega.exe test tests/self_hosting_test_suite.mega"
+        fi
+      shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
 
-    - name: 🧪 Run Native OMEGA Tests (Windows)
-      if: runner.os == 'Windows'
+    - name: 🧪 Run Legacy Test Suite (Compatibility)
       run: |
-        powershell -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          powershell -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
+        else
+          chmod +x scripts/simple_test.ps1
+          pwsh -ExecutionPolicy Bypass -File scripts/simple_test.ps1 -SkipBuild
+        fi
+      shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
 
     - name: 📊 Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
-        path: test-reports/
+        name: test-results-${{ matrix.os }}
+        path: |
+          test-reports/
+          *.log
+
+  self_hosting_validation:
+    name: 🔄 Self-Hosting Validation
+    runs-on: ubuntu-latest
+    needs: [test]
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔧 Setup PowerShell
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget apt-transport-https software-properties-common
+        wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+        sudo dpkg -i packages-microsoft-prod.deb
+        sudo apt-get update
+        sudo apt-get install -y powershell
+
+    - name: 🚀 Build Self-Hosting Compiler
+      run: |
+        echo "🏗️ Building OMEGA self-hosting compiler..."
+        pwsh -File omega_native.ps1
+
+    - name: 🔄 Multi-Stage Self-Compilation Test
+      run: |
+        echo "🔄 Stage 1: Initial self-compilation..."
+        pwsh -c ".\omega.exe compile src/self_hosting_compiler.mega --target native --output omega_stage1.exe"
+        
+        echo "🔄 Stage 2: Self-compilation with stage 1 binary..."
+        pwsh -c ".\omega_stage1.exe compile src/self_hosting_compiler.mega --target native --output omega_stage2.exe"
+        
+        echo "🔄 Stage 3: Verification - both binaries should be identical..."
+        if cmp -s omega_stage1.exe omega_stage2.exe; then
+          echo "✅ Self-hosting validation successful - binaries are identical"
+        else
+          echo "❌ Self-hosting validation failed - binaries differ"
+          exit 1
+        fi
+
+    - name: 🎯 Cross-Target Compilation Test
+      run: |
+        echo "🎯 Testing EVM target compilation..."
+        pwsh -c ".\omega.exe compile contracts/SimpleToken.mega --target evm --output SimpleToken.sol"
+        
+        echo "🎯 Testing Solana target compilation..."
+        pwsh -c ".\omega.exe compile contracts/SimpleToken.mega --target solana --output lib.rs"
+        
+        echo "✅ Cross-target compilation successful"
+
+    - name: 📊 Upload self-hosting artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: self-hosting-artifacts
+        path: |
+          omega_stage1.exe
+          omega_stage2.exe
+          SimpleToken.sol
+          lib.rs
 
   lint:
     name: 🔍 Code Quality
@@ -257,17 +343,21 @@ jobs:
   notify:
     name: 📢 Notifications
     runs-on: ubuntu-latest
-    needs: [test, lint, security, build]
+    needs: [test, self_hosting_validation, lint, security, build]
     if: always()
 
     steps:
     - name: 📢 Notify on success
-      if: needs.test.result == 'success' && needs.lint.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success'
+      if: needs.test.result == 'success' && needs.self_hosting_validation.result == 'success' && needs.lint.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success'
       run: |
-        echo "✅ All checks passed! Ready for review."
+        echo "✅ All checks passed! Self-hosting compiler validated successfully."
+        echo "🚀 OMEGA v1.2.0 Self-Hosting Milestone achieved!"
 
     - name: 📢 Notify on failure
-      if: needs.test.result == 'failure' || needs.lint.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure'
+      if: needs.test.result == 'failure' || needs.self_hosting_validation.result == 'failure' || needs.lint.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure'
       run: |
         echo "❌ Some checks failed. Please review the results."
+        if [ "${{ needs.self_hosting_validation.result }}" == "failure" ]; then
+          echo "🔄 Self-hosting validation failed - check compiler implementation"
+        fi
         exit 1
