@@ -48,6 +48,11 @@ blockchain OmegaSemanticAnalyzer {
         type_checker.set_current_file(file_path);
         blockchain_validator.set_current_file(file_path);
         
+        // Inject shared error handler to sub-analyzers
+        symbol_manager.set_error_handler(error_handler);
+        type_checker.set_error_handler(error_handler);
+        blockchain_validator.set_error_handler(error_handler);
+        
         // Connect analyzers
         type_checker.set_symbol_manager(symbol_manager);
         blockchain_validator.set_symbol_manager(symbol_manager);

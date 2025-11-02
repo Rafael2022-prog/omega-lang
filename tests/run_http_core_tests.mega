@@ -1,0 +1,43 @@
+import "http_core_tests.mega";
+
+blockchain HttpCoreTestRunner {
+    function main() public {
+        HttpCoreTests tests = new HttpCoreTests();
+        TestStatistics stats = tests.run_all_tests();
+        uint256 success_rate = stats.total_tests > 0 ? (stats.passed_tests * 100) / stats.total_tests : 0;
+        
+        print("=== HTTP Core Unit Tests ===");
+        print("Total Tests: " + _to_string(stats.total_tests));
+        print("Passed: " + _to_string(stats.passed_tests));
+        print("Failed: " + _to_string(stats.failed_tests));
+        print("Success Rate: " + _to_string(success_rate) + "%");
+        
+        if (stats.failed_tests == 0) {
+            print("✅ All HTTP core tests PASSED");
+        } else {
+            print("❌ Some HTTP core tests FAILED");
+        }
+    }
+
+    function _to_string(uint256 value) private pure returns (string) {
+        if (value == 0) return "0";
+        
+        uint256 temp = value;
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+}

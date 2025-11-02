@@ -1,0 +1,78 @@
+// OMEGA Standard Library - NET/HTTP Server (native)
+// Server HTTP murni OMEGA dibangun di atas std/net/tcp
+
+import "std/net/tcp";
+import "std/env";
+import "std/time";
+import "std/io";
+import "std/net/http/core";
+
+// Konfigurasi server HTTP
+struct HttpServerConfig {
+    string address;       // default dari ENV OMEGA_SERVER_IP jika kosong
+    uint16 port;          // default 8080
+    int32 backlog;        // default 128
+}
+
+// Handler interface
+trait HttpHandler {
+    function handle(HttpRequest req) public returns (HttpResponse);
+}
+
+// Event observabilitas
+event HttpServerStartRequested(string address, uint16 port);
+event HttpServerStarted(string address, uint16 port);
+event HttpServerAcceptLoop();
+event HttpServerRequestHandled(uint16 status);
+event HttpServerShutdownRequested();
+
+// Membuat konfigurasi default server
+function default_config() public returns (HttpServerConfig) {
+    string addr = env.get_var("OMEGA_SERVER_IP");
+    if (string.length(addr) == 0) {
+        addr = "0.0.0.0";
+    }
+    HttpServerConfig cfg = HttpServerConfig({ address: addr, port: 8080, backlog: 128 });
+    return cfg;
+}
+
+// Memulai server HTTP
+function start(HttpServerConfig cfg, HttpHandler handler) public {
+    emit HttpServerStartRequested(cfg.address, cfg.port);
+
+    // Socket config default
+    TcpConfig scfg = TcpConfig({
+        reuse_addr: true,
+        reuse_port: true,
+        no_delay: true,
+        read_timeout_ms: 30000,
+        write_timeout_ms: 30000
+    });
+
+    // Buat socket dan bind
+    TcpSocket s = tcp.socket(scfg);
+
+    bool ok_bind = tcp.bind(s, cfg.address, cfg.port);
+    bool ok_listen = tcp.listen(s, cfg.backlog);
+    if (!ok_bind || !ok_listen) {
+        eprintln("HTTP server failed to bind/listen");
+        return;
+    }
+
+    emit HttpServerStarted(cfg.address, cfg.port);
+
+    // Loop accept (simulasi satu permintaan)
+    emit HttpServerAcceptLoop();
+    TcpSocket c = tcp.accept(s);
+    bytes buf = tcp.read(c, 4096);
+    HttpRequest req = http.parse_request(buf);
+    HttpResponse resp = handler.handle(req);
+    bytes out = http.build_response(resp);
+    int32 written = tcp.write(c, out);
+    tcp.close(c);
+    emit HttpServerRequestHandled(resp.status_code);
+
+    // Shutdown
+    tcp.close(s);
+    emit HttpServerShutdownRequested();
+}

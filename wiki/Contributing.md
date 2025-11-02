@@ -19,7 +19,7 @@ Thank you for your interest in contributing to OMEGA! We welcome contributions f
 
 ## 📜 Code of Conduct
 
-This project adheres to a code of conduct. By participating, you are expected to uphold this code. Please report unacceptable behavior to [support@omega-lang.org](mailto:support@omega-lang.org).
+This project adheres to a code of conduct. By participating, you are expected to uphold this code. Please report unacceptable behavior to [info@omegalang.xyz](mailto:info@omegalang.xyz).
 
 ### Our Standards
 
@@ -48,12 +48,12 @@ Before contributing to OMEGA, ensure you have:
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/omega.git
+   git clone https://github.com/Rafael2022-prog/omega-lang.git
    cd omega
    ```
 3. **Add upstream remote**:
    ```bash
-   git remote add upstream https://github.com/omega-lang/omega.git
+   git remote add upstream https://github.com/Rafael2022-prog/omega-lang.git
    ```
 
 ## 🛠️ Development Setup

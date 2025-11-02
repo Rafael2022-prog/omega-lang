@@ -1,0 +1,29 @@
+// OMEGA Standard Library - PROCESS (native)
+// Murni OMEGA: eksekusi proses eksternal dan informasi proses.
+
+struct ProcessResult {
+    int32 exit_code;
+    string stdout;
+    string stderr;
+}
+
+// Event eksekusi proses
+event ProcessExecute(string program, string[] args, int32 exit_code);
+
+event ProcessExitRequested(int32 code);
+
+// Menjalankan proses eksternal
+function execute(string program, string[] args) public returns (ProcessResult) {
+    ProcessResult result = ProcessResult({
+        exit_code: -1,
+        stdout: "",
+        stderr: "process.execute belum diimplementasikan (placeholder native OMEGA)"
+    });
+    emit ProcessExecute(program, args, result.exit_code);
+    return result;
+}
+
+// Keluar dari proses saat ini
+function exit(int32 code) public {
+    emit ProcessExitRequested(code);
+}

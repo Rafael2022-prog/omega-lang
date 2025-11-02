@@ -1,0 +1,133 @@
+// OMEGA Native Codegen Syscall Lowering Unit Tests
+// Menguji evaluasi konstanta pada NativeCodeGenerator untuk mendukung lowering syscall dengan argumen non-literal sederhana
+
+import "test_framework.mega";
+import "../src/codegen/native_generator.mega";
+import "../src/ir/ir_legacy.mega";
+
+using TestAssertions as Assert;
+
+blockchain NativeCodegenSyscallTests {
+    state {
+        OmegaTestFramework tf;
+        NativeCodeGenerator ncg;
+    }
+
+    constructor() {
+        tf = new OmegaTestFramework();
+        ncg = new NativeCodeGenerator();
+        _setup_tests();
+    }
+
+    function _setup_tests() private {
+        tf.add_test_suite("NativeCodegenSyscall", "Tests untuk evaluasi konstanta di NativeCodeGenerator");
+        tf.add_test_case("NativeCodegenSyscall", "test_const_binary_add", "Harus menghitung 2 + 3 = 5", TestType.Unit, test_const_binary_add);
+        tf.add_test_case("NativeCodegenSyscall", "test_bitwise_or", "Harus menghitung 0x1 | 0x4 = 0x5", TestType.Unit, test_bitwise_or);
+        tf.add_test_case("NativeCodegenSyscall", "test_shift_left", "Harus menghitung 1 << 12 = 4096", TestType.Unit, test_shift_left);
+        tf.add_test_case("NativeCodegenSyscall", "test_bytes_length_member", "Harus menghitung panjang literal bytes", TestType.Unit, test_bytes_length_member);
+        tf.add_test_case("NativeCodegenSyscall", "test_comparison_gt", "Harus menghitung 7 > 5 = true(1)", TestType.Unit, test_comparison_gt);
+    }
+
+    // Helper untuk membuat literal integer
+    function _lit_int(uint64 v) private pure returns (ExpressionIR memory) {
+        ExpressionIR memory e;
+        e.expr_type = IRExpressionType.Literal;
+        e.literal = ValueIR({
+            value_type: IRValueType.Integer,
+            bool_value: false,
+            int_value: v,
+            string_value: "",
+            address_value: address(0),
+            bytes_value: bytes(0)
+        });
+        return e;
+    }
+
+    // Helper untuk membuat literal bytes
+    function _lit_bytes(bytes b) private pure returns (ExpressionIR memory) {
+        ExpressionIR memory e;
+        e.expr_type = IRExpressionType.Literal;
+        e.literal = ValueIR({
+            value_type: IRValueType.Bytes,
+            bool_value: false,
+            int_value: 0,
+            string_value: "",
+            address_value: address(0),
+            bytes_value: b
+        });
+        return e;
+    }
+
+    // ===== Test cases =====
+    function test_const_binary_add() public {
+        ExpressionIR memory left = _lit_int(2);
+        ExpressionIR memory right = _lit_int(3);
+        ExpressionIR memory add;
+        add.expr_type = IRExpressionType.Binary;
+        add.left = left;
+        add.right = right;
+        add.operator = BinaryOperatorIR.Add;
+        uint64 result = ncg.evaluate_uint64_const(add);
+        Assert.assert_equal(5, result, "2 + 3 harus 5");
+    }
+
+    function test_bitwise_or() public {
+        ExpressionIR memory left = _lit_int(1);
+        ExpressionIR memory right = _lit_int(4);
+        ExpressionIR memory expr;
+        expr.expr_type = IRExpressionType.Binary;
+        expr.left = left;
+        expr.right = right;
+        expr.operator = BinaryOperatorIR.BitOr;
+        uint64 result = ncg.evaluate_uint64_const(expr);
+        Assert.assert_equal(5, result, "0x1 | 0x4 harus 0x5");
+    }
+
+    function test_shift_left() public {
+        ExpressionIR memory left = _lit_int(1);
+        ExpressionIR memory right = _lit_int(12);
+        ExpressionIR memory expr;
+        expr.expr_type = IRExpressionType.Binary;
+        expr.left = left;
+        expr.right = right;
+        expr.operator = BinaryOperatorIR.Shl;
+        uint64 result = ncg.evaluate_uint64_const(expr);
+        Assert.assert_equal(4096, result, "1 << 12 harus 4096");
+    }
+
+    function test_bytes_length_member() public {
+        bytes b = bytes(3);
+        b[0] = bytes1(0xAA);
+        b[1] = bytes1(0xBB);
+        b[2] = bytes1(0xCC);
+        ExpressionIR memory lit = _lit_bytes(b);
+        ExpressionIR memory mem;
+        mem.expr_type = IRExpressionType.MemberAccess;
+        mem.object = lit;
+        mem.member = "length";
+        uint64 result = ncg.evaluate_uint64_const(mem);
+        Assert.assert_equal(3, result, "length dari literal bytes [AA BB CC] harus 3");
+    }
+
+    function test_comparison_gt() public {
+        ExpressionIR memory left = _lit_int(7);
+        ExpressionIR memory right = _lit_int(5);
+        ExpressionIR memory expr;
+        expr.expr_type = IRExpressionType.Binary;
+        expr.left = left;
+        expr.right = right;
+        expr.operator = BinaryOperatorIR.Gt;
+        uint64 result = ncg.evaluate_uint64_const(expr);
+        Assert.assert_equal(1, result, "7 > 5 harus true (1)");
+    }
+
+    /// Run all tests
+    function run_all_tests() public returns (TestStatistics) {
+        return tf.run_all_tests();
+    }
+
+    /// Run specific suite
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return tf.run_test_suite(suite_name);
+    }
+}

@@ -6,6 +6,7 @@ import "std/io";
 import "std/fs";
 import "std/process";
 import "std/env";
+import "src/codegen/native_generator.mega";
 
 /// Main build function untuk OMEGA self-hosting compiler
 /// Menangani kompilasi dari source MEGA ke native executable

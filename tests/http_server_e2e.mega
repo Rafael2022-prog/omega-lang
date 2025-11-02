@@ -1,0 +1,22 @@
+// OMEGA E2E HTTP Server Test Skeleton
+// Tujuan: Menyusun kerangka e2e yang akan dijalankan setelah TCP accept/read/write tersedia.
+
+import "../src/std/net/http/server.mega";
+import "../src/std/net/http/core.mega";
+
+// Handler sederhana yang mengembalikan teks
+blockchain HelloHandler implements HttpHandler {
+    function handle(HttpRequest req) public returns (HttpResponse) {
+        return make_text_response(200, "OK", "Hello from OMEGA");
+    }
+}
+
+// Runner E2E (kompilasi saja untuk saat ini)
+blockchain HttpServerE2E {
+    function main() public {
+        HttpServerConfig cfg = default_config();
+        // Port default 8080, address dari ENV OMEGA_SERVER_IP atau 0.0.0.0
+        start(cfg, new HelloHandler());
+        print("HTTP Server E2E skeleton compiled and ready (runtime awaiting TCP implementation)");
+    }
+}

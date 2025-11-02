@@ -32,6 +32,11 @@ blockchain BlockchainValidator {
         symbol_manager = manager;
     }
     
+    /// Inject shared error handler
+    function set_error_handler(OmegaErrorHandler memory handler) public {
+        error_handler = handler;
+    }
+    
     /// Validate blockchain rules for entire program
     function validate_blockchain_rules(Program memory program) public {
         for (uint256 i = 0; i < program.items.length; i++) {
@@ -168,6 +173,9 @@ blockchain BlockchainValidator {
         // Check for reentrancy vulnerabilities
         validate_reentrancy_protection(func);
         
+        // CEI: Checks-Effects-Interactions order
+        validate_cei_order(func);
+        
         // Check for gas optimization opportunities
         validate_gas_optimization(func);
         
@@ -240,6 +248,119 @@ blockchain BlockchainValidator {
                     0, 0
                 );
             }
+        }
+    }
+    
+    /// CEI: Validate Checks-Effects-Interactions ordering
+    function validate_cei_order(Function memory func) public {
+        // Only relevant if function has external calls and modifies state
+        if (!function_has_external_calls(func)) return;
+        if (!function_modifies_state(func)) return;
+        CEIState memory state;
+        state.wrote_state = false;
+        state.violation = false;
+        state = _analyze_block_for_cei(func.body, state);
+        if (state.violation) {
+            report_validation_warning(
+                string(abi.encodePacked("CEI pattern violation in function '", func.name, "': external call occurs before state effects")),
+                0, 0
+            );
+        }
+    }
+    
+    function _analyze_block_for_cei(Block memory block, CEIState memory state) private view returns (CEIState memory) {
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            state = _analyze_statement_for_cei(block.statements[i], state);
+            if (state.violation) { return state; }
+        }
+        return state;
+    }
+    
+    function _analyze_statement_for_cei(Statement memory stmt, CEIState memory state) private view returns (CEIState memory) {
+        if (stmt.statement_type == StatementType.Expression) {
+            bool writes = _modifies_state_in_statement(stmt);
+            bool has_ext = _contains_external_call_in_statement(stmt);
+            if (has_ext && !state.wrote_state) {
+                state.violation = true;
+                return state;
+            }
+            if (writes) { state.wrote_state = true; }
+            return state;
+        } else if (stmt.statement_type == StatementType.Block) {
+            return _analyze_block_for_cei(stmt.block, state);
+        } else if (stmt.statement_type == StatementType.If) {
+            // External call in condition before effects
+            if (_contains_external_call_in_expression(stmt.if_statement.condition) && !state.wrote_state) {
+                state.violation = true;
+                return state;
+            }
+            // Analyze branches independently
+            CEIState memory then_state;
+            then_state.wrote_state = state.wrote_state;
+            then_state.violation = state.violation;
+            then_state = _analyze_statement_for_cei(stmt.if_statement.then_branch, then_state);
+            CEIState memory else_state;
+            else_state.wrote_state = state.wrote_state;
+            else_state.violation = state.violation;
+            if (stmt.if_statement.else_branch.statement_type != StatementType.None) {
+                else_state = _analyze_statement_for_cei(stmt.if_statement.else_branch, else_state);
+            }
+            state.violation = state.violation || then_state.violation || else_state.violation;
+            // Conservatively mark wrote_state after if only if both branches wrote
+            if (stmt.if_statement.else_branch.statement_type != StatementType.None) {
+                if (then_state.wrote_state && else_state.wrote_state) {
+                    state.wrote_state = true;
+                }
+            }
+            return state;
+        } else if (stmt.statement_type == StatementType.While) {
+            if (_contains_external_call_in_expression(stmt.while_statement.condition) && !state.wrote_state) {
+                state.violation = true;
+                return state;
+            }
+            CEIState memory body_state;
+            body_state.wrote_state = state.wrote_state;
+            body_state.violation = state.violation;
+            body_state = _analyze_statement_for_cei(stmt.while_statement.body, body_state);
+            state.violation = state.violation || body_state.violation;
+            // Do not propagate writes from loop body
+            return state;
+        } else if (stmt.statement_type == StatementType.For) {
+            // Initializer executes before loop body
+            if (stmt.for_statement.initializer.statement_type != StatementType.None) {
+                state = _analyze_statement_for_cei(stmt.for_statement.initializer, state);
+                if (state.violation) return state;
+            }
+            // Condition external call before effects
+            if (stmt.for_statement.condition.expression_type != ExpressionType.None) {
+                if (_contains_external_call_in_expression(stmt.for_statement.condition) && !state.wrote_state) {
+                    state.violation = true;
+                    return state;
+                }
+            }
+            // Analyze loop body without propagating writes
+            CEIState memory body_state2;
+            body_state2.wrote_state = state.wrote_state;
+            body_state2.violation = state.violation;
+            body_state2 = _analyze_statement_for_cei(stmt.for_statement.body, body_state2);
+            state.violation = state.violation || body_state2.violation;
+            // Increment may contain external calls
+            if (stmt.for_statement.increment.expression_type != ExpressionType.None) {
+                CEIState memory inc_state;
+                inc_state.wrote_state = state.wrote_state;
+                inc_state.violation = state.violation;
+                inc_state = _analyze_statement_for_cei(stmt.for_statement.increment, inc_state);
+                state.violation = state.violation || inc_state.violation;
+            }
+            return state;
+        } else if (stmt.statement_type == StatementType.Require) {
+            // External calls inside require condition before state effects
+            if (_contains_external_call_in_expression(stmt.require_statement.condition) && !state.wrote_state) {
+                state.violation = true;
+            }
+            return state;
+        } else {
+            return state;
         }
     }
     
@@ -342,24 +463,41 @@ blockchain BlockchainValidator {
     
     /// Validate require statement
     function validate_require_statement(RequireStatement memory require_stmt) public {
+        // Validasi kondisi
         validate_expression(require_stmt.condition);
         
-        if (require_stmt.message.expression_type != ExpressionType.None) {
-            validate_expression(require_stmt.message);
-            
-            // Check for informative error messages
-            if (is_generic_error_message(require_stmt.message)) {
-                report_validation_warning(
-                    "Consider using more specific error message",
-                    0, 0
-                );
-            }
-        } else {
+        // Penyelarasan tipe: RequireStatement.message adalah string
+        if (bytes(require_stmt.message).length == 0) {
             report_validation_warning(
                 "Require statement should include error message",
                 0, 0
             );
+            return;
         }
+        
+        // Cek apakah pesan terlalu generik atau tidak informatif
+        if (_is_generic_error_message_string(require_stmt.message)) {
+            report_validation_warning(
+                "Consider using more specific error message",
+                0, 0
+            );
+        }
+    }
+    
+    function _is_generic_error_message_string(string memory msg) private pure returns (bool) {
+        bytes memory b = bytes(msg);
+        if (b.length == 0) return true; // kosong
+        // Cocokkan beberapa kata-kata generik umum (case-sensitive sederhana)
+        if (keccak256(bytes(msg)) == keccak256(bytes("error"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("Error"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("revert"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("require failed"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("Require failed"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("assert failed"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("Assert failed"))) return true;
+        // Heuristik: pesan yang sangat pendek cenderung kurang informatif
+        if (b.length <= 6) return true;
+        return false;
     }
     
     /// Validate expression
@@ -720,7 +858,7 @@ blockchain BlockchainValidator {
                 // Check for conditional reverts
                 if (stmt.statement_type == StatementType.If) {
                     IfStatement memory if_stmt = stmt.if_statement;
-                    if (contains_revert(if_stmt.then_block)) {
+                    if (contains_revert(if_stmt.then_branch)) {
                         // Good: Conditional revert pattern
                         add_info(ValidationInfo({
                             message: "Good use of conditional revert pattern",
@@ -1196,38 +1334,299 @@ blockchain BlockchainValidator {
         return false;
     }
     
-    function function_modifies_state(Function memory func) public pure returns (bool) {
-        // TODO: Implement state modification detection
-        return true;
+    function function_modifies_state(Function memory func) public view returns (bool) {
+        // Traverse function body to detect assignments to state variables
+        Block memory body = func.body;
+        for (uint256 i = 0; i < body.statements.length; i++) {
+            if (_modifies_state_in_statement(body.statements[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function _modifies_state_in_statement(Statement memory stmt) private view returns (bool) {
+        if (stmt.statement_type == StatementType.Expression) {
+            // Primary representation
+            if (stmt.expression.expression_type == ExpressionType.Assignment) {
+                if (assigns_to_state_variable(stmt.expression.assignment_expression)) {
+                    return true;
+                }
+            }
+            // Alternative representation if present
+            if (stmt.expression_statement.expression.expression_type == ExpressionType.Assignment) {
+                if (assigns_to_state_variable(stmt.expression_statement.expression.assignment_expression)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.Block) {
+            for (uint256 i = 0; i < stmt.block.statements.length; i++) {
+                if (_modifies_state_in_statement(stmt.block.statements[i])) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.If) {
+            if (_modifies_state_in_statement(stmt.if_statement.then_branch)) return true;
+            if (stmt.if_statement.else_branch.statement_type != StatementType.None) {
+                if (_modifies_state_in_statement(stmt.if_statement.else_branch)) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.While) {
+            return _modifies_state_in_statement(stmt.while_statement.body);
+        } else if (stmt.statement_type == StatementType.For) {
+            if (stmt.for_statement.initializer.statement_type != StatementType.None &&
+                _modifies_state_in_statement(stmt.for_statement.initializer)) return true;
+            if (_modifies_state_in_statement(stmt.for_statement.body)) return true;
+            if (stmt.for_statement.increment.statement_type != StatementType.None &&
+                _modifies_state_in_statement(stmt.for_statement.increment)) return true;
+            return false;
+        }
+        return false;
     }
     
-    function function_reads_state(Function memory func) public pure returns (bool) {
-        // TODO: Implement state reading detection
-        return true;
+    function function_reads_state(Function memory func) public view returns (bool) {
+        // Traverse function body to detect any read access to state variables
+        Block memory body = func.body;
+        for (uint256 i = 0; i < body.statements.length; i++) {
+            if (_reads_state_in_statement(body.statements[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function _reads_state_in_statement(Statement memory stmt) private view returns (bool) {
+        if (stmt.statement_type == StatementType.Expression) {
+            // Primary representation
+            if (_reads_state_in_expression(stmt.expression)) return true;
+            // Alternative representation if present
+            if (_reads_state_in_expression(stmt.expression_statement.expression)) return true;
+            return false;
+        } else if (stmt.statement_type == StatementType.Block) {
+            for (uint256 i = 0; i < stmt.block.statements.length; i++) {
+                if (_reads_state_in_statement(stmt.block.statements[i])) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.If) {
+            // Condition may read state
+            if (_reads_state_in_expression(stmt.if_statement.condition)) return true;
+            if (_reads_state_in_statement(stmt.if_statement.then_branch)) return true;
+            if (stmt.if_statement.else_branch.statement_type != StatementType.None) {
+                if (_reads_state_in_statement(stmt.if_statement.else_branch)) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.While) {
+            if (_reads_state_in_expression(stmt.while_statement.condition)) return true;
+            return _reads_state_in_statement(stmt.while_statement.body);
+        } else if (stmt.statement_type == StatementType.For) {
+            // Initializer, condition, and increment could read state
+            if (stmt.for_statement.initializer.statement_type != StatementType.None &&
+                _reads_state_in_statement(stmt.for_statement.initializer)) return true;
+            if (_reads_state_in_expression(stmt.for_statement.condition)) return true;
+            if (_reads_state_in_statement(stmt.for_statement.body)) return true;
+            if (stmt.for_statement.increment.statement_type != StatementType.None &&
+                _reads_state_in_statement(stmt.for_statement.increment)) return true;
+            return false;
+        } else if (stmt.statement_type == StatementType.Return) {
+            return _reads_state_in_expression(stmt.return_statement.expression);
+        } else if (stmt.statement_type == StatementType.Require) {
+            return _reads_state_in_expression(stmt.require_statement.condition);
+        }
+        return false;
+    }
+
+    function _reads_state_in_expression(Expression memory expr) private view returns (bool) {
+        if (expr.expression_type == ExpressionType.Identifier) {
+            Symbol memory sym = symbol_manager.lookup_symbol(expr.identifier);
+            return sym.symbol_type == SymbolType.StateVariable;
+        } else if (expr.expression_type == ExpressionType.MemberAccess) {
+            // Reads state if the base object is a state variable
+            if (_reads_state_in_expression(expr.member_access_expression.object)) return true;
+            return false;
+        } else if (expr.expression_type == ExpressionType.ArrayAccess) {
+            // Accessing a storage array counts as a read
+            if (_reads_state_in_expression(expr.array_access_expression.array)) return true;
+            // Index may read state too (e.g., state index)
+            if (_reads_state_in_expression(expr.array_access_expression.index)) return true;
+            return false;
+        } else if (expr.expression_type == ExpressionType.Call) {
+            // Arguments may include reads of state variables
+            for (uint256 i = 0; i < expr.call_expression.arguments.length; i++) {
+                if (_reads_state_in_expression(expr.call_expression.arguments[i])) return true;
+            }
+            return false;
+        } else if (expr.expression_type == ExpressionType.Binary) {
+            if (_reads_state_in_expression(expr.binary_expression.left)) return true;
+            if (_reads_state_in_expression(expr.binary_expression.right)) return true;
+            return false;
+        } else if (expr.expression_type == ExpressionType.Assignment) {
+            // Reading may occur on both sides (e.g., stateArray[i] = stateVar)
+            if (_reads_state_in_expression(expr.assignment_expression.left)) return true;
+            if (_reads_state_in_expression(expr.assignment_expression.right)) return true;
+            return false;
+        }
+        return false;
     }
     
     function function_has_external_calls(Function memory func) public pure returns (bool) {
-        // TODO: Implement external call detection
+        // Traverse function body to detect external calls
+        Block memory body = func.body;
+        for (uint256 i = 0; i < body.statements.length; i++) {
+            if (_contains_external_call_in_statement(body.statements[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function _contains_external_call_in_statement(Statement memory stmt) private pure returns (bool) {
+        if (stmt.statement_type == StatementType.Expression) {
+            // Primary representation
+            if (_contains_external_call_in_expression(stmt.expression)) return true;
+            // Alternative representation if present
+            if (_contains_external_call_in_expression(stmt.expression_statement.expression)) return true;
+            return false;
+        } else if (stmt.statement_type == StatementType.Block) {
+            for (uint256 i = 0; i < stmt.block.statements.length; i++) {
+                if (_contains_external_call_in_statement(stmt.block.statements[i])) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.If) {
+            if (_contains_external_call_in_expression(stmt.if_statement.condition)) return true;
+            if (_contains_external_call_in_statement(stmt.if_statement.then_branch)) return true;
+            if (stmt.if_statement.else_branch.statement_type != StatementType.None) {
+                if (_contains_external_call_in_statement(stmt.if_statement.else_branch)) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.While) {
+            if (_contains_external_call_in_expression(stmt.while_statement.condition)) return true;
+            return _contains_external_call_in_statement(stmt.while_statement.body);
+        } else if (stmt.statement_type == StatementType.For) {
+            if (stmt.for_statement.initializer.statement_type != StatementType.None &&
+                _contains_external_call_in_statement(stmt.for_statement.initializer)) return true;
+            if (_contains_external_call_in_expression(stmt.for_statement.condition)) return true;
+            if (_contains_external_call_in_statement(stmt.for_statement.body)) return true;
+            if (stmt.for_statement.increment.statement_type != StatementType.None &&
+                _contains_external_call_in_statement(stmt.for_statement.increment)) return true;
+            return false;
+        }
+        return false;
+    }
+
+    function _contains_external_call_in_expression(Expression memory expr) private pure returns (bool) {
+        if (expr.expression_type == ExpressionType.Call) {
+            if (is_external_call(expr.call_expression.function_name)) {
+                return true;
+            }
+            // Check call arguments for nested external calls
+            for (uint256 i = 0; i < expr.call_expression.arguments.length; i++) {
+                if (_contains_external_call_in_expression(expr.call_expression.arguments[i])) return true;
+            }
+            return false;
+        } else if (expr.expression_type == ExpressionType.Binary) {
+            if (_contains_external_call_in_expression(expr.binary_expression.left)) return true;
+            if (_contains_external_call_in_expression(expr.binary_expression.right)) return true;
+            return false;
+        } else if (expr.expression_type == ExpressionType.Assignment) {
+            if (_contains_external_call_in_expression(expr.assignment_expression.left)) return true;
+            if (_contains_external_call_in_expression(expr.assignment_expression.right)) return true;
+            return false;
+        } else if (expr.expression_type == ExpressionType.MemberAccess) {
+            return _contains_external_call_in_expression(expr.member_access_expression.object);
+        } else if (expr.expression_type == ExpressionType.ArrayAccess) {
+            if (_contains_external_call_in_expression(expr.array_access_expression.array)) return true;
+            if (_contains_external_call_in_expression(expr.array_access_expression.index)) return true;
+            return false;
+        }
         return false;
     }
     
     function function_has_reentrancy_guard(Function memory func) public pure returns (bool) {
-        // TODO: Implement reentrancy guard detection
+        // Heuristik: cek modifier atau anotasi yang mengindikasikan guard reentransi
+        for (uint256 i = 0; i < func.modifiers.length; i++) {
+            string memory modifier_name = func.modifiers[i];
+            if (keccak256(bytes(modifier_name)) == keccak256(bytes("nonReentrant"))) {
+                return true;
+            }
+            if (string_contains(modifier_name, "nonReentrant")) return true;
+            if (string_contains(modifier_name, "reentrancy")) return true;
+        }
+        for (uint256 j = 0; j < func.annotations.length; j++) {
+            string memory ann = func.annotations[j];
+            if (string_contains(ann, "nonReentrant")) return true;
+            if (string_contains(ann, "reentrancy")) return true;
+            if (string_contains(ann, "ReentrancyGuard")) return true;
+        }
         return false;
     }
     
     function has_loop_termination_condition(WhileStatement memory while_stmt) public pure returns (bool) {
-        // TODO: Implement loop termination analysis
-        return true;
+        // Heuristik:
+        // 1) Jika ada kondisi (bukan None), asumsi ada terminasi.
+        // 2) Jika tidak ada kondisi, cek keberadaan 'break' atau 'return' di body.
+        if (while_stmt.condition.expression_type != ExpressionType.None) {
+            return true;
+        }
+        return _contains_break_or_return(while_stmt.body);
     }
-    
-    function has_unbounded_loop(ForStatement memory for_stmt) public pure returns (bool) {
-        // TODO: Implement unbounded loop detection
+
+    function _contains_break_or_return(Statement memory stmt) private pure returns (bool) {
+        if (stmt.statement_type == StatementType.Break || stmt.statement_type == StatementType.Return) {
+            return true;
+        } else if (stmt.statement_type == StatementType.Block) {
+            for (uint256 i = 0; i < stmt.block.statements.length; i++) {
+                if (_contains_break_or_return(stmt.block.statements[i])) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.If) {
+            if (_contains_break_or_return(stmt.if_statement.then_branch)) return true;
+            if (stmt.if_statement.else_branch.statement_type != StatementType.None) {
+                if (_contains_break_or_return(stmt.if_statement.else_branch)) return true;
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.While) {
+            return _contains_break_or_return(stmt.while_statement.body);
+        } else if (stmt.statement_type == StatementType.For) {
+            if (stmt.for_statement.initializer.statement_type != StatementType.None) {
+                if (_contains_break_or_return(stmt.for_statement.initializer)) return true;
+            }
+            if (_contains_break_or_return(stmt.for_statement.body)) return true;
+            if (stmt.for_statement.increment.statement_type != StatementType.None) {
+                if (_contains_break_or_return(stmt.for_statement.increment)) return true;
+            }
+            return false;
+        }
         return false;
     }
     
+    function has_unbounded_loop(ForStatement memory for_stmt) public pure returns (bool) {
+        // Heuristik sederhana: loop dianggap tidak berbatas jika tidak ada kondisi atau increment
+        bool no_condition = (for_stmt.condition.expression_type == ExpressionType.None);
+        bool no_increment = (for_stmt.increment.expression_type == ExpressionType.None);
+        return no_condition || no_increment;
+    }
+    
     function is_generic_error_message(Expression memory message) public pure returns (bool) {
-        // TODO: Implement generic error message detection
+        // Deteksi pesan error yang terlalu umum: kosong, kata-kata generik, atau sangat pendek
+        if (message.expression_type != ExpressionType.Literal) {
+            return false; // Hanya evaluasi literal string
+        }
+        if (message.literal.literal_type != LiteralType.String) {
+            return false;
+        }
+        string memory msg = message.literal.string_value;
+        bytes memory b = bytes(msg);
+        if (b.length == 0) return true; // kosong
+        // Cocokkan beberapa kata-kata generik umum (case-sensitive sederhana)
+        if (keccak256(bytes(msg)) == keccak256(bytes("error"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("Error"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("revert"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("require failed"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("Require failed"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("assert failed"))) return true;
+        if (keccak256(bytes(msg)) == keccak256(bytes("Assert failed"))) return true;
+        // Heuristik: pesan yang sangat pendek cenderung kurang informatif
+        if (b.length <= 6) return true;
         return false;
     }
     
@@ -1239,43 +1638,202 @@ blockchain BlockchainValidator {
     }
     
     function has_overflow_protection(BinaryExpression memory bin_expr) public pure returns (bool) {
-        // TODO: Implement overflow protection detection
+        // Heuristik: jika salah satu operand adalah pemanggilan SafeMath.* maka diasumsikan ada proteksi overflow.
+        // Catatan: Bila operator aritmetika langsung digunakan (+, -, *, /), umumnya tidak menggunakan SafeMath.
+        // Karena konteks terbatas pada BinaryExpression, jika tidak terlihat pemanggilan SafeMath maka kembalikan false.
+        if (bin_expr.left.expression_type == ExpressionType.Call) {
+            string memory fnL = bin_expr.left.call_expression.function_name;
+            if (
+                keccak256(bytes(fnL)) == keccak256(bytes("SafeMath.add")) ||
+                keccak256(bytes(fnL)) == keccak256(bytes("SafeMath.sub")) ||
+                keccak256(bytes(fnL)) == keccak256(bytes("SafeMath.mul")) ||
+                keccak256(bytes(fnL)) == keccak256(bytes("SafeMath.div")) ||
+                keccak256(bytes(fnL)) == keccak256(bytes("add")) ||
+                keccak256(bytes(fnL)) == keccak256(bytes("sub")) ||
+                keccak256(bytes(fnL)) == keccak256(bytes("mul")) ||
+                keccak256(bytes(fnL)) == keccak256(bytes("div"))
+            ) {
+                return true;
+            }
+        }
+        if (bin_expr.right.expression_type == ExpressionType.Call) {
+            string memory fnR = bin_expr.right.call_expression.function_name;
+            if (
+                keccak256(bytes(fnR)) == keccak256(bytes("SafeMath.add")) ||
+                keccak256(bytes(fnR)) == keccak256(bytes("SafeMath.sub")) ||
+                keccak256(bytes(fnR)) == keccak256(bytes("SafeMath.mul")) ||
+                keccak256(bytes(fnR)) == keccak256(bytes("SafeMath.div")) ||
+                keccak256(bytes(fnR)) == keccak256(bytes("add")) ||
+                keccak256(bytes(fnR)) == keccak256(bytes("sub")) ||
+                keccak256(bytes(fnR)) == keccak256(bytes("mul")) ||
+                keccak256(bytes(fnR)) == keccak256(bytes("div"))
+            ) {
+                return true;
+            }
+        }
         return false;
     }
     
     function is_external_call(string memory func_name) public pure returns (bool) {
-        // TODO: Implement external call detection
-        return false;
+        // Heuristik nama umum untuk panggilan eksternal pada alamat/kontrak
+        bytes32 h = keccak256(bytes(func_name));
+        return h == keccak256(bytes("call")) ||
+               h == keccak256(bytes("delegatecall")) ||
+               h == keccak256(bytes("staticcall")) ||
+               h == keccak256(bytes("transfer")) ||
+               h == keccak256(bytes("send"));
     }
     
     function is_deprecated_function(string memory func_name) public pure returns (bool) {
-        // TODO: Implement deprecated function detection
+        // Heuristik: fungsi lama atau tidak direkomendasikan dalam ekosistem EVM/Solidity
+        bytes32 h = keccak256(bytes(func_name));
+        // Benar-benar deprecated/legacy
+        if (h == keccak256(bytes("suicide"))) return true;      // digantikan dan dinonaktifkan
+        if (h == keccak256(bytes("selfdestruct"))) return true;  // deprecated per Solidity >=0.8.18
+        if (h == keccak256(bytes("sha3"))) return true;          // gunakan keccak256
+        if (h == keccak256(bytes("callcode"))) return true;      // gunakan delegatecall
+        if (h == keccak256(bytes("throw"))) return true;         // gunakan revert/require
+        // Fungsi yang sangat tidak direkomendasikan untuk keamanan/gas (treated as deprecated heuristically)
+        if (h == keccak256(bytes("send"))) return true;          // gagal diam-diam, gunakan call dengan cek
         return false;
     }
     
-    function is_view_function(string memory func_name) public pure returns (bool) {
-        // TODO: Implement view function detection
-        return false;
+    function is_view_function(string memory func_name) public view returns (bool) {
+        // Gunakan SymbolTableManager untuk mengecek mutability dari simbol fungsi
+        Symbol memory sym = symbol_manager.lookup_symbol(func_name);
+        if (sym.symbol_type != SymbolType.Function) {
+            return false;
+        }
+        return sym.mutability == Mutability.View;
     }
     
-    function assigns_to_state_variable(AssignmentExpression memory assign_expr) public pure returns (bool) {
-        // TODO: Implement state variable assignment detection
+    function assigns_to_state_variable(AssignmentExpression memory assign_expr) public view returns (bool) {
+        // Telusuri sisi kiri assignment untuk menemukan identifier dasar yang merupakan variabel state
+        Expression memory target = assign_expr.left;
+        while (true) {
+            if (target.expression_type == ExpressionType.Identifier) {
+                Symbol memory sym = symbol_manager.lookup_symbol(target.identifier);
+                return sym.symbol_type == SymbolType.StateVariable;
+            } else if (target.expression_type == ExpressionType.MemberAccess) {
+                // Misalnya: stateVar.field = ... atau stateVar.nested.field = ...
+                target = target.member_access_expression.object;
+                continue;
+            } else if (target.expression_type == ExpressionType.ArrayAccess) {
+                // Misalnya: stateArray[i] = ...
+                target = target.array_access_expression.array;
+                continue;
+            } else {
+                break;
+            }
+        }
         return false;
     }
     
     function has_placeholder(Block memory block) public pure returns (bool) {
-        // TODO: Implement placeholder detection
-        return true;
+        // Traverse statements to find '_' placeholder identifier
+        for (uint256 i = 0; i < block.statements.length; i++) {
+            Statement memory stmt = block.statements[i];
+            if (has_placeholder_in_statement(stmt)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    function has_placeholder_in_statement(Statement memory stmt) private pure returns (bool) {
+        if (stmt.statement_type == StatementType.Expression) {
+            // Primary representation: stmt.expression
+            if (stmt.expression.expression_type == ExpressionType.Identifier) {
+                if (keccak256(bytes(stmt.expression.identifier)) == keccak256(bytes("_"))) {
+                    return true;
+                }
+            }
+            // Alternative representation (if present): stmt.expression_statement.expression
+            // Guarded access to avoid compilation issues if field is not present in struct
+            // Note: Some builds may not define expression_statement; this block is safe if defined
+            if (stmt.expression_statement.expression.expression_type == ExpressionType.Identifier) {
+                if (keccak256(bytes(stmt.expression_statement.expression.identifier)) == keccak256(bytes("_"))) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.Block) {
+            return has_placeholder(stmt.block);
+        } else if (stmt.statement_type == StatementType.If) {
+            // Check then branch
+            if (has_placeholder_in_statement(stmt.if_statement.then_branch)) {
+                return true;
+            }
+            // Check else branch when present
+            if (stmt.if_statement.else_branch.statement_type != StatementType.None) {
+                if (has_placeholder_in_statement(stmt.if_statement.else_branch)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (stmt.statement_type == StatementType.While) {
+            return has_placeholder_in_statement(stmt.while_statement.body);
+        } else if (stmt.statement_type == StatementType.For) {
+            // Initializer may contain placeholder
+            if (stmt.for_statement.initializer.statement_type != StatementType.None) {
+                if (has_placeholder_in_statement(stmt.for_statement.initializer)) {
+                    return true;
+                }
+            }
+            // Check loop body
+            return has_placeholder_in_statement(stmt.for_statement.body);
+        }
+        return false;
     }
     
     function implements_erc20_interface(Blockchain memory blockchain) public pure returns (bool) {
-        // TODO: Implement ERC20 interface detection
-        return false;
+        // Deteksi minimal: semua fungsi standar ERC20 tersedia
+        bool has_totalSupply = false;
+        bool has_balanceOf = false;
+        bool has_transfer = false;
+        bool has_transferFrom = false;
+        bool has_approve = false;
+        bool has_allowance = false;
+        
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            bytes32 h = keccak256(bytes(blockchain.functions[i].name));
+            if (h == keccak256(bytes("totalSupply"))) has_totalSupply = true;
+            else if (h == keccak256(bytes("balanceOf"))) has_balanceOf = true;
+            else if (h == keccak256(bytes("transfer"))) has_transfer = true;
+            else if (h == keccak256(bytes("transferFrom"))) has_transferFrom = true;
+            else if (h == keccak256(bytes("approve"))) has_approve = true;
+            else if (h == keccak256(bytes("allowance"))) has_allowance = true;
+        }
+        
+        return has_totalSupply && has_balanceOf && has_transfer &&
+               has_transferFrom && has_approve && has_allowance;
     }
     
     function implements_erc721_interface(Blockchain memory blockchain) public pure returns (bool) {
-        // TODO: Implement ERC721 interface detection
-        return false;
+        // Deteksi minimal: fungsi inti ERC721
+        bool has_balanceOf = false;
+        bool has_ownerOf = false;
+        bool has_safeTransferFrom = false;
+        bool has_transferFrom = false;
+        bool has_approve = false;
+        bool has_setApprovalForAll = false;
+        bool has_getApproved = false;
+        bool has_isApprovedForAll = false;
+        
+        for (uint256 i = 0; i < blockchain.functions.length; i++) {
+            bytes32 h = keccak256(bytes(blockchain.functions[i].name));
+            if (h == keccak256(bytes("balanceOf"))) has_balanceOf = true;
+            else if (h == keccak256(bytes("ownerOf"))) has_ownerOf = true;
+            else if (h == keccak256(bytes("safeTransferFrom"))) has_safeTransferFrom = true;
+            else if (h == keccak256(bytes("transferFrom"))) has_transferFrom = true;
+            else if (h == keccak256(bytes("approve"))) has_approve = true;
+            else if (h == keccak256(bytes("setApprovalForAll"))) has_setApprovalForAll = true;
+            else if (h == keccak256(bytes("getApproved"))) has_getApproved = true;
+            else if (h == keccak256(bytes("isApprovedForAll"))) has_isApprovedForAll = true;
+        }
+        
+        return has_balanceOf && has_ownerOf && (has_safeTransferFrom || has_transferFrom) &&
+               has_approve && has_setApprovalForAll && has_getApproved && has_isApprovedForAll;
     }
     
     /// Initialize validation rules
@@ -1308,60 +1866,48 @@ blockchain BlockchainValidator {
     /// Report validation error
     function report_validation_error(string memory message, uint256 line, uint256 column) private {
         error_handler.report_error(
-            OmegaError({
-                error_type: ErrorType.ValidationError,
-                message: message,
-                location: SourceLocation({
-                    file: current_file,
-                    line: line,
-                    column: column,
-                    length: 0
-                }),
-                context: ErrorContext.Validator,
-                severity: ErrorSeverity.Error,
-                error_code: "V001",
-                suggestions: new string[](0)
-            })
+            ErrorType.ValidationError,
+            message,
+            SourceLocation({
+                file: current_file,
+                line: line,
+                column: column,
+                offset: 0,
+                length: 0
+            }),
+            ErrorSeverity.Error
         );
     }
     
     /// Report validation warning
     function report_validation_warning(string memory message, uint256 line, uint256 column) private {
         error_handler.report_error(
-            OmegaError({
-                error_type: ErrorType.ValidationError,
-                message: message,
-                location: SourceLocation({
-                    file: current_file,
-                    line: line,
-                    column: column,
-                    length: 0
-                }),
-                context: ErrorContext.Validator,
-                severity: ErrorSeverity.Warning,
-                error_code: "V002",
-                suggestions: new string[](0)
-            })
+            ErrorType.ValidationError,
+            message,
+            SourceLocation({
+                file: current_file,
+                line: line,
+                column: column,
+                offset: 0,
+                length: 0
+            }),
+            ErrorSeverity.Warning
         );
     }
     
     /// Report validation info
     function report_validation_info(string memory message, uint256 line, uint256 column) private {
         error_handler.report_error(
-            OmegaError({
-                error_type: ErrorType.ValidationError,
-                message: message,
-                location: SourceLocation({
-                    file: current_file,
-                    line: line,
-                    column: column,
-                    length: 0
-                }),
-                context: ErrorContext.Validator,
-                severity: ErrorSeverity.Info,
-                error_code: "V003",
-                suggestions: new string[](0)
-            })
+            ErrorType.ValidationError,
+            message,
+            SourceLocation({
+                file: current_file,
+                line: line,
+                column: column,
+                offset: 0,
+                length: 0
+            }),
+            ErrorSeverity.Info
         );
     }
 }
@@ -1382,4 +1928,10 @@ struct SecurityPatterns {
     bool validate_input;
     bool check_external_calls;
     bool require_emergency_stop;
+}
+
+/// CEI analysis state
+struct CEIState {
+    bool wrote_state;   // whether we have observed state effects (writes) so far
+    bool violation;     // whether a CEI violation has been detected
 }

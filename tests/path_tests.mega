@@ -1,0 +1,96 @@
+// OMEGA Path Unit Tests
+// Menguji fungsi basename() dan dirname() di std/path.mega
+
+import "test_framework.mega";
+import "../src/std/path.mega";
+
+using TestAssertions as Assert;
+
+blockchain PathTests {
+    state {
+        OmegaTestFramework tf;
+    }
+
+    constructor() {
+        tf = new OmegaTestFramework();
+        _setup_tests();
+    }
+
+    function _setup_tests() private {
+        tf.add_test_suite("Path", "Tests untuk utilitas path basename/dirname");
+        // basename
+        tf.add_test_case("Path", "test_basename_simple", "basename dari /home/user/file.txt adalah file.txt", TestType.Unit, test_basename_simple);
+        tf.add_test_case("Path", "test_basename_trailing_slash", "basename dari /dir/subdir/ adalah subdir", TestType.Unit, test_basename_trailing_slash);
+        tf.add_test_case("Path", "test_basename_root", "basename dari / adalah /", TestType.Unit, test_basename_root);
+        tf.add_test_case("Path", "test_basename_no_slash", "basename dari filename adalah filename", TestType.Unit, test_basename_no_slash);
+        tf.add_test_case("Path", "test_basename_empty", "basename dari string kosong adalah string kosong", TestType.Unit, test_basename_empty);
+        // dirname
+        tf.add_test_case("Path", "test_dirname_simple", "dirname dari /home/user/file.txt adalah /home/user", TestType.Unit, test_dirname_simple);
+        tf.add_test_case("Path", "test_dirname_trailing_slash", "dirname dari /home/user/ adalah /home", TestType.Unit, test_dirname_trailing_slash);
+        tf.add_test_case("Path", "test_dirname_root", "dirname dari / adalah /", TestType.Unit, test_dirname_root);
+        tf.add_test_case("Path", "test_dirname_no_slash", "dirname dari filename adalah .", TestType.Unit, test_dirname_no_slash);
+        tf.add_test_case("Path", "test_dirname_empty", "dirname dari string kosong adalah .", TestType.Unit, test_dirname_empty);
+    }
+
+    // ===== basename tests =====
+    function test_basename_simple() public {
+        string b = basename("/home/user/file.txt");
+        Assert.assert_string_equal("file.txt", b, "basename harus file.txt");
+    }
+
+    function test_basename_trailing_slash() public {
+        string b = basename("/dir/subdir/");
+        Assert.assert_string_equal("subdir", b, "basename harus subdir untuk path berakhiran slash");
+    }
+
+    function test_basename_root() public {
+        string b = basename("/");
+        Assert.assert_string_equal("/", b, "basename dari root harus /");
+    }
+
+    function test_basename_no_slash() public {
+        string b = basename("filename");
+        Assert.assert_string_equal("filename", b, "basename harus filename saat tidak ada slash");
+    }
+
+    function test_basename_empty() public {
+        string b = basename("");
+        Assert.assert_string_equal("", b, "basename dari string kosong harus string kosong");
+    }
+
+    // ===== dirname tests =====
+    function test_dirname_simple() public {
+        string d = dirname("/home/user/file.txt");
+        Assert.assert_string_equal("/home/user", d, "dirname harus /home/user");
+    }
+
+    function test_dirname_trailing_slash() public {
+        string d = dirname("/home/user/");
+        Assert.assert_string_equal("/home", d, "dirname harus /home untuk path berakhiran slash");
+    }
+
+    function test_dirname_root() public {
+        string d = dirname("/");
+        Assert.assert_string_equal("/", d, "dirname dari root harus /");
+    }
+
+    function test_dirname_no_slash() public {
+        string d = dirname("filename");
+        Assert.assert_string_equal(".", d, "dirname harus . saat tidak ada slash");
+    }
+
+    function test_dirname_empty() public {
+        string d = dirname("");
+        Assert.assert_string_equal(".", d, "dirname dari string kosong harus .");
+    }
+
+    /// Run all path tests
+    function run_all_tests() public returns (TestStatistics) {
+        return tf.run_all_tests();
+    }
+
+    /// Run specific suite
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return tf.run_test_suite(suite_name);
+    }
+}

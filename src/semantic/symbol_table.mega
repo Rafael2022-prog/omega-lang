@@ -29,24 +29,25 @@ blockchain SymbolTableManager {
         current_file = "";
     }
     
+    /// Inject shared error handler
+    function set_error_handler(OmegaErrorHandler memory handler) public {
+        error_handler = handler;
+    }
+    
     /// Define a new symbol in current scope
     function define_symbol(string memory name, Symbol memory symbol) public {
         if (symbol_exists_in_current_scope(name)) {
             error_handler.report_error(
-                OmegaError({
-                    error_type: ErrorType.SemanticError,
-                    message: string(abi.encodePacked("Symbol '", name, "' already defined in current scope")),
-                    location: SourceLocation({
-                        file: current_file,
-                        line: symbol.location.line,
-                        column: symbol.location.column,
-                        length: name.length
-                    }),
-                    context: ErrorContext.SemanticAnalysis,
-                    severity: ErrorSeverity.Error,
-                    error_code: "S001",
-                    suggestions: new string[](0)
-                })
+                ErrorType.SemanticError,
+                string(abi.encodePacked("Symbol '", name, "' already defined in current scope")),
+                SourceLocation({
+                    file: current_file,
+                    line: symbol.location.line,
+                    column: symbol.location.column,
+                    offset: 0,
+                    length: name.length
+                }),
+                ErrorSeverity.Error
             );
             return;
         }

@@ -161,39 +161,49 @@ blockchain OmegaLexer {
         has_errors_flag = false;
     }
     
-    /// Main tokenization function yang mengkonversi source code menjadi token array
-    /// @param source Source code string yang akan di-tokenize
-    /// @return Array of tokens yang dihasilkan dari source code
-    function tokenize(string memory source) public returns (Token[] memory) {
-        // Reset lexer state untuk tokenization baru
+    /// Set the source code for the lexer.
+    function set_source(string memory source, string memory file) public {
         input = source;
+        current_file = file;
         position = 0;
         line = 1;
         column = 1;
         has_errors_flag = false;
-        
-        // Initialize token array - dalam implementasi nyata, ini akan dynamic
+        error_handler.clear_errors();
+    }
+    
+    /// Set the source code for the lexer (filename optional).
+    function set_source(string memory source) public {
+        set_source(source, "");
+    }
+
+    /// Tokenize a string directly.
+    function tokenize_string(string memory source) public returns (Token[] memory) {
+        set_source(source, "string");
+        return tokenize();
+    }
+
+    /// Convenience overload: tokenize with source string input
+    function tokenize(string memory source) public returns (Token[] memory) {
+        set_source(source, "");
+        return tokenize();
+    }
+
+    /// Main tokenization function.
+    function tokenize() public returns (Token[] memory) {
         Token[] memory tokens;
         uint256 token_count = 0;
         
-        // Main tokenization loop - proses setiap karakter dalam input
         while (!is_at_end()) {
-            // Mark start position untuk token saat ini
             start_position = position;
-            
-            // Scan single token dari posisi saat ini
             Token memory token = scan_token();
             
-            // Filter out whitespace dan comments dari output tokens
-            // (kecuali jika diperlukan untuk formatting tools)
-            if (token.token_type != TokenType.Whitespace && 
-                token.token_type != TokenType.Comment) {
+            if (token.token_type != TokenType.Whitespace && token.token_type != TokenType.Comment) {
                 tokens[token_count] = token;
                 token_count++;
             }
         }
         
-        // Add EOF token untuk menandai akhir input
         tokens[token_count] = Token({
             token_type: TokenType.EOF,
             lexeme: "",
@@ -786,5 +796,4 @@ impl OmegaLexer {
     Virtual,             // virtual functions
     Abstract,            // abstract contracts
     Interface,           // interface definitions
-
-// ... existing code ...
+}

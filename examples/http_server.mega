@@ -1,0 +1,21 @@
+// Contoh server HTTP murni OMEGA
+
+import "std/net/http/server";
+import "std/net/http/core";
+import "std/io";
+
+blockchain SimpleHttpHandler is HttpHandler {
+    function handle(HttpRequest req) public returns (HttpResponse) {
+        // Balas dengan pesan sederhana
+        string msg = string.concat("Hello from OMEGA at ", req.path);
+        return http.make_text_response(200, "OK", msg);
+    }
+}
+
+function main(string[] args) public returns (int32) {
+    println("Starting OMEGA HTTP server (native)...");
+    HttpServerConfig cfg = server.default_config();
+    SimpleHttpHandler h = SimpleHttpHandler::new();
+    server.start(cfg, h);
+    return 0;
+}

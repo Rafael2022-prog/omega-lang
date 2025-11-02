@@ -1,0 +1,183 @@
+// OMEGA Standard Library - NET/HTTP Core (native)
+// Parser dan builder HTTP murni OMEGA
+
+import "std/io";
+
+// Representasi HTTP Request
+struct HttpRequest {
+    string method;
+    string path;
+    string version; // e.g. "HTTP/1.1"
+    mapping(string => string) headers;
+    bytes body;
+}
+
+// Representasi HTTP Response
+struct HttpResponse {
+    uint16 status_code;
+    string reason;
+    mapping(string => string) headers;
+    bytes body;
+}
+
+// Utility untuk respons teks sederhana
+function make_text_response(uint16 code, string reason, string body_text) public returns (HttpResponse) {
+    HttpResponse resp;
+    resp.status_code = code;
+    resp.reason = reason;
+    resp.headers["content-type"] = "text/plain; charset=utf-8";
+    resp.body = bytes(body_text);
+    return resp;
+}
+
+// Event untuk observabilitas HTTP
+event HttpRequestParsed(string method, string path, string version);
+event HttpResponseBuilt(uint16 status_code, uint256 body_len);
+
+// Utilitas sederhana untuk membangun status line
+function _status_line(uint16 code, string reason) private returns (string) {
+    return string.concat("HTTP/1.1 ", _to_string(code), " ", reason, "\r\n");
+}
+
+// Konversi angka kecil ke string (minimal)
+function _to_string(uint256 n) private returns (string) {
+    if (n == 0) { return "0"; }
+    // Hitung digit
+    uint256 temp = n;
+    uint256 digits = 0;
+    while (temp > 0) {
+        digits = digits + 1;
+        temp = temp / 10;
+    }
+    bytes buf = bytes(digits);
+    uint256 i = digits;
+    uint256 v = n;
+    while (v > 0) {
+        i = i - 1;
+        uint8 d = uint8(v % 10);
+        buf[i] = bytes1(uint8(48 + d));
+        v = v / 10;
+    }
+    return string(buf);
+}
+
+// Parse HTTP request dari bytes (sederhana)
+function parse_request(bytes data) public returns (HttpRequest) {
+    HttpRequest req;
+    // Default
+    req.method = "";
+    req.path = "/";
+    req.version = "HTTP/1.1";
+    req.body = bytes(0);
+
+    // Cari baris pertama (request line)
+    uint256 i = 0;
+    // Parse method
+    string m = "";
+    while (i < data.length && data[i] != '\\x20') { // space
+        m = string.concat(m, string(bytes(1){data[i]}));
+        i = i + 1;
+    }
+    req.method = (string.length(m) > 0) ? m : "GET";
+    if (i < data.length && data[i] == '\\x20') { i = i + 1; }
+    // Parse path
+    string p = "";
+    while (i < data.length && data[i] != '\\x20') {
+        p = string.concat(p, string(bytes(1){data[i]}));
+        i = i + 1;
+    }
+    req.path = (string.length(p) > 0) ? p : "/";
+    if (i < data.length && data[i] == '\\x20') { i = i + 1; }
+    // Parse version sampai CR
+    string v = "";
+    while (i < data.length && data[i] != '\\r') {
+        v = string.concat(v, string(bytes(1){data[i]}));
+        i = i + 1;
+    }
+    req.version = (string.length(v) > 0) ? v : "HTTP/1.1";
+
+    // Skip CRLF
+    if (i + 1 < data.length && data[i] == '\\r' && data[i+1] == '\\n') {
+        i = i + 2;
+    }
+
+    // Parse header sederhana sampai CRLF kosong
+    // Catat Host jika ada
+    string key = "";
+    string val = "";
+    while (i < data.length) {
+        // Blank line menandai akhir header
+        if (data[i] == '\\r' && i + 1 < data.length && data[i+1] == '\\n') {
+            i = i + 2;
+            break;
+        }
+        // Ambil key sebelum ':'
+        key = "";
+        while (i < data.length && data[i] != ':') {
+            key = string.concat(key, string(bytes(1){data[i]}));
+            i = i + 1;
+        }
+        // Skip ': '
+        if (i < data.length && data[i] == ':') { i = i + 1; }
+        if (i < data.length && data[i] == '\\x20') { i = i + 1; }
+        // Ambil value sampai CR
+        val = "";
+        while (i < data.length && data[i] != '\\r') {
+            val = string.concat(val, string(bytes(1){data[i]}));
+            i = i + 1;
+        }
+        // Simpan header
+        if (string.length(key) > 0) {
+            // Normalisasi nama header ke huruf kecil
+            // (implementasi minimal: tidak mengubah)
+            req.headers[key] = val;
+        }
+        // Skip CRLF
+        if (i + 1 < data.length && data[i] == '\\r' && data[i+1] == '\\n') {
+            i = i + 2;
+        } else { break; }
+    }
+
+    // Body = sisa bytes (tanpa parsing chunked/content-length)
+    if (i < data.length) {
+        uint256 body_len = data.length - i;
+        bytes b = bytes(body_len);
+        for (uint256 k = 0; k < body_len; k++) {
+            b[k] = data[i + k];
+        }
+        req.body = b;
+    }
+
+    emit HttpRequestParsed(req.method, req.path, req.version);
+    return req;
+}
+
+// Build HTTP response menjadi bytes
+function build_response(HttpResponse resp) public returns (bytes) {
+    // Header default
+    string server = "Server: OMEGA/Native\r\n";
+    string content_len = string.concat("Content-Length: ", _to_string(resp.body.length), "\r\n");
+
+    // Status line + headers + CRLF + body
+    string head = string.concat(_status_line(resp.status_code, resp.reason), server, content_len, "\r\n");
+    bytes header_bytes = bytes(string.concat(head));
+    bytes out = _join_bytes(header_bytes, resp.body);
+    emit HttpResponseBuilt(resp.status_code, resp.body.length);
+    return out;
+}
+
+// Gabungkan dua bytes
+event HttpBytesJoin(uint256 a_len, uint256 b_len);
+function _join_bytes(bytes a, bytes b) private returns (bytes) {
+    emit HttpBytesJoin(a.length, b.length);
+    uint256 total = a.length + b.length;
+    bytes out = bytes(total);
+    uint256 i = 0;
+    for (i = 0; i < a.length; i++) {
+        out[i] = a[i];
+    }
+    for (uint256 j = 0; j < b.length; j++) {
+        out[a.length + j] = b[j];
+    }
+    return out;
+}

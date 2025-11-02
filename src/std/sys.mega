@@ -1,0 +1,20 @@
+// OMEGA Standard Library - SYS (native)
+// Desain API intrinsic syscall untuk OMEGA, murni OMEGA.
+
+// Event untuk permintaan syscall
+event SysCallRequested(int64 number, int64 a1, int64 a2, int64 a3, int64 a4, int64 a5, int64 a6, int64 ret);
+event SysErrnoRequested(int32 errno_value);
+
+// Panggilan syscall generik (akan diintrinsik oleh compiler)
+function call(int64 number, int64 a1, int64 a2, int64 a3, int64 a4, int64 a5, int64 a6) public returns (int64) {
+    int64 ret = -1;
+    emit SysCallRequested(number, a1, a2, a3, a4, a5, a6, ret);
+    return ret;
+}
+
+// Mendapatkan nilai errno terakhir
+function errno() public returns (int32) {
+    int32 e = 0;
+    emit SysErrnoRequested(e);
+    return e;
+}

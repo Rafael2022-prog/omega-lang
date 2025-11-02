@@ -34,6 +34,11 @@ blockchain TypeChecker {
         symbol_manager = manager;
     }
     
+    /// Inject shared error handler
+    function set_error_handler(OmegaErrorHandler memory handler) public {
+        error_handler = handler;
+    }
+    
     /// Type check a complete program
     function type_check_program(Program memory program) public {
         for (uint256 i = 0; i < program.items.length; i++) {
@@ -730,12 +735,9 @@ blockchain TypeChecker {
         }
         
         // For arrays, return element type
-        return array_type; // Simplified - should return element type
-    }
-    
-    /// Validate return paths in function
-    function validate_return_paths(Block memory block, Type memory expected_type) public {
-        // Implement return path validation
+        return array_type.value_type;
+        
+        /// Validate return paths in function
         bool has_return = false;
         bool all_paths_return = true;
         
@@ -926,60 +928,48 @@ blockchain TypeChecker {
     /// Report type error
     function report_type_error(string memory message, uint256 line, uint256 column) private {
         error_handler.report_error(
-            OmegaError({
-                error_type: ErrorType.TypeError,
-                message: message,
-                location: SourceLocation({
-                    file: current_file,
-                    line: line,
-                    column: column,
-                    length: 0
-                }),
-                context: ErrorContext.TypeChecker,
-                severity: ErrorSeverity.Error,
-                error_code: "T001",
-                suggestions: new string[](0)
-            })
+            ErrorType.TypeError,
+            message,
+            SourceLocation({
+                file: current_file,
+                line: line,
+                column: column,
+                offset: 0,
+                length: 0
+            }),
+            ErrorSeverity.Error
         );
     }
     
     /// Report type mismatch
     function report_type_mismatch(string memory expected, string memory actual, uint256 line, uint256 column) private {
         error_handler.report_error(
-            OmegaError({
-                error_type: ErrorType.TypeError,
-                message: string(abi.encodePacked("Type mismatch: expected '", expected, "', got '", actual, "'")),
-                location: SourceLocation({
-                    file: current_file,
-                    line: line,
-                    column: column,
-                    length: 0
-                }),
-                context: ErrorContext.TypeChecker,
-                severity: ErrorSeverity.Error,
-                error_code: "T002",
-                suggestions: new string[](0)
-            })
+            ErrorType.TypeError,
+            message(abi.encodePacked("Type mismatch: expected '", expected, "', got '", actual, "'")),
+            SourceLocation({
+                file: current_file,
+                line: line,
+                column: column,
+                offset: 0,
+                length: 0
+            }),
+            ErrorSeverity.Error
         );
     }
     
     /// Report undefined symbol
     function report_undefined_symbol(string memory name, uint256 line, uint256 column) private {
         error_handler.report_error(
-            OmegaError({
-                error_type: ErrorType.SemanticError,
-                message: string(abi.encodePacked("Undefined symbol '", name, "'")),
-                location: SourceLocation({
-                    file: current_file,
-                    line: line,
-                    column: column,
-                    length: name.length
-                }),
-                context: ErrorContext.TypeChecker,
-                severity: ErrorSeverity.Error,
-                error_code: "S002",
-                suggestions: new string[](0)
-            })
+            ErrorType.UndefinedSymbol,
+            string(abi.encodePacked("Undefined symbol '", name, "'")),
+            SourceLocation({
+                file: current_file,
+                line: line,
+                column: column,
+                offset: 0,
+                length: name.length
+            }),
+            ErrorSeverity.Error
         );
     }
 }

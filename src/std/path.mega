@@ -1,0 +1,76 @@
+// OMEGA Standard Library - PATH (native)
+// Murni OMEGA: utilitas manipulasi path sederhana.
+
+// Gabungkan dua path dengan pemisah '/'
+function join(string a, string b) public returns (string) {
+    if (string.length(a) == 0) {
+        return b;
+    }
+    if (string.length(b) == 0) {
+        return a;
+    }
+    return string.concat(a, "/", b);
+}
+
+// Mengambil nama file (implementasi)
+function basename(string path) public returns (string) {
+    uint256 len = string.length(path);
+    if (len == 0) return "";
+
+    // Trim trailing '/'
+    uint256 end = len - 1;
+    while (end > 0 && bytes(path)[end] == '/') { end -= 1; }
+    // Jika semua slash (mis. "/"), kembalikan "/"
+    if (bytes(path)[end] == '/' && end == 0) return "/";
+
+    // Cari slash terakhir sebelum 'end'
+    int256 last_slash = -1;
+    for (uint256 i = end; i > 0; i--) {
+        if (bytes(path)[i] == '/') { last_slash = int256(i); break; }
+    }
+    // Jika tidak ada slash, kembalikan path yang sudah di-trim
+    if (last_slash == -1) {
+        string out = "";
+        for (uint256 i = 0; i <= end; i++) {
+            out = string.concat(out, string(bytes(1){ bytes(path)[i] }));
+        }
+        return out;
+    }
+    // Ambil substring setelah slash terakhir hingga 'end'
+    string result = "";
+    uint256 start = uint256(last_slash) + 1;
+    for (uint256 i = start; i <= end; i++) {
+        result = string.concat(result, string(bytes(1){ bytes(path)[i] }));
+    }
+    return result;
+}
+
+// Mengambil direktori induk (implementasi)
+function dirname(string path) public returns (string) {
+    uint256 len = string.length(path);
+    if (len == 0) return ".";
+
+    // Trim trailing '/'
+    uint256 end = len - 1;
+    while (end > 0 && bytes(path)[end] == '/') { end -= 1; }
+    // Jika path adalah root "/"
+    if (bytes(path)[end] == '/' && end == 0) return "/";
+
+    // Cari slash terakhir sebelum 'end'
+    int256 last_slash = -1;
+    for (uint256 i = end; i > 0; i--) {
+        if (bytes(path)[i] == '/') { last_slash = int256(i); break; }
+    }
+    // Jika tidak ada slash, kembalikan "."
+    if (last_slash == -1) return ".";
+
+    // Jika slash terakhir di posisi 0, direktori adalah root
+    if (last_slash == 0) return "/";
+
+    // Ambil substring dari 0..(last_slash-1)
+    string result = "";
+    for (uint256 i = 0; i < uint256(last_slash); i++) {
+        result = string.concat(result, string(bytes(1){ bytes(path)[i] }));
+    }
+    return result;
+}

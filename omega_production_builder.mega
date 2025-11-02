@@ -6,6 +6,7 @@ import "std/fs";
 import "std/process";
 import "std/env";
 import "std/path";
+import "src/codegen/native_generator.mega";
 
 /// Production Builder untuk OMEGA Compiler
 /// Menghasilkan omega.exe yang siap produksi

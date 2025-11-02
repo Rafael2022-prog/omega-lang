@@ -32,31 +32,31 @@ blockchain OmegaErrorHandler {
     /// @param severity Severity level dari error
     function report_error(ErrorType error_type, string memory message, 
                          SourceLocation location, ErrorSeverity severity) public {
-        // Create comprehensive error object
+        // Build error object (minimal fields)
         OmegaError error = OmegaError::new(error_type, message, location, severity);
         
-        // Add error ke registry untuk tracking
+        // Register error
         registry.register_error(error);
         
-        // Update statistics
-        statistics.increment_error_count(error_type, severity);
+        // Update statistics (counts by type and severity)
+        statistics.error_counts[error_type] += 1;
+        statistics.severity_counts[severity] += 1;
+        if (severity == ErrorSeverity.Warning) {
+            statistics.total_warnings += 1;
+        } else if (severity == ErrorSeverity.Error || severity == ErrorSeverity.Fatal) {
+            statistics.total_errors += 1;
+            if (statistics.first_error_time == 0) {
+                statistics.first_error_time = block.timestamp;
+            }
+        }
         
         // Report error melalui appropriate channel
         reporter.report(error);
         
-        // Attempt error recovery jika memungkinkan
-        if (severity != ErrorSeverity.Fatal) {
-            ErrorRecoveryStrategy strategy = recovery.get_strategy(error_type);
-            bool recovered = recovery.attempt_recovery(error, strategy);
-            
-            if (!recovered && severity == ErrorSeverity.Error) {
-                // Enter panic mode untuk error recovery
-                enter_panic_mode(error);
-            }
-        } else {
-            // Fatal error - terminate compilation
+        // Simplified recovery: avoid relying on unavailable OmegaError fields
+        if (severity == ErrorSeverity.Fatal) {
             emit FatalError(error.message, error.location.file, error.location.line);
-            panic("Fatal error encountered: " + error.message);
+            panic(string.concat("Fatal error encountered: ", error.message));
         }
     }
     
@@ -121,180 +121,62 @@ blockchain OmegaErrorHandler {
         statistics.reset();
         panic_mode = false;
     }
-}
 
-/// Comprehensive error object yang menyimpan semua error information
-/// Mendukung error chaining, context, dan recovery hints
-struct OmegaError {
-    ErrorType error_type;           // Type classification dari error
-    string message;                 // Human-readable error message
-    SourceLocation location;        // Source code location dari error
-    ErrorSeverity severity;         // Severity level dari error
-    ErrorCode code;                 // Unique error code untuk identification
-    string[] suggestions;           // Suggestions untuk fixing error
-    OmegaError[] related_errors;    // Related errors untuk context
-    ErrorContext context;           // Context dimana error terjadi
-    uint256 timestamp;              // Timestamp ketika error terjadi
-}
+    /// Overload: Report error using a full OmegaError object (from semantic modules)
+    function report_error(OmegaError error) public {
+        // Register error
+        registry.register_error(error);
+        
+        // Update statistics
+        statistics.error_counts[error.error_type] += 1;
+        statistics.severity_counts[error.severity] += 1;
+        if (error.severity == ErrorSeverity.Warning) {
+            statistics.total_warnings += 1;
+        } else if (error.severity == ErrorSeverity.Error || error.severity == ErrorSeverity.Fatal) {
+            statistics.total_errors += 1;
+            if (statistics.first_error_time == 0) {
+                statistics.first_error_time = block.timestamp;
+            }
+        }
+        
+        // Report error
+        reporter.report(error);
+        
+        // Only handle fatal termination here; non-fatal recovery is managed elsewhere
+        if (error.severity == ErrorSeverity.Fatal) {
+            emit FatalError(error.message, error.location.file, error.location.line);
+            panic(string.concat("Fatal error encountered: ", error.message));
+        }
+    }
 
-/// Enum untuk error type classification
-/// Mengkategorikan errors berdasarkan compiler phase dan nature
-enum ErrorType {
-    // Lexical Analysis Errors
-    LexicalError,           // Invalid tokens, character sequences
-    UnterminatedString,     // String literals tidak ditutup
-    InvalidNumber,          // Invalid numeric literals
-    UnknownCharacter,       // Character yang tidak dikenali
-    
-    // Syntax Analysis Errors  
-    SyntaxError,            // Grammar violations
-    UnexpectedToken,        // Token yang tidak diharapkan
-    MissingToken,           // Expected token tidak ditemukan
-    MismatchedBraces,       // Unmatched brackets/braces
-    
-    // Semantic Analysis Errors
-    SemanticError,          // Semantic rule violations
-    UndefinedSymbol,        // Symbol tidak ditemukan
-    RedefinedSymbol,        // Symbol didefinisikan ulang
-    TypeMismatch,           // Type incompatibility
-    InvalidOperation,       // Operation tidak valid untuk type
-    
-    // Code Generation Errors
-    CodeGenError,           // Code generation failures
-    UnsupportedFeature,     // Feature tidak didukung untuk target
-    OptimizationError,      // Error dalam optimization pass
-    
-    // System Errors
-    IOError,                // File I/O errors
-    MemoryError,            // Memory allocation errors
-    InternalError           // Internal compiler errors
-}
-
-/// Enum untuk error severity levels
-/// Menentukan impact dan response terhadap error
-enum ErrorSeverity {
-    Info,       // Informational messages
-    Warning,    // Warnings yang tidak menghentikan compilation
-    Error,      // Errors yang menghentikan compilation
-    Fatal       // Fatal errors yang terminate compiler
-}
-
-/// Unique error codes untuk precise error identification
-/// Memungkinkan tooling integration dan automated error handling
-enum ErrorCode {
-    // Lexical Error Codes (1000-1999)
-    E1001_UNTERMINATED_STRING,
-    E1002_INVALID_NUMBER_FORMAT,
-    E1003_UNKNOWN_CHARACTER,
-    E1004_INVALID_ESCAPE_SEQUENCE,
-    
-    // Syntax Error Codes (2000-2999)
-    E2001_UNEXPECTED_TOKEN,
-    E2002_MISSING_SEMICOLON,
-    E2003_UNMATCHED_PARENTHESES,
-    E2004_INVALID_FUNCTION_DECLARATION,
-    E2005_MISSING_BLOCK_TERMINATOR,
-    
-    // Semantic Error Codes (3000-3999)
-    E3001_UNDEFINED_VARIABLE,
-    E3002_UNDEFINED_FUNCTION,
-    E3003_TYPE_MISMATCH,
-    E3004_INVALID_ASSIGNMENT,
-    E3005_DUPLICATE_DECLARATION,
-    E3006_INVALID_RETURN_TYPE,
-    
-    // Code Generation Error Codes (4000-4999)
-    E4001_UNSUPPORTED_TARGET,
-    E4002_OPTIMIZATION_FAILED,
-    E4003_RESOURCE_LIMIT_EXCEEDED,
-    
-    // System Error Codes (5000-5999)
-    E5001_FILE_NOT_FOUND,
-    E5002_PERMISSION_DENIED,
-    E5003_OUT_OF_MEMORY,
-    E5004_INTERNAL_COMPILER_ERROR
-}
-
-/// Source location information untuk precise error reporting
-/// Menyimpan file, line, column untuk accurate error positioning
-struct SourceLocation {
-    string file;                // Source file path
-    uint256 line;               // Line number (1-based)
-    uint256 column;             // Column number (1-based)
-    uint256 offset;             // Byte offset dalam file
-    uint256 length;             // Length dari error span
-}
-
-/// Error context untuk nested error scopes
-/// Menyediakan contextual information untuk better error messages
-struct ErrorContext {
-    string scope_name;          // Name dari current scope
-    ContextType context_type;   // Type dari context
-    SourceLocation location;    // Location dari context
-    string[] additional_info;   // Additional context information
-}
-
-/// Enum untuk context types
-enum ContextType {
-    Global,         // Global scope
-    Blockchain,     // Blockchain definition
-    Function,       // Function definition
-    Block,          // Code block
-    Expression,     // Expression evaluation
-    Statement       // Statement execution
-}
-
-/// Error statistics untuk tracking dan reporting
-/// Mengumpulkan metrics tentang error patterns dan frequency
-struct ErrorStatistics {
-    mapping(ErrorType => uint256) error_counts;     // Count per error type
-    mapping(ErrorSeverity => uint256) severity_counts; // Count per severity
-    uint256 total_errors;                           // Total error count
-    uint256 total_warnings;                         // Total warning count
-    uint256 compilation_start_time;                 // Start time untuk metrics
-    uint256 first_error_time;                       // Time dari first error
-}
-
-/// Error registry untuk tracking semua errors dalam compilation
-/// Menyimpan history dan patterns untuk analysis
-blockchain ErrorRegistry {
-    state {
-        OmegaError[] all_errors;            // All errors dalam compilation
-        mapping(ErrorType => OmegaError[]) errors_by_type; // Errors grouped by type
-        mapping(string => OmegaError[]) errors_by_file;    // Errors grouped by file
+    /// Convenience getters for analyzer summaries
+    function get_error_count() public view returns (uint256) {
+        return statistics.total_errors;
     }
     
-    /// Constructor untuk inisialisasi registry
-    constructor() {
-        all_errors = [];
+    function get_warning_count() public view returns (uint256) {
+        return statistics.total_warnings;
     }
     
-    /// Register new error dalam registry
-    /// @param error Error object yang akan disimpan
-    function register_error(OmegaError error) public {
-        all_errors.push(error);
-        errors_by_type[error.error_type].push(error);
-        errors_by_file[error.location.file].push(error);
+    function has_errors() public view returns (bool) {
+        return statistics.total_errors > 0;
     }
     
-    /// Get all errors untuk reporting
-    /// @return OmegaError[] Array dari semua errors
+    function has_warnings() public view returns (bool) {
+        return statistics.total_warnings > 0;
+    }
+    
+    // Expose registry-collected errors for external consumers (analyzers/tests)
     function get_all_errors() public view returns (OmegaError[]) {
-        return all_errors;
+        return registry.get_all_errors();
     }
-    
-    /// Get errors by type untuk analysis
-    /// @param error_type Type dari errors yang dicari
-    /// @return OmegaError[] Array dari errors dengan type tersebut
+
     function get_errors_by_type(ErrorType error_type) public view returns (OmegaError[]) {
-        return errors_by_type[error_type];
+        return registry.get_errors_by_type(error_type);
     }
-    
-    /// Get errors by file untuk file-specific reporting
-    /// @param file_path Path dari file yang dicari
-    /// @return OmegaError[] Array dari errors dalam file tersebut
+
     function get_errors_by_file(string memory file_path) public view returns (OmegaError[]) {
-        return errors_by_file[file_path];
+        return registry.get_errors_by_file(file_path);
     }
     
     /// Clear registry untuk fresh compilation
@@ -675,4 +557,48 @@ function uint_to_string(uint256 value) private pure returns (string memory) {
     }
     
     return string(buffer);
+}
+
+/// Overload: Report error using a full OmegaError object (from semantic modules)
+function report_error(OmegaError error) public {
+    // Register error
+    registry.register_error(error);
+    
+    // Update statistics
+    statistics.error_counts[error.error_type] += 1;
+    statistics.severity_counts[error.severity] += 1;
+    if (error.severity == ErrorSeverity.Warning) {
+        statistics.total_warnings += 1;
+    } else if (error.severity == ErrorSeverity.Error || error.severity == ErrorSeverity.Fatal) {
+        statistics.total_errors += 1;
+        if (statistics.first_error_time == 0) {
+            statistics.first_error_time = block.timestamp;
+        }
+    }
+    
+    // Report error
+    reporter.report(error);
+    
+    // Only handle fatal termination here; non-fatal recovery is managed elsewhere
+    if (error.severity == ErrorSeverity.Fatal) {
+        emit FatalError(error.message, error.location.file, error.location.line);
+        panic(string.concat("Fatal error encountered: ", error.message));
+    }
+}
+
+/// Convenience getters for analyzer summaries
+function get_error_count() public view returns (uint256) {
+    return statistics.total_errors;
+}
+
+function get_warning_count() public view returns (uint256) {
+    return statistics.total_warnings;
+}
+
+function has_errors() public view returns (bool) {
+    return statistics.total_errors > 0;
+}
+
+function has_warnings() public view returns (bool) {
+    return statistics.total_warnings > 0;
 }

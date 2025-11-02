@@ -1,0 +1,18 @@
+// OMEGA Standard Library - TIME (native)
+// Murni OMEGA: utilitas waktu dasar.
+
+// Event untuk interaksi waktu dengan host/runtime
+event SleepRequested(uint256 ms);
+event NowRequested(uint256 now_ms);
+
+// Mendapatkan waktu saat ini (ms sejak epoch)
+function now_ms() public returns (uint256) {
+    uint256 t = 0;
+    emit NowRequested(t);
+    return t;
+}
+
+// Tidur selama ms
+function sleep_ms(uint256 ms) public {
+    emit SleepRequested(ms);
+}

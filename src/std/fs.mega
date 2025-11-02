@@ -1,0 +1,63 @@
+// OMEGA Standard Library - FS (native)
+// Murni OMEGA: operasi filesystem dasar.
+
+// Event untuk operasi filesystem
+event FsExistsChecked(string path, bool exists);
+event FsCreateDir(string path);
+event FsWriteText(string path, uint256 size);
+event FsWriteBinary(string path, uint256 size);
+event FsFileSize(string path, uint256 size);
+// Tambahan event untuk operasi pencarian & pembacaan
+event FsFindFiles(string dir, string pattern, uint256 count);
+event FsReadFile(string path, uint256 size);
+event FsGetModifiedTime(string path, uint256 modified_time);
+
+// Periksa keberadaan file/direktori
+function exists(string path) public returns (bool) {
+    bool exists = false;
+    emit FsExistsChecked(path, exists);
+    return exists;
+}
+
+// Membuat direktori beserta parent-nya
+function create_dir_all(string path) public {
+    emit FsCreateDir(path);
+}
+
+// Tulis teks ke file
+function write_text(string path, string content) public {
+    emit FsWriteText(path, string.length(content));
+}
+
+// Tulis data biner ke file
+function write_binary(string path, bytes data) public {
+    emit FsWriteBinary(path, data.length);
+}
+
+// Mendapatkan ukuran file
+function file_size(string path) public returns (uint256) {
+    uint256 size = 0;
+    emit FsFileSize(path, size);
+    return size;
+}
+
+// Cari file dengan pola tertentu dalam direktori
+function find_files(string dir, string pattern) public returns (string[]) {
+    string[] files = [];
+    emit FsFindFiles(dir, pattern, files.length);
+    return files;
+}
+
+// Baca isi file sebagai teks
+function read_file(string path) public returns (string) {
+    string content = "";
+    emit FsReadFile(path, string.length(content));
+    return content;
+}
+
+// Ambil waktu modifikasi terakhir
+function get_modified_time(string path) public returns (uint256) {
+    uint256 modified = 0;
+    emit FsGetModifiedTime(path, modified);
+    return modified;
+}

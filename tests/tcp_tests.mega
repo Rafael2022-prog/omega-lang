@@ -1,0 +1,133 @@
+// OMEGA TCP Unit Tests
+// Menguji operasi dasar TCP di std/net/tcp.mega dalam mode simulasi saat ini
+
+import "test_framework.mega";
+import "../src/std/net/tcp.mega";
+
+using TestAssertions as Assert;
+
+blockchain TcpTests {
+    state {
+        OmegaTestFramework tf;
+    }
+
+    constructor() {
+        tf = new OmegaTestFramework();
+        _setup_tests();
+    }
+
+    function _setup_tests() private {
+        tf.add_test_suite("Tcp", "Tests untuk operasi dasar TCP (simulasi)");
+        tf.add_test_case("Tcp", "test_bind_success", "Bind sukses untuk fd valid", TestType.Unit, test_bind_success);
+        tf.add_test_case("Tcp", "test_bind_failure_invalid_fd", "Bind gagal untuk fd -1", TestType.Unit, test_bind_failure_invalid_fd);
+        tf.add_test_case("Tcp", "test_accept_returns_new_socket", "Accept menghasilkan socket client baru dengan fd+1", TestType.Unit, test_accept_returns_new_socket);
+        tf.add_test_case("Tcp", "test_read_returns_http_request", "Read menghasilkan payload GET minimal", TestType.Unit, test_read_returns_http_request);
+        tf.add_test_case("Tcp", "test_write_returns_length", "Write mengembalikan jumlah byte yang ditulis", TestType.Unit, test_write_returns_length);
+        tf.add_test_case("Tcp", "test_close_sets_flag", "Close menetapkan is_closed=true", TestType.Unit, test_close_sets_flag);
+        tf.add_test_case("Tcp", "test_setsockopt_returns_true", "setsockopt mengembalikan true untuk fd valid", TestType.Unit, test_setsockopt_returns_true);
+        tf.add_test_case("Tcp", "test_read_on_closed_socket_is_empty", "Read pada socket tertutup mengembalikan bytes kosong", TestType.Unit, test_read_on_closed_socket_is_empty);
+        tf.add_test_case("Tcp", "test_listen_failure_sets_flag_false", "Listen gagal karena sys.call mengembalikan -1", TestType.Unit, test_listen_failure_sets_flag_false);
+        // Catatan: listen saat ini bergantung pada nilai kembalian sys.call (-1), sehingga kemungkinan besar false; kita tidak menguji suksesnya di lingkungan simulasi.
+    }
+
+    function _make_socket(int32 fd) private returns (TcpSocket) {
+        TcpSocket s = TcpSocket({ fd: fd, local_addr: "", local_port: 0, is_bound: false, is_listening: false, is_closed: false });
+        return s;
+    }
+
+    function test_bind_success() public {
+        TcpSocket s = _make_socket(3);
+        bool ok = bind(s, "127.0.0.1", 8080);
+        Assert.assert_true(ok, "bind harus sukses untuk fd>=0");
+        Assert.assert_true(s.is_bound, "flag is_bound harus true setelah bind");
+        Assert.assert_string_equal("127.0.0.1", s.local_addr, "local_addr harus di-set");
+        Assert.assert_equal(8080, s.local_port, "local_port harus di-set");
+    }
+
+    function test_bind_failure_invalid_fd() public {
+        TcpSocket s = _make_socket(-1);
+        bool ok = bind(s, "0.0.0.0", 9000);
+        Assert.assert_false(ok, "bind harus gagal untuk fd<0");
+    }
+
+    function test_accept_returns_new_socket() public {
+        TcpSocket s = _make_socket(5);
+        TcpSocket c = accept(s);
+        Assert.assert_equal(6, uint256(uint32(c.fd)), "fd client harus fd+1");
+        Assert.assert_true(c.is_bound, "client dianggap bound ke alamat lokal");
+        Assert.assert_false(c.is_listening, "client bukan listener");
+    }
+
+    function test_read_returns_http_request() public {
+        TcpSocket s = _make_socket(3);
+        bytes data = read(s, 4096);
+        string sdata = string(data);
+        // Pastikan mengandung GET / HTTP/1.1 dan dua CRLF
+        bool has_get = _contains(sdata, "GET / HTTP/1.1\r\n");
+        bool has_crlfcrlf = _contains(sdata, "\r\n\r\n");
+        Assert.assert_true(has_get && has_crlfcrlf, "payload read harus menyerupai permintaan HTTP minimal");
+    }
+
+    function test_write_returns_length() public {
+        TcpSocket s = _make_socket(4);
+        bytes payload = bytes(5);
+        for (uint32 i = 0; i < 5; i++) { payload[i] = bytes1(uint8(65 + i)); }
+        int32 n = write(s, payload);
+        Assert.assert_equal(5, uint256(uint32(n)), "write harus mengembalikan panjang data");
+    }
+
+    function test_close_sets_flag() public {
+        TcpSocket s = _make_socket(7);
+        close(s);
+        Assert.assert_true(s.is_closed, "is_closed harus true setelah close");
+    }
+
+    function test_setsockopt_returns_true() public {
+        TcpSocket s = _make_socket(3);
+        bytes opt = bytes(4);
+        bool ok = setsockopt(s, 1, 2, opt);
+        Assert.assert_true(ok, "setsockopt harus mengembalikan true untuk fd valid dalam simulasi");
+    }
+
+    function test_read_on_closed_socket_is_empty() public {
+        TcpSocket s = _make_socket(3);
+        s.is_closed = true;
+        bytes data = read(s, 1024);
+        Assert.assert_equal(0, data.length, "read pada socket tertutup harus mengembalikan bytes kosong");
+    }
+
+    function test_listen_failure_sets_flag_false() public {
+        TcpSocket s = _make_socket(3);
+        bool ok_bind = bind(s, "127.0.0.1", 8080);
+        Assert.assert_true(ok_bind, "bind harus sukses sebelum listen");
+        bool ok_listen = listen(s, 128);
+        Assert.assert_false(ok_listen, "listen harus gagal dalam simulasi (ret != 0)");
+        Assert.assert_false(s.is_listening, "is_listening harus false ketika listen gagal");
+    }
+
+    // Helper: cek substring
+    function _contains(string s, string needle) private returns (bool) {
+        if (bytes(needle).length == 0) return true;
+        if (bytes(s).length < bytes(needle).length) return false;
+        uint256 N = bytes(s).length;
+        uint256 M = bytes(needle).length;
+        for (uint256 i = 0; i + M <= N; i++) {
+            bool match = true;
+            for (uint256 j = 0; j < M; j++) {
+                if (bytes(s)[i + j] != bytes(needle)[j]) { match = false; break; }
+            }
+            if (match) return true;
+        }
+        return false;
+    }
+
+    /// Run all tcp tests
+    function run_all_tests() public returns (TestStatistics) {
+        return tf.run_all_tests();
+    }
+
+    /// Run specific suite
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return tf.run_test_suite(suite_name);
+    }
+}

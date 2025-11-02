@@ -9,6 +9,7 @@ services:
       target: builder
     image: omega/compiler:latest
     container_name: omega-compiler
+    command: ["tail", "-f", "/dev/null"]
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -91,11 +92,9 @@ services:
 
   # OMEGA Web Interface (Optional)
   omega-web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
     image: omega/web:latest
     container_name: omega-web
+    profiles: ["web"]
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -168,6 +167,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: omega-nginx
+    profiles: ["web"]
     restart: unless-stopped
     ports:
       - "80:80"
@@ -177,8 +177,10 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     depends_on:
-      - omega-compiler
-      - omega-web
+      omega-compiler:
+        condition: service_healthy
+      omega-web:
+        condition: service_healthy
     networks:
       - omega-network
     healthcheck:

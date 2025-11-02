@@ -1,0 +1,16 @@
+// OMEGA Standard Library - IO (native)
+// Murni OMEGA: utilitas output ke console tanpa bahasa eksternal.
+
+// Event yang dapat di-subscribe oleh runtime/host untuk menampilkan pesan
+event StdOutLine(string message);
+event StdErrLine(string message);
+
+// Cetak ke stdout
+function println(string message) public {
+    emit StdOutLine(message);
+}
+
+// Cetak ke stderr
+function eprintln(string message) public {
+    emit StdErrLine(message);
+}

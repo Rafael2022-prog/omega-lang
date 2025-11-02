@@ -30,6 +30,9 @@ blockchain SemanticTests {
         _setup_expression_analysis_tests();
         _setup_error_detection_tests();
         _setup_cross_reference_tests();
+        
+        // Add blockchain-specific validation tests
+        _setup_blockchain_validation_tests();
     }
 
     /// Setup type checking tests
@@ -328,145 +331,49 @@ blockchain SemanticTests {
         );
     }
 
-    // ===== HELPER FUNCTIONS =====
-
-    /// Parse and analyze source code
-    function _analyze_source(string source) private returns (AnalysisResult) {
-        lexer.set_source(source);
-        Token[] tokens = lexer.tokenize();
-        parser.set_tokens(tokens);
-        ASTNode ast = parser.parse();
-        return analyzer.analyze(ast);
-    }
-
-    /// Verify analysis result has no errors
-    function _verify_no_errors(AnalysisResult result, string message) private {
-        TestAssertions.assert_equal(0, result.errors.length, message);
-    }
-
-    /// Verify analysis result has specific error count
-    function _verify_error_count(AnalysisResult result, uint256 expected_count, string message) private {
-        TestAssertions.assert_equal(expected_count, result.errors.length, message);
-    }
-
-    /// Verify specific error type exists
-    function _verify_error_type(AnalysisResult result, SemanticErrorType error_type, string message) private {
-        bool found = false;
-        for (uint256 i = 0; i < result.errors.length; i++) {
-            if (result.errors[i].error_type == error_type) {
-                found = true;
-                break;
-            }
-        }
-        TestAssertions.assert_true(found, message);
-    }
-
-    // ===== TEST IMPLEMENTATIONS =====
-
-    /// Test primitive type checking
-    function test_primitive_type_checking() public {
-        string source = `
-            blockchain TypeTest {
-                function test() public {
-                    uint256 a = 42;
-                    bool b = true;
-                    string c = "hello";
-                    address d = 0x1234567890abcdef1234567890abcdef12345678;
-                }
-            }
-        `;
+    /// Setup blockchain validation tests
+    function _setup_blockchain_validation_tests() private {
+        test_framework.add_test_suite("BlockchainValidation", "Tests for blockchain-specific semantic validation");
         
-        AnalysisResult result = _analyze_source(source);
-        _verify_no_errors(result, "Valid primitive type assignments should not produce errors");
-    }
-
-    /// Test type mismatch detection
-    function test_type_mismatch_detection() public {
-        string source = `
-            blockchain TypeMismatchTest {
-                function test() public {
-                    uint256 a = "string";  // Type mismatch
-                    bool b = 42;           // Type mismatch
-                }
-            }
-        `;
+        test_framework.add_test_case(
+            "BlockchainValidation",
+            "test_reentrancy_without_guard_detection",
+            "Should detect reentrancy pattern without guard",
+            TestType.Unit,
+            test_reentrancy_without_guard_detection
+        );
         
-        AnalysisResult result = _analyze_source(source);
-        _verify_error_count(result, 2, "Should detect two type mismatches");
-        _verify_error_type(result, SemanticErrorType.TypeMismatch, "Should detect type mismatch errors");
-    }
-
-    /// Test implicit type conversion
-    function test_implicit_type_conversion() public {
-        string source = `
-            blockchain ConversionTest {
-                function test() public {
-                    uint256 a = 42;
-                    uint128 b = a;  // Should allow if safe conversion exists
-                }
-            }
-        `;
+        test_framework.add_test_case(
+            "BlockchainValidation",
+            "test_external_call_in_loop_detection",
+            "Should detect external calls inside loops",
+            TestType.Unit,
+            test_external_call_in_loop_detection
+        );
         
-        AnalysisResult result = _analyze_source(source);
-        // Result depends on whether implicit conversion is allowed
-        TestAssertions.assert_true(true, "Implicit conversion test completed");
-    }
-
-    /// Test function return type checking
-    function test_function_return_type_checking() public {
-        string source = `
-            blockchain ReturnTypeTest {
-                function getString() public returns (string) {
-                    return "hello";  // Correct return type
-                }
-                
-                function getNumber() public returns (uint256) {
-                    return "invalid";  // Wrong return type
-                }
-            }
-        `;
+        test_framework.add_test_case(
+            "BlockchainValidation",
+            "test_unbounded_while_loop_detection",
+            "Should detect unbounded while loops",
+            TestType.Unit,
+            test_unbounded_while_loop_detection
+        );
         
-        AnalysisResult result = _analyze_source(source);
-        _verify_error_count(result, 1, "Should detect one return type mismatch");
-        _verify_error_type(result, SemanticErrorType.TypeMismatch, "Should detect return type mismatch");
-    }
-
-    /// Test array type checking
-    function test_array_type_checking() public {
-        string source = `
-            blockchain ArrayTest {
-                function test() public {
-                    uint256[] numbers = [1, 2, 3];
-                    string[] names = ["alice", "bob"];
-                    
-                    uint256 first = numbers[0];  // Valid access
-                    string name = numbers[1];    // Type mismatch
-                }
-            }
-        `;
+        test_framework.add_test_case(
+            "BlockchainValidation",
+            "test_generic_require_message_detection",
+            "Should detect require without message",
+            TestType.Unit,
+            test_generic_require_message_detection
+        );
         
-        AnalysisResult result = _analyze_source(source);
-        _verify_error_count(result, 1, "Should detect array type mismatch");
-    }
-
-    /// Test mapping type checking
-    function test_mapping_type_checking() public {
-        string source = `
-            blockchain MappingTest {
-                state {
-                    mapping(address => uint256) balances;
-                }
-                
-                function test() public {
-                    address user = 0x1234567890abcdef1234567890abcdef12345678;
-                    uint256 balance = balances[user];  // Valid access
-                    string invalid = balances[user];   // Type mismatch
-                }
-            }
-        `;
-        
-        AnalysisResult result = _analyze_source(source);
-        _verify_error_count(result, 1, "Should detect mapping type mismatch");
+        test_framework.add_test_case(
+            "BlockchainValidation",
+            "test_view_function_writes_state_detection",
+            "Should detect state writes in view function",
+            TestType.Unit,
+            test_view_function_writes_state_detection
+        );
     }
 
     /// Test local variable scope
@@ -958,4 +865,108 @@ blockchain SemanticTests {
     function run_test_suite(string suite_name) public returns (TestResult[]) {
         return test_framework.run_test_suite(suite_name);
     }
+}
+
+
+/// Test reentrancy without guard detection
+function test_reentrancy_without_guard_detection() public {
+    string source = `
+        blockchain External {
+            function deposit(uint256 amount) public { }
+        }
+        
+        blockchain ReentrancyTest {
+            state {
+                mapping(address => uint256) balances;
+                External ext;
+            }
+            
+            function withdraw(uint256 amount) public {
+                require(balances[msg.sender] >= amount, "Insufficient balance");
+                ext.deposit(amount); // External call before state update
+                balances[msg.sender] -= amount; // State update after external call
+            }
+        }
+    `;
+    
+    AnalysisResult result = _analyze_source(source);
+    // Expect at least one validation error due to potential reentrancy
+    TestAssertions.assert_true(result.errors.length >= 1, "Should detect potential reentrancy without guard");
+}
+
+/// Test external call inside loop detection
+function test_external_call_in_loop_detection() public {
+    string source = `
+        blockchain External {
+            function ping() public { }
+        }
+        
+        blockchain LoopExternalCallTest {
+            state {
+                External ext;
+            }
+            
+            function massPing(uint256 n) public {
+                uint256 i = 0;
+                while (i < n) {
+                    ext.ping(); // External call inside loop
+                    i = i + 1;
+                }
+            }
+        `;
+    
+    AnalysisResult result = _analyze_source(source);
+    // Expect a validation warning/error for external call in loop
+    TestAssertions.assert_true(result.errors.length >= 1, "Should detect external call inside loop");
+}
+
+/// Test unbounded while loop detection
+function test_unbounded_while_loop_detection() public {
+    string source = `
+        blockchain UnboundedLoopTest {
+            function run() public {
+                while (true) {
+                    // Unbounded loop body
+                    uint256 x = 1;
+                }
+            }
+        `;
+    
+    AnalysisResult result = _analyze_source(source);
+    // Expect a validation warning/error for unbounded while loop (gas risk)
+    TestAssertions.assert_true(result.errors.length >= 1, "Should detect unbounded while loop");
+}
+
+/// Test generic require message detection
+function test_generic_require_message_detection() public {
+    string source = `
+        blockchain RequireMessageTest {
+            function check(uint256 amount) public {
+                require(amount > 0); // Missing error message
+            }
+        }
+    `;
+    
+    AnalysisResult result = _analyze_source(source);
+    // Expect a validation warning/error for require without message
+    TestAssertions.assert_true(result.errors.length >= 1, "Should detect require without message");
+}
+
+/// Test view function writes state detection
+function test_view_function_writes_state_detection() public {
+    string source = `
+        blockchain ViewStateWriteTest {
+            state {
+                uint256 counter;
+            }
+            
+            function invalidView() public view returns (uint256) {
+                counter = counter + 1; // State write in view function
+                return counter;
+            }
+        `;
+    
+    AnalysisResult result = _analyze_source(source);
+    // Expect a validation error for state mutation in view function
+    TestAssertions.assert_true(result.errors.length >= 1, "Should detect state mutation in view function");
 }

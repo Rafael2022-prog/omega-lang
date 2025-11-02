@@ -19,7 +19,7 @@ Sebelum memulai, pastikan sistem Anda memiliki:
 
 ```bash
 # Clone repository
-git clone https://github.com/omega-lang/omega.git
+git clone https://github.com/Rafael2022-prog/omega-lang.git
 cd omega
 
 # Build dan install

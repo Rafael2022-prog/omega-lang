@@ -1,0 +1,231 @@
+// OMEGA HTTP Core Unit Tests
+// Menguji parser dan builder HTTP minimal di std/net/http/core
+
+import "test_framework.mega";
+import "../src/std/net/http/core.mega";
+
+using TestAssertions as Assert;
+
+blockchain HttpCoreTests {
+    state {
+        OmegaTestFramework tf;
+    }
+
+    constructor() {
+        tf = new OmegaTestFramework();
+        _setup_tests();
+    }
+
+    function _setup_tests() private {
+        tf.add_test_suite("HttpCore", "Tests untuk parser dan builder HTTP core");
+        tf.add_test_case("HttpCore", "test_parse_simple_get", "Parse GET / HTTP/1.1 dengan header Host", TestType.Unit, test_parse_simple_get);
+        tf.add_test_case("HttpCore", "test_build_text_response", "Build response 200 OK dengan body text", TestType.Unit, test_build_text_response);
+        tf.add_test_case("HttpCore", "test_join_bytes", "Gabungkan dua bytes", TestType.Unit, test_join_bytes);
+        tf.add_test_case("HttpCore", "test_parse_multiple_headers", "Parse dengan beberapa header dan tanpa body", TestType.Unit, test_parse_multiple_headers);
+        tf.add_test_case("HttpCore", "test_parse_with_binary_body", "Parse POST dengan body binary kecil", TestType.Unit, test_parse_with_binary_body);
+        tf.add_test_case("HttpCore", "test_build_binary_body_response", "Build response dengan body binary", TestType.Unit, test_build_binary_body_response);
+        // Tambahan
+        tf.add_test_case("HttpCore", "test_parse_header_extra_spaces", "Parse header dengan spasi ekstra di value", TestType.Unit, test_parse_header_extra_spaces);
+        tf.add_test_case("HttpCore", "test_parse_body_with_crlf_payload", "Parse POST dengan payload berisi CRLF", TestType.Unit, test_parse_body_with_crlf_payload);
+        tf.add_test_case("HttpCore", "test_build_large_binary_body_response", "Build response dengan body besar (512 bytes)", TestType.Unit, test_build_large_binary_body_response);
+    }
+
+    // Parse: "GET /hello HTTP/1.1\r\nHost: example\r\n\r\n"
+    function test_parse_simple_get() public {
+        string req_str = "GET /hello HTTP/1.1\r\nHost: example\r\n\r\n";
+        bytes req_bytes = bytes(req_str);
+        HttpRequest req = parse_request(req_bytes);
+        Assert.assert_string_equal("GET", req.method, "Method harus GET");
+        Assert.assert_string_equal("/hello", req.path, "Path harus /hello");
+        Assert.assert_string_equal("HTTP/1.1", req.version, "Versi harus HTTP/1.1");
+        Assert.assert_string_equal("example", req.headers["Host"], "Header Host harus example");
+        Assert.assert_equal(0, req.body.length, "Body harus kosong");
+    }
+
+    // Build response: 200 OK dengan body "Hello"
+    function test_build_text_response() public {
+        HttpResponse resp = make_text_response(200, "OK", "Hello");
+        bytes out = build_response(resp);
+        // Konversi ke string untuk verifikasi awal
+        string s = string(out);
+        // Response harus dimulai dengan status line
+        bool starts_with = _starts_with(s, "HTTP/1.1 200 OK\r\n");
+        Assert.assert_true(starts_with, "Status line harus benar");
+        // Harus ada header Server dan Content-Length, lalu CRLF kosong
+        bool has_server = _contains(s, "Server: OMEGA/Native\r\n");
+        bool has_len = _contains(s, "Content-Length: 5\r\n");
+        bool has_crlf = _contains(s, "\r\n\r\n");
+        Assert.assert_true(has_server && has_len && has_crlf, "Header wajib harus ada");
+        // Body tepat di akhir
+        bool ends_with_body = _ends_with(s, "Hello");
+        Assert.assert_true(ends_with_body, "Body harus 'Hello'");
+    }
+
+    // Join bytes
+    function test_join_bytes() public {
+        bytes a = bytes("ABC");
+        bytes b = bytes("DEF");
+        bytes j = _join_bytes(a, b);
+        Assert.assert_equal(6, j.length, "Panjang gabungan harus 6");
+        string s = string(j);
+        Assert.assert_string_equal("ABCDEF", s, "Gabungan bytes harus 'ABCDEF'");
+    }
+
+    // Helpers untuk string
+    function _starts_with(string s, string prefix) private returns (bool) {
+        if (bytes(s).length < bytes(prefix).length) return false;
+        uint256 n = bytes(prefix).length;
+        for (uint256 i = 0; i < n; i++) {
+            if (bytes(s)[i] != bytes(prefix)[i]) return false;
+        }
+        return true;
+    }
+
+    function _ends_with(string s, string suffix) private returns (bool) {
+        if (bytes(s).length < bytes(suffix).length) return false;
+        uint256 n = bytes(suffix).length;
+        uint256 start = bytes(s).length - n;
+        for (uint256 i = 0; i < n; i++) {
+            if (bytes(s)[start + i] != bytes(suffix)[i]) return false;
+        }
+        return true;
+    }
+
+    function _contains(string s, string needle) private returns (bool) {
+        if (bytes(needle).length == 0) return true;
+        if (bytes(s).length < bytes(needle).length) return false;
+        uint256 N = bytes(s).length;
+        uint256 M = bytes(needle).length;
+        for (uint256 i = 0; i + M <= N; i++) {
+            bool match = true;
+            for (uint256 j = 0; j < M; j++) {
+                if (bytes(s)[i + j] != bytes(needle)[j]) { match = false; break; }
+            }
+            if (match) return true;
+        }
+        return false;
+    }
+
+    // Test: Parse dengan beberapa header tanpa body
+    function test_parse_multiple_headers() public {
+        string req_str = "GET /api HTTP/1.1\r\nHost: example.com\r\nContent-Type: application/json\r\nX-Custom: value\r\n\r\n";
+        bytes req_bytes = bytes(req_str);
+        HttpRequest req = parse_request(req_bytes);
+        Assert.assert_string_equal("GET", req.method, "Method harus GET");
+        Assert.assert_string_equal("/api", req.path, "Path harus /api");
+        Assert.assert_string_equal("HTTP/1.1", req.version, "Versi harus HTTP/1.1");
+        Assert.assert_string_equal("example.com", req.headers["Host"], "Header Host harus example.com");
+        Assert.assert_string_equal("application/json", req.headers["Content-Type"], "Header Content-Type harus application/json");
+        Assert.assert_string_equal("value", req.headers["X-Custom"], "Header X-Custom harus value");
+        Assert.assert_equal(0, req.body.length, "Body harus kosong");
+    }
+
+    // Helper: konversi byte pada indeks menjadi uint untuk assert
+    function _byte_to_uint(bytes b, uint256 idx) private returns (uint256) {
+        return uint256(uint8(b[idx]));
+    }
+
+    // Test: Parse POST dengan body binary kecil (termasuk 0x00)
+    function test_parse_with_binary_body() public {
+        string head = "POST /bin HTTP/1.1\r\nHost: example\r\n\r\n";
+        bytes header_bytes = bytes(head);
+        bytes body = bytes(3);
+        body[0] = bytes1(uint8(0));
+        body[1] = bytes1(uint8(255));
+        body[2] = bytes1(uint8(65)); // 'A'
+        bytes req_bytes = _join_bytes(header_bytes, body);
+        HttpRequest req = parse_request(req_bytes);
+        Assert.assert_string_equal("POST", req.method, "Method harus POST");
+        Assert.assert_string_equal("/bin", req.path, "Path harus /bin");
+        Assert.assert_equal(3, req.body.length, "Body length harus 3");
+        Assert.assert_equal(0, _byte_to_uint(req.body, 0), "Byte[0] harus 0x00");
+        Assert.assert_equal(255, _byte_to_uint(req.body, 1), "Byte[1] harus 0xFF");
+        Assert.assert_equal(65, _byte_to_uint(req.body, 2), "Byte[2] harus 'A'");
+    }
+
+    // Tambahan: Parse header dengan spasi ekstra di value
+    function test_parse_header_extra_spaces() public {
+        string req_str = "GET / HTTP/1.1\r\nContent-Type:   text/plain\r\n\r\n";
+        HttpRequest req = parse_request(bytes(req_str));
+        // Parser saat ini tidak memangkas spasi; nilai harus persis apa adanya
+        Assert.assert_string_equal("  text/plain", req.headers["Content-Type"], "Value harus mengandung spasi di depan (impl. saat ini)");
+    }
+
+    // Tambahan: Parse payload berisi CRLF di body
+    function test_parse_body_with_crlf_payload() public {
+        string head = "POST /payload HTTP/1.1\r\nHost: x\r\n\r\n";
+        bytes header_bytes = bytes(head);
+        bytes body = bytes(4);
+        body[0] = bytes1('\r');
+        body[1] = bytes1('\n');
+        body[2] = bytes1('X');
+        body[3] = bytes1('Y');
+        bytes req_bytes = _join_bytes(header_bytes, body);
+        HttpRequest req = parse_request(req_bytes);
+        Assert.assert_equal(4, req.body.length, "Body length harus 4");
+        Assert.assert_equal(uint256(uint8('\r')), _byte_to_uint(req.body, 0), "Byte[0] harus CR");
+        Assert.assert_equal(uint256(uint8('\n')), _byte_to_uint(req.body, 1), "Byte[1] harus LF");
+        Assert.assert_equal(uint256(uint8('X')), _byte_to_uint(req.body, 2), "Byte[2] harus 'X'");
+        Assert.assert_equal(uint256(uint8('Y')), _byte_to_uint(req.body, 3), "Byte[3] harus 'Y'");
+    }
+
+    // Helper: cek payload berada di akhir bytes out
+    function _payload_matches_at_end(bytes out, bytes payload) private returns (bool) {
+        if (out.length < payload.length) return false;
+        uint256 start = out.length - payload.length;
+        for (uint256 j = 0; j < payload.length; j++) {
+            if (out[start + j] != payload[j]) { return false; }
+        }
+        return true;
+    }
+
+    // Test: Build response dengan body binary dan verifikasi Content-Length & payload
+    function test_build_binary_body_response() public {
+        bytes payload = bytes(4);
+        payload[0] = bytes1(uint8(0));
+        payload[1] = bytes1(uint8(1));
+        payload[2] = bytes1(uint8(2));
+        payload[3] = bytes1(uint8(3));
+        HttpResponse resp;
+        resp.status_code = 201;
+        resp.reason = "Created";
+        resp.headers["content-type"] = "application/octet-stream"; // tidak digunakan oleh builder saat ini
+        resp.body = payload;
+        bytes out = build_response(resp);
+        // Header harus berisi Content-Length: 4
+        string s = string(out);
+        bool has_len = _contains(s, "Content-Length: 4\r\n");
+        Assert.assert_true(has_len, "Header Content-Length harus 4");
+        // Payload biner harus persis di akhir output
+        bool payload_ok = _payload_matches_at_end(out, payload);
+        Assert.assert_true(payload_ok, "Payload biner harus berada di akhir output");
+    }
+
+    // Tambahan: Build response dengan body besar (512 bytes)
+    function test_build_large_binary_body_response() public {
+        bytes payload = bytes(512);
+        for (uint256 i = 0; i < 512; i++) {
+            payload[i] = bytes1(uint8(i % 256));
+        }
+        HttpResponse resp;
+        resp.status_code = 200;
+        resp.reason = "OK";
+        resp.body = payload;
+        bytes out = build_response(resp);
+        string s = string(out);
+        bool has_len = _contains(s, "Content-Length: 512\r\n");
+        Assert.assert_true(has_len, "Content-Length harus 512");
+        bool payload_ok = _payload_matches_at_end(out, payload);
+        Assert.assert_true(payload_ok, "Payload besar harus utuh di akhir output");
+    }
+
+    /// Run all HTTP core tests
+    function run_all_tests() public returns (TestStatistics) {
+        return tf.run_all_tests();
+    }
+
+    /// Run specific test suite for HTTP core
+    function run_test_suite(string suite_name) public returns (TestResult[]) {
+        return tf.run_test_suite(suite_name);
+    }
+}

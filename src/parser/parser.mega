@@ -58,6 +58,31 @@ blockchain OmegaParser {
         
         return parse_program();
     }
+
+    /// Convenience: set tokens without filename
+    function set_tokens(Token[] memory input_tokens) public {
+        tokens = input_tokens;
+        current = 0;
+        current_file = "";
+        panic_mode = false;
+        expression_parser.set_tokens(input_tokens, 0);
+        statement_parser.set_tokens(input_tokens, 0);
+        declaration_parser.set_tokens(input_tokens, 0);
+    }
+
+    /// Convenience: parse using previously set tokens
+    function parse() public returns (Program memory) {
+        // Ensure sub-parsers are synced with current tokens
+        expression_parser.set_tokens(tokens, current);
+        statement_parser.set_tokens(tokens, current);
+        declaration_parser.set_tokens(tokens, current);
+        return parse_program();
+    }
+
+    /// Convenience: parse with tokens only (no filename)
+    function parse(Token[] memory input_tokens) public returns (Program memory) {
+        return parse(input_tokens, "");
+    }
     
     /// Parse complete program
     function parse_program() private returns (Program memory) {
