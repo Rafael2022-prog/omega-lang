@@ -2,6 +2,12 @@
 
 > [🏠 Home](Home.md) | [🚀 Getting Started](Getting-Started-Guide.md) | [📖 Language Spec](Language-Specification.md) | [🏗️ Compiler Architecture](Compiler-Architecture.md) | [🔧 API Reference](API-Reference.md)
 
+> Catatan (Windows Native-Only, Compile-Only)
+> - Panduan ini menjelaskan ekosistem penuh dan alur kontribusi. CI aktif saat ini adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal (compile-only) serta Native Runner.
+> - Build: gunakan `build_omega_native.ps1`, jalankan `./omega.exe` atau `pwsh -NoProfile -ExecutionPolicy Bypass -File ./omega.ps1`.
+> - Testing: verifikasi dasar menggunakan `omega compile <file.mega>` dan `scripts/http_e2e_tests.ps1`; perintah `omega build/test/deploy` bersifat forward-looking/opsional di Windows.
+> - Tooling non-native (mis. `make`, `cargo-tarpaulin`, pipeline lint non-native) bersifat forward-looking/opsional; gunakan padanan PowerShell atau workflow Windows.
+
 Thank you for your interest in contributing to OMEGA! We welcome contributions from developers of all skill levels and backgrounds. This guide will help you get started with contributing to the OMEGA blockchain programming language project.
 
 ## 📋 Table of Contents
@@ -85,6 +91,7 @@ Before contributing to OMEGA, ensure you have:
 3. **Run Tests**:
    ```bash
    # Run comprehensive test suite
+   # Catatan: Pada CI Windows-only saat ini, `omega test` belum aktif di wrapper; gunakan verifikasi compile-only dan skrip E2E.
    omega test
    
    # Or use scripts
@@ -659,7 +666,7 @@ cli OmegaCLI {
 ```
 
 **Current Needs**:
-- [ ] Package manager
+- [x] Package manager
 - [ ] Dependency resolver
 - [ ] Security analyzer
 - [ ] Performance profiler

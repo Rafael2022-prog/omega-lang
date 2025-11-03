@@ -1,5 +1,10 @@
 # Migrasi ke Sistem Build OMEGA Native
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Dokumen ini menjelaskan migrasi ke sistem build native penuh. Saat ini, CI aktif berjalan Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal.
+> - Untuk verifikasi dasar gunakan: `scripts/build_omega_native.ps1`, `omega.exe`/`omega.ps1` dengan `omega compile <file.mega>`, dan Native Runner (HTTP) `POST /compile`.
+> - Perintah `omega build/test/docs` serta target cross-compilation di dokumen ini bersifat forward-looking/opsional pada wrapper; gunakan `scripts/generate_coverage.ps1` untuk cakupan kode di Windows.
+
 ## 📋 Ringkasan Perubahan
 
 Proyek OMEGA telah berhasil dimigrasi dari sistem build Rust (Cargo) ke sistem build native OMEGA yang sepenuhnya self-hosting.
@@ -227,7 +232,7 @@ make test
 
 ### Phase 3: Advanced Features (Planned)
 - [ ] IDE integration improvements
-- [ ] Package manager integration
+- [x] Package manager integration
 - [ ] Cloud build support
 - [ ] CI/CD pipeline optimization
 

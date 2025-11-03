@@ -164,8 +164,8 @@ Melengkapi fitur-fitur advanced, memperluas kemampuan lintas-rantai, dan meningk
 - [x] Cross-chain communication primitives — compile-only E2E + network harness (Windows native-only) committed
 - [x] Performance benchmarking & KPI integration (runtime cross-chain latency avg/p95/p99 + gas metrics, integration tests)
 - [x] Advanced optimization passes — baseline compile-only (CSE + function inlining wiring, stats)
-- [ ] IDE integration (VS Code)
-- [ ] Package manager
+- [x] IDE integration (VS Code)
+- [x] Package manager
 
 - [ ] **Cross-Chain Features**
   - Message passing protocol
