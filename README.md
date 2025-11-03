@@ -7,6 +7,11 @@
 ![Performance](https://img.shields.io/badge/performance-+25%25%20faster-brightgreen?style=flat-square)
 ![Security](https://img.shields.io/badge/security-enhanced-orange?style=flat-square)
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Dokumentasi README ini menjelaskan ekosistem OMEGA secara penuh (self-hosting, multi-target, deploy, dsb.). Pipeline CI aktif saat ini adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal.
+> - Verifikasi dasar: gunakan `scripts/build_omega_native.ps1`, `omega.exe`/`omega.ps1` dengan `omega compile <file.mega>`, dan Native Runner (HTTP) `POST /compile`.
+> - Perintah `omega build/test/deploy/verify/docs/analyze` dan tooling non-native (`npm`, `mdBook`, `valgrind`, `cargo-tarpaulin`) bersifat forward-looking/opsional dan bisa belum aktif di wrapper. Coverage: `scripts/generate_coverage.ps1`.
+
 ## 🌟 Visi Proyek
 
 OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengembangan blockchain dengan prinsip **"Write Once, Deploy Everywhere"**. Dengan OMEGA, developer dapat menulis smart contract sekali dan mengompilasi ke berbagai target blockchain baik EVM maupun non-EVM.
@@ -138,7 +143,7 @@ blockchain SimpleToken {
 .\omega_native.ps1 build
 # Output:
 # ✅ EVM: SimpleToken.sol generated
-# ✅ Solana: lib.rs + Cargo.toml generated
+# ✅ Solana: lib.rs + program.toml generated
 # ✅ Build completed successfully (100% Native)
 ```
 
@@ -312,7 +317,7 @@ omega test
 - [x] Solana code generation
 
 ### Phase 2: Advanced Features (Q2 2025)
-- [ ] Cross-chain communication primitives
+- [x] Cross-chain communication primitives — compile-only E2E harness + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi
 - [ ] Advanced optimization passes
 - [ ] IDE integration (VS Code)
 - [ ] Package manager
@@ -326,7 +331,7 @@ omega test
 ### Phase 4: Production Ready (Q4 2025)
 - [ ] Mainnet deployments
 - [ ] Security audits
-- [ ] Performance benchmarks
+- [x] Performance benchmarks — initial runtime suite + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi (compile-only, Windows)
 - [ ] Enterprise features
 
 ### Phase 5: Enterprise & Scale (Q1 2026)
@@ -422,3 +427,43 @@ Perbaikan integrasi ikon untuk file `.mega` di Windows:
 - `trae.config.json` diperbaiki agar menggunakan pemisah path Windows (`r:\\OMEGA\\temp-logo.svg`) untuk kompatibilitas IDE.
 
 Jika ikon tidak muncul, jalankan ulang eksplorasi shell (atau logout/login) setelah mengimpor registri.
+
+## ⚠️ Status Operasional: Windows Native-Only (Compile-Only)
+
+Untuk sementara waktu, pipeline dan CLI OMEGA berjalan dalam mode native-only di Windows. Implikasi penting:
+- CLI yang tersedia: `omega.exe` (prioritas) dan `omega.ps1` (fallback). Subcommand yang didukung saat ini: `compile`, `--version`, `--help`.
+- Perintah lama seperti `build`, `test`, dan `deploy` belum aktif pada wrapper CLI; seluruh langkah pengujian di CI dikonversi menjadi compile-only.
+- Instalasi/build: gunakan `build_omega_native.ps1`. Output berada di root repo (`omega.exe`, `omega.ps1`, `omega.cmd`).
+- Packaging artefak Windows menggunakan PowerShell native `Compress-Archive` (tanpa 7z).
+- Coverage native: gunakan `scripts/generate_coverage.ps1` untuk menghasilkan JSON + LCOV, upload ke Codecov via uploader resmi Windows.
+- Rujukan: lihat `MIGRATION_TO_NATIVE.md` dan `NATIVE_CICD_COMPLETE.md` untuk detail migrasi.
+
+## 🚀 Native-Only Quickstart (Windows)
+
+1) Build native
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\build_omega_native.ps1 -Clean
+```
+
+2) Jalankan compiler
+```powershell
+$omegaCmd = if (Test-Path .\omega.exe) { .\omega.exe } else { "pwsh -NoProfile -ExecutionPolicy Bypass -File .\omega.ps1" }
+Invoke-Expression "$omegaCmd --version"
+Invoke-Expression "$omegaCmd compile tests/lexer_tests.mega"
+Invoke-Expression "$omegaCmd compile tests/parser_tests.mega"
+```
+
+3) Coverage (opsional)
+```powershell
+# Generate coverage JSON + LCOV
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\generate_coverage.ps1 -SourceDir tests -OutputDir coverage -Verbose
+
+# Upload ke Codecov (butuh secret CODECOV_TOKEN jika di CI)
+Invoke-WebRequest -Uri https://uploader.codecov.io/latest/windows/codecov.exe -OutFile .\codecov.exe -UseBasicParsing
+.\codecov.exe -t "$env:CODECOV_TOKEN" -f .\coverage\omega-coverage.lcov -n "windows-native-local" -F "mega-native" -R "$PWD"
+```
+
+### Known Limitations (sementara)
+- Pengujian runtime end-to-end belum aktif; mode compile-only dijalankan untuk unit/integration/security.
+- Subcommand `build`, `test`, `deploy` akan diaktifkan kembali setelah wrapper CLI `omega.exe` mendukungnya.
+- Dokumentasi di bawah ini masih memuat referensi npm/mdBook/cargo/valgrind; gunakan bagian di atas sebagai rujukan terkini.

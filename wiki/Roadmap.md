@@ -1,5 +1,7 @@
 # Roadmap
 
+> Catatan (Windows Native-Only, Compile-Only): Roadmap ini bersifat aspiratif dan mencakup fitur CLI/ekosistem penuh. CI aktif saat ini adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal (compile-only) serta Native Runner. Perintah seperti `omega build/test/deploy`, package manager, dan tooling lint non-native bersifat forward-looking/opsional; gunakan skrip PowerShell dan jalur verifikasi compile-only di Windows.
+
 Peta jalan pengembangan OMEGA - Universal Blockchain Programming Language. Roadmap ini menunjukkan visi jangka panjang, milestone utama, dan timeline pengembangan proyek.
 
 ## 🎯 Visi & Misi
@@ -17,40 +19,48 @@ Menjadi bahasa pemrograman universal untuk blockchain yang memungkinkan develope
 ## 📅 Timeline Overview
 
 ```
-2024 Q4  ████████████████████████████████████████ Foundation
 2025 Q1  ████████████████████████████████████████ Core Language
-2025 Q2  ████████████████████████████████████████ Advanced Features  
+2025 Q2  ████████████████████████████████████████ Advanced Features
 2025 Q3  ████████████████████████████████████████ Ecosystem
 2025 Q4  ████████████████████████████████████████ Production Ready
-2026 Q1  ████████████████████████████████████████ Enterprise
+2026 Q1  ████████████████████████████████████████ Enterprise & Scale
+2026 Q2-Q1 2027  ███████████████████████████████ Innovation & Future
 ```
 
 ---
 
-## 🏗️ Phase 1: Foundation (Q4 2024) ✅
+## ✅ Pencapaian Terbaru (Nov 2025)
+- Benchmarking: Sistem benchmarking kinerja diperluas dengan KPI eksplisit untuk latensi cross-chain (avg/p95/p99) dan metrik gas; suite runtime mencakup benchmark Cross-chain dan Gas Optimization; integrasi tes modular memverifikasi pelaporan metrik.
+- Build & CI: Status build Windows native-only, compile-only; wrapper CLI untuk kompilasi file tunggal; pipeline modular berjalan di Windows.
+- Optimizer: API generic pass ditetapkan; constant folding dan dead code elimination aktif; benchmark optimasi tersedia.
+- Dokumentasi: Roadmap diperbarui; referensi cross-chain API tersedia.
+
+Catatan: Angka latensi/gas saat ini berasal dari harness sintetik di lingkungan compile-only Windows; akan diganti dengan metrik end-to-end saat runtime jaringan tersedia.
+
+## 🏗️ Phase 1: Core Language (Q1 2025) ✅
 
 **Status: COMPLETED**
 
 ### Objectives
-Membangun fondasi solid untuk bahasa OMEGA dan arsitektur compiler.
+Membangun kemampuan inti bahasa dan arsitektur compiler yang siap multi-target.
 
 ### Key Deliverables
 
-#### ✅ Language Design
+#### ✅ Language Specification
 - [x] **Language Specification v0.1**
   - Syntax dan semantics definition
   - Type system design
   - Built-in functions specification
   - Cross-chain primitives design
 
-#### ✅ Compiler Architecture
+#### ✅ Basic Compiler Architecture
 - [x] **Multi-target Compiler Design**
   - Lexer dan Parser implementation
   - AST (Abstract Syntax Tree) design
   - Intermediate Representation (OIR) design
   - Code generation framework
 
-#### ✅ Basic Target Support
+#### ✅ Core Target Code Generation
 - [x] **EVM Code Generation**
   - Solidity output generation
   - Basic optimization passes
@@ -78,9 +88,9 @@ Membangun fondasi solid untuk bahasa OMEGA dan arsitektur compiler.
 
 ---
 
-## 🚀 Phase 2: Core Language (Q1 2025)
+## 🧩 Phase 1.x: Enhancements (Q1 2025 — merged into Phase 2)
 
-**Status: IN PROGRESS**
+**Status: SUPERSEDED**
 
 ### Objectives
 Melengkapi fitur-fitur inti bahasa dan meningkatkan stabilitas compiler.
@@ -141,17 +151,21 @@ Mar 2025: Testing framework & optimization
 
 ---
 
-## ⚡ Phase 3: Advanced Features (Q2 2025)
+## ⚡ Phase 2: Advanced Features (Q2 2025)
 
-**Status: PLANNED**
+**Status: IN PROGRESS**
 
 ### Objectives
-Mengimplementasikan fitur-fitur advanced dan memperluas dukungan blockchain.
+Melengkapi fitur-fitur advanced, memperluas kemampuan lintas-rantai, dan meningkatkan DX.
 
-### Key Deliverables
+### Key Deliverables (penyelarasan)
+- [x] Cross-chain communication primitives — compile-only E2E + network harness (Windows native-only) committed
+- [x] Performance benchmarking & KPI integration (runtime cross-chain latency avg/p95/p99 + gas metrics, integration tests)
+- [ ] Advanced optimization passes
+- [ ] IDE integration (VS Code)
+- [ ] Package manager
 
-#### 🔮 Cross-Chain Features
-- [ ] **Cross-Chain Communication**
+- [ ] **Cross-Chain Features**
   - Message passing protocol
   - State synchronization
   - Event bridging
@@ -198,7 +212,8 @@ Mengimplementasikan fitur-fitur advanced dan memperluas dukungan blockchain.
 
 ### Target Metrics
 - 🎯 5+ blockchain targets supported
-- 🎯 Cross-chain latency <5s
+- 🎯 Cross-chain latency p95 <5s (baseline harness p95 ~250ms, synthetic)
+- 🎯 Gas per cross-chain function call p95 <60k gas (benchmark synthetic)
 - 🎯 IDE adoption rate >60%
 - 🎯 Package registry with 100+ packages
 
@@ -211,7 +226,7 @@ Jun 2025: IDE integration & package manager
 
 ---
 
-## 🌐 Phase 4: Ecosystem (Q3 2025)
+## 🌐 Phase 3: Ecosystem (Q3 2025)
 
 **Status: PLANNED**
 
@@ -276,7 +291,7 @@ Sep 2025: Monitoring & enterprise features
 
 ---
 
-## 🏆 Phase 5: Production Ready (Q4 2025)
+## 🏆 Phase 4: Production Ready (Q4 2025)
 
 **Status: PLANNED**
 
@@ -312,6 +327,10 @@ Mencapai production readiness dan mendorong adopsi mainstream.
   - Cross-chain latency reduction
   - Throughput improvements
 
+#### 🎯 Performance Benchmarks
+- [x] Initial runtime suite + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi (compile-only, Windows)
+- [ ] Extended end-to-end network benchmarking
+
 #### 🎯 Enterprise Support
 - [ ] **Commercial Licensing**
   - Enterprise license model
@@ -340,7 +359,7 @@ Dec 2025: Enterprise support & partnerships
 
 ---
 
-## 🚀 Phase 6: Enterprise & Scale (Q1 2026+)
+## 🚀 Phase 5: Enterprise & Scale (Q1 2026)
 
 **Status: FUTURE**
 
@@ -382,6 +401,34 @@ Menjadi standard industri untuk pengembangan multi-blockchain.
 
 ---
 
+## 🔮 Phase 6: Innovation & Future (Q2 2026 - Q1 2027+)
+
+**Status: FUTURE**
+
+### Objectives
+Mendorong inovasi jangka panjang dan adopsi standar industri.
+
+### Key Deliverables
+- [ ] **AI Integration**
+  - Smart contract generation
+  - Security analysis AI
+  - Gas optimization AI
+  - Code review automation
+- [ ] **Quantum Resistance**
+  - Post-quantum cryptography
+  - Quantum-safe signatures
+  - Future-proof security
+- [ ] **Next-Generation Features**
+  - New language capabilities
+  - Advanced interoperability
+  - Emerging runtime integrations
+- [ ] **Industry Standard Adoption**
+  - Formalization of specs
+  - Consortium/standards participation
+  - Reference implementations
+
+---
+
 ## 📊 Success Metrics
 
 ### Developer Adoption
@@ -397,6 +444,8 @@ Menjadi standard industri untuk pengembangan multi-blockchain.
 | Compilation Time | 5s | 3s | 2s | 1s | 0.5s |
 | Supported Blockchains | 2 | 5 | 7 | 10 | 15 |
 | Test Coverage | 80% | 90% | 95% | 98% | 99% |
+
+Catatan teknis: KPI latensi cross-chain dan metrik gas saat ini berasal dari sistem benchmarking sintetis (compile-only, Windows). Nilai akan dikalibrasi ulang dengan data end-to-end saat runtime jaringan tersedia.
 
 ### Ecosystem Growth
 | Metric | Q1 2025 | Q2 2025 | Q3 2025 | Q4 2025 | Q1 2026 |
@@ -472,7 +521,7 @@ Roadmap ini adalah dokumen hidup yang akan diperbarui berdasarkan:
 
 ---
 
-**Last Updated**: January 2025  
-**Next Review**: March 2025
+**Last Updated**: November 2025  
+**Next Review**: December 2025
 
 *Roadmap ini mencerminkan komitmen kami untuk membangun masa depan pengembangan blockchain yang lebih baik. Mari bersama-sama mewujudkan visi OMEGA!*

@@ -4,6 +4,11 @@
 ![Version](https://img.shields.io/badge/version-1.0.0-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Dokumentasi wiki ini menggambarkan ekosistem penuh OMEGA. Saat ini, pipeline CI yang aktif adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal.
+> - Untuk verifikasi dasar gunakan: `scripts/build_omega_native.ps1`, `omega.exe`/`omega.ps1` dengan `omega compile <file.mega>`, dan Native Runner (HTTP) `POST /compile`.
+> - Perintah seperti `omega build/test/deploy`, serta tooling non-native (`npm`, `mdBook`, `valgrind`, `cargo-tarpaulin`) bersifat forward-looking/opsional dan bisa belum aktif di wrapper. Coverage: `scripts/generate_coverage.ps1`.
+
 ## 📚 Quick Navigation
 
 | Getting Started | Language Reference | Development |
@@ -181,7 +186,7 @@ omega test
 - [x] Solana code generation
 
 ### Phase 2: Advanced Features (Q2 2025)
-- [ ] Cross-chain communication primitives
+- [x] Cross-chain communication primitives — compile-only E2E harness + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi
 - [ ] Advanced optimization passes
 - [ ] IDE integration (VS Code)
 - [ ] Package manager
@@ -195,7 +200,7 @@ omega test
 ### Phase 4: Production Ready (Q4 2025)
 - [ ] Mainnet deployments
 - [ ] Security audits
-- [ ] Performance benchmarks
+- [x] Performance benchmarks — initial runtime suite + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi (compile-only, Windows)
 - [ ] Enterprise features
 
 ## 📞 Support & Community

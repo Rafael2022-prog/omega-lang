@@ -1,5 +1,14 @@
 # OMEGA Self-Hosting Compiler Migration
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Dokumentasi ini berfokus pada self-hosting compiler dalam MEGA. Saat ini, pipeline CI yang aktif adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal.
+> - Gunakan skrip/perintah native berikut untuk verifikasi dasar:
+>   - `scripts/build_omega_native.ps1` untuk build lintas modul.
+>   - `omega.exe` atau `omega.ps1` dengan perintah: `omega compile <file.mega>`.
+>   - Native Runner (HTTP): `POST /compile` untuk validasi kompilasi di pipeline CI.
+> - Perintah seperti `omega build/test/deploy/bench` bersifat forward-looking di wrapper dan bisa belum aktif. Prioritaskan `omega compile`.
+> - Untuk cakupan, gunakan `scripts/generate_coverage.ps1`. Tooling non-native (`npm`, `mdBook`, `valgrind`, `cargo-tarpaulin`) opsional.
+
 ## 🚀 Transisi dari Rust ke MEGA
 
 Proyek OMEGA telah berhasil melakukan migrasi dari compiler Rust ke **self-hosting compiler** yang ditulis sepenuhnya dalam bahasa MEGA. Ini merupakan pencapaian penting dalam pengembangan bahasa pemrograman blockchain universal.
@@ -138,6 +147,11 @@ omega Makefile.mega self_compile_stage2
 
 ## 🧪 Testing & Validation
 
+> Catatan (Windows native-only, compile-only):
+> - Contoh perintah `omega test` dan `omega bench` di bawah bersifat forward-looking di wrapper CLI dan mungkin belum aktif.
+> - Untuk verifikasi dasar, prioritaskan kompilasi single-file: `omega compile tests/<nama_test>.mega` dan gunakan Native Runner (`POST /compile`) dalam pipeline CI.
+> - Gunakan `scripts/generate_coverage.ps1` untuk laporan cakupan di Windows.
+
 ### Test Suite Lengkap
 ```bash
 # Unit tests
@@ -254,29 +268,31 @@ omega Makefile.mega package
 
 ## 🔮 Future Roadmap
 
-### Phase 1: Stabilization (Q1 2025)
-- [ ] Complete test coverage
-- [ ] Performance optimization
-- [ ] Bug fixes dan stability
-- [ ] Documentation completion
+> Catatan kompatibilitas (Windows native-only, compile-only)
+
+### Phase 1: Core Language (Q1 2025) ✅
+- [x] Language specification
+- [x] Basic compiler architecture
+- [x] EVM code generation
+- [x] Solana code generation
 
 ### Phase 2: Advanced Features (Q2 2025)
-- [ ] Advanced optimizations
-- [ ] JIT compilation support
-- [ ] LLVM backend integration
-- [ ] WebAssembly target
+- [x] Cross-chain communication primitives — compile-only E2E harness + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi
+- [ ] Advanced optimization passes
+- [ ] IDE integration (VS Code)
+- [ ] Package manager
 
 ### Phase 3: Ecosystem (Q3 2025)
-- [ ] IDE integration improvements
-- [ ] Package manager integration
-- [ ] Cloud compilation service
-- [ ] CI/CD integration
+- [ ] Standard library expansion
+- [ ] DeFi protocol templates
+- [ ] Governance framework
+- [ ] Audit tools integration
 
-### Phase 4: Innovation (Q4 2025)
-- [ ] AI-assisted compilation
-- [ ] Formal verification integration
-- [ ] Advanced cross-chain features
-- [ ] Quantum-resistant cryptography
+### Phase 4: Production Ready (Q4 2025)
+- [ ] Mainnet deployments
+- [ ] Security audits
+- [x] Performance benchmarks — initial runtime suite + KPI latensi/gas terintegrasi (compile-only, Windows)
+- [ ] Enterprise features
 
 ## 🤝 Contributing
 
