@@ -301,7 +301,7 @@ omega test --benchmark
 }
 ```
 
-## 🏗️ Arsitektur Compiler
+## 📚 Arsitektur Compiler
 
 ```
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
@@ -347,9 +347,9 @@ make test
 - [x] EVM code generation
 - [x] Solana code generation
 
-### Phase 2: Advanced Features (Q2 2025)
+### Phase 2: Advanced Features (Q2 2025) ✅
 - [x] Cross-chain communication primitives — compile-only E2E harness + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi
-- [ ] Advanced optimization passes
+- [x] Advanced optimization passes — baseline compile-only (CSE + function inlining wiring, stats)
 - [ ] IDE integration (VS Code)
 - [ ] Package manager
 
@@ -587,9 +587,9 @@ make test
 - [x] EVM code generation
 - [x] Solana code generation
 
-### Phase 2: Advanced Features (Q2 2025)
+### Phase 2: Advanced Features (Q2 2025) ✅
 - [x] Cross-chain communication primitives — compile-only E2E harness + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi
-- [ ] Advanced optimization passes
+- [x] Advanced optimization passes — baseline compile-only (CSE + function inlining wiring, stats)
 - [ ] IDE integration (VS Code)
 - [ ] Package manager
 
