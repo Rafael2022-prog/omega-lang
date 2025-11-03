@@ -72,8 +72,14 @@ cd omega
 
 ### Install via Package Manager
 ```bash
-# Coming soon
-npm install -g @omega-lang/cli
+# NPM Package (Available for v1.2.0+)
+npm install -g @omega-lang/cli@latest
+
+# Chocolatey (Windows)
+choco install omega-lang
+
+# Homebrew (macOS/Linux) - Coming Soon
+# brew install omega-lang
 ```
 
 ## 🏗️ Quick Start

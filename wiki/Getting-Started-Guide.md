@@ -30,14 +30,20 @@ make install
 omega --version
 ```
 
-### Metode 2: Package Manager (Coming Soon)
+### Metode 2: Package Manager (Available v1.2.0+)
 
 ```bash
-# NPM (akan tersedia)
-npm install -g @omega-lang/cli
+# NPM Package (Available Now!)
+npm install -g @omega-lang/cli@latest
 
-# Homebrew (akan tersedia)
-brew install omega-lang
+# Chocolatey (Windows - Available Now!)
+choco install omega-lang
+
+# Homebrew (macOS/Linux - Coming Soon)
+# brew install omega-lang
+
+# Verify installation
+omega --version
 ```
 
 ## 🏗️ Membuat Proyek Pertama
