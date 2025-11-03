@@ -214,5 +214,47 @@ test_results/
 # Release artifacts
 release-assets/
 
+# ========================================
+# PRIVATE/INTERNAL FILES - DO NOT PUBLISH
+# ========================================
+# These files contain private information, templates, 
+# or internal documentation not meant for public repository
+
+# GitHub Release Materials (private/internal)
+GITHUB_RELEASE_NOTES_*.md
+*RELEASE_NOTES*.md
+
+# Social Media Templates (private/internal)
+SOCIAL_MEDIA_TEMPLATES_*.md
+*SOCIAL_MEDIA*.md
+
+# Community Announcements (private/internal)
+COMMUNITY_ANNOUNCEMENT_*.md
+*ANNOUNCEMENT*.md
+
+# Implementation Reports (private/internal)
+IMPLEMENTATION_COMPLETE_*.md
+*IMPLEMENTATION*.md
+
+# Documentation Website (development/private)
+docs-website/
+**/docs-website/
+
+# Distribution Scripts (contain sensitive deployment info)
+scripts/package_distribution.ps1
+scripts/share_community_announcement.ps1
+scripts/update_documentation_website.ps1
+**/package_distribution.*
+**/share_community_announcement.*
+**/update_documentation_website.*
+
+# Private Distribution Packages
+dist/
+**/dist/
+
+# Blockchain Targets Restoration (private analysis)
+BLOCKCHAIN_TARGETS_RESTORATION_REPORT.md
+*RESTORATION_REPORT*.md
+
 # Allow env example file (override any earlier ignore rules)
 !.env.example
