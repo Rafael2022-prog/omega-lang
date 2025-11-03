@@ -1,0 +1,239 @@
+// OMEGA Common Subexpression Elimination (CSE) Pass
+// Menghapus perhitungan ekspresi yang sama berulang dengan mengganti ke hasil sebelumnya
+
+import "../ir/ir.mega";
+import "./base_optimizer.mega";
+
+/// Common Subexpression Elimination pass
+blockchain CommonSubexpressionEliminationPass {
+    state {
+        string pass_name;
+        string description;
+        uint256 expressions_eliminated;
+        uint256 assignments_inserted;
+        uint256 checks_performed;
+        bool initialized;
+    }
+
+    /// Constructor
+    constructor() {
+        pass_name = "common_subexpression_elimination";
+        description = "Eliminates repeated pure expressions by reusing previous results";
+        expressions_eliminated = 0;
+        assignments_inserted = 0;
+        checks_performed = 0;
+        initialized = true;
+    }
+
+    /// Implementasi OptimizationPass trait
+    function run(IRModule memory module) public returns (IRModule memory) {
+        require(initialized, "CommonSubexpressionEliminationPass not initialized");
+
+        expressions_eliminated = 0;
+        assignments_inserted = 0;
+        checks_performed = 0;
+
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            module.functions[i] = optimize_function(module.functions[i]);
+        }
+
+        return module;
+    }
+
+    /// Get pass name
+    function get_name() public view returns (string memory) {
+        return pass_name;
+    }
+
+    /// Get pass description
+    function get_description() public view returns (string memory) {
+        return description;
+    }
+
+    /// Check if pass can run on module
+    function can_run(IRModule memory module) public pure returns (bool) {
+        return module.functions.length > 0;
+    }
+
+    /// Estimate improvement
+    function estimate_improvement(IRModule memory module) public pure returns (uint256) {
+        // Perkiraan konservatif: 3-8% instruksi dapat dieliminasi lewat CSE
+        uint256 total = 0;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            total += module.functions[i].body.instructions.length;
+        }
+        return (total * 5) / 100;
+    }
+
+    /// Optimize single function
+    function optimize_function(IRFunction memory func) private returns (IRFunction memory) {
+        func.body = optimize_block(func.body);
+        return func;
+    }
+
+    /// Optimize single block using local CSE (per-basic-block)
+    function optimize_block(IRBlock memory block) private returns (IRBlock memory) {
+        // Peta dari kunci ekspresi -> indeks instruksi pertama (untuk cek keamanan)
+        mapping(string => uint256) first_index;
+        // Peta dari kunci ekspresi -> hasil variabel dari perhitungan pertama
+        mapping(string => IROperand) first_result;
+        // Peta dari kunci ekspresi -> apakah sudah ada
+        mapping(string => bool) seen;
+
+        for (uint256 i = 0; i < block.instructions.length; i++) {
+            IRInstruction memory instr = block.instructions[i];
+
+            // Hanya ekspresi murni yang dipertimbangkan untuk CSE
+            if (!is_pure_expression(instr)) {
+                continue;
+            }
+
+            string memory key = expression_key(instr);
+            checks_performed++;
+
+            if (!seen[key]) {
+                // Simpan pertama kali
+                seen[key] = true;
+                first_index[key] = i;
+                first_result[key] = instr.result;
+                continue;
+            }
+
+            // Sudah pernah muncul – cek keamanan reuse
+            uint256 prev_idx = first_index[key];
+            IROperand memory prev_res = first_result[key];
+            if (is_safe_to_reuse(block.instructions, prev_idx, i, instr, prev_res)) {
+                // Ganti perhitungan kedua dengan ASSIGN dari hasil sebelumnya ke target saat ini
+                IRInstruction memory assignInstr = make_assign(instr.result, prev_res);
+                block.instructions[i] = assignInstr;
+                expressions_eliminated++;
+                assignments_inserted++;
+            }
+        }
+
+        return block;
+    }
+
+    /// Determine if instruction is a pure, side-effect-free expression
+    function is_pure_expression(IRInstruction memory instr) private pure returns (bool) {
+        // Ekspresi aritmatika/logika tanpa I/O atau memory store dianggap murni
+        return instr.opcode == IROpcode.ADD ||
+               instr.opcode == IROpcode.SUB ||
+               instr.opcode == IROpcode.MUL ||
+               instr.opcode == IROpcode.DIV ||
+               instr.opcode == IROpcode.MOD ||
+               instr.opcode == IROpcode.AND ||
+               instr.opcode == IROpcode.OR  ||
+               instr.opcode == IROpcode.XOR ||
+               instr.opcode == IROpcode.NOT ||
+               instr.opcode == IROpcode.NEG ||
+               instr.opcode == IROpcode.CMP_EQ ||
+               instr.opcode == IROpcode.CMP_NE ||
+               instr.opcode == IROpcode.CMP_LT ||
+               instr.opcode == IROpcode.CMP_LE ||
+               instr.opcode == IROpcode.CMP_GT ||
+               instr.opcode == IROpcode.CMP_GE;
+    }
+
+    /// Build a stable key for an expression based on opcode and operands
+    function expression_key(IRInstruction memory instr) private pure returns (string memory) {
+        // Kunci sederhana: opcode + semua operand (nama + tipe)
+        bytes memory acc = abi.encodePacked(uint256(instr.opcode));
+        for (uint256 i = 0; i < instr.operands.length; i++) {
+            acc = abi.encodePacked(acc, instr.operands[i].value, uint256(instr.operands[i].type));
+        }
+        return string(acc);
+    }
+
+    /// Check if it is safe to reuse previous result between prev_idx and curr_idx
+    function is_safe_to_reuse(
+        IRInstruction[] memory instructions,
+        uint256 prev_idx,
+        uint256 curr_idx,
+        IRInstruction memory current,
+        IROperand memory prev_result
+    ) private pure returns (bool) {
+        // Variabel yang tidak boleh diubah di antara dua perhitungan: semua operand + prev_result
+        string[] memory sensitive = collect_sensitive_names(current, prev_result);
+
+        // Scan instruksi di antaranya; jika ada yang menulis ke variabel sensitif, tidak aman
+        for (uint256 k = prev_idx + 1; k < curr_idx; k++) {
+            if (writes_any_of(instructions[k], sensitive)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// Collect names of operands and previous result to protect
+    function collect_sensitive_names(IRInstruction memory instr, IROperand memory prev_result) private pure returns (string[] memory) {
+        uint256 n = instr.operands.length;
+        string[] memory names = new string[](n + 1);
+        for (uint256 i = 0; i < n; i++) {
+            if (instr.operands[i].type == IROperandType.VARIABLE || instr.operands[i].type == IROperandType.GLOBAL) {
+                names[i] = instr.operands[i].value;
+            } else {
+                names[i] = ""; // non-variable operand
+            }
+        }
+        names[n] = prev_result.value;
+        return names;
+    }
+
+    /// Does instruction write to any of the given variable names?
+    function writes_any_of(IRInstruction memory instr, string[] memory names) private pure returns (bool) {
+        // Penulisan dianggap terjadi jika instruksi mendefinisikan result variabel
+        if (instr.result.type == IROperandType.VARIABLE || instr.result.type == IROperandType.GLOBAL) {
+            for (uint256 i = 0; i < names.length; i++) {
+                if (bytes(names[i]).length > 0 && keccak256(bytes(instr.result.value)) == keccak256(bytes(names[i]))) {
+                    return true;
+                }
+            }
+        }
+        // Beberapa opkode memiliki efek tulis eksplisit (store, assign, move)
+        if (instr.opcode == IROpcode.STORE || instr.opcode == IROpcode.ASSIGN || instr.opcode == IROpcode.MOVE) {
+            // Target tulis biasanya berada pada operand[0]
+            if (instr.operands.length > 0) {
+                for (uint256 i = 0; i < names.length; i++) {
+                    if (bytes(names[i]).length > 0 && keccak256(bytes(instr.operands[0].value)) == keccak256(bytes(names[i]))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /// Make ASSIGN instruction: target <- source
+    function make_assign(IROperand memory target, IROperand memory source) private pure returns (IRInstruction memory) {
+        IROperand[] memory ops = new IROperand[](2);
+        ops[0] = IROperand({
+            type: IROperandType.VARIABLE,
+            value: target.value,
+            data_type: target.data_type
+        });
+        ops[1] = IROperand({
+            type: IROperandType.VARIABLE,
+            value: source.value,
+            data_type: source.data_type
+        });
+        return IRInstruction({
+            opcode: IROpcode.ASSIGN,
+            operands: ops,
+            result: target,
+            metadata: "cse_assign"
+        });
+    }
+
+    /// Get optimization statistics
+    function get_stats() public view returns (uint256, uint256, uint256) {
+        return (expressions_eliminated, assignments_inserted, checks_performed);
+    }
+
+    /// Reset statistics
+    function reset_stats() public {
+        expressions_eliminated = 0;
+        assignments_inserted = 0;
+        checks_performed = 0;
+    }
+}

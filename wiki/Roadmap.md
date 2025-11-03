@@ -32,7 +32,7 @@ Menjadi bahasa pemrograman universal untuk blockchain yang memungkinkan develope
 ## ✅ Pencapaian Terbaru (Nov 2025)
 - Benchmarking: Sistem benchmarking kinerja diperluas dengan KPI eksplisit untuk latensi cross-chain (avg/p95/p99) dan metrik gas; suite runtime mencakup benchmark Cross-chain dan Gas Optimization; integrasi tes modular memverifikasi pelaporan metrik.
 - Build & CI: Status build Windows native-only, compile-only; wrapper CLI untuk kompilasi file tunggal; pipeline modular berjalan di Windows.
-- Optimizer: API generic pass ditetapkan; constant folding dan dead code elimination aktif; benchmark optimasi tersedia.
+- Optimizer: API generic pass ditetapkan; constant folding, dead code elimination, common subexpression elimination, dan function inlining terintegrasi (wiring di optimizer_core, statistik tersedia); benchmark optimasi tersedia.
 - Dokumentasi: Roadmap diperbarui; referensi cross-chain API tersedia.
 
 Catatan: Angka latensi/gas saat ini berasal dari harness sintetik di lingkungan compile-only Windows; akan diganti dengan metrik end-to-end saat runtime jaringan tersedia.
@@ -153,7 +153,9 @@ Mar 2025: Testing framework & optimization
 
 ## ⚡ Phase 2: Advanced Features (Q2 2025)
 
-**Status: IN PROGRESS**
+**Status: COMPLETED**
+
+Catatan cakupan: Penyelesaian pada baseline compile-only Windows (wiring optimizer: CSE + function inlining, statistik; primitives lintas-rantai; benchmarking & KPI). Item DX (IDE) dan package manager yang tersisa dilanjutkan sebagai backlog awal Phase 3.
 
 ### Objectives
 Melengkapi fitur-fitur advanced, memperluas kemampuan lintas-rantai, dan meningkatkan DX.
@@ -161,7 +163,7 @@ Melengkapi fitur-fitur advanced, memperluas kemampuan lintas-rantai, dan meningk
 ### Key Deliverables (penyelarasan)
 - [x] Cross-chain communication primitives — compile-only E2E + network harness (Windows native-only) committed
 - [x] Performance benchmarking & KPI integration (runtime cross-chain latency avg/p95/p99 + gas metrics, integration tests)
-- [ ] Advanced optimization passes
+- [x] Advanced optimization passes — baseline compile-only (CSE + function inlining wiring, stats)
 - [ ] IDE integration (VS Code)
 - [ ] Package manager
 

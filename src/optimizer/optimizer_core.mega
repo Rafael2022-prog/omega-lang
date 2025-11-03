@@ -4,6 +4,8 @@
 import "../ir/ir.mega";
 import "./base_optimizer.mega";
 import "./constant_folding.mega";
+import "./common_subexpression_elimination.mega";
+import "./function_inlining.mega";
 import "./dead_code_elimination.mega";
 import "./peephole_optimizer.mega";
 import "./loop_optimizer.mega";
@@ -23,6 +25,8 @@ blockchain OmegaOptimizer {
         DeadCodeEliminationPass dead_code_elimination;
         PeepholeOptimizerPass peephole_optimizer;
         LoopOptimizerPass loop_optimizer;
+        CommonSubexpressionEliminationPass common_subexpression_elimination;
+        FunctionInliningPass function_inlining;
         
         // Statistics and metrics
         OptimizationStats global_stats;
@@ -89,6 +93,8 @@ blockchain OmegaOptimizer {
         dead_code_elimination = new DeadCodeEliminationPass();
         peephole_optimizer = new PeepholeOptimizerPass();
         loop_optimizer = new LoopOptimizerPass();
+        common_subexpression_elimination = new CommonSubexpressionEliminationPass();
+        function_inlining = new FunctionInliningPass();
         
         total_passes_run = 0;
         total_optimizations_applied = 0;
@@ -103,6 +109,8 @@ blockchain OmegaOptimizer {
         _register_pass("dead_code_elimination", "Dead code elimination", OptimizationLevel.O1, true, 90);
         _register_pass("peephole_optimization", "Peephole optimizations", OptimizationLevel.O2, true, 80);
         _register_pass("loop_optimization", "Loop optimizations", OptimizationLevel.O2, true, 70);
+        _register_pass("common_subexpression_elimination", "Common subexpression elimination", OptimizationLevel.O2, true, 75);
+        _register_pass("function_inlining", "Function inlining for small non-recursive functions", OptimizationLevel.O2, true, 60);
     }
     
     /// Register optimization pass
@@ -275,6 +283,16 @@ blockchain OmegaOptimizer {
             result.applied = !_modules_equal(module, optimized);
             result.improvements = _count_improvements(module, optimized);
             result.details = "Loop optimizations applied";
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("common_subexpression_elimination"))) {
+            IRModule memory optimized = common_subexpression_elimination.run(module);
+            result.applied = !_modules_equal(module, optimized);
+            result.improvements = _count_improvements(module, optimized);
+            result.details = "Common subexpression elimination applied";
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("function_inlining"))) {
+            IRModule memory optimized = function_inlining.run(module);
+            result.applied = !_modules_equal(module, optimized);
+            result.improvements = _count_improvements(module, optimized);
+            result.details = "Function inlining applied";
         }
         
         result.execution_time = block.timestamp - start_time;
@@ -297,6 +315,10 @@ blockchain OmegaOptimizer {
             return peephole_optimizer.run(module);
         } else if (keccak256(bytes(pass_result.pass_name)) == keccak256(bytes("loop_optimization"))) {
             return loop_optimizer.run(module);
+        } else if (keccak256(bytes(pass_result.pass_name)) == keccak256(bytes("common_subexpression_elimination"))) {
+            return common_subexpression_elimination.run(module);
+        } else if (keccak256(bytes(pass_result.pass_name)) == keccak256(bytes("function_inlining"))) {
+            return function_inlining.run(module);
         }
         
         return module;
@@ -491,6 +513,8 @@ blockchain OmegaOptimizer {
         dead_code_elimination.reset_stats();
         peephole_optimizer.reset_stats();
         loop_optimizer.reset_stats();
+        common_subexpression_elimination.reset_stats();
+        function_inlining.reset_stats();
     }
     
     /// Estimate optimization benefit
@@ -519,6 +543,10 @@ blockchain OmegaOptimizer {
             return (total_instructions * 7) / 100; // 7% improvement estimate
         } else if (keccak256(bytes(pass_name)) == keccak256(bytes("loop_optimization"))) {
             return (total_instructions * 15) / 100; // 15% improvement estimate
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("common_subexpression_elimination"))) {
+            return (total_instructions * 5) / 100; // 5% improvement estimate
+        } else if (keccak256(bytes(pass_name)) == keccak256(bytes("function_inlining"))) {
+            return (total_instructions * 4) / 100; // 4% improvement estimate
         }
         
         return 0;

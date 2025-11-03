@@ -1,0 +1,234 @@
+// OMEGA Function Inlining Pass
+// Mengganti pemanggilan fungsi (CALL) dengan isi fungsi yang dipanggil untuk mengurangi overhead pemanggilan
+
+import "../ir/ir.mega";
+import "./base_optimizer.mega";
+
+/// Function inlining optimization pass (sederhana, non-rekursif, berbasis heuristik ukuran)
+blockchain FunctionInliningPass {
+    state {
+        string pass_name;
+        string description;
+        uint256 calls_inlined;
+        uint256 instructions_inserted;
+        uint256 inline_threshold;
+        bool initialized;
+    }
+
+    /// Constructor
+    constructor() {
+        pass_name = "function_inlining";
+        description = "Replaces calls to small, non-recursive functions with inlined bodies";
+        calls_inlined = 0;
+        instructions_inserted = 0;
+        inline_threshold = 16; // jumlah instruksi maksimum fungsi yang eligible untuk inline
+        initialized = true;
+    }
+
+    /// Implementasi OptimizationPass trait
+    function run(IRModule memory module) public returns (IRModule memory) {
+        require(initialized, "FunctionInliningPass not initialized");
+
+        calls_inlined = 0;
+        instructions_inserted = 0;
+
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            module.functions[i] = inline_in_function(module.functions[i], module);
+        }
+        return module;
+    }
+
+    /// Get pass name
+    function get_name() public view returns (string memory) { return pass_name; }
+    /// Get pass description
+    function get_description() public view returns (string memory) { return description; }
+    /// Check if pass can run
+    function can_run(IRModule memory module) public pure returns (bool) { return module.functions.length > 0; }
+    /// Estimate improvement
+    function estimate_improvement(IRModule memory module) public pure returns (uint256) {
+        // Inline biasanya memberi manfaat kecil hingga menengah tergantung pola pemanggilan
+        uint256 total = 0;
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            total += module.functions[i].body.instructions.length;
+        }
+        return (total * 4) / 100; // taksiran konservatif 4%
+    }
+
+    /// Inline calls within a function
+    function inline_in_function(IRFunction memory func, IRModule memory module) private returns (IRFunction memory) {
+        func.body = inline_in_block(func, func.body, module);
+        return func;
+    }
+
+    /// Inline calls found in a block
+    function inline_in_block(IRFunction memory caller, IRBlock memory block, IRModule memory module) private returns (IRBlock memory) {
+        uint256 i = 0;
+        while (i < block.instructions.length) {
+            IRInstruction memory instr = block.instructions[i];
+            if (instr.opcode == IROpcode.CALL && instr.operands.length > 0) {
+                string memory callee_name = instr.operands[0].value;
+                IRFunction memory callee = find_function(module, callee_name);
+                if (should_inline(caller, callee, callee_name)) {
+                    block = inline_call(block, i, instr, callee);
+                    calls_inlined++;
+                    // Setelah penggantian, posisi i menunjuk ke akhir urutan inline; lanjutkan ke instruksi berikutnya
+                    i++; 
+                    continue;
+                }
+            }
+            i++;
+        }
+        return block;
+    }
+
+    /// Lookup function by name
+    function find_function(IRModule memory module, string memory name) private pure returns (IRFunction memory) {
+        for (uint256 i = 0; i < module.functions.length; i++) {
+            if (keccak256(bytes(module.functions[i].name)) == keccak256(bytes(name))) {
+                return module.functions[i];
+            }
+        }
+        // Return empty stub when not found
+        IRFunction memory empty;
+        return empty;
+    }
+
+    /// Decide if callee should be inlined
+    function should_inline(IRFunction memory caller, IRFunction memory callee, string memory callee_name) private view returns (bool) {
+        if (bytes(callee.name).length == 0) return false; // not found
+        if (keccak256(bytes(caller.name)) == keccak256(bytes(callee_name))) return false; // prevent obvious self-recursion
+        if (callee.is_public) return false; // avoid inlining public ABI functions
+        uint256 size = callee.body.instructions.length;
+        return size > 0 && size <= inline_threshold;
+    }
+
+    /// Inline a single CALL at index into the block
+    function inline_call(IRBlock memory block, uint256 call_index, IRInstruction memory call_instr, IRFunction memory callee) private returns (IRBlock memory) {
+        // Build parameter mapping: param name -> argument operand
+        mapping(string => IROperand) param_map;
+        uint256 arg_base = 1; // operand[0] is function name, args start from 1
+        for (uint256 p = 0; p < callee.parameters.length && (arg_base + p) < call_instr.operands.length; p++) {
+            param_map[callee.parameters[p].name] = call_instr.operands[arg_base + p];
+        }
+
+        // Clone callee instructions with substitution
+        IRInstruction[] memory inlined = new IRInstruction[](callee.body.instructions.length + 1); // +1 for return assign
+        uint256 out = 0;
+        IROperand memory ret_value;
+        bool has_return = false;
+
+        // Map to rename local result variables to avoid collisions
+        mapping(string => string) rename;
+        uint256 rename_seq = 0;
+
+        for (uint256 k = 0; k < callee.body.instructions.length; k++) {
+            IRInstruction memory ci = callee.body.instructions[k];
+            if (ci.opcode == IROpcode.RETURN) {
+                // capture return value
+                if (ci.operands.length > 0) {
+                    ret_value = substitute_operand(ci.operands[0], param_map, rename);
+                    has_return = true;
+                }
+                // omit RETURN itself
+                continue;
+            }
+
+            // Substitute operands
+            IROperand[] memory new_ops = new IROperand[](ci.operands.length);
+            for (uint256 j = 0; j < ci.operands.length; j++) {
+                new_ops[j] = substitute_operand(ci.operands[j], param_map, rename);
+            }
+
+            // Rename result variable if needed
+            IROperand memory new_res = ci.result;
+            if (new_res.type == IROperandType.VARIABLE && bytes(new_res.value).length > 0) {
+                string memory mapped = rename[new_res.value];
+                if (bytes(mapped).length == 0) {
+                    // create a unique name for local result
+                    mapped = string(abi.encodePacked("inline_", callee.name, "_", uint_to_string(rename_seq)));
+                    rename[new_res.value] = mapped;
+                    rename_seq++;
+                }
+                new_res.value = mapped;
+            }
+
+            inlined[out] = IRInstruction({
+                opcode: ci.opcode,
+                operands: new_ops,
+                result: new_res,
+                metadata: string(abi.encodePacked("inlined_from:", callee.name))
+            });
+            out++;
+        }
+
+        // Append assignment of return value to call result (if any)
+        if (has_return) {
+            IRInstruction memory retAssign = make_assign(call_instr.result, ret_value);
+            inlined[out] = retAssign;
+            out++;
+        }
+
+        // Build new instruction array for the block
+        uint256 new_size = block.instructions.length - 1 + out; // remove CALL (1), insert out
+        IRInstruction[] memory new_instrs = new IRInstruction[](new_size);
+
+        // Copy before CALL
+        for (uint256 a = 0; a < call_index; a++) {
+            new_instrs[a] = block.instructions[a];
+        }
+        // Insert inlined sequence
+        for (uint256 b = 0; b < out; b++) {
+            new_instrs[call_index + b] = inlined[b];
+        }
+        // Copy after CALL
+        uint256 dst = call_index + out;
+        for (uint256 c = call_index + 1; c < block.instructions.length; c++) {
+            new_instrs[dst] = block.instructions[c];
+            dst++;
+        }
+
+        block.instructions = new_instrs;
+        instructions_inserted += out;
+        return block;
+    }
+
+    /// Substitute operand: parameters are replaced by caller arguments, others unchanged; apply rename for locals
+    function substitute_operand(IROperand memory op, mapping(string => IROperand) storage param_map, mapping(string => string) storage rename) private view returns (IROperand memory) {
+        if (op.type == IROperandType.VARIABLE || op.type == IROperandType.GLOBAL) {
+            IROperand memory mapped = param_map[op.value];
+            if (bytes(mapped.value).length != 0) {
+                return mapped;
+            }
+            string memory rn = rename[op.value];
+            if (bytes(rn).length != 0) {
+                return IROperand({ type: op.type, value: rn, data_type: op.data_type });
+            }
+        }
+        return op;
+    }
+
+    /// Make ASSIGN instruction: target <- source
+    function make_assign(IROperand memory target, IROperand memory source) private pure returns (IRInstruction memory) {
+        IROperand[] memory ops = new IROperand[](2);
+        ops[0] = IROperand({ type: IROperandType.VARIABLE, value: target.value, data_type: target.data_type });
+        ops[1] = IROperand({ type: IROperandType.VARIABLE, value: source.value, data_type: source.data_type });
+        return IRInstruction({ opcode: IROpcode.ASSIGN, operands: ops, result: target, metadata: "inline_assign" });
+    }
+
+    /// Utils: convert uint to string
+    function uint_to_string(uint256 v) private pure returns (string memory) {
+        if (v == 0) return "0";
+        uint256 temp = v;
+        uint256 digits = 0;
+        while (temp != 0) { digits++; temp /= 10; }
+        bytes memory buf = new bytes(digits);
+        uint256 idx = digits;
+        while (v != 0) { idx--; buf[idx] = bytes1(uint8(48 + (v % 10))); v /= 10; }
+        return string(buf);
+    }
+
+    /// Get optimization statistics
+    function get_stats() public view returns (uint256, uint256) { return (calls_inlined, instructions_inserted); }
+    /// Reset statistics
+    function reset_stats() public { calls_inlined = 0; instructions_inserted = 0; }
+}
