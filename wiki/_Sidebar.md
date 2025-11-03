@@ -70,7 +70,7 @@ omega deploy    # Deploy contracts
 ### 📊 Project Status
 
 #### 🏗️ Current Phase
-**Phase 2: Core Language (Q1 2025)**
+**Phase 2: Advanced Features (Q2 2025) — Completed**
 
 #### 📈 Progress
 - ✅ Language Specification
@@ -128,4 +128,4 @@ omega deploy    # Deploy contracts
 
 ---
 
-*Last Updated: January 2025*
+*Last Updated: November 2025*
