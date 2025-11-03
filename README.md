@@ -319,8 +319,8 @@ omega test
 ### Phase 2: Advanced Features (Q2 2025) ✅
 - [x] Cross-chain communication primitives — compile-only E2E harness + KPI latensi cross-chain (avg/p95/p99) & metrik gas terintegrasi
 - [x] Advanced optimization passes — baseline compile-only (CSE + function inlining wiring, stats)
-- [ ] IDE integration (VS Code)
-- [ ] Package manager
+- [x] IDE integration (VS Code)
+- [x] Package manager
 
 ### Phase 3: Ecosystem (Q3 2025)
 - [ ] Standard library expansion
