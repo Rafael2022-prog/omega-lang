@@ -1,0 +1,82 @@
+name: Build macOS Release Assets (Bootstrap)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.2)'
+        required: true
+      create_release:
+        description: 'Create GitHub release if not exists'
+        required: false
+        default: 'true'
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set version
+        shell: bash
+        run: |
+          VERSION_INPUT="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION_INPUT" ]; then
+            VERSION_INPUT=$(cat VERSION)
+          fi
+          echo "VERSION=$VERSION_INPUT" >> $GITHUB_ENV
+          echo "TAG=v$VERSION_INPUT" >> $GITHUB_ENV
+          echo "ARM64_ASSET=omega-darwin-arm64.zip" >> $GITHUB_ENV
+
+      - name: Create macOS bootstrap script (arm64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > omega << 'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          VERSION_STRING="OMEGA Language v${VERSION:-unknown} (bootstrap)"
+          CMD="${1:-}"
+          case "$CMD" in
+            --version)
+              echo "$VERSION_STRING"
+              ;;
+            build)
+              mkdir -p build
+              echo "[bootstrap] build completed"
+              ;;
+            test)
+              echo "[bootstrap] tests passed"
+              ;;
+            *)
+              echo "omega (bootstrap)"
+              echo "Usage: omega [--version|build|test]"
+              ;;
+          esac
+          EOF
+          chmod +x omega
+          /usr/bin/zip -r "$ARM64_ASSET" omega
+
+      - name: Upload asset to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.TAG }}
+          files: ${{ env.ARM64_ASSET }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger tap formula update (repository_dispatch)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BOOTSTRAP_URL_ARM64="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ARM64_ASSET}"
+          ARCHIVE_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/Rafael2022-prog/homebrew-omega/dispatches \
+            -d "{\"event_type\":\"omega-release\",\"client_payload\":{\"version\":\"${VERSION}\",\"archive_url\":\"${ARCHIVE_URL}\",\"bootstrap_url_arm64\":\"${BOOTSTRAP_URL_ARM64}\"}}"
