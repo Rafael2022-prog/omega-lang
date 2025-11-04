@@ -37,7 +37,7 @@ jobs:
           cat > omega << 'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
-          VERSION_STRING="OMEGA Language v${VERSION:-unknown} (bootstrap)"
+          VERSION_STRING="OMEGA Language v__VERSION__ (bootstrap)"
           CMD="${1:-}"
           case "$CMD" in
             --version)
@@ -56,6 +56,8 @@ jobs:
               ;;
           esac
           EOF
+          # Embed actual version string into the script
+          sed -i '' "s/__VERSION__/${VERSION}/g" omega
           chmod +x omega
           /usr/bin/zip -r "$ARM64_ASSET" omega
 
