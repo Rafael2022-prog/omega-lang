@@ -475,6 +475,7 @@ blockchain TypeErrors {
         all_results.add_test_result(test_basic_solana_compilation());
         all_results.add_test_result(test_cross_chain_compilation());
         all_results.add_test_result(test_defi_protocol_compilation());
+        all_results.add_test_result(test_cross_chain_e2e_compile_only()); // compile-only + network harness
         all_results.add_test_result(test_network_harness());
         all_results.add_test_result(test_error_handling());
         all_results.add_test_result(test_performance_benchmarks());
@@ -483,6 +484,95 @@ blockchain TypeErrors {
         runner.generate_integration_report(all_results);
         
         return all_results;
+    }
+    
+    // Cross-Chain E2E (Compile-Only) Test
+    function test_cross_chain_e2e_compile_only() public returns (TestResult) {
+        TestCase test_case = TestCase({
+            id: "cross_chain_e2e_compile_only",
+            name: "Cross-Chain E2E (Compile-Only)",
+            description: "Compile std.bridge usage for EVM and Solana and verify network harness connectivity.",
+            targets: ["evm", "solana"],
+            source_code: `
+import std.bridge.{CrossChainMessage, BridgeValidator};
+
+blockchain CrossChainBridge {
+    state {
+        mapping(bytes32 => bool) processed_messages;
+    }
+    
+    function bridge_to_solana(bytes recipient, bytes payload, uint256 nonce) public {
+        CrossChainMessage message = CrossChainMessage({
+            source_chain: 1,
+            dest_chain: 101,
+            sender: msg.sender,
+            recipient: recipient,
+            payload: payload,
+            nonce: nonce
+        });
+        bytes encoded = BridgeValidator.encode_message(message);
+        bytes32 message_hash = hash.keccak256(encoded);
+        require(BridgeValidator.verify_signatures(message_hash, new bytes[](0)), "Invalid signatures");
+        processed_messages[message_hash] = true;
+    }
+}
+`,
+            expected_outputs: {
+                "evm": ExpectedOutput({
+                    success: true,
+                    contains_patterns: [
+                        "CrossChainMessage",
+                        "BridgeValidator.encode_message",
+                        "keccak256"
+                    ],
+                    compilation_time_ms: 4000
+                }),
+                "solana": ExpectedOutput({
+                    success: true,
+                    contains_patterns: [
+                        "CrossChainMessage",
+                        "BridgeValidator",
+                        "pub struct"
+                    ],
+                    compilation_time_ms: 6000
+                })
+            },
+            timeout_ms: 20000
+        });
+        
+        TestResult compile_result = runner.execute_test_case(test_case);
+        
+        NetworkConfig[] networks = [
+            NetworkConfig({
+                name: "ethereum_sepolia",
+                network_type: NetworkType.EVM,
+                rpc_url: "https://sepolia.infura.io/v3/test",
+                chain_id: 11155111,
+                gas_price: 20000000000
+            }),
+            NetworkConfig({
+                name: "solana_devnet",
+                network_type: NetworkType.Solana,
+                rpc_url: "https://api.devnet.solana.com",
+                chain_id: 0,
+                gas_price: 5000
+            })
+        ];
+        
+        uint256 connected = 0;
+        for (uint256 i = 0; i < networks.length; i++) {
+            bool ok = runner.test_network_connection(networks[i]);
+            if (ok) { connected++; }
+        }
+        
+        TestResult result = TestResult::new("cross_chain_e2e_compile_only");
+        if (compile_result.status == TestStatus.Passed && connected == networks.length) {
+            result.mark_passed();
+        } else {
+            result.mark_failed("Compilation or network connectivity failed");
+        }
+        
+        return result;
     }
 }
 

@@ -1,0 +1,52 @@
+// Governance Framework — Governor (compile-only scaffolding)
+// NOTE: Minimal proposal lifecycle without on-chain execution logic.
+
+blockchain Governor {
+    state {
+        uint256 proposal_count;
+        mapping(uint256 => string) proposals;
+        mapping(uint256 => uint256) forVotes;
+        mapping(uint256 => uint256) againstVotes;
+        mapping(uint256 => bool) queued;
+        mapping(uint256 => bool) executed;
+        address timelock;
+    }
+
+    event ProposalCreated(uint256 indexed id, string description);
+    event VoteCast(address indexed voter, uint256 indexed id, bool support, uint256 weight);
+    event ProposalQueued(uint256 indexed id);
+    event ProposalExecuted(uint256 indexed id);
+
+    constructor(address _timelock) {
+        timelock = _timelock;
+    }
+
+    function propose(string description) public returns (uint256) {
+        proposal_count += 1;
+        proposals[proposal_count] = description;
+        emit ProposalCreated(proposal_count, description);
+        return proposal_count;
+    }
+
+    function vote(uint256 id, bool support, uint256 weight) public returns (bool) {
+        require(proposals[id] != "", "Invalid proposal");
+        if (support) { forVotes[id] += weight; } else { againstVotes[id] += weight; }
+        emit VoteCast(msg.sender, id, support, weight);
+        return true;
+    }
+
+    function queue(uint256 id) public returns (bool) {
+        require(proposals[id] != "", "Invalid proposal");
+        queued[id] = true;
+        emit ProposalQueued(id);
+        return true;
+    }
+
+    function execute(uint256 id) public returns (bool) {
+        require(queued[id], "Not queued");
+        require(!executed[id], "Already executed");
+        executed[id] = true;
+        emit ProposalExecuted(id);
+        return true;
+    }
+}

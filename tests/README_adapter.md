@@ -1,5 +1,10 @@
 Test Adapter Bridging Guidelines
 
+> Note (Windows Native-Only, Compile-Only)
+> - CI currently runs compile-only validation; the `omega test` subcommand is forward-looking and may be inactive in the wrapper.
+> - To validate parser adapter tests on Windows CI, compile test suites: `omega compile tests\parser_tests.mega` (and other `*_tests.mega`).
+> - For runtime E2E coverage, use `scripts\http_e2e_tests.ps1`; the `run_tests.ps1` aggregator combines compile-only and E2E flows.
+
 Overview
 - Some parser-focused tests in this repository validate structure using a lightweight ASTNode representation for simplicity.
 - The production parser returns a richer Program/Item/Function/Type/... model. To bridge between them, use the adapter helpers in tests/test_adapter.mega.

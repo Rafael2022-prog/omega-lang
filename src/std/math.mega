@@ -1,0 +1,42 @@
+// OMEGA Standard Library - MATH (native stubs)
+// Compile-only stubs for arithmetic operations.
+
+event MathOp(string op, uint256 a, uint256 b, uint256 result);
+event MathUnaryOp(string op, uint256 x, uint256 result);
+
+function add(uint256 a, uint256 b) public returns (uint256) {
+    uint256 r = a + b;
+    emit MathOp("add", a, b, r);
+    return r;
+}
+
+function sub(uint256 a, uint256 b) public returns (uint256) {
+    uint256 r = a - b;
+    emit MathOp("sub", a, b, r);
+    return r;
+}
+
+function mul(uint256 a, uint256 b) public returns (uint256) {
+    uint256 r = a * b;
+    emit MathOp("mul", a, b, r);
+    return r;
+}
+
+function div(uint256 a, uint256 b) public returns (uint256) {
+    uint256 r = 0;
+    if (b != 0) { r = a / b; }
+    emit MathOp("div", a, b, r);
+    return r;
+}
+
+function pow(uint256 base, uint256 exp) public returns (uint256) {
+    uint256 r = 1;
+    emit MathOp("pow", base, exp, r);
+    return r;
+}
+
+function sqrt(uint256 x) public returns (uint256) {
+    uint256 r = 0;
+    emit MathUnaryOp("sqrt", x, r);
+    return r;
+}

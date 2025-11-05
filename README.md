@@ -1,7 +1,7 @@
 # OMEGA - Universal Blockchain Programming Language
 
 ![OMEGA Logo](https://img.shields.io/badge/OMEGA-Blockchain%20Language-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-1.2.0-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.2.1-green?style=flat-square)
 ![Self-Hosting](https://img.shields.io/badge/self--hosting-enabled-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Performance](https://img.shields.io/badge/performance-+25%25%20faster-brightgreen?style=flat-square)
@@ -86,6 +86,20 @@ choco install omega-lang
 # Homebrew (macOS/Linux) - Coming Soon
 # brew install omega-lang
 ```
+
+### Versioning
+- Sumber versi utama ada di file `VERSION` di root repo (contoh: 1.2.1).
+- CLI (`omega.exe`/`omega.ps1`) dan runner HTTP membaca versi ini lalu menambahkan metadata build:
+  - CI: `v1.2.1-ci.<run>.<sha7>`
+  - Lokal: `v1.2.1-local.YYYYMMDD.HHMM`
+- Banner versi kini dicetak oleh `scripts/compile_smoke.ps1` di awal setiap run CI untuk visibilitas.
+- Kebijakan bump versi:
+  - Naikkan minor/patch saat ada perubahan pada bahasa OMEGA yang memengaruhi surface API/semantik.
+  - Perubahan internal yang tidak mengubah surface API ditandai melalui metadata build (tanpa bump base).
+- Cara melihat versi:
+  - CLI: `omega --version` → menampilkan `OMEGA Compiler v1.2.1-...`
+  - Runner HTTP: `GET /version` → `{"compiler_version":"1.2.1-..."}`
+  - Detail skema versi CI dan penamaan artefak: lihat [docs/CI_VERSIONING.md](./docs/CI_VERSIONING.md)
 
 ## 🏗️ Quick Start
 
@@ -322,11 +336,12 @@ omega test
 - [x] IDE integration (VS Code)
 - [x] Package manager
 
-### Phase 3: Ecosystem (Q3 2025)
-- [ ] Standard library expansion
-- [ ] DeFi protocol templates
-- [ ] Governance framework
-- [ ] Audit tools integration
+### Phase 3: Ecosystem (Q3 2025) ✅ Completed
+- [x] Standard library expansion (initial scaffolding: src/std/math.mega, src/std/crypto.mega, src/std/string.mega, src/std/collections.mega; compile-only verified)
+- [x] DeFi protocol templates (initial scaffolding: examples/contracts/defi/lending_pool.mega, examples/contracts/defi/amm_swap.mega, examples/contracts/defi/staking_vault.mega; compile-only verified)
+- [x] Governance framework (initial scaffolding: examples/contracts/governance/governance_token.mega, examples/contracts/governance/governor.mega, examples/contracts/governance/timelock.mega; compile-only verified)
+- [x] Audit tools integration (GitHub Actions job 'audit_tools' added: runs scripts/dependency_audit.ps1 and scripts/security_scan.sh)
+- [x] Compile smoke CI job (Windows-only): job 'compile_smoke' runs scripts/compile_smoke.ps1 to verify compile-only scaffolding (std/DeFi/Governance)
 
 ### Phase 4: Production Ready (Q4 2025)
 - [ ] Mainnet deployments
@@ -407,7 +422,7 @@ Catatan:
 - Perintah `omega run` kini menjalankan runner native sementara berbasis PowerShell/.NET HttpListener. Ini belum merupakan runtime OMEGA penuh, tetapi cukup untuk menjalankan server API contoh secara persisten.
 - Endpoint yang tersedia:
   - `GET /health` → `{"status":"ok","server":"omega-native-runner"}`
-  - `GET /version` → `{"compiler_version":"1.1.0"}`
+  - `GET /version` → `{"compiler_version":"1.2.1-local.YYYYMMDD.HHMM"}` (CI builds will show `1.2.1-ci.<run>.<sha7>`)
   - `GET /info` → menampilkan versi, jumlah permintaan yang ditangani, waktu mulai, alamat, dan port
   - `POST /compile` (Content-Type: text/plain) → mengembalikan statistik tokenisasi dan jumlah `import`.
 

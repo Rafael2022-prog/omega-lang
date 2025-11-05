@@ -1,6 +1,11 @@
 # OMEGA Compiler Architecture v1.1.0
 ## Multi-Target Blockchain Compiler Design - Enhanced Performance & Security Edition
 
+> Catatan Penting (Windows Native-Only, Compile-Only)
+> - Dokumen arsitektur ini menggambarkan sistem lengkap. Pada CI Windows-only saat ini, wrapper CLI mendukung kompilasi file tunggal.
+> - Gunakan `build_omega_native.ps1` untuk proses build native dan jalankan `./omega.exe` atau `pwsh -NoProfile -ExecutionPolicy Bypass -File ./omega.ps1`.
+> - Perintah `omega build/test/deploy` bersifat forward-looking pada wrapper; gunakan `omega compile <file.mega>` dan Native Runner (`POST /compile`) untuk verifikasi dasar.
+
 ### Overview
 OMEGA compiler v1.1.0 adalah multi-stage, multi-target compiler yang dapat menghasilkan kode untuk berbagai blockchain platforms dari satu source code OMEGA. Versi 1.1.0 menambahkan optimasi kinerja 25% lebih cepat, fitur keamanan yang ditingkatkan, dan pengalaman pengguna yang lebih baik.
 

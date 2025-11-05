@@ -1,5 +1,12 @@
 # Tutorial: Membangun Protokol DeFi Advanced dengan OMEGA
 
+> Catatan Penting (Windows Native-Only, Compile-Only)
+> - Tutorial ini kompatibel dengan mode wrapper CLI saat ini yang mendukung kompilasi file tunggal (compile-only).
+> - Gunakan `build_omega_native.ps1` untuk build, lalu jalankan `./omega.exe` atau `pwsh -NoProfile -ExecutionPolicy Bypass -File ./omega.ps1`.
+> - Untuk verifikasi dasar gunakan `omega compile <file.mega>` terhadap kontrak di folder `contracts/`.
+> - Anda juga dapat menggunakan Native Runner: `powershell -File scripts/omega_native_runner.ps1` lalu `POST /compile` untuk kompilasi via HTTP.
+> - Perintah `omega build/test/deploy` yang muncul di dokumentasi lain bersifat forward-looking dan belum aktif di wrapper CLI pada mode ini.
+
 Tutorial komprehensif untuk membangun protokol DeFi lengkap menggunakan OMEGA, termasuk AMM (Automated Market Maker), Lending Protocol, dan Yield Farming.
 
 ## 🎯 Tujuan Tutorial

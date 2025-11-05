@@ -1,0 +1,38 @@
+// Governance Framework — Timelock (compile-only scaffolding)
+// NOTE: Placeholder scheduling; no real timekeeping or execution logic.
+
+blockchain Timelock {
+    state {
+        uint256 delay;
+        mapping(uint256 => uint256) queuedAt;
+    }
+
+    event DelayUpdated(uint256 newDelay);
+    event Queued(uint256 indexed id, uint256 eta);
+    event Executed(uint256 indexed id);
+
+    constructor(uint256 _delay) {
+        delay = _delay;
+    }
+
+    function set_delay(uint256 newDelay) public returns (bool) {
+        delay = newDelay;
+        emit DelayUpdated(newDelay);
+        return true;
+    }
+
+    function queue(uint256 id) public returns (uint256) {
+        // TODO: Integrate real timekeeping
+        uint256 eta = delay; // placeholder for time-based scheduling
+        queuedAt[id] = eta;
+        emit Queued(id, eta);
+        return eta;
+    }
+
+    function execute(uint256 id) public returns (bool) {
+        require(queuedAt[id] > 0, "Not queued");
+        // TODO: Enforce ETA vs current time
+        emit Executed(id);
+        return true;
+    }
+}

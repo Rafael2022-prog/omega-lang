@@ -1,5 +1,7 @@
 # Panduan Deploy Produksi OMEGA Native Runner
 
+> Catatan (Windows Native-Only, Compile-Only): Dokumen ini berfokus pada Native Runner dan endpoint `POST /compile` yang cocok dengan status CLI wrapper saat ini. Perintah `omega build/test/deploy` bersifat forward-looking dan belum aktif di wrapper.
+
 Dokumen ini menjelaskan cara menjalankan OMEGA Native Runner untuk kebutuhan produksi, termasuk konfigurasi lingkungan, fitur pembatasan laju (rate limiting), dan skrip pendukung.
 
 ## Ringkasan Perubahan Siap Produksi

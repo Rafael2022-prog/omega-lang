@@ -2,6 +2,12 @@
 
 This guide helps you configure the OMEGA repository on GitHub for optimal community engagement and discoverability.
 
+> Compatibility Note (Windows-only CI, Native-only CLI)
+> - Current CI is Windows-only and focuses on native build and compile-only validation.
+> - Prefer native build scripts: `build_omega_native.ps1`, and CLI wrapper commands: `omega.exe` / `omega.ps1` with `omega compile <file.mega>`.
+> - Documentation site under `/docs` aligns with compile-only CLI; forward-looking commands like `omega build/test/deploy` are documented but may be inactive in the wrapper.
+> - Coverage reports should be generated via `scripts/generate_coverage.ps1` (native) instead of `cargo-tarpaulin`.
+
 ## 📋 Repository Configuration
 
 ### 1. **Repository Description**
@@ -81,6 +87,8 @@ Add these topics to improve discoverability:
 - `lint`
 - `security`
 - `build (ubuntu-latest)`
+
+Note: For Windows-only CI mode, you may limit required checks to `test (windows-latest)` and native build/coverage steps. Ubuntu/macOS checks can be optional or disabled temporarily.
 
 ## 🏷️ Labels Configuration
 

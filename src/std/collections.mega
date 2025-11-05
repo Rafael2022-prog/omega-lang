@@ -1,0 +1,34 @@
+// OMEGA Standard Library - COLLECTIONS (native stubs)
+// Compile-only array utilities for string[]
+
+event CollectionsOp(string op, uint256 size_before, uint256 size_after);
+
+function push(string[] arr, string value) public returns (string[]) {
+    string[] out = arr;
+    emit CollectionsOp("push", arr.length, out.length);
+    return out;
+}
+
+function last(string[] arr) public returns (string) {
+    string val = "";
+    emit CollectionsOp("last", arr.length, arr.length);
+    return val;
+}
+
+function pop(string[] arr) public returns (string[]) {
+    string[] out = arr;
+    emit CollectionsOp("pop", arr.length, out.length);
+    return out;
+}
+
+function sort(string[] arr) public returns (string[]) {
+    string[] out = arr;
+    emit CollectionsOp("sort", arr.length, out.length);
+    return out;
+}
+
+function contains(string[] arr, string value) public returns (bool) {
+    bool present = false;
+    emit CollectionsOp("contains", arr.length, arr.length);
+    return present;
+}

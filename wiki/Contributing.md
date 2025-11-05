@@ -704,7 +704,7 @@ blockchain YieldFarm {
 ```
 
 **Current Needs**:
-- [ ] DeFi protocol templates
+- [ ] DeFi protocol templates (initial scaffolding: examples/contracts/defi/lending_pool.mega, examples/contracts/defi/amm_swap.mega, examples/contracts/defi/staking_vault.mega; compile-only verified)
 - [ ] NFT collection templates
 - [ ] Gaming contract examples
 - [ ] DAO governance examples
@@ -891,6 +891,9 @@ Brief description of changes made.
 
 #### Review Process
 1. **Automated Checks**: CI/CD pipeline runs automatically
+   - Windows-only compile-only gate: job `compile_smoke` runs `scripts/compile_smoke.ps1` to ensure scaffolding (std/DeFi/Governance) compiles. If this job fails, the PR will be flagged and notifications reflect failure.
+   - Audit gate: job `audit_tools` runs `scripts/dependency_audit.ps1` (Windows) and `scripts/security_scan.sh` (Ubuntu) with non-zero exit on failures; notifications are conditioned on these results.
+   - Contributor tip: Run `scripts/compile_smoke.ps1` locally before pushing to catch compile-only issues early.
 2. **Code Review**: Maintainers review your code
 3. **Feedback**: Address any requested changes
 4. **Approval**: PR approved by maintainers

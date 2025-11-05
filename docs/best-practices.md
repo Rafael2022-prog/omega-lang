@@ -1,5 +1,13 @@
 # OMEGA Best Practices Guide
 
+> Catatan Penting (Windows Native-Only, Compile-Only)
+> - Saat ini pipeline CI berjalan Windows-only dan CLI wrapper mendukung mode compile-only.
+> - Gunakan skrip build native: `build_omega_native.ps1` untuk menghasilkan `omega.exe`.
+> - Jalankan CLI: prioritaskan `./omega.exe`; jika belum tersedia gunakan `pwsh -NoProfile -ExecutionPolicy Bypass -File ./omega.ps1`.
+> - Coverage: gunakan `scripts/generate_coverage.ps1` (native), bukan `cargo-tarpaulin`.
+> - Perintah `omega build/test/deploy` pada dokumen ini bersifat forward-looking. Untuk verifikasi dasar gunakan `omega compile <file.mega>` pada Windows.
+> - Ketergantungan seperti Node.js/npm, mdBook, valgrind, cargo-tarpaulin tidak diperlukan pada mode ini.
+
 Panduan lengkap untuk mengembangkan smart contract yang aman, efisien, dan maintainable dengan bahasa OMEGA.
 
 ## 🏗️ Project Structure
@@ -475,6 +483,11 @@ tests/
 set -e
 
 echo "🧪 Running OMEGA Test Suite..."
+# Catatan (Windows Native-Only): Perintah `omega test` belum aktif di wrapper CLI.
+# Gunakan kompilasi compile-only untuk verifikasi dasar, contoh:
+#   .\\omega.exe compile tests\\unit\\lexer_tests.mega
+# atau
+#   pwsh -NoProfile -ExecutionPolicy Bypass -File .\\omega.ps1 compile tests\\unit\\lexer_tests.mega
 
 # 1. Unit tests
 echo "📋 Running unit tests..."
@@ -925,6 +938,12 @@ blockchain MonitoredContract {
 # scripts/gas-analysis.sh
 
 echo "⛽ Analyzing gas usage..."
+# Catatan (Windows Native-Only): `omega build --gas-report` dan `omega test --benchmark --gas-analysis`
+# bersifat forward-looking pada wrapper CLI saat ini.
+# Untuk saat ini, gunakan kompilasi file tunggal untuk verifikasi dasar dan analisis manual bila diperlukan:
+#   .\\omega.exe compile contracts\\core\\Token.mega
+# atau
+#   pwsh -NoProfile -ExecutionPolicy Bypass -File .\\omega.ps1 compile contracts\\core\\Token.mega
 
 # Compile with gas reporting
 omega build --gas-report

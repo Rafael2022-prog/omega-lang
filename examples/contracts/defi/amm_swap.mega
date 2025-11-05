@@ -1,0 +1,59 @@
+// DeFi Template — AMM Swap (compile-only scaffolding)
+// NOTE: Placeholder math only; no external transfers.
+// TODO: Implement constant-product AMM math and pair key canonicalization.
+
+blockchain AMMSwap {
+    state {
+        // Reserves and shares keyed by canonical pair string
+        mapping(string => uint256) reserve0;
+        mapping(string => uint256) reserve1;
+        mapping(string => uint256) total_shares;
+    }
+
+    event PairInitialized(address indexed tokenA, address indexed tokenB);
+    event LiquidityAdded(address indexed provider, address indexed tokenA, address indexed tokenB, uint256 amountA, uint256 amountB, uint256 shares);
+    event LiquidityRemoved(address indexed provider, address indexed tokenA, address indexed tokenB, uint256 shares);
+    event Swap(address indexed trader, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
+
+    function _pair_key(address tokenA, address tokenB) public returns (string) {
+        // TODO: Canonical ordering A<B and hex encoding
+        return "";
+    }
+
+    function init_pair(address tokenA, address tokenB) public returns (bool) {
+        require(tokenA != address(0) && tokenB != address(0), "Invalid token");
+        string key = _pair_key(tokenA, tokenB);
+        // Implicit zero-initialization
+        emit PairInitialized(tokenA, tokenB);
+        return true;
+    }
+
+    function add_liquidity(address tokenA, address tokenB, uint256 amountA, uint256 amountB) public returns (uint256) {
+        require(amountA > 0 && amountB > 0, "Amounts must be > 0");
+        string key = _pair_key(tokenA, tokenB);
+        reserve0[key] += amountA;
+        reserve1[key] += amountB;
+        uint256 shares = amountA + amountB; // placeholder
+        total_shares[key] += shares;
+        emit LiquidityAdded(msg.sender, tokenA, tokenB, amountA, amountB, shares);
+        return shares;
+    }
+
+    function remove_liquidity(address tokenA, address tokenB, uint256 shares) public returns (bool) {
+        require(shares > 0, "Shares must be > 0");
+        string key = _pair_key(tokenA, tokenB);
+        require(total_shares[key] >= shares, "Insufficient shares");
+        total_shares[key] -= shares;
+        emit LiquidityRemoved(msg.sender, tokenA, tokenB, shares);
+        return true;
+    }
+
+    function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut) public returns (uint256) {
+        require(amountIn > 0, "amountIn must be > 0");
+        string key = _pair_key(tokenIn, tokenOut);
+        uint256 amountOut = amountIn; // placeholder
+        require(amountOut >= minOut, "Slippage too high");
+        emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
+        return amountOut;
+    }
+}

@@ -1,0 +1,54 @@
+// Governance Framework — Governance Token (compile-only scaffolding)
+// NOTE: Simplified ERC20-like token with governor-controlled mint.
+
+blockchain GovernanceToken {
+    state {
+        mapping(address => uint256) balances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+        address governor;
+    }
+
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Mint(address indexed to, uint256 amount);
+    event GovernorUpdated(address indexed oldGov, address indexed newGov);
+
+    constructor(string _name, string _symbol, address _governor, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        governor = _governor;
+        total_supply = _initial_supply;
+        balances[_governor] = _initial_supply;
+    }
+
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function mint(address to, uint256 amount) public returns (bool) {
+        require(msg.sender == governor, "Governor only");
+        require(to != address(0), "Invalid recipient");
+        total_supply += amount;
+        balances[to] += amount;
+        emit Mint(to, amount);
+        return true;
+    }
+
+    function set_governor(address newGovernor) public returns (bool) {
+        require(msg.sender == governor, "Governor only");
+        address old = governor;
+        governor = newGovernor;
+        emit GovernorUpdated(old, newGovernor);
+        return true;
+    }
+
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+}

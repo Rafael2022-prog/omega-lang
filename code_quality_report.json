@@ -1,69 +1,10 @@
 {
-  "grade": "A+",
-  "coverage": {
-    "critical_uncovered_areas": [],
-    "test_files_count": 0,
-    "source_files_count": 0,
-    "estimated_line_coverage": 0,
-    "estimated_function_coverage": 0
-  },
-  "quality_gates": {
-    "complexity": {
-      "actual": 0,
-      "condition": "high_complexity_issues <= 2",
-      "blocking": false,
-      "threshold": 2,
-      "passed": true,
-      "name": "Code Complexity"
-    },
-    "test_coverage": {
-      "actual": 0,
-      "condition": "line_coverage >= 80",
-      "blocking": true,
-      "threshold": 80,
-      "passed": false,
-      "name": "Test Coverage"
-    },
-    "overall_score": {
-      "actual": 100.0,
-      "condition": "overall_score >= 75",
-      "blocking": true,
-      "threshold": 75,
-      "passed": true,
-      "name": "Overall Quality Score"
-    },
-    "security_issues": {
-      "actual": 0,
-      "condition": "high_security_issues == 0",
-      "blocking": true,
-      "threshold": 0,
-      "passed": true,
-      "name": "Security Issues"
-    }
-  },
-  "issues": [],
-  "deployment_approved": false,
+  "summary": "Code Quality Audit Summary:\n- Files Analyzed: 57\n- Total Lines of Code: 31614\n- Total Functions: 9\n- Issues Found: 27 (High: 0, Medium: 27, Low: 0)\n- Overall Score: 0/100 (F)\n- Deployment Approved: NO",
+  "timestamp": "2025-11-03 18:41:40",
   "project_root": "R:\\OMEGA",
-  "audit_level": "comprehensive",
-  "overall_score": 100.0,
-  "improvement_plan": {
-    "quick_wins": [
-      "Fix code formatting inconsistencies",
-      "Remove unused imports and variables",
-      "Add missing documentation comments",
-      "Update outdated comments"
-    ],
-    "medium_priority_actions": null,
-    "low_priority_actions": null,
-    "high_priority_actions": null,
-    "estimated_total_effort": null,
-    "long_term_goals": [
-      "Achieve 90%+ test coverage",
-      "Reduce average cyclomatic complexity to <10",
-      "Implement comprehensive error handling",
-      "Establish automated quality gates in CI/CD"
-    ]
-  },
-  "metrics": {},
-  "timestamp": "2025-10-31 10:27:21"
+  "files_analyzed": 57,
+  "issues_found": 27,
+  "overall_score": 0,
+  "grade": "F",
+  "deployment_approved": false
 }

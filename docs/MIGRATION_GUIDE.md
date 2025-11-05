@@ -2,6 +2,12 @@
 
 ![Migration](https://img.shields.io/badge/Migration-v1.0.0-orange?style=for-the-badge)
 
+> Catatan Kompatibilitas (Windows Native-Only, Compile-Only)
+> - Panduan migrasi ini berfokus pada perubahan arsitektur API. Pada CI Windows-only saat ini, alur CLI wrapper mendukung kompilasi file tunggal (compile-only).
+> - Gunakan `build_omega_native.ps1` untuk build; jalankan `./omega.exe` atau `pwsh -NoProfile -ExecutionPolicy Bypass -File ./omega.ps1`.
+> - Untuk verifikasi dasar gunakan `omega compile <file.mega>`; untuk observasi sistem gunakan Native Runner: `GET /health`, `GET /version`, `GET /info`, `POST /compile`.
+> - Perintah `omega build/test/deploy` dan tool seperti `cargo-tarpaulin`, `mdBook`, `valgrind` bersifat opsional/forward-looking; pada Windows gunakan `scripts/generate_coverage.ps1` untuk coverage.
+
 Panduan migrasi ini membantu developer yang menggunakan API lama OMEGA untuk beralih ke arsitektur modular yang baru.
 
 ## 🚀 Overview Perubahan

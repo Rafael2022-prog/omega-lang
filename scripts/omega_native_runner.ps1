@@ -16,15 +16,33 @@ Write-Host "[Runner] Starting OMEGA Native Runner..." -ForegroundColor Cyan
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 
-# Determine version from package.json (fallback to 1.1.0)
-$CompilerVersion = "1.1.0"
-try {
-    $pkgPath = Join-Path $ProjectRoot "package.json"
-    if (Test-Path $pkgPath) {
-        $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-        if ($pkg.version) { $CompilerVersion = $pkg.version }
+# Determine compiler version from centralized VERSION with CI/local metadata
+function Get-CompilerVersion {
+    param([string]$Root)
+    $base = "1.2.1"
+    try {
+        $verFile = Join-Path $Root "VERSION"
+        if (Test-Path $verFile) {
+            $content = Get-Content $verFile -TotalCount 1
+            if ($content) { $base = $content.Trim() }
+        } else {
+            $pkgPath = Join-Path $Root "package.json"
+            if (Test-Path $pkgPath) {
+                $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+                if ($pkg.version) { $base = $pkg.version }
+            }
+        }
+    } catch { }
+    $run = $env:GITHUB_RUN_NUMBER
+    $sha = $env:GITHUB_SHA
+    if ($run -and $sha) {
+        $meta = "ci.$run." + $sha.Substring(0,7)
+    } else {
+        $meta = "local." + (Get-Date).ToString("yyyyMMdd.HHmm")
     }
-} catch { }
+    return "$base-$meta"
+}
+$CompilerVersion = Get-CompilerVersion $ProjectRoot
 
 # Environment configs (with CLI overrides)
 $envPort = $env:OMEGA_SERVER_PORT

@@ -10,6 +10,10 @@ jobs:
     name: 📦 Create Native Release
     runs-on: ubuntu-latest
 
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.changelog.outputs.VERSION }}
+
     steps:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
@@ -17,14 +21,21 @@ jobs:
         fetch-depth: 0
 
     - name: 🔧 Setup PowerShell
+      uses: ./.github/actions/setup-powershell
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 📦 Build and Package VS Code Extension
       run: |
-        # Install PowerShell on Ubuntu
-        sudo apt-get update
-        sudo apt-get install -y wget apt-transport-https software-properties-common
-        wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-        sudo dpkg -i packages-microsoft-prod.deb
-        sudo apt-get update
-        sudo apt-get install -y powershell
+        cd omega-vscode-extension
+        npm ci
+        npm run compile
+        npx vsce package
+        cd ..
 
     - name: 🏗️ Build OMEGA Native
       run: |
@@ -105,7 +116,7 @@ jobs:
         release_name: OMEGA ${{ steps.changelog.outputs.VERSION }}
         body: ${{ steps.changelog.outputs.CHANGELOG }}
         draft: false
-        prerelease: false
+        prerelease: ${{ contains(github.ref_name, '-') }}
 
     - name: 📤 Upload VS Code Extension (if present)
       if: steps.vsix.outputs.has == 'true'
@@ -116,7 +127,29 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ${{ steps.vsix.outputs.path }}
         asset_name: ${{ steps.vsix.outputs.name }}
-        asset_content_type: application/zip
+        asset_content_type: application/octet-stream
+
+    - name: 🔐 Compute VSIX checksum (SHA256)
+      if: steps.vsix.outputs.has == 'true'
+      id: vsix_checksum
+      shell: bash
+      run: |
+        set -e
+        FILE="${{ steps.vsix.outputs.path }}"
+        HASH=$(sha256sum "$FILE" | awk '{print $1}')
+        echo "$HASH  $(basename \"$FILE\")" > "${FILE}.sha256"
+        echo "checksum_path=${FILE}.sha256" >> $GITHUB_OUTPUT
+
+    - name: 📤 Upload VSIX checksum
+      if: steps.vsix.outputs.has == 'true'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ steps.vsix_checksum.outputs.checksum_path }}
+        asset_name: ${{ steps.vsix.outputs.name }}.sha256
+        asset_content_type: text/plain
 
     - name: 📤 Upload Source Archive
       uses: actions/upload-release-asset@v1
@@ -172,7 +205,7 @@ jobs:
   notify-community:
     name: 📢 Notify Community
     runs-on: ubuntu-latest
-    needs: [create-release, publish-vscode]
+    needs: [create-release, publish-vscode, native-binaries]
     if: always() && needs.create-release.result == 'success'
 
     steps:
@@ -254,3 +287,79 @@ jobs:
       only_md: true
       file_glob: ""
       mapping_file: "wiki/mapping.json"
+
+  native-binaries:
+    name: 📦 Upload Native Binaries
+    runs-on: ${{ matrix.os }}
+    needs: create-release
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup PowerShell (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: ./.github/actions/setup-powershell
+
+      - name: 🏗️ Build OMEGA Native
+        shell: pwsh
+        run: |
+          pwsh -ExecutionPolicy Bypass -File omega_native.ps1
+
+      - name: 📦 Package native binary
+         id: pack
+         shell: pwsh
+         run: |
+           $ErrorActionPreference = 'Stop'
+           New-Item -ItemType Directory -Force -Path 'release-assets' | Out-Null
+           $bin = 'omega.exe'
+           if (-not (Test-Path $bin)) { $bin = 'omega' }
+           if (-not (Test-Path $bin)) { throw 'Binary not found: omega(.exe)' }
+           $platform = $env:RUNNER_OS
+           $osArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+           switch ($osArch) {
+             'X64'   { $arch = 'x64' }
+             'Arm64' { $arch = 'arm64' }
+             default { $arch = $osArch.ToString().ToLower() }
+           }
+           switch ($platform) {
+             'Windows' { $plat = "windows-$arch" }
+             'macOS'   { $plat = "macos-$arch" }
+             'Linux'   { $plat = "linux-$arch" }
+             default   { $plat = $platform.ToLower() }
+           }
+           $version = '${{ needs.create-release.outputs.version }}'
+           $assetName = "omega-native-$plat-$version.zip"
+           $zipPath = Join-Path 'release-assets' $assetName
+           Compress-Archive -Path $bin -DestinationPath $zipPath -Force
+           Write-Host "Packaged $bin -> $zipPath"
+           # Generate checksum
+           $hash = Get-FileHash -Algorithm SHA256 -Path $zipPath
+           $checksumPath = "$zipPath.sha256"
+           "$($hash.Hash)  $assetName" | Out-File -FilePath $checksumPath -Encoding ascii
+           "asset_path=$zipPath" | Out-File -Append -FilePath $env:GITHUB_OUTPUT -Encoding utf8
+           "asset_name=$assetName" | Out-File -Append -FilePath $env:GITHUB_OUTPUT -Encoding utf8
+           "checksum_path=$checksumPath" | Out-File -Append -FilePath $env:GITHUB_OUTPUT -Encoding utf8
+
+      - name: 📤 Upload native binary
+         uses: actions/upload-release-asset@v1
+         env:
+           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         with:
+           upload_url: ${{ needs.create-release.outputs.upload_url }}
+           asset_path: ${{ steps.pack.outputs.asset_path }}
+           asset_name: ${{ steps.pack.outputs.asset_name }}
+           asset_content_type: application/zip
+
+       - name: 📤 Upload checksum (SHA256)
+         uses: actions/upload-release-asset@v1
+         env:
+           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         with:
+           upload_url: ${{ needs.create-release.outputs.upload_url }}
+           asset_path: ${{ steps.pack.outputs.checksum_path }}
+           asset_name: ${{ steps.pack.outputs.asset_name }}.sha256
+           asset_content_type: text/plain

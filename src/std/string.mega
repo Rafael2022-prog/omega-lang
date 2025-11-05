@@ -1,0 +1,34 @@
+// OMEGA Standard Library - STRING (native stubs)
+// Compile-only string utilities
+
+event StringOp(string op, uint256 input_size, uint256 output_size);
+
+enum CaseAction { Upper, Lower }
+
+function length(string s) public returns (uint256) {
+    uint256 len = string.length(s);
+    emit StringOp("length", string.length(s), len);
+    return len;
+}
+
+function to_upper(string s) public returns (string) {
+    emit StringOp("to_upper", string.length(s), string.length(s));
+    return s;
+}
+
+function to_lower(string s) public returns (string) {
+    emit StringOp("to_lower", string.length(s), string.length(s));
+    return s;
+}
+
+function split(string s, string delimiter) public returns (string[]) {
+    string[] parts = [];
+    emit StringOp("split", string.length(s), parts.length);
+    return parts;
+}
+
+function join(string[] parts, string delimiter) public returns (string) {
+    string out = "";
+    emit StringOp("join", parts.length, string.length(out));
+    return out;
+}

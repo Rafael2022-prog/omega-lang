@@ -10,6 +10,7 @@ import "../src/main";
 import "../src/ir/ir_core";
 import "../src/optimizer/optimizer_core";
 import "../src/codegen/codegen";
+import "../src/testing/performance_benchmarks";
 
 blockchain ModularIntegrationTests {
     state {
@@ -402,6 +403,43 @@ blockchain InvalidContract {
         return result;
     }
 
+    /// Test Runtime Cross-chain Benchmark Reporting
+    function test_runtime_cross_chain_benchmark_reporting() public returns (TestResult) {
+        TestResult result = framework.create_test("runtime_cross_chain_benchmark_reporting");
+        
+        try {
+            // Initialize performance benchmarks
+            OmegaPerformanceBenchmarks perf = new OmegaPerformanceBenchmarks();
+            
+            // Run runtime benchmark suite
+            BenchmarkSuiteResult suite_result = perf.run_runtime_benchmarks();
+            
+            // Find cross-chain benchmark result
+            bool found = false;
+            BenchmarkResult target;
+            for (uint i = 0; i < suite_result.benchmark_results.length; i++) {
+                BenchmarkResult br = suite_result.benchmark_results[i];
+                if (br.name == "Cross-chain Operations Performance") {
+                    target = br;
+                    found = true;
+                    break;
+                }
+            }
+            
+            framework.assert_true(found, "Cross-chain runtime benchmark should be present");
+            framework.assert_greater_than(target.metrics.cross_chain_latency_avg.nanoseconds, 0, 
+                "Average cross-chain latency should be > 0");
+            framework.assert_greater_than_or_equal(target.metrics.gas_used_avg, 0, 
+                "Gas average metric should be present");
+            
+            result.mark_passed();
+        } catch (string error) {
+            result.mark_failed(string.concat("Runtime cross-chain benchmark reporting failed: ", error));
+        }
+        
+        return result;
+    }
+
     /// Run all modular integration tests
     function run_all_modular_tests() public returns (TestResults) {
         framework.start_test_suite("Modular Integration Tests");
@@ -413,7 +451,8 @@ blockchain InvalidContract {
             test_codegen_integration(),
             test_full_pipeline_integration(),
             test_error_handling_integration(),
-            test_performance_integration()
+            test_performance_integration(),
+            test_runtime_cross_chain_benchmark_reporting()
         ];
         
         // Aggregate results

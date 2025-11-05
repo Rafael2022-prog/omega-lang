@@ -1,0 +1,22 @@
+name: Setup PowerShell
+description: Install PowerShell on non-Windows runners (Ubuntu/macOS) for OMEGA CI
+runs:
+  using: "composite"
+  steps:
+    - name: Install PowerShell on Ubuntu
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -e
+        sudo apt-get update
+        sudo apt-get install -y wget apt-transport-https software-properties-common
+        wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+        sudo dpkg -i packages-microsoft-prod.deb
+        sudo apt-get update
+        sudo apt-get install -y powershell
+    - name: Install PowerShell on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -e
+        brew install --cask powershell

@@ -1,5 +1,10 @@
 # 🤝 Contributing to OMEGA
 
+> Note (Windows Native-Only, Compile-Only)
+> - This guide describes the full ecosystem and contribution workflow. The current active CI is Windows-only, with a CLI wrapper that supports single-file compilation (compile-only) and the Native Runner.
+> - For building, prefer `build_omega_native.ps1` (or use `omega.exe` / `omega.ps1` for compiling). For testing, use compile-only verification via `omega compile <file.mega>` and E2E scripts like `scripts\\http_e2e_tests.ps1`. The `omega test` subcommand is forward-looking and may be inactive in the wrapper.
+> - Non-native tooling and full pipeline steps (`omega build/test/deploy`) are documented for roadmap/optional use and will be enabled once the wrapper reaches feature parity.
+
 Thank you for your interest in contributing to OMEGA! We welcome contributions from developers of all skill levels.
 
 ## 📋 Table of Contents

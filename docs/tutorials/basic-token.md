@@ -2,6 +2,8 @@
 
 Tutorial lengkap untuk membuat, menguji, dan mendeploy token ERC20 menggunakan bahasa OMEGA yang kompatibel dengan EVM dan Solana.
 
+⚠️ Catatan: Mode Windows native-only (compile-only) sedang aktif. Gunakan `build_omega_native.ps1` untuk build, `./omega.exe` atau `pwsh -File ./omega.ps1` untuk menjalankan, dan `scripts/generate_coverage.ps1` untuk coverage. Perintah `build/test/deploy` di bawah ini bersifat forward-looking dan mungkin belum tersedia di wrapper CLI; gunakan `omega compile` untuk verifikasi dasar.
+
 ## 🎯 Tujuan Tutorial
 
 Setelah menyelesaikan tutorial ini, Anda akan dapat:
@@ -14,7 +16,7 @@ Setelah menyelesaikan tutorial ini, Anda akan dapat:
 ## 📋 Prerequisites
 
 - OMEGA compiler sudah terinstall
-- Node.js dan npm/yarn
+- Node.js dan npm/yarn (opsional; tidak diperlukan untuk mode Windows native-only)
 - Rust dan Cargo (untuk Solana)
 - Wallet dengan testnet tokens
 - Text editor (VS Code recommended)

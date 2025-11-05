@@ -1,0 +1,37 @@
+name: Homebrew Audit and Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ "*" ]
+
+jobs:
+  brew_audit_test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Brew update
+        run: brew update
+
+      - name: Brew style (README and formula)
+        run: |
+          brew style
+
+      - name: Brew audit (strict, online) for local formula
+        run: |
+          brew audit --strict --online ./homebrew-tap/Formula/omega-lang.rb
+
+      - name: Install formula from local path (build from source)
+        run: |
+          brew install --build-from-source ./homebrew-tap/Formula/omega-lang.rb
+
+      - name: Run formula test block
+        run: |
+          brew test omega-lang
+
+      - name: Uninstall formula (cleanup)
+        run: |
+          brew uninstall omega-lang || true

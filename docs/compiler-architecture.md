@@ -1,5 +1,11 @@
 # OMEGA Compiler Architecture
 
+> Catatan Penting (Windows Native-Only, Compile-Only)
+> - Dokumentasi ini menggambarkan arsitektur lengkap. Namun, pada CI Windows-only saat ini, CLI wrapper mendukung kompilasi file tunggal (compile-only).
+> - Gunakan `build_omega_native.ps1` untuk build, jalankan `./omega.exe` atau `pwsh -NoProfile -ExecutionPolicy Bypass -File ./omega.ps1`.
+> - Untuk debugging/eksperimen, Anda dapat memakai Native Runner (`scripts/omega_native_runner.ps1`) dan endpoint `POST /compile`.
+> - Perintah `omega build/test/deploy` di halaman ini bersifat forward-looking; gunakan `omega compile <file.mega>` sebagai alternatif untuk verifikasi dasar.
+
 Dokumentasi arsitektur compiler OMEGA yang menjelaskan desain internal, pipeline kompilasi, dan implementasi cross-chain code generation.
 
 ## 📋 Table of Contents
@@ -1174,6 +1180,10 @@ cargo bench
 
 # Generate documentation
 cargo doc --open
+
+> Catatan (Windows Native-Only, CI Windows-only):
+> - Di pipeline CI Windows-only, gunakan `build_omega_native.ps1` untuk proses build native dan `scripts/generate_coverage.ps1` untuk laporan cakupan.
+> - Perintah `cargo build/test/bench/doc` bersifat opsi untuk pengembangan lokal lintas platform dan mungkin tidak digunakan pada mode compile-only di CI.
 ```
 
 ### Testing Strategy
@@ -1186,17 +1196,31 @@ cargo doc --open
 
 ### Debugging
 
+Catatan (Windows Native-Only, Compile-Only): Gunakan `omega compile <file.mega>` untuk verifikasi karena `omega build` belum aktif di wrapper CLI pada mode ini. Anda juga dapat memanfaatkan Native Runner untuk observabilitas yang lebih baik.
+
+```powershell
+# Enable debug logging (PowerShell)
+$env:RUST_LOG = 'debug'
+
+# Compile single file (wrapper CLI)
+omega compile contracts\examples\SimpleToken.mega
+
+# Compile via Native Runner (HTTP)
+# 1) Start runner
+pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\omega_native_runner.ps1
+# 2) POST code to /compile
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/compile -InFile contracts\examples\SimpleToken.mega -ContentType 'text/plain'
+```
+
+Forward-looking flags (belum aktif pada wrapper CLI):
+- --dump-ast
+- --dump-ir
+- --verbose
+
+Saat fitur-fitur tersebut tersedia, perintah akan berbentuk:
 ```bash
-# Enable debug logging
-RUST_LOG=debug omega build
-
-# Dump AST
 omega build --dump-ast
-
-# Dump IR
 omega build --dump-ir
-
-# Verbose output
 omega build --verbose
 ```
 

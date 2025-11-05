@@ -4,6 +4,13 @@
 **Status**: ✅ **COMPLETED**  
 **Version**: OMEGA Compiler v1.1.0
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Laporan ini mendokumentasikan restorasi target blockchain pada pipeline berbasis Rust/Cargo (historis). CI aktif saat ini adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal.
+> - Referensi `cargo build` dan crates di bawah bersifat legacy/historis. Untuk verifikasi dasar gunakan: `scripts/build_omega_native.ps1`, `omega.exe`/`omega.ps1` dengan `omega compile <file.mega>`, dan Native Runner (HTTP) `POST /compile`.
+> - Perintah `omega build/test/deploy` dalam konteks wrapper bersifat forward-looking/opsional. Coverage: `scripts/generate_coverage.ps1`.
+> - Verifikasi compile-only kini terintegrasi di CI: job `compile_smoke` (Windows) menjalankan `scripts/compile_smoke.ps1` untuk memastikan scaffolding std/DeFi/Governance tetap bisa dikompilasi.
+
+
 ## 📋 Executive Summary
 
 Successfully resolved the `zeroize` version conflict that temporarily disabled EVM and Solana blockchain targets. All blockchain functionality has been **fully restored** and is now operational.

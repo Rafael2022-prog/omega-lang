@@ -1,0 +1,21 @@
+// OMEGA Standard Library - CRYPTO (native stubs)
+// Compile-only cryptographic helpers (hashing & random hex)
+
+event CryptoHash(string algo, uint256 input_size);
+event CryptoRandom(uint256 nbytes, string hex);
+
+function hash_sha256(string data) public returns (string) {
+    emit CryptoHash("sha256", string.length(data));
+    return "";
+}
+
+function hash_keccak256(string data) public returns (string) {
+    emit CryptoHash("keccak256", string.length(data));
+    return "";
+}
+
+function random_hex(uint256 nbytes) public returns (string) {
+    string hex = "";
+    emit CryptoRandom(nbytes, hex);
+    return hex;
+}

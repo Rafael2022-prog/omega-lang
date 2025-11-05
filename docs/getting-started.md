@@ -2,6 +2,31 @@
 
 OMEGA adalah bahasa pemrograman blockchain universal yang memungkinkan Anda menulis smart contract sekali dan deploy ke berbagai blockchain. Dengan ekstensi file native `.mega` dan logo OMEGA yang terintegrasi, OMEGA memberikan pengalaman development yang konsisten dan profesional.
 
+## ⚠️ Pembaruan Penting (Windows Native-Only)
+
+Saat ini toolchain dan pipeline CI berjalan dalam mode native-only di Windows.
+Gunakan langkah-langkah berikut untuk memulai tanpa ketergantungan Rust/npm/mdBook/valgrind/cargo-tarpaulin:
+
+- Build: `pwsh -NoProfile -ExecutionPolicy Bypass -File build_omega_native.ps1`
+- Jalankan: gunakan `omega.exe` jika ada, jika tidak `pwsh -File omega.ps1`
+- Subcommand yang tersedia: `compile`, `--version`, `--help` (build/test/deploy belum aktif di wrapper CLI)
+- Coverage: `scripts/generate_coverage.ps1` menghasilkan `coverage/omega-coverage.json` dan `coverage/omega-coverage.lcov` lalu upload via Codecov uploader resmi
+
+### Quickstart (Native-Only)
+```powershell
+# 1) Build
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\build_omega_native.ps1 -Clean
+
+# 2) Jalankan
+$omegaCmd = if (Test-Path .\omega.exe) { .\omega.exe } else { "pwsh -NoProfile -ExecutionPolicy Bypass -File .\omega.ps1" }
+Invoke-Expression "$omegaCmd --version"
+Invoke-Expression "$omegaCmd compile tests\lexer_tests.mega"
+Invoke-Expression "$omegaCmd compile tests\parser_tests.mega"
+
+# 3) Coverage
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\generate_coverage.ps1 -SourceDir tests -OutputDir coverage -Verbose
+```
+
 ## 📋 Prerequisites
 
 Sebelum memulai, pastikan sistem Anda memiliki:
@@ -452,6 +477,8 @@ pub mod my_token {
 
 ## 🧪 Testing
 
+Catatan: Perintah `omega test` belum aktif di wrapper CLI native-only saat ini. Untuk verifikasi dasar, gunakan kompilasi compile-only (contoh: `omega compile tests\lexer_tests.mega`).
+
 ### 1. Membuat Test Suite
 ```json
 // tests/token_tests.json
@@ -530,17 +557,29 @@ omega test --verbose
 
 ## 🚀 Deployment
 
+Catatan: Perintah `omega deploy` belum aktif di wrapper CLI native-only saat ini; bagian ini bersifat forward-looking. Fokus saat ini pada kompilasi (`omega compile`).
+
 ### 1. Setup Network Configuration
 ```bash
-# Set up environment variables
+# Set up environment variables (do NOT commit secrets)
 export INFURA_API_KEY="your_infura_api_key"
 export PRIVATE_KEY="your_private_key"
 export SOLANA_PRIVATE_KEY="your_solana_private_key"
 
-# Update omega.toml dengan network settings
+# On Windows PowerShell:
+# $env:INFURA_API_KEY = "your_infura_api_key"
+# $env:PRIVATE_KEY = "your_private_key"
+# $env:SOLANA_PRIVATE_KEY = "your_solana_private_key"
+
+# Update omega.toml dengan network settings (gunakan env vars)
 omega config set evm.rpc_url "https://sepolia.infura.io/v3/$INFURA_API_KEY"
 omega config set solana.rpc_url "https://api.devnet.solana.com"
 ```
+
+> Security notes:
+> - Store secrets only in environment variables or a local `.env` that is gitignored
+> - Never hardcode secrets in source files or configs
+> - Rotate keys regularly and use separate keys for dev/test/prod
 
 ### 2. Deploy ke Testnet
 ```bash

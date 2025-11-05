@@ -35,16 +35,16 @@ function Measure-ExecutionTime {
     }
 }
 
-# Check if OMEGA binary exists
-$OmegaBinary = Join-Path $OmegaRoot "target/release/omega.exe"
+# Ensure OMEGA built using native .mega build script
+$OmegaBinary = Join-Path $OmegaRoot "omega"
 if (-not (Test-Path $OmegaBinary)) {
-    Write-Host "🔨 Building OMEGA..." -ForegroundColor Yellow
+    Write-Host "🔨 Building OMEGA (native) ..." -ForegroundColor Yellow
     $buildResult = Measure-ExecutionTime {
-        cargo build --release --bin omega
+        & "$OmegaRoot\build_omega_native.ps1" 2>&1 | Out-Null
     }
     Write-Host "Build time: $($buildResult.Time) seconds" -ForegroundColor Green
     
-    if (-not $buildResult.Success) {
+    if (-not $buildResult.Success -or -not (Test-Path $OmegaBinary)) {
         Write-Host "❌ Failed to build OMEGA" -ForegroundColor Red
         exit 1
     }
@@ -67,7 +67,7 @@ Write-Host "🧪 Running compilation tests..." -ForegroundColor Yellow
 if (Test-Path $OmegaBinary) {
     Write-Host "Testing simple compilation..." -ForegroundColor Cyan
     $compileResult = Measure-ExecutionTime {
-        & $OmegaBinary compile $SimpleTestFile --target evm 2>&1 | Out-Null
+        $null = & $OmegaBinary compile $SimpleTestFile --target evm
     }
     
     if ($compileResult.Success) {

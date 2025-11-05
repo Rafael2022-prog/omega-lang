@@ -160,7 +160,17 @@ powershell -ExecutionPolicy Bypass -File "%~dp0omega.ps1" %*
 "@
     $psWrapper | Out-File -FilePath "omega" -Encoding UTF8
     
-    if ((Test-Path "omega.cmd") -or (Test-Path "omega")) {
+    # Try to produce omega.exe if not present
+    if (-not (Test-Path "omega.exe")) {
+        Write-BuildLog "Attempting to create omega.exe via create_executable.ps1..." "INFO"
+        if (Test-Path "create_executable.ps1") {
+            pwsh -NoProfile -ExecutionPolicy Bypass -File "create_executable.ps1"
+        } else {
+            Write-BuildLog "create_executable.ps1 not found, skipping exe generation" "WARN"
+        }
+    }
+    
+    if ((Test-Path "omega.exe") -or (Test-Path "omega.cmd") -or (Test-Path "omega")) {
         Write-BuildLog "OMEGA Native Compiler v1.1.0" "SUCCESS"
         Write-BuildLog "Built with enhanced PowerShell native toolchain" "SUCCESS"
         Write-BuildLog "OMEGA native binary built successfully!" "SUCCESS"
@@ -175,14 +185,16 @@ powershell -ExecutionPolicy Bypass -File "%~dp0omega.ps1" %*
 function Test-Build {
     Write-BuildLog "Testing OMEGA native build..." "INFO"
     
-    if (-not ((Test-Path "omega.cmd") -or (Test-Path "omega"))) {
+    if (-not ((Test-Path "omega.exe") -or (Test-Path "omega.cmd") -or (Test-Path "omega"))) {
         Write-BuildLog "OMEGA binary not found" "ERROR"
         return $false
     }
     
     try {
-        # Test with .cmd on Windows
-        if (Test-Path "omega.cmd") {
+        # Prefer omega.exe if available
+        if (Test-Path "omega.exe") {
+            $versionOutput = & ".\omega.exe" --version 2>&1
+        } elseif (Test-Path "omega.cmd") {
             $versionOutput = & ".\omega.cmd" --version 2>&1
         } else {
             $versionOutput = & ".\omega" --version 2>&1

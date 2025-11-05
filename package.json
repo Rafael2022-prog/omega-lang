@@ -1,6 +1,6 @@
 {
   "name": "@omega-lang/compiler",
-  "version": "1.1.0",
+  "version": "1.3.0-dev",
   "description": "OMEGA Universal Blockchain Programming Language - Enhanced Performance & Security",
   "main": "omega.cmd",
   "bin": {
@@ -52,7 +52,7 @@
     "rust": "^0.1.6"
   },
   "omega": {
-    "version": "1.1.0",
+    "version": "1.3.0-dev",
     "features": {
       "performance": {
         "compilation_speed": "15% faster",

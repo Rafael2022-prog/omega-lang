@@ -1,0 +1,52 @@
+name: 🧪 OMEGA Cross-Platform Test Workflow
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  omega_tests:
+    name: OMEGA Tests (${\{ matrix.os \}})
+    runs-on: ${\{ matrix.os \}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup PowerShell (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: ./.github/actions/setup-powershell
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: 📦 Install OMEGA CLI
+        run: |
+          npm install -g @omega-lang/cli
+          omega --version
+
+      - name: 🧪 Run integration tests
+        run: |
+          echo "Running integration tests with omega CLI..."
+          omega test tests/integration_tests.mega
+
+      - name: 🔎 Compute version for artifact naming
+        uses: ./.github/actions/compute-version
+
+      - name: 📊 Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: omega-test-results-${{ matrix.os }}-${{ env.OMEGA_VERSION_NAME }}
+          path: |
+            test-reports/
+            **/*.log
+          if-no-files-found: warn

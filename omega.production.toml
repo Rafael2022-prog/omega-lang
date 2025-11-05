@@ -1,0 +1,53 @@
+# OMEGA Production Configuration Overrides
+# Use this file to run OMEGA in production mode without committing secrets.
+# Example usage:
+#   omega --config r:/OMEGA/omega.production.toml
+# or set OMEGA_CONFIG env var to point to this file.
+
+[build]
+# Ensure release optimizations
+profile = "release"
+
+[compiler]
+# High optimization, no debug info in production
+optimization_level = "O3"
+debug_info = false
+# Safety first for smart-contract compilation
+overflow_checks = true
+assertions = false
+parallel_compilation = true
+
+[security]
+# Turn on all security gates for production pipelines
+audit_mode = true
+static_analysis = true
+formal_verification = true
+dependency_scanning = true
+
+[linting]
+# Enforce strict linting rules in production
+strict_mode = true
+
+[docs]
+# Avoid shipping internal drafts or bench notes in production bundles
+include_internal_drafts = false
+include_benchmarks = false
+
+[deployment]
+# Explicitly mark environment for scripts/tools consuming this config
+environment = "production"
+staging = false
+
+[blockchain.networks.evm]
+# Read from environment variables; do not hardcode secrets/URLs
+rpc_url = "${EVM_RPC_URL}"
+chain_id = "${EVM_CHAIN_ID}"
+explorer_api_key = "${ETHERSCAN_API_KEY}"
+
+[blockchain.networks.solana]
+rpc_url = "${SOLANA_RPC_URL}"
+
+# Note:
+# - Provide API keys and private keys via environment variables only.
+# - Keep this file under version control; it contains no secrets.
+# - Per-network specifics (gas limits, fee policies) should be set via env vars or separate per-network configs.

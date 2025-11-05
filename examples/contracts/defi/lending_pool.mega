@@ -1,0 +1,82 @@
+// DeFi Template — Lending Pool (compile-only scaffolding)
+// NOTE: This template is intentionally simplified and avoids external token transfers.
+// TODO: Replace placeholder accounting and key derivation with robust implementations.
+
+blockchain LendingPool {
+    state {
+        // Composite-key accounting: "user:token" -> balances
+        mapping(string => uint256) deposits;
+        mapping(string => uint256) borrows;
+        uint256 base_interest_rate;
+        address admin;
+    }
+
+    event Deposit(address indexed user, address indexed token, uint256 amount);
+    event Withdraw(address indexed user, address indexed token, uint256 amount);
+    event Borrow(address indexed user, address indexed token, uint256 amount);
+    event Repay(address indexed user, address indexed token, uint256 amount);
+    event ParamsUpdated(uint256 base_interest_rate);
+
+    constructor(uint256 _base_rate) {
+        admin = msg.sender;
+        base_interest_rate = _base_rate;
+    }
+
+    function _key(address user, address token) public returns (string) {
+        // TODO: Derive canonical key (e.g., keccak256(user||token) -> hex string)
+        return "";
+    }
+
+    function deposit(address token, uint256 amount) public returns (bool) {
+        require(token != address(0), "Invalid token");
+        require(amount > 0, "Amount must be > 0");
+        string k = _key(msg.sender, token);
+        deposits[k] += amount; // compile-only accounting
+        emit Deposit(msg.sender, token, amount);
+        return true;
+    }
+
+    function withdraw(address token, uint256 amount) public returns (bool) {
+        require(amount > 0, "Amount must be > 0");
+        string k = _key(msg.sender, token);
+        require(deposits[k] >= amount, "Insufficient deposit");
+        deposits[k] -= amount;
+        emit Withdraw(msg.sender, token, amount);
+        return true;
+    }
+
+    function borrow(address token, uint256 amount) public returns (bool) {
+        require(amount > 0, "Amount must be > 0");
+        string k = _key(msg.sender, token);
+        borrows[k] += amount;
+        emit Borrow(msg.sender, token, amount);
+        return true;
+    }
+
+    function repay(address token, uint256 amount) public returns (bool) {
+        require(amount > 0, "Amount must be > 0");
+        string k = _key(msg.sender, token);
+        require(borrows[k] >= amount, "Repay exceeds borrowed");
+        borrows[k] -= amount;
+        emit Repay(msg.sender, token, amount);
+        return true;
+    }
+
+    function get_deposit(address user, address token) public view returns (uint256) {
+        string k = _key(user, token);
+        return deposits[k];
+    }
+
+    function get_borrow(address user, address token) public view returns (uint256) {
+        string k = _key(user, token);
+        return borrows[k];
+    }
+
+    // Admin parameter update (compile-only)
+    function set_base_interest_rate(uint256 new_rate) public returns (bool) {
+        require(msg.sender == admin, "Admin only");
+        base_interest_rate = new_rate;
+        emit ParamsUpdated(new_rate);
+        return true;
+    }
+}

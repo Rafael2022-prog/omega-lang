@@ -2,6 +2,11 @@
 
 > [🏠 Home](Home.md) | [🚀 Getting Started](Getting-Started-Guide.md) | [📖 Language Spec](Language-Specification.md) | [🏗️ Compiler Architecture](Compiler-Architecture.md) | [🤝 Contributing](Contributing.md)
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Wiki ini menggambarkan API lengkap OMEGA. CI aktif saat ini adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal.
+> - Verifikasi dasar: `scripts/build_omega_native.ps1`, `omega.exe`/`omega.ps1` dengan `omega compile <file.mega>`, dan Native Runner (HTTP) `POST /compile`.
+> - Perintah `omega build/test/deploy` serta tooling non-native (`npm`, `mdBook`, `valgrind`, `cargo-tarpaulin`) bersifat forward-looking/opsional. Coverage: `scripts/generate_coverage.ps1`.
+
 Dokumentasi lengkap untuk OMEGA API, built-in functions, standard library, dan compiler interfaces.
 
 ## 📚 Overview

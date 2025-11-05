@@ -1,0 +1,35 @@
+name: Compute CI Version
+
+description: Compute and expose OMEGA_VERSION_NAME for artifact naming, with an output for optional consumers.
+
+outputs:
+  version:
+    description: Computed OMEGA version name
+    value: ${{ steps.export.outputs.version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compute CI version
+      shell: pwsh
+      run: |
+        ./scripts/compute_ci_version.ps1
+
+    - name: Export version output
+      id: export
+      shell: pwsh
+      run: |
+        if (-not $env:OMEGA_VERSION_NAME -or $env:OMEGA_VERSION_NAME -eq "") {
+          Write-Host "OMEGA_VERSION_NAME was not set by compute_ci_version.ps1; computing a fallback value."
+          $base = ""
+          if (Test-Path "VERSION") { $base = (Get-Content -Path "VERSION" -TotalCount 1).Trim() }
+          if (-not $base -or $base -eq "") { $base = "1.2.1" }
+          $sha = $env:GITHUB_SHA
+          if ($sha) { $sha = $sha.Substring(0,7) } else { $sha = "local" }
+          $runNum = $env:GITHUB_RUN_NUMBER
+          if (-not $runNum -or $runNum -eq "") { $runNum = "0" }
+          $meta = "ci.$runNum.$sha"
+          $env:OMEGA_VERSION_NAME = "$base-$meta"
+          "OMEGA_VERSION_NAME=$env:OMEGA_VERSION_NAME" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+        }
+        "version=$env:OMEGA_VERSION_NAME" | Out-File -Append -FilePath $env:GITHUB_OUTPUT -Encoding utf8

@@ -27,7 +27,7 @@ exclude = ["target/**", "build/**", ".git/**", "*.tmp"]
 # Compiler executable name
 name = "omega"
 # Optimization level (0=none, 1=basic, 2=full, 3=aggressive)
-optimization_level = 2
+optimization_level = 3
 # Debug information
 debug_info = false
 # Verbose output

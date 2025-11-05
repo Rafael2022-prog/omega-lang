@@ -262,8 +262,21 @@ omega config get build.optimization
 
 ### Build & Compilation
 
+#### `omega compile`
+Kompilasi file tunggal (mode native-only wrapper).
+
+```bash
+omega compile <SOURCE>
+
+# Contoh:
+omega compile tests/lexer_tests.mega
+omega compile contracts/SimpleToken.mega
+```
+
 #### `omega build`
 Kompilasi smart contracts.
+
+Catatan: Perintah build belum aktif di wrapper CLI native-only saat ini. Gunakan `omega compile <file.mega>` sebagai alternatif untuk kompilasi di Windows CI.
 
 ```bash
 omega build [OPTIONS]
@@ -307,6 +320,8 @@ omega check --syntax --semantic
 #### `omega test`
 Menjalankan test suite.
 
+Catatan: Perintah test belum aktif di wrapper CLI native-only saat ini; gunakan kompilasi compile-only untuk memvalidasi sintaks dan struktur: `omega compile tests/lexer_tests.mega`.
+
 ```bash
 omega test [OPTIONS] [TEST_PATTERN]
 
@@ -332,6 +347,8 @@ omega test --cross-chain --timeout 120
 
 #### `omega deploy`
 Deploy smart contracts.
+
+Catatan: Perintah deploy belum aktif di wrapper CLI native-only saat ini; bagian ini bersifat forward-looking. Untuk saat ini, fokus pada kompilasi (`omega compile`).
 
 ```bash
 omega deploy [OPTIONS]
@@ -420,6 +437,37 @@ omega analyze [OPTIONS]
 # Examples:
 omega analyze --security --output security-report.json
 omega analyze --gas-usage --complexity
+```
+
+### Windows CI Tips
+
+Ringkasan mode dan jalur alternatif saat wrapper CLI bekerja dalam mode compile-only:
+
+- Mode aktif: Windows native-only dengan wrapper CLI untuk kompilasi file tunggal.
+- Perintah yang belum aktif/bersifat forward-looking di wrapper: `omega build`, `omega test`, `omega deploy`, `omega verify`, `omega docs`, `omega analyze`.
+- Flags yang mungkin belum didukung sepenuhnya di wrapper:
+  - `--target`, `--network`, `--chain` pada `deploy/test/verify`;
+  - `--out-dir`, `--release`, `--opt-level` pada `build`;
+  - `--format json` pada `omega analyze`/`omega docs`.
+- Jalur alternatif yang disarankan di Windows CI:
+  - Native build: jalankan `scripts/build_omega_native.ps1`.
+  - Kompilasi file tunggal: gunakan `omega.exe`/`omega.ps1` dengan `omega compile <file.mega>`.
+  - Verifikasi HTTP: gunakan Native Runner `POST /compile` untuk smoke test.
+  - Laporan cakupan: gunakan `scripts/generate_coverage.ps1` (menggantikan `cargo-tarpaulin`).
+  - Dokumentasi: jika `omega docs` belum aktif, dokumentasi dapat dibangun manual dari file Markdown yang ada.
+- Tips proteksi cabang: set required checks ke job `test (windows-latest)` dan langkah build/coverage native; job Ubuntu/macOS dapat dibuat opsional atau dinonaktifkan sementara.
+
+Contoh langkah CI (Windows):
+
+```powershell
+# Build native
+scripts/build_omega_native.ps1
+
+# Compile single file
+./omega.ps1 compile examples/SimpleToken.mega
+
+# Coverage
+scripts/generate_coverage.ps1 -OutputPath artifacts/coverage
 ```
 
 ## 📖 Standard Library

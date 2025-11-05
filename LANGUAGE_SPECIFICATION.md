@@ -1,6 +1,15 @@
 # OMEGA Programming Language Specification v1.1.0
 ## Universal Blockchain Development Language - Enhanced Performance & Security Edition
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Dokumen ini menjelaskan spesifikasi penuh bahasa OMEGA. Saat ini, pipeline CI yang aktif adalah Windows-only dengan wrapper CLI yang mendukung kompilasi file tunggal (compile-only).
+> - Gunakan skrip/perintah native berikut untuk verifikasi dasar:
+>   - `scripts/build_omega_native.ps1` untuk build lintas modul di Windows.
+>   - `omega.exe` atau `omega.ps1` dengan perintah: `omega compile <file.mega>`.
+>   - Native Runner (HTTP): `POST /compile` untuk memvalidasi kompilasi dalam pipeline CI.
+> - Perintah seperti `omega build/test/deploy`, serta flag `--watch`, `--gas-report`, `--verbose` dan tooling non-native (`npm`, `mdBook`, `valgrind`, `cargo-tarpaulin`) bersifat forward-looking/opsional dan dapat belum aktif di wrapper.
+> - Untuk cakupan kode di Windows, gunakan `scripts/generate_coverage.ps1` sebagai alternatif.
+
 ### Design Philosophy
 OMEGA adalah bahasa pemrograman yang dirancang khusus untuk pengembangan blockchain dengan prinsip "Write Once, Deploy Everywhere" - kompatibel dengan EVM dan non-EVM chains.
 

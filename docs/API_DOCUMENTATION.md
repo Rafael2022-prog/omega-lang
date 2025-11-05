@@ -1,5 +1,11 @@
 # OMEGA API Documentation
 
+> Catatan (Windows Native-Only, Compile-Only)
+> - Dokumentasi API ini mencakup interface penuh. Pada CI Windows-only saat ini, fokus alur kerja adalah kompilasi file tunggal (compile-only) melalui wrapper CLI dan Native Runner.
+> - Gunakan `build_omega_native.ps1` untuk build, jalankan `./omega.exe` atau `pwsh -NoProfile -ExecutionPolicy Bypass -File ./omega.ps1`.
+> - Endpoint Native Runner yang relevan: `POST /compile` untuk kompilasi/parse sederhana; `GET /version`, `GET /health`, `GET /info` untuk observasi.
+> - Perintah `omega build/test/deploy` pada dokumen CLI bersifat forward-looking; gunakan `omega compile <file.mega>` untuk verifikasi dasar pada Windows.
+
 ## Overview
 
 OMEGA Compiler menyediakan API yang komprehensif untuk parsing, kompilasi, dan code generation ke berbagai target blockchain. Dokumentasi ini mencakup semua public interfaces yang tersedia.

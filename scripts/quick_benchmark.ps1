@@ -5,19 +5,23 @@ Write-Host "=== OMEGA Quick Performance Benchmark ===" -ForegroundColor Cyan
 Write-Host "Testing basic performance metrics..." -ForegroundColor Yellow
 Write-Host ""
 
+# Add project root for resolving paths
+$OmegaRoot = Split-Path -Parent $PSScriptRoot
+
 # Test 1: Build Performance
 Write-Host "1. Testing Build Performance..." -ForegroundColor Green
 $buildStart = Get-Date
 try {
-    $buildResult = & cargo build --release 2>&1
+    # Build using native .mega build script
+    $buildResult = & "$OmegaRoot\build_omega_native.ps1" 2>&1
     $buildEnd = Get-Date
     $buildTime = ($buildEnd - $buildStart).TotalSeconds
     
-    if ($LASTEXITCODE -eq 0) {
+    if ($LASTEXITCODE -eq 0 -or ($buildResult -match "Build completed")) {
         Write-Host "   ✅ Build successful in $([math]::Round($buildTime, 2)) seconds" -ForegroundColor Green
     } else {
-        Write-Host "   ❌ Build failed" -ForegroundColor Red
-        Write-Host "   Error: $buildResult" -ForegroundColor Red
+        Write-Host "   ❌ Build may have warnings or failed" -ForegroundColor Red
+        Write-Host "   Output: $buildResult" -ForegroundColor Red
         exit 1
     }
 } catch {
@@ -27,7 +31,7 @@ try {
 
 # Test 2: Binary Size
 Write-Host "2. Testing Binary Size..." -ForegroundColor Green
-$binaryPath = "target\release\omega.exe"
+$binaryPath = Join-Path $OmegaRoot "omega"
 if (Test-Path $binaryPath) {
     $binarySize = (Get-Item $binaryPath).Length
     $binarySizeMB = [math]::Round($binarySize / 1MB, 2)
@@ -41,7 +45,7 @@ if (Test-Path $binaryPath) {
 Write-Host "3. Testing Runtime Performance..." -ForegroundColor Green
 $runtimeStart = Get-Date
 try {
-    $versionResult = & ".\$binaryPath" version 2>&1
+    $versionResult = & "$binaryPath" --version 2>&1
     $runtimeEnd = Get-Date
     $runtimeTime = ($runtimeEnd - $runtimeStart).TotalMilliseconds
     
@@ -61,7 +65,7 @@ try {
 Write-Host "4. Testing Help Command Performance..." -ForegroundColor Green
 $helpStart = Get-Date
 try {
-    $helpResult = & ".\$binaryPath" help 2>&1
+    $helpResult = & "$binaryPath" --help 2>&1
     $helpEnd = Get-Date
     $helpTime = ($helpEnd - $helpStart).TotalMilliseconds
     

@@ -18,21 +18,9 @@ jobs:
     - name: 📥 Checkout code
       uses: actions/checkout@v4
 
-    - name: 🔧 Setup PowerShell (Linux/macOS)
+    - name: 🔧 Setup PowerShell
       if: runner.os != 'Windows'
-      run: |
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          # Install PowerShell on Ubuntu
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https software-properties-common
-          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-          sudo dpkg -i packages-microsoft-prod.deb
-          sudo apt-get update
-          sudo apt-get install -y powershell
-        elif [ "$RUNNER_OS" == "macOS" ]; then
-          # Install PowerShell on macOS
-          brew install --cask powershell
-        fi
+      uses: ./.github/actions/setup-powershell
 
     - name: 🚀 Build Self-Hosting Compiler
       run: |
@@ -91,14 +79,18 @@ jobs:
         fi
       shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
 
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
     - name: 📊 Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-${{ matrix.os }}
+        name: test-results-${{ matrix.os }}-${{ env.OMEGA_VERSION_NAME }}
         path: |
           test-reports/
           *.log
+        if-no-files-found: warn
 
   self_hosting_validation:
     name: 🔄 Self-Hosting Validation
@@ -110,13 +102,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: 🔧 Setup PowerShell
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget apt-transport-https software-properties-common
-        wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-        sudo dpkg -i packages-microsoft-prod.deb
-        sudo apt-get update
-        sudo apt-get install -y powershell
+      uses: ./.github/actions/setup-powershell
 
     - name: 🚀 Build Self-Hosting Compiler
       run: |
@@ -149,15 +135,19 @@ jobs:
         
         echo "✅ Cross-target compilation successful"
 
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
     - name: 📊 Upload self-hosting artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: self-hosting-artifacts
+        name: self-hosting-artifacts-${{ env.OMEGA_VERSION_NAME }}
         path: |
           omega_stage1.exe
           omega_stage2.exe
           SimpleToken.sol
           lib.rs
+        if-no-files-found: warn
 
   lint:
     name: 🔍 Code Quality
@@ -190,13 +180,20 @@ jobs:
         npx eslint . --ext .js,.ts --format json --output-file ../eslint-extension-results.json || true
         cd ..
 
+    - name: 🔧 Setup PowerShell
+      uses: ./.github/actions/setup-powershell
+ 
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
     - name: 📊 Upload lint results
       uses: actions/upload-artifact@v4
       with:
-        name: lint-results
+        name: lint-results-${{ env.OMEGA_VERSION_NAME }}
         path: |
           eslint-results.json
           eslint-extension-results.json
+        if-no-files-found: warn
 
   security:
     name: 🔒 Security Scan
@@ -229,13 +226,20 @@ jobs:
         npm audit --audit-level moderate --json > ../audit-extension.json || true
         cd ..
 
+    - name: 🔧 Setup PowerShell
+      uses: ./.github/actions/setup-powershell
+ 
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
     - name: 📊 Upload security results
       uses: actions/upload-artifact@v4
       with:
-        name: security-results
+        name: security-results-${{ env.OMEGA_VERSION_NAME }}
         path: |
           audit-lsp.json
           audit-extension.json
+        if-no-files-found: warn
 
   build:
     name: 🏗️ Build
@@ -271,12 +275,19 @@ jobs:
         npx vsce package
         cd ..
 
+    - name: 🔧 Setup PowerShell
+      uses: ./.github/actions/setup-powershell
+ 
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
     - name: 📊 Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build-artifacts-${{ matrix.os }}
+        name: build-artifacts-${{ matrix.os }}-${{ env.OMEGA_VERSION_NAME }}
         path: |
           omega-vscode-extension/*.vsix
+        if-no-files-found: warn
 
   performance:
     name: ⚡ Performance Tests
@@ -297,16 +308,23 @@ jobs:
       run: |
         cd lsp-server && npm ci && cd ..
 
+    - name: 🔧 Setup PowerShell
+      uses: ./.github/actions/setup-powershell
+ 
     - name: ⚡ Run performance benchmarks
+      shell: pwsh
       run: |
-        chmod +x scripts/performance_benchmark.sh
-        ./scripts/performance_benchmark.sh
+        ./scripts/quick_benchmark.ps1
+
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
 
     - name: 📊 Upload performance results
       uses: actions/upload-artifact@v4
       with:
-        name: performance-results
+        name: performance-results-${{ env.OMEGA_VERSION_NAME }}
         path: test-reports/performance/
+        if-no-files-found: warn
 
   coverage:
     name: 📊 Code Coverage
@@ -327,34 +345,174 @@ jobs:
         cd lsp-server && npm ci && cd ..
         cd omega-vscode-extension && npm ci && cd ..
 
+    - name: 🔧 Setup PowerShell
+      uses: ./.github/actions/setup-powershell
+
     - name: 📊 Generate coverage report
+      shell: pwsh
       run: |
-        # Run tests with coverage
-        chmod +x scripts/simple_test.ps1
         ./scripts/simple_test.ps1
 
     - name: 📤 Upload coverage to Codecov
+      if: ${{ hashFiles('coverage/lcov.info') != '' }}
       uses: codecov/codecov-action@v3
       with:
         file: ./coverage/lcov.info
         flags: unittests
         name: codecov-umbrella
 
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
+    - name: 📊 Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ env.OMEGA_VERSION_NAME }}
+        path: coverage/**
+        if-no-files-found: warn
+
+  audit_tools:
+    name: 🔎 Audit Tools Integration
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔍 Dependency Audit (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/dependency_audit.ps1
+
+    - name: 🔍 Security Scan (Ubuntu)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        chmod +x scripts/security_scan.sh
+        ./scripts/security_scan.sh
+
+    - name: 🔎 Compute version for artifact naming (Windows)
+      if: runner.os == 'Windows'
+      uses: ./.github/actions/compute-version
+
+    - name: 🔎 Setup PowerShell (Linux)
+      if: runner.os != 'Windows'
+      uses: ./.github/actions/setup-powershell
+
+    - name: 🔎 Compute version for artifact naming (Linux)
+      if: runner.os != 'Windows'
+      uses: ./.github/actions/compute-version
+
+    - name: 📊 Upload audit artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: audit-results-${{ matrix.os }}-${{ env.OMEGA_VERSION_NAME }}
+        path: |
+          security-reports/
+          audit-*.json
+        if-no-files-found: warn
+
+  compile_smoke:
+    name: 🧪 Compile Smoke (Windows)
+    runs-on: windows-latest
+    needs: [test]
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🛠️ Build native compiler (Windows)
+      shell: pwsh
+      run: |
+        pwsh -NoProfile -ExecutionPolicy Bypass -File omega_native.ps1
+
+    - name: 🧪 Run compile-only smoke tests
+      shell: pwsh
+      run: |
+        pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/compile_smoke.ps1
+
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
+    - name: 📦 Upload compile smoke artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: compile-smoke-windows-${{ env.OMEGA_VERSION_NAME }}
+        path: |
+          security-reports/
+          audit-*.json
+          test-reports/
+          *.log
+        if-no-files-found: warn
+
+  http_version_check:
+    name: 🌐 HTTP /version Check (Windows)
+    runs-on: windows-latest
+    needs: [test]
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🛠️ Build native compiler (Windows)
+      shell: pwsh
+      run: |
+        pwsh -NoProfile -ExecutionPolicy Bypass -File omega_native.ps1
+
+    - name: ✅ Verify HTTP /version endpoint
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $proc = Start-Process -FilePath 'pwsh' -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/omega_native_runner.ps1','-Port','8099','-BindHost','127.0.0.1' -PassThru
+        try {
+          Start-Sleep -Seconds 3
+          $resp = Invoke-WebRequest 'http://127.0.0.1:8099/version' -UseBasicParsing
+          $content = $resp.Content
+          $content | Out-File -Encoding utf8 -FilePath 'http-version-check.log'
+          Write-Host "Status: $($resp.StatusCode)"
+          Write-Host "Body: $content"
+          $json = $content | ConvertFrom-Json
+          if (-not $json.compiler_version) {
+            throw "compiler_version missing in response"
+          }
+        } finally {
+          if ($proc -and (Get-Process -Id $proc.Id -ErrorAction SilentlyContinue)) {
+            Stop-Process -Id $proc.Id -Force
+          }
+        }
+
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
+    - name: 📊 Upload HTTP version check logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: http-version-check-${{ env.OMEGA_VERSION_NAME }}
+        path: |
+          http-version-check.log
+        if-no-files-found: warn
+
   notify:
     name: 📢 Notifications
     runs-on: ubuntu-latest
-    needs: [test, self_hosting_validation, lint, security, build]
+    needs: [test, self_hosting_validation, lint, security, build, audit_tools, compile_smoke, http_version_check]
     if: always()
 
     steps:
     - name: 📢 Notify on success
-      if: needs.test.result == 'success' && needs.self_hosting_validation.result == 'success' && needs.lint.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success'
+      if: needs.test.result == 'success' && needs.self_hosting_validation.result == 'success' && needs.lint.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success' && needs.audit_tools.result == 'success' && needs.compile_smoke.result == 'success'
       run: |
         echo "✅ All checks passed! Self-hosting compiler validated successfully."
-        echo "🚀 OMEGA v1.2.0 Self-Hosting Milestone achieved!"
+        BASE_VERSION="$(head -n 1 VERSION | tr -d '\r')"
+        [ -z "$BASE_VERSION" ] && BASE_VERSION="1.2.1"
+        META="ci.${GITHUB_RUN_NUMBER}.${GITHUB_SHA::7}"
+        FULL_VERSION="${BASE_VERSION}-${META}"
+        echo "🚀 OMEGA ${FULL_VERSION} Self-Hosting Milestone achieved!"
 
     - name: 📢 Notify on failure
-      if: needs.test.result == 'failure' || needs.self_hosting_validation.result == 'failure' || needs.lint.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure'
+      if: needs.test.result == 'failure' || needs.self_hosting_validation.result == 'failure' || needs.lint.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure' || needs.audit_tools.result == 'failure' || needs.compile_smoke.result == 'failure'
       run: |
         echo "❌ Some checks failed. Please review the results."
         if [ "${{ needs.self_hosting_validation.result }}" == "failure" ]; then

@@ -1,5 +1,10 @@
 # Examples
 
+> Catatan kompatibilitas (Windows native-only, compile-only)
+> - Contoh di halaman ini menunjukkan kemampuan penuh OMEGA. Saat ini CI aktif adalah Windows-only dengan wrapper CLI untuk kompilasi file tunggal.
+> - Untuk verifikasi dasar gunakan: `scripts/build_omega_native.ps1`, `omega.exe`/`omega.ps1` dengan `omega compile <file.mega>`, dan Native Runner (HTTP) `POST /compile`.
+> - Perintah `omega build/test/deploy` serta tooling non-native (`npm`, `mdBook`, `valgrind`, `cargo-tarpaulin`) bersifat forward-looking/opsional. Coverage: `scripts/generate_coverage.ps1`.
+
 Halaman ini menyediakan koleksi lengkap contoh smart contract OMEGA untuk berbagai use case, dari token sederhana hingga protokol DeFi yang kompleks.
 
 ## 🎯 Overview

@@ -9,8 +9,29 @@ if (-not (Test-Path $execDir)) {
     New-Item -ItemType Directory -Path $execDir -Force | Out-Null
 }
 
+# Compute version from central VERSION file with CI/local metadata
+$versionBase = "1.2.1"
+try {
+    $verFile = "R:\OMEGA\VERSION"
+    if (Test-Path $verFile) { $versionBase = (Get-Content $verFile -ErrorAction SilentlyContinue | Select-Object -First 1).Trim() }
+} catch { }
+$versionMeta = $null
+if ($env:GITHUB_RUN_NUMBER -or $env:GITHUB_SHA) {
+    $run = $env:GITHUB_RUN_NUMBER
+    $sha = $env:GITHUB_SHA
+    if ($sha) { $sha = $sha.Substring(0,7) }
+    $parts = @()
+    if ($run) { $parts += "ci.$run" }
+    if ($sha) { $parts += "sha.$sha" }
+    $versionMeta = ($parts -join ".")
+} else {
+    $versionMeta = "local." + (Get-Date -Format "yyyyMMdd.HHmm")
+}
+$versionStr = $versionBase
+if ($versionMeta) { $versionStr = "$versionBase-$versionMeta" }
+
 # Create the main executable content
-$executableContent = @'
+$executableContent = @"
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -22,7 +43,7 @@ namespace OmegaCompiler
     {
         static void Main(string[] args)
         {
-            var version = "1.0.0";
+            var version = "${versionStr}";
             var buildDate = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
             
             if (args.Length == 0 || args[0] == "--help" || args[0] == "-h")
@@ -44,7 +65,7 @@ namespace OmegaCompiler
             
             // Execute OMEGA compiler via PowerShell wrapper
             var omegaRoot = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var omegaScript = Path.Combine(omegaRoot, "..", "omega.ps1");
+            var omegaScript = Path.Combine(omegaRoot, "omega.ps1");
             
             var startInfo = new ProcessStartInfo
             {
@@ -82,7 +103,7 @@ namespace OmegaCompiler
         
         static void ShowHelp()
         {
-            Console.WriteLine("OMEGA Compiler v1.0.0");
+            Console.WriteLine("OMEGA Compiler");
             Console.WriteLine();
             Console.WriteLine("Usage: omega [COMMAND] [OPTIONS]");
             Console.WriteLine();
@@ -104,7 +125,7 @@ namespace OmegaCompiler
         }
     }
 }
-'@
+"@
 
 # Save C# source
 $csFile = Join-Path $execDir "omega.cs"
@@ -159,10 +180,10 @@ if (Test-Path $cscPath) {
     if (Get-Command ps2exe -ErrorAction SilentlyContinue) {
         $ps1File = "R:\OMEGA\omega_executable.ps1"
         
-        $ps1Content = @'
+        $ps1Content = @"
 param([string[]]$Arguments)
 
-$version = "1.0.0"
+$version = "${versionStr}"
 $buildDate = Get-Date -Format "dd/MM/yyyy HH:mm:ss"
 
 if ($Arguments.Length -eq 0 -or $Arguments[0] -eq "--help" -or $Arguments[0] -eq "-h") {
@@ -201,7 +222,7 @@ if ($Arguments[0] -eq "--version" -or $Arguments[0] -eq "-v") {
 # Execute the main OMEGA script
 $omegaScript = Join-Path $PSScriptRoot "omega.ps1"
 & $omegaScript @Arguments
-'@
+"@
         
         $ps1Content | Out-File -FilePath $ps1File -Encoding UTF8
         
