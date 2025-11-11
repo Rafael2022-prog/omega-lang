@@ -4,6 +4,7 @@
 import "../ast/ast_nodes.mega";
 import "../semantic/analyzer.mega";
 import "../error/error.mega";
+import "../utils/secure_timestamp.mega";
 import "ir_generator.mega";
 import "type_converter.mega";
 import "ir_validator.mega";
@@ -277,14 +278,18 @@ blockchain OmegaIR {
         return empty_module;
     }
     
-    function create_ir_module(string memory name) private view returns (IRModule memory) {
+    function create_ir_module(string memory name) private returns (IRModule memory) {
         IRModule memory module;
         module.name = name;
         module.version = "1.0.0";
         module.target_platform = target_platform;
         module.optimization_level = optimization_level;
         module.debug_info = debug_mode;
-        module.generation_timestamp = block.timestamp;
+        
+        // Use secure timestamp for generation
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        module.generation_timestamp = secure_ts.get_secure_timestamp();
+        
         return module;
     }
     
@@ -297,7 +302,9 @@ blockchain OmegaIR {
     }
     
     function update_metadata() private {
-        metadata.last_generation_time = block.timestamp;
+        // Use secure timestamp for metadata updates
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        metadata.last_generation_time = secure_ts.get_secure_timestamp();
         metadata.generation_count = generation_count;
         metadata.target_platform = target_platform;
         metadata.optimization_level = optimization_level;
@@ -353,10 +360,14 @@ blockchain OmegaIR {
         return config;
     }
     
-    function create_default_metadata() private view returns (IRMetadata memory) {
+    function create_default_metadata() private returns (IRMetadata memory) {
         IRMetadata memory metadata;
         metadata.version = "1.0.0";
-        metadata.creation_time = block.timestamp;
+        
+        // Use secure timestamp for creation time
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        metadata.creation_time = secure_ts.get_secure_timestamp();
+        
         metadata.last_generation_time = 0;
         metadata.generation_count = 0;
         return metadata;

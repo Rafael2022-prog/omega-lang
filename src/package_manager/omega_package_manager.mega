@@ -1,0 +1,1525 @@
+// OMEGA Package Manager
+// Registry and package management system for OMEGA packages
+
+blockchain OmegaPackageManager {
+    state {
+        mapping(string => PackageRegistry) registries;
+        mapping(string => Package) packages;
+        mapping(string => PackageVersion) package_versions;
+        mapping(string => PackageDependency) dependencies;
+        mapping(string => PackageMetadata) metadata;
+        mapping(address => PackagePublisher) publishers;
+        mapping(string => PackageDownloadStats) download_stats;
+        mapping(string => PackageReview) reviews;
+        mapping(string => PackageSecurity) security_info;
+        PackageManagerConfig config;
+        PackageIndex index;
+        DependencyResolver resolver;
+        PackageInstaller installer;
+        SecurityScanner security_scanner;
+        PackageValidator validator;
+        RepositoryManager repo_manager;
+        string default_registry;
+        uint256 total_packages;
+        uint256 total_downloads;
+    }
+
+    struct PackageRegistry {
+        string registry_id;
+        string registry_name;
+        string registry_url;
+        string registry_type; // public, private, enterprise
+        RegistryConfig config;
+        RegistryAuthentication auth;
+        uint256 package_count;
+        uint256 last_updated;
+        bool is_active;
+        string[] supported_protocols;
+        RegistryStatistics stats;
+    }
+
+    struct RegistryConfig {
+        uint256 max_package_size;
+        uint256 max_version_count;
+        uint256 retention_policy_days;
+        bool auto_approval_enabled;
+        uint256 approval_timeout_hours;
+        string[] allowed_licenses;
+        string[] blocked_licenses;
+        bool security_scanning_required;
+        uint256 min_security_score;
+        RegistryRateLimit rate_limits;
+    }
+
+    struct RegistryRateLimit {
+        uint256 downloads_per_hour;
+        uint256 uploads_per_day;
+        uint256 api_calls_per_minute;
+        uint256 search_queries_per_minute;
+        bool rate_limiting_enabled;
+        uint256 burst_threshold_percent;
+    }
+
+    struct RegistryAuthentication {
+        string auth_type; // api_key, oauth, basic_auth, token
+        string auth_endpoint;
+        mapping(string => string) auth_params;
+        uint256 token_expiry_ms;
+        bool auto_refresh_enabled;
+        string[] required_scopes;
+        MultiFactorAuth mfa;
+    }
+
+    struct MultiFactorAuth {
+        bool mfa_enabled;
+        string mfa_type; // totp, sms, email, app
+        uint256 mfa_timeout_seconds;
+        uint256 max_attempts;
+        bool backup_codes_enabled;
+    }
+
+    struct RegistryStatistics {
+        uint256 total_packages;
+        uint256 total_downloads;
+        uint256 total_uploads;
+        uint256 active_publishers;
+        uint256 average_package_size;
+        uint256 total_storage_used;
+        uint256 api_request_count;
+        uint256 search_query_count;
+        mapping(string => uint256) package_categories;
+        mapping(string => uint256) license_distribution;
+    }
+
+    struct Package {
+        string package_id;
+        string package_name;
+        string package_description;
+        string package_author;
+        string package_license;
+        string package_homepage;
+        string package_repository;
+        string[] package_keywords;
+        string package_category;
+        uint256 created_at;
+        uint256 last_updated;
+        string registry_id;
+        PackageStatus status;
+        uint256 download_count;
+        uint256 rating;
+        uint256 review_count;
+        bool is_verified;
+        string verification_method;
+        uint256 verified_at;
+    }
+
+    struct PackageStatus {
+        bool is_active;
+        bool is_deprecated;
+        bool is_unlisted;
+        bool is_suspended;
+        string suspension_reason;
+        uint256 suspended_at;
+        string suspended_by;
+    }
+
+    struct PackageVersion {
+        string version_id;
+        string package_id;
+        string version_number;
+        string version_description;
+        string version_hash;
+        uint256 version_size;
+        string[] supported_platforms;
+        string[] supported_targets;
+        string[] dependencies;
+        string[] peer_dependencies;
+        string[] optional_dependencies;
+        uint256 created_at;
+        uint256 published_at;
+        string published_by;
+        VersionCompatibility compatibility;
+        VersionChangelog changelog;
+        bool is_stable;
+        bool is_prerelease;
+        string prerelease_type; // alpha, beta, rc
+    }
+
+    struct VersionCompatibility {
+        string minimum_compiler_version;
+        string maximum_compiler_version;
+        string[] compatible_platforms;
+        string[] incompatible_platforms;
+        string[] tested_platforms;
+        uint256 compatibility_score;
+    }
+
+    struct VersionChangelog {
+        string[] added_features;
+        string[] fixed_bugs;
+        string[] breaking_changes;
+        string[] deprecated_features;
+        string[] security_fixes;
+        string[] performance_improvements;
+        string migration_guide;
+    }
+
+    struct PackageDependency {
+        string dependency_id;
+        string package_id;
+        string dependency_name;
+        string version_constraint;
+        string dependency_type; // runtime, development, peer, optional
+        bool is_optional;
+        bool is_peer;
+        string[] supported_versions;
+        DependencyConflictResolution conflict_resolution;
+        uint256 created_at;
+    }
+
+    struct DependencyConflictResolution {
+        string resolution_strategy; // highest, lowest, exact, range
+        bool auto_resolve_enabled;
+        string[] allowed_versions;
+        string[] blocked_versions;
+        bool force_version;
+        string reason;
+    }
+
+    struct PackageMetadata {
+        string metadata_id;
+        string package_id;
+        string metadata_type; // readme, documentation, examples, tests
+        string content_hash;
+        uint256 content_size;
+        string content_encoding; // utf-8, base64, gzip
+        uint256 created_at;
+        uint256 last_updated;
+        string updated_by;
+        MetadataValidation validation;
+    }
+
+    struct MetadataValidation {
+        bool validation_enabled;
+        string validation_schema;
+        string[] validation_rules;
+        uint256 validation_score;
+        string[] validation_errors;
+        bool is_valid;
+        uint256 validated_at;
+    }
+
+    struct PackagePublisher {
+        address publisher_address;
+        string publisher_name;
+        string publisher_email;
+        string publisher_website;
+        string publisher_organization;
+        uint256 reputation_score;
+        uint256 packages_published;
+        uint256 total_downloads;
+        bool is_verified;
+        string verification_level;
+        uint256 joined_at;
+        uint256 last_active;
+        PublisherTrustLevel trust_level;
+        PublisherPermissions permissions;
+    }
+
+    struct PublisherTrustLevel {
+        uint256 trust_score;
+        string trust_level; // new, verified, trusted, maintainer
+        uint256 trust_level_score;
+        string[] trust_badges;
+        uint256 last_trust_update;
+        string trust_update_reason;
+    }
+
+    struct PublisherPermissions {
+        bool can_publish;
+        bool can_unpublish;
+        bool can_update;
+        bool can_delete;
+        bool can_verify_packages;
+        bool can_moderate_reviews;
+        uint256 daily_upload_limit;
+        uint256 max_package_size;
+        string[] restricted_categories;
+    }
+
+    struct PackageDownloadStats {
+        string package_id;
+        uint256 total_downloads;
+        uint256 downloads_last_day;
+        uint256 downloads_last_week;
+        uint256 downloads_last_month;
+        uint256 downloads_last_year;
+        mapping(string => uint256) downloads_by_version;
+        mapping(string => uint256) downloads_by_platform;
+        mapping(string => uint256) downloads_by_target;
+        mapping(string => uint256) downloads_by_date;
+        uint256 unique_downloaders;
+        uint256 repeat_downloaders;
+        float average_downloads_per_day;
+        uint256 peak_downloads_day;
+        uint256 peak_downloads_count;
+    }
+
+    struct PackageReview {
+        string review_id;
+        string package_id;
+        address reviewer;
+        uint256 rating;
+        string review_text;
+        uint256 created_at;
+        uint256 last_updated;
+        bool is_verified;
+        uint256 helpful_votes;
+        uint256 total_votes;
+        ReviewStatus status;
+        string[] review_tags;
+        ReviewResponse response;
+    }
+
+    struct ReviewStatus {
+        bool is_published;
+        bool is_flagged;
+        string flag_reason;
+        bool is_hidden;
+        string hidden_reason;
+        uint256 moderated_at;
+        string moderated_by;
+    }
+
+    struct ReviewResponse {
+        string response_text;
+        address responded_by;
+        uint256 responded_at;
+        bool is_official;
+        uint256 helpful_votes;
+    }
+
+    struct PackageSecurity {
+        string security_id;
+        string package_id;
+        uint256 security_score;
+        SecurityScanResult last_scan;
+        VulnerabilityReport[] vulnerabilities;
+        SecurityAudit[] audits;
+        bool security_approved;
+        uint256 approved_at;
+        string approved_by;
+        SecurityPolicy policy;
+    }
+
+    struct SecurityScanResult {
+        uint256 scan_id;
+        uint256 scanned_at;
+        string scanner_version;
+        string scan_type; // static, dynamic, dependency, license
+        uint256 total_issues;
+        uint256 critical_issues;
+        uint256 high_issues;
+        uint256 medium_issues;
+        uint256 low_issues;
+        string[] scan_findings;
+        string scan_report_url;
+        bool scan_passed;
+    }
+
+    struct VulnerabilityReport {
+        string vulnerability_id;
+        string cve_id;
+        string severity; // critical, high, medium, low
+        string description;
+        string affected_versions;
+        string fixed_versions;
+        string[] references;
+        uint256 published_at;
+        uint256 last_modified;
+        bool is_exploitable;
+        string exploit_maturity;
+    }
+
+    struct SecurityAudit {
+        string audit_id;
+        string auditor_name;
+        string audit_type; // internal, external, third_party
+        uint256 audit_date;
+        uint256 audit_score;
+        string audit_report_url;
+        string[] audit_findings;
+        string[] recommendations;
+        bool audit_passed;
+        uint256 next_audit_due;
+    }
+
+    struct SecurityPolicy {
+        bool policy_enabled;
+        uint256 minimum_security_score;
+        string[] required_security_checks;
+        string[] blocked_vulnerabilities;
+        uint256 max_vulnerability_age;
+        bool auto_remediation_enabled;
+        SecurityExceptions exceptions;
+    }
+
+    struct SecurityExceptions {
+        string[] allowed_vulnerabilities;
+        string[] suppressed_warnings;
+        uint256 exception_expiry_days;
+        string exception_approval_process;
+        bool require_management_approval;
+    }
+
+    struct PackageManagerConfig {
+        string default_registry;
+        uint256 cache_size_mb;
+        uint256 cache_ttl_hours;
+        bool auto_update_enabled;
+        uint256 update_check_interval_hours;
+        bool security_scanning_enabled;
+        bool dependency_resolution_strict;
+        bool peer_dependency_warnings;
+        uint256 max_concurrent_downloads;
+        uint256 download_timeout_seconds;
+        uint256 retry_attempts;
+        bool offline_mode_enabled;
+        string[] trusted_registries;
+        uint256 package_size_limit_mb;
+    }
+
+    struct PackageIndex {
+        mapping(string => string[]) packages_by_category;
+        mapping(string => string[]) packages_by_author;
+        mapping(string => string[]) packages_by_license;
+        mapping(string => string[]) packages_by_keyword;
+        mapping(string => string) latest_versions;
+        mapping(string => string[]) popular_packages;
+        mapping(string => string[]) trending_packages;
+        uint256 last_index_update;
+        IndexUpdatePolicy update_policy;
+    }
+
+    struct IndexUpdatePolicy {
+        bool auto_update_enabled;
+        uint256 update_interval_hours;
+        uint256 popularity_threshold;
+        uint256 trending_window_hours;
+        uint256 max_packages_per_category;
+        bool include_prerelease;
+        bool include_deprecated;
+    }
+
+    struct DependencyResolver {
+        ResolutionStrategy default_strategy;
+        ConflictResolution conflict_resolution;
+        VersionSelection version_selection;
+        CircularDependencyDetection circular_detection;
+        ResolutionCache resolution_cache;
+    }
+
+    struct ResolutionStrategy {
+        string strategy_type; // highest, lowest, exact, range, compatible
+        bool prefer_stable_versions;
+        bool allow_prerelease;
+        bool auto_resolve_conflicts;
+        uint256 max_resolution_depth;
+        uint256 resolution_timeout_ms;
+    }
+
+    struct ConflictResolution {
+        bool conflict_detection_enabled;
+        string conflict_resolution_method; // manual, automatic, interactive
+        uint256 max_conflicts_allowed;
+        bool force_resolution;
+        string[] preferred_packages;
+        string[] blocked_packages;
+    }
+
+    struct VersionSelection {
+        bool semantic_versioning_enabled;
+        string version_constraint_interpreter;
+        bool allow_version_ranges;
+        bool exact_version_matching;
+        uint256 version_compatibility_threshold;
+    }
+
+    struct CircularDependencyDetection {
+        bool detection_enabled;
+        string detection_algorithm; // dfs, topological_sort
+        uint256 max_dependency_depth;
+        bool allow_circular_dependencies;
+        CircularDependencyResolution resolution_method;
+    }
+
+    struct CircularDependencyResolution {
+        bool auto_resolve_enabled;
+        string resolution_strategy; // break_cycle, warn, fail
+        uint256 resolution_timeout_ms;
+        bool prefer_peer_dependencies;
+    }
+
+    struct ResolutionCache {
+        bool caching_enabled;
+        uint256 cache_size_limit;
+        uint256 cache_ttl_ms;
+        bool cache_invalidation_enabled;
+        CacheInvalidationPolicy invalidation_policy;
+    }
+
+    struct CacheInvalidationPolicy {
+        string invalidation_trigger; // time_based, dependency_change, manual
+        uint256 invalidation_interval_ms;
+        bool clear_on_registry_update;
+        bool clear_on_package_update;
+    }
+
+    struct PackageInstaller {
+        InstallationStrategy installation_strategy;
+        PreInstallationChecks pre_install_checks;
+        PostInstallationVerification post_install_verification;
+        InstallationRollback rollback_mechanism;
+        InstallationLogging logging;
+    }
+
+    struct InstallationStrategy {
+        string strategy_type; // parallel, sequential, atomic
+        uint256 max_concurrent_installs;
+        bool atomic_installations_enabled;
+        bool verify_checksums;
+        bool backup_existing_packages;
+    }
+
+    struct PreInstallationChecks {
+        bool disk_space_check_enabled;
+        uint256 minimum_free_space_mb;
+        bool dependency_check_enabled;
+        bool security_check_enabled;
+        bool license_check_enabled;
+        bool platform_compatibility_check;
+    }
+
+    struct PostInstallationVerification {
+        bool verification_enabled;
+        string verification_method; // checksum, signature, test
+        uint256 verification_timeout_ms;
+        bool run_tests;
+        bool validate_imports;
+        bool check_documentation;
+    }
+
+    struct InstallationRollback {
+        bool rollback_enabled;
+        uint256 rollback_timeout_ms;
+        bool automatic_rollback_on_failure;
+        uint256 max_rollback_attempts;
+        RollbackStrategy rollback_strategy;
+    }
+
+    struct RollbackStrategy {
+        bool restore_previous_version;
+        bool remove_partial_installations;
+        bool cleanup_dependencies;
+        bool notify_user;
+        uint256 cleanup_timeout_ms;
+    }
+
+    struct InstallationLogging {
+        bool logging_enabled;
+        string log_level; // debug, info, warning, error
+        uint256 max_log_size_mb;
+        uint256 log_retention_days;
+        bool log_to_file;
+        bool log_to_console;
+        bool log_to_syslog;
+    }
+
+    struct SecurityScanner {
+        ScanConfiguration scan_config;
+        VulnerabilityDatabase vuln_db;
+        LicenseChecker license_checker;
+        MalwareDetector malware_detector;
+        SignatureVerifier signature_verifier;
+    }
+
+    struct ScanConfiguration {
+        bool scanning_enabled;
+        string[] scan_types; // static, dynamic, dependency, license
+        uint256 scan_timeout_ms;
+        uint256 max_scan_depth;
+        bool auto_remediation_enabled;
+        uint256 min_security_score;
+        string[] trusted_sources;
+    }
+
+    struct VulnerabilityDatabase {
+        string db_source; // local, remote, hybrid
+        string db_update_endpoint;
+        uint256 db_update_interval_hours;
+        bool auto_update_enabled;
+        uint256 db_size_limit_mb;
+        VulnerabilityFilter filter;
+    }
+
+    struct VulnerabilityFilter {
+        uint256 min_severity_level;
+        uint256 max_age_days;
+        bool ignore_low_severity;
+        bool ignore_unexploitable;
+        string[] ignored_cves;
+    }
+
+    struct LicenseChecker {
+        bool checking_enabled;
+        string[] allowed_licenses;
+        string[] blocked_licenses;
+        bool check_compatibility;
+        LicenseCompatibilityMatrix compatibility_matrix;
+    }
+
+    struct LicenseCompatibilityMatrix {
+        mapping(string => mapping(string => bool)) compatibility_map;
+        string[] compatible_licenses;
+        string[] incompatible_licenses;
+        bool strict_compatibility_check;
+    }
+
+    struct MalwareDetector {
+        bool detection_enabled;
+        string[] detection_methods; // signature, heuristic, behavioral
+        uint256 detection_sensitivity;
+        string[] trusted_publishers;
+        uint256 quarantine_period_hours;
+        bool auto_delete_malware;
+    }
+
+    struct SignatureVerifier {
+        bool verification_enabled;
+        string signature_algorithm; // rsa, ecdsa, ed25519
+        string[] trusted_keys;
+        uint256 verification_timeout_ms;
+        bool require_signature;
+        bool allow_unsigned_packages;
+    }
+
+    struct PackageValidator {
+        ValidationRules validation_rules;
+        SchemaValidator schema_validator;
+        ContentChecker content_checker;
+        MetadataValidator metadata_validator;
+        ComplianceChecker compliance_checker;
+    }
+
+    struct ValidationRules {
+        bool validation_enabled;
+        string[] required_files;
+        string[] allowed_file_extensions;
+        uint256 max_file_size_mb;
+        uint256 max_package_size_mb;
+        bool require_documentation;
+        bool require_tests;
+        bool require_examples;
+    }
+
+    struct SchemaValidator {
+        bool validation_enabled;
+        string schema_version;
+        string[] required_fields;
+        string[] allowed_fields;
+        bool strict_validation;
+        uint256 validation_timeout_ms;
+    }
+
+    struct ContentChecker {
+        bool checking_enabled;
+        string[] forbidden_patterns;
+        string[] required_patterns;
+        bool check_encoding;
+        bool check_line_endings;
+        uint256 max_line_length;
+        bool check_syntax;
+    }
+
+    struct MetadataValidator {
+        bool validation_enabled;
+        string[] required_metadata;
+        string[] allowed_metadata;
+        bool validate_author_info;
+        bool validate_license_info;
+        bool validate_repository_info;
+        uint256 max_description_length;
+    }
+
+    struct ComplianceChecker {
+        bool checking_enabled;
+        string[] compliance_standards; // SPDX, REUSE, OSI
+        bool check_license_compliance;
+        bool check_security_compliance;
+        bool check_quality_compliance;
+        uint256 compliance_score_threshold;
+    }
+
+    struct RepositoryManager {
+        RepositoryConfiguration repo_config;
+        MirrorManager mirror_manager;
+        SynchronizationManager sync_manager;
+        BackupManager backup_manager;
+        AccessControl access_control;
+    }
+
+    struct RepositoryConfiguration {
+        string repository_type; // local, remote, hybrid
+        string repository_path;
+        uint256 max_storage_size_gb;
+        uint256 cache_size_gb;
+        uint256 cache_ttl_hours;
+        bool compression_enabled;
+        CompressionAlgorithm compression_type;
+    }
+
+    struct MirrorManager {
+        bool mirroring_enabled;
+        string[] mirror_urls;
+        uint256 mirror_sync_interval_hours;
+        bool auto_sync_enabled;
+        MirrorSelectionPolicy selection_policy;
+    }
+
+    struct MirrorSelectionPolicy {
+        string selection_criteria; // latency, reliability, bandwidth
+        uint256 max_mirror_failures;
+        uint256 mirror_timeout_ms;
+        bool geographic_distribution;
+        uint256 preferred_mirror_count;
+    }
+
+    struct SynchronizationManager {
+        bool sync_enabled;
+        uint256 sync_interval_hours;
+        bool auto_sync_enabled;
+        SyncConflictResolution conflict_resolution;
+        uint256 max_sync_retries;
+    }
+
+    struct SyncConflictResolution {
+        string resolution_strategy; // newest, largest, manual
+        bool auto_resolve_conflicts;
+        uint256 conflict_resolution_timeout_ms;
+        bool prefer_local_changes;
+        bool backup_conflicts;
+    }
+
+    struct BackupManager {
+        bool backup_enabled;
+        uint256 backup_interval_hours;
+        string backup_location;
+        uint256 backup_retention_days;
+        bool incremental_backup_enabled;
+        uint256 max_backup_size_gb;
+        BackupVerification verification;
+    }
+
+    struct BackupVerification {
+        bool verification_enabled;
+        string verification_method; // checksum, signature, test_restore
+        uint256 verification_timeout_ms;
+        bool verify_integrity;
+        bool verify_completeness;
+    }
+
+    struct AccessControl {
+        bool access_control_enabled;
+        string access_control_model; // rbac, abac, acl
+        mapping(string => string[]) user_roles;
+        mapping(string => string[]) role_permissions;
+        uint256 session_timeout_ms;
+        bool require_authentication;
+        AuditLogging audit_logging;
+    }
+
+    struct AuditLogging {
+        bool logging_enabled;
+        string[] logged_events;
+        uint256 log_retention_days;
+        bool log_to_file;
+        bool log_to_database;
+        bool log_to_syslog;
+        uint256 max_log_size_mb;
+    }
+
+    enum CompressionAlgorithm {
+        NONE,
+        GZIP,
+        LZ4,
+        ZSTD,
+        BROTLI
+    }
+
+    constructor() {
+        initialize_package_manager();
+        setup_default_registry();
+        initialize_components();
+        setup_default_config();
+        create_package_index();
+    }
+
+    function initialize_package_manager() private {
+        config = PackageManagerConfig({
+            default_registry: "omega-central",
+            cache_size_mb: 1024,
+            cache_ttl_hours: 24,
+            auto_update_enabled: true,
+            update_check_interval_hours: 6,
+            security_scanning_enabled: true,
+            dependency_resolution_strict: true,
+            peer_dependency_warnings: true,
+            max_concurrent_downloads: 5,
+            download_timeout_seconds: 300,
+            retry_attempts: 3,
+            offline_mode_enabled: false,
+            trusted_registries: ["omega-central", "omega-community"],
+            package_size_limit_mb: 100
+        });
+        
+        total_packages = 0;
+        total_downloads = 0;
+        default_registry = "omega-central";
+    }
+
+    function setup_default_registry() private {
+        registries["omega-central"] = PackageRegistry({
+            registry_id: "omega-central",
+            registry_name: "OMEGA Central Registry",
+            registry_url: "https://registry.omega-lang.org",
+            registry_type: "public",
+            config: RegistryConfig({
+                max_package_size: 104857600, // 100MB
+                max_version_count: 100,
+                retention_policy_days: 365,
+                auto_approval_enabled: true,
+                approval_timeout_hours: 24,
+                allowed_licenses: ["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"],
+                blocked_licenses: ["Proprietary", "Commercial"],
+                security_scanning_required: true,
+                min_security_score: 70,
+                rate_limits: RegistryRateLimit({
+                    downloads_per_hour: 1000,
+                    uploads_per_day: 10,
+                    api_calls_per_minute: 100,
+                    search_queries_per_minute: 50,
+                    rate_limiting_enabled: true,
+                    burst_threshold_percent: 20
+                })
+            }),
+            auth: RegistryAuthentication({
+                auth_type: "api_key",
+                auth_endpoint: "https://auth.omega-lang.org",
+                token_expiry_ms: 3600000, // 1 hour
+                auto_refresh_enabled: true,
+                required_scopes: ["read:packages", "write:packages"],
+                mfa: MultiFactorAuth({
+                    mfa_enabled: false,
+                    mfa_type: "",
+                    mfa_timeout_seconds: 0,
+                    max_attempts: 0,
+                    backup_codes_enabled: false
+                })
+            }),
+            package_count: 0,
+            last_updated: block.timestamp,
+            is_active: true,
+            supported_protocols: ["https", "git", "ipfs"],
+            stats: RegistryStatistics({
+                total_packages: 0,
+                total_downloads: 0,
+                total_uploads: 0,
+                active_publishers: 0,
+                average_package_size: 0,
+                total_storage_used: 0,
+                api_request_count: 0,
+                search_query_count: 0
+            })
+        });
+    }
+
+    function initialize_components() private {
+        // Initialize dependency resolver
+        resolver = DependencyResolver({
+            default_strategy: ResolutionStrategy({
+                strategy_type: "highest",
+                prefer_stable_versions: true,
+                allow_prerelease: false,
+                auto_resolve_conflicts: true,
+                max_resolution_depth: 10,
+                resolution_timeout_ms: 30000
+            }),
+            conflict_resolution: ConflictResolution({
+                conflict_detection_enabled: true,
+                conflict_resolution_method: "automatic",
+                max_conflicts_allowed: 5,
+                force_resolution: false,
+                preferred_packages: new string[](0),
+                blocked_packages: new string[](0)
+            }),
+            version_selection: VersionSelection({
+                semantic_versioning_enabled: true,
+                version_constraint_interpreter: "npm",
+                allow_version_ranges: true,
+                exact_version_matching: false,
+                version_compatibility_threshold: 80
+            }),
+            circular_detection: CircularDependencyDetection({
+                detection_enabled: true,
+                detection_algorithm: "dfs",
+                max_dependency_depth: 20,
+                allow_circular_dependencies: false,
+                resolution_method: CircularDependencyResolution({
+                    auto_resolve_enabled: true,
+                    resolution_strategy: "warn",
+                    resolution_timeout_ms: 10000,
+                    prefer_peer_dependencies: true
+                })
+            }),
+            resolution_cache: ResolutionCache({
+                caching_enabled: true,
+                cache_size_limit: 1000,
+                cache_ttl_ms: 3600000, // 1 hour
+                cache_invalidation_enabled: true,
+                invalidation_policy: CacheInvalidationPolicy({
+                    invalidation_trigger: "dependency_change",
+                    invalidation_interval_ms: 1800000, // 30 minutes
+                    clear_on_registry_update: true,
+                    clear_on_package_update: true
+                })
+            })
+        });
+        
+        // Initialize package installer
+        installer = PackageInstaller({
+            installation_strategy: InstallationStrategy({
+                strategy_type: "parallel",
+                max_concurrent_installs: 3,
+                atomic_installations_enabled: true,
+                verify_checksums: true,
+                backup_existing_packages: true
+            }),
+            pre_install_checks: PreInstallationChecks({
+                disk_space_check_enabled: true,
+                minimum_free_space_mb: 100,
+                dependency_check_enabled: true,
+                security_check_enabled: true,
+                license_check_enabled: true,
+                platform_compatibility_check: true
+            }),
+            post_install_verification: PostInstallationVerification({
+                verification_enabled: true,
+                verification_method: "checksum",
+                verification_timeout_ms: 30000,
+                run_tests: false,
+                validate_imports: true,
+                check_documentation: true
+            }),
+            rollback_mechanism: InstallationRollback({
+                rollback_enabled: true,
+                rollback_timeout_ms: 60000,
+                automatic_rollback_on_failure: true,
+                max_rollback_attempts: 3,
+                rollback_strategy: RollbackStrategy({
+                    restore_previous_version: true,
+                    remove_partial_installations: true,
+                    cleanup_dependencies: true,
+                    notify_user: true,
+                    cleanup_timeout_ms: 30000
+                })
+            }),
+            logging: InstallationLogging({
+                logging_enabled: true,
+                log_level: "info",
+                max_log_size_mb: 10,
+                log_retention_days: 30,
+                log_to_file: true,
+                log_to_console: true,
+                log_to_syslog: false
+            })
+        });
+        
+        // Initialize security scanner
+        security_scanner = SecurityScanner({
+            scan_config: ScanConfiguration({
+                scanning_enabled: true,
+                scan_types: ["static", "dependency", "license"],
+                scan_timeout_ms: 300000, // 5 minutes
+                max_scan_depth: 5,
+                auto_remediation_enabled: false,
+                min_security_score: 70,
+                trusted_sources: ["omega-central", "omega-security"]
+            }),
+            vuln_db: VulnerabilityDatabase({
+                db_source: "remote",
+                db_update_endpoint: "https://security.omega-lang.org/vulns",
+                db_update_interval_hours: 24,
+                auto_update_enabled: true,
+                db_size_limit_mb: 100,
+                filter: VulnerabilityFilter({
+                    min_severity_level: 2, // Medium
+                    max_age_days: 365,
+                    ignore_low_severity: true,
+                    ignore_unexploitable: false,
+                    ignored_cves: new string[](0)
+                })
+            }),
+            license_checker: LicenseChecker({
+                checking_enabled: true,
+                allowed_licenses: ["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"],
+                blocked_licenses: ["Proprietary", "Commercial"],
+                check_compatibility: true,
+                compatibility_matrix: LicenseCompatibilityMatrix({
+                    compatible_licenses: new string[](0),
+                    incompatible_licenses: new string[](0),
+                    strict_compatibility_check: false
+                })
+            }),
+            malware_detector: MalwareDetector({
+                detection_enabled: true,
+                detection_methods: ["signature", "heuristic"],
+                detection_sensitivity: 7,
+                trusted_publishers: new string[](0),
+                quarantine_period_hours: 24,
+                auto_delete_malware: false
+            }),
+            signature_verifier: SignatureVerifier({
+                verification_enabled: true,
+                signature_algorithm: "ed25519",
+                trusted_keys: new string[](0),
+                verification_timeout_ms: 30000,
+                require_signature: false,
+                allow_unsigned_packages: true
+            })
+        });
+    }
+
+    function setup_default_config() private {
+        // Additional configuration setup
+        repo_manager = RepositoryManager({
+            repo_config: RepositoryConfiguration({
+                repository_type: "hybrid",
+                repository_path: "/packages",
+                max_storage_size_gb: 10,
+                cache_size_gb: 1,
+                cache_ttl_hours: 24,
+                compression_enabled: true,
+                compression_type: CompressionAlgorithm.GZIP
+            }),
+            mirror_manager: MirrorManager({
+                mirroring_enabled: true,
+                mirror_urls: new string[](0),
+                mirror_sync_interval_hours: 6,
+                auto_sync_enabled: true,
+                selection_policy: MirrorSelectionPolicy({
+                    selection_criteria: "latency",
+                    max_mirror_failures: 3,
+                    mirror_timeout_ms: 10000,
+                    geographic_distribution: true,
+                    preferred_mirror_count: 2
+                })
+            }),
+            sync_manager: SynchronizationManager({
+                sync_enabled: true,
+                sync_interval_hours: 6,
+                auto_sync_enabled: true,
+                conflict_resolution: SyncConflictResolution({
+                    resolution_strategy: "newest",
+                    auto_resolve_conflicts: true,
+                    conflict_resolution_timeout_ms: 30000,
+                    prefer_local_changes: false,
+                    backup_conflicts: true
+                }),
+                max_sync_retries: 3
+            }),
+            backup_manager: BackupManager({
+                backup_enabled: true,
+                backup_interval_hours: 24,
+                backup_location: "/backup/packages",
+                backup_retention_days: 30,
+                incremental_backup_enabled: true,
+                max_backup_size_gb: 50,
+                verification: BackupVerification({
+                    verification_enabled: true,
+                    verification_method: "checksum",
+                    verification_timeout_ms: 300000,
+                    verify_integrity: true,
+                    verify_completeness: true
+                })
+            }),
+            access_control: AccessControl({
+                access_control_enabled: true,
+                access_control_model: "rbac",
+                session_timeout_ms: 3600000, // 1 hour
+                require_authentication: true,
+                audit_logging: AuditLogging({
+                    logging_enabled: true,
+                    logged_events: ["package_upload", "package_download", "package_delete"],
+                    log_retention_days: 90,
+                    log_to_file: true,
+                    log_to_database: true,
+                    log_to_syslog: false,
+                    max_log_size_mb: 100
+                })
+            })
+        });
+    }
+
+    function create_package_index() private {
+        index = PackageIndex({
+            last_index_update: block.timestamp,
+            update_policy: IndexUpdatePolicy({
+                auto_update_enabled: true,
+                update_interval_hours: 6,
+                popularity_threshold: 100,
+                trending_window_hours: 168, // 1 week
+                max_packages_per_category: 50,
+                include_prerelease: false,
+                include_deprecated: false
+            })
+        });
+    }
+
+    // Main package management functions
+    function install_package(string memory package_name, string memory version_constraint) public returns (InstallationResult memory) {
+        log_info(concat("Installing package: ", package_name, " version: ", version_constraint));
+        
+        // Find package in registry
+        Package memory pkg = find_package(package_name);
+        if (keccak256(bytes(pkg.package_id)) == keccak256(bytes(""))) {
+            return create_error_result("Package not found", package_name);
+        }
+        
+        // Resolve version
+        PackageVersion memory version = resolve_version(pkg.package_id, version_constraint);
+        if (keccak256(bytes(version.version_id)) == keccak256(bytes(""))) {
+            return create_error_result("Version not found", version_constraint);
+        }
+        
+        // Check dependencies
+        DependencyResolutionResult memory dep_result = resolve_dependencies(version);
+        if (!dep_result.success) {
+            return create_error_result("Dependency resolution failed", dep_result.error_message);
+        }
+        
+        // Security scan
+        SecurityScanResult memory security_result = perform_security_scan(pkg, version);
+        if (!security_result.passed) {
+            return create_error_result("Security scan failed", security_result.message);
+        }
+        
+        // Download and install
+        DownloadResult memory download_result = download_package(pkg, version);
+        if (!download_result.success) {
+            return create_error_result("Download failed", download_result.error_message);
+        }
+        
+        // Install package
+        InstallationResult memory install_result = perform_installation(pkg, version, download_result);
+        if (!install_result.success) {
+            return install_result;
+        }
+        
+        // Update download stats
+        update_download_stats(pkg.package_id, version.version_id);
+        
+        log_info(concat("Package installed successfully: ", package_name));
+        
+        return install_result;
+    }
+
+    function publish_package(string memory package_path, string memory registry_id) public returns (PublishResult memory) {
+        log_info(concat("Publishing package from: ", package_path));
+        
+        // Validate package
+        ValidationResult memory validation_result = validate_package(package_path);
+        if (!validation_result.success) {
+            return create_publish_error("Package validation failed", validation_result.error_message);
+        }
+        
+        // Security scan
+        SecurityScanResult memory security_result = scan_package_for_publishing(package_path);
+        if (!security_result.passed) {
+            return create_publish_error("Security scan failed", security_result.message);
+        }
+        
+        // Check publisher permissions
+        PublisherPermissions memory permissions = get_publisher_permissions(msg.sender);
+        if (!permissions.can_publish) {
+            return create_publish_error("Insufficient permissions", "Publisher cannot publish packages");
+        }
+        
+        // Extract package metadata
+        PackageMetadata memory metadata = extract_package_metadata(package_path);
+        
+        // Create package entry
+        string memory package_id = generate_package_id(metadata.package_name);
+        Package memory new_package = create_package_entry(package_id, metadata);
+        
+        // Upload to registry
+        UploadResult memory upload_result = upload_to_registry(new_package, package_path, registry_id);
+        if (!upload_result.success) {
+            return create_publish_error("Upload failed", upload_result.error_message);
+        }
+        
+        // Update index
+        update_package_index(new_package);
+        
+        total_packages += 1;
+        
+        log_info(concat("Package published successfully: ", metadata.package_name));
+        
+        return PublishResult({
+            success: true,
+            package_id: package_id,
+            package_name: metadata.package_name,
+            version: metadata.version,
+            registry_id: registry_id,
+            published_at: block.timestamp,
+            download_url: upload_result.download_url,
+            message: "Package published successfully"
+        });
+    }
+
+    function search_packages(string memory query, string[] memory filters) public view returns (PackageSearchResult memory) {
+        // Search packages based on query and filters
+        string[] memory matching_packages = new string[](100);
+        uint256 match_count = 0;
+        
+        for (uint256 i = 0; i < total_packages; i++) {
+            string memory package_id = get_package_id_by_index(i);
+            Package memory pkg = packages[package_id];
+            
+            if (matches_search_criteria(pkg, query, filters)) {
+                matching_packages[match_count] = package_id;
+                match_count++;
+                
+                if (match_count >= 100) {
+                    break;
+                }
+            }
+        }
+        
+        // Create trimmed results array
+        string[] memory results = new string[](match_count);
+        for (uint256 j = 0; j < match_count; j++) {
+            results[j] = matching_packages[j];
+        }
+        
+        return PackageSearchResult({
+            success: true,
+            query: query,
+            results: results,
+            total_results: match_count,
+            search_time_ms: 100, // Simplified
+            message: concat("Found ", uint256_to_string(match_count), " packages")
+        });
+    }
+
+    function update_package(string memory package_id, string memory update_data) public returns (UpdateResult memory) {
+        log_info(concat("Updating package: ", package_id));
+        
+        Package memory pkg = packages[package_id];
+        if (keccak256(bytes(pkg.package_id)) == keccak256(bytes(""))) {
+            return create_update_error("Package not found", package_id);
+        }
+        
+        // Check permissions
+        if (!can_update_package(msg.sender, package_id)) {
+            return create_update_error("Insufficient permissions", "Cannot update package");
+        }
+        
+        // Validate update
+        ValidationResult memory validation_result = validate_package_update(update_data);
+        if (!validation_result.success) {
+            return create_update_error("Update validation failed", validation_result.error_message);
+        }
+        
+        // Apply update
+        apply_package_update(package_id, update_data);
+        
+        log_info(concat("Package updated successfully: ", package_id));
+        
+        return UpdateResult({
+            success: true,
+            package_id: package_id,
+            package_name: pkg.package_name,
+            updated_at: block.timestamp,
+            message: "Package updated successfully"
+        });
+    }
+
+    function uninstall_package(string memory package_id) public returns (UninstallResult memory) {
+        log_info(concat("Uninstalling package: ", package_id));
+        
+        Package memory pkg = packages[package_id];
+        if (keccak256(bytes(pkg.package_id)) == keccak256(bytes(""))) {
+            return create_uninstall_error("Package not found", package_id);
+        }
+        
+        // Check dependencies
+        if (has_dependent_packages(package_id)) {
+            return create_uninstall_error("Package has dependents", "Cannot uninstall package with dependents");
+        }
+        
+        // Perform uninstallation
+        perform_uninstallation(package_id);
+        
+        log_info(concat("Package uninstalled successfully: ", package_id));
+        
+        return UninstallResult({
+            success: true,
+            package_id: package_id,
+            package_name: pkg.package_name,
+            uninstalled_at: block.timestamp,
+            message: "Package uninstalled successfully"
+        });
+    }
+
+    // Utility functions (simplified implementations)
+    function find_package(string memory package_name) private pure returns (Package memory) {
+        return Package("", package_name, "", "", "", "", "", new string[](0), "", 0, 0, "", PackageStatus(false, false, false, false, "", 0, ""), 0, 0, 0, false, "", 0);
+    }
+
+    function resolve_version(string memory package_id, string memory version_constraint) private pure returns (PackageVersion memory) {
+        return PackageVersion("", package_id, version_constraint, "", "", 0, new string[](0), new string[](0), new string[](0), new string[](0), new string[](0), 0, 0, "", VersionCompatibility("", "", new string[](0), new string[](0), new string[](0), 0), VersionChangelog(new string[](0), new string[](0), new string[](0), new string[](0), new string[](0), new string[](0), ""), true, false, "");
+    }
+
+    function resolve_dependencies(PackageVersion memory version) private pure returns (DependencyResolutionResult memory) {
+        return DependencyResolutionResult(true, "", new string[](0));
+    }
+
+    function perform_security_scan(Package memory pkg, PackageVersion memory version) private pure returns (SecurityScanResult memory) {
+        return SecurityScanResult(true, "Security scan passed");
+    }
+
+    function download_package(Package memory pkg, PackageVersion memory version) private pure returns (DownloadResult memory) {
+        return DownloadResult(true, "", "/tmp/package.mega");
+    }
+
+    function perform_installation(Package memory pkg, PackageVersion memory version, DownloadResult memory download) private pure returns (InstallationResult memory) {
+        return InstallationResult(true, pkg.package_id, pkg.package_name, version.version_number, block.timestamp, "Package installed successfully");
+    }
+
+    function update_download_stats(string memory package_id, string memory version_id) private pure {
+        // Simplified
+    }
+
+    function validate_package(string memory package_path) private pure returns (ValidationResult memory) {
+        return ValidationResult(true, "");
+    }
+
+    function scan_package_for_publishing(string memory package_path) private pure returns (SecurityScanResult memory) {
+        return SecurityScanResult(true, "Package scan passed");
+    }
+
+    function get_publisher_permissions(address publisher) private pure returns (PublisherPermissions memory) {
+        return PublisherPermissions(true, true, true, true, false, false, 10, 100, new string[](0));
+    }
+
+    function extract_package_metadata(string memory package_path) private pure returns (PackageMetadata memory) {
+        return PackageMetadata("", "", "mega", "", 0, "utf-8", 0, 0, "", MetadataValidation(false, "", new string[](0), 0, new string[](0), false, 0));
+    }
+
+    function generate_package_id(string memory package_name) private pure returns (string memory) {
+        return string(abi.encodePacked("pkg_", package_name));
+    }
+
+    function create_package_entry(string memory package_id, PackageMetadata memory metadata) private pure returns (Package memory) {
+        return Package(package_id, metadata.package_name, "", "", "", "", "", new string[](0), "", 0, 0, "", PackageStatus(true, false, false, false, "", 0, ""), 0, 0, 0, false, "", 0);
+    }
+
+    function upload_to_registry(Package memory pkg, string memory package_path, string memory registry_id) private pure returns (UploadResult memory) {
+        return UploadResult(true, "https://registry.omega-lang.org/packages/" + pkg.package_id, "");
+    }
+
+    function update_package_index(Package memory pkg) private pure {
+        // Simplified
+    }
+
+    function matches_search_criteria(Package memory pkg, string memory query, string[] memory filters) private pure returns (bool) {
+        return true; // Simplified
+    }
+
+    function get_package_id_by_index(uint256 index) private pure returns (string memory) {
+        return "pkg_test"; // Simplified
+    }
+
+    function can_update_package(address user, string memory package_id) private pure returns (bool) {
+        return true; // Simplified
+    }
+
+    function validate_package_update(string memory update_data) private pure returns (ValidationResult memory) {
+        return ValidationResult(true, "");
+    }
+
+    function apply_package_update(string memory package_id, string memory update_data) private pure {
+        // Simplified
+    }
+
+    function has_dependent_packages(string memory package_id) private pure returns (bool) {
+        return false; // Simplified
+    }
+
+    function perform_uninstallation(string memory package_id) private pure {
+        // Simplified
+    }
+
+    function create_error_result(string memory error, string memory details) private pure returns (InstallationResult memory) {
+        return InstallationResult(false, "", "", "", 0, string(abi.encodePacked(error, ": ", details)));
+    }
+
+    function create_publish_error(string memory error, string memory details) private pure returns (PublishResult memory) {
+        return PublishResult(false, "", "", "", "", 0, "", string(abi.encodePacked(error, ": ", details)));
+    }
+
+    function create_update_error(string memory error, string memory details) private pure returns (UpdateResult memory) {
+        return UpdateResult(false, "", "", 0, string(abi.encodePacked(error, ": ", details)));
+    }
+
+    function create_uninstall_error(string memory error, string memory details) private pure returns (UninstallResult memory) {
+        return UninstallResult(false, "", "", 0, string(abi.encodePacked(error, ": ", details)));
+    }
+
+    function log_info(string memory message) private pure {
+        // Simplified logging
+    }
+
+    function concat(string memory a, string memory b) private pure returns (string memory) {
+        return string(abi.encodePacked(a, b));
+    }
+
+    function concat(string memory a, string memory b, string memory c) private pure returns (string memory) {
+        return string(abi.encodePacked(a, b, c));
+    }
+
+    function uint256_to_string(uint256 value) private pure returns (string memory) {
+        return "100"; // Simplified
+    }
+
+    // Result structures
+    struct InstallationResult {
+        bool success;
+        string package_id;
+        string package_name;
+        string version;
+        uint256 installed_at;
+        string message;
+    }
+
+    struct PublishResult {
+        bool success;
+        string package_id;
+        string package_name;
+        string version;
+        string registry_id;
+        uint256 published_at;
+        string download_url;
+        string message;
+    }
+
+    struct UpdateResult {
+        bool success;
+        string package_id;
+        string package_name;
+        uint256 updated_at;
+        string message;
+    }
+
+    struct UninstallResult {
+        bool success;
+        string package_id;
+        string package_name;
+        uint256 uninstalled_at;
+        string message;
+    }
+
+    struct PackageSearchResult {
+        bool success;
+        string query;
+        string[] results;
+        uint256 total_results;
+        uint256 search_time_ms;
+        string message;
+    }
+
+    struct DependencyResolutionResult {
+        bool success;
+        string error_message;
+        string[] resolved_dependencies;
+    }
+
+    struct SecurityScanResult {
+        bool passed;
+        string message;
+    }
+
+    struct DownloadResult {
+        bool success;
+        string error_message;
+        string download_path;
+    }
+
+    struct UploadResult {
+        bool success;
+        string download_url;
+        string error_message;
+    }
+
+    struct ValidationResult {
+        bool success;
+        string error_message;
+    }
+
+    // Main entry point
+    function main(string[] memory args) public returns (string memory) {
+        if (args.length == 0) {
+            return "OMEGA Package Manager - Usage: omega-pm [install|publish|search|update|uninstall] [package_name]";
+        }
+        
+        string memory command = args[0];
+        
+        if (keccak256(bytes(command)) == keccak256(bytes("install"))) {
+            if (args.length < 2) {
+                return "Usage: omega-pm install <package_name> [version]";
+            }
+            
+            string memory package_name = args[1];
+            string memory version = args.length > 2 ? args[2] : "latest";
+            
+            InstallationResult memory result = install_package(package_name, version);
+            return result.message;
+        }
+        
+        if (keccak256(bytes(command)) == keccak256(bytes("publish"))) {
+            if (args.length < 2) {
+                return "Usage: omega-pm publish <package_path> [registry]";
+            }
+            
+            string memory package_path = args[1];
+            string memory registry = args.length > 2 ? args[2] : default_registry;
+            
+            PublishResult memory result = publish_package(package_path, registry);
+            return result.message;
+        }
+        
+        if (keccak256(bytes(command)) == keccak256(bytes("search"))) {
+            if (args.length < 2) {
+                return "Usage: omega-pm search <query>";
+            }
+            
+            string memory query = args[1];
+            string[] memory filters = new string[](0);
+            
+            PackageSearchResult memory result = search_packages(query, filters);
+            return result.message;
+        }
+        
+        return "Unknown command. Available commands: install, publish, search, update, uninstall";
+    }
+}

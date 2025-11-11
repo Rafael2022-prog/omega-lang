@@ -12,6 +12,7 @@ import semantic::analyzer;
 import ir::ir_generator;
 import codegen::codegen;
 import optimization::optimizer;
+import utils::secure_timestamp;
 
 // Self-Hosting Compiler Core
 blockchain SelfHostingCompiler {
@@ -21,8 +22,11 @@ blockchain SelfHostingCompiler {
         string target_executable;
         bool debug_mode;
         bool optimization_enabled;
+        string[] supported_targets;
+        string current_target;
         mapping(string => string) source_files;
         mapping(string => CompilationUnit) compilation_units;
+        mapping(string => TargetConfig) target_configs;
     }
     
     constructor(string src_dir, string out_dir, string target) {
@@ -31,6 +35,13 @@ blockchain SelfHostingCompiler {
         target_executable = target;
         debug_mode = false;
         optimization_enabled = true;
+        current_target = "evm"; // Default target
+        
+        // Initialize supported targets
+        supported_targets = ["evm", "solana", "cosmos", "move", "substrate"];
+        
+        // Initialize target configurations
+        initialize_target_configs();
         
         // Initialize compilation environment
         initialize_compiler_environment();
@@ -372,6 +383,208 @@ blockchain SelfHostingCompiler {
         
         return stats;
     }
+    
+    // Cross-compilation support: compile for multiple targets
+    function compile_for_all_targets() public returns (bool) {
+        io::println("🌐 Starting cross-compilation for all supported targets...");
+        
+        bool all_success = true;
+        
+        for (string target : supported_targets) {
+            io::println("🎯 Compiling for target: " + target);
+            
+            if (!compile_for_target(target)) {
+                io::println("❌ Failed to compile for target: " + target);
+                all_success = false;
+            } else {
+                io::println("✅ Successfully compiled for target: " + target);
+            }
+        }
+        
+        if (all_success) {
+            io::println("🎉 Cross-compilation completed for all targets!");
+            generate_cross_compilation_report();
+        }
+        
+        return all_success;
+    }
+    
+    // Compile for specific target
+    function compile_for_target(string target) public returns (bool) {
+        if (!is_supported_target(target)) {
+            io::println("❌ Unsupported target: " + target);
+            return false;
+        }
+        
+        current_target = target;
+        TargetConfig config = target_configs[target];
+        
+        // Update output directory for target
+        string target_output = output_directory + "/" + target + "/";
+        
+        // Create target-specific compilation environment
+        env::set("OMEGA_TARGET", target);
+        env::set("OMEGA_TARGET_OUTPUT", target_output);
+        
+        // Generate target-specific code
+        return generate_target_specific_code(target, target_output);
+    }
+    
+    // Generate target-specific code
+    function generate_target_specific_code(string target, string target_output) private returns (bool) {
+        io::println("🔧 Generating target-specific code for: " + target);
+        
+        TargetCodeGenerator target_gen = TargetCodeGenerator::new(target);
+        
+        for (string rel_path : compilation_units.keys()) {
+            CompilationUnit unit = compilation_units[rel_path];
+            IRModule ir = optimization_enabled ? unit.optimized_ir : unit.ir_module;
+            
+            string target_code = target_gen.generate_code(ir, rel_path);
+            
+            if (target_code.empty()) {
+                io::println("❌ Target code generation failed: " + rel_path);
+                return false;
+            }
+            
+            // Write target code to file
+            string target_file = target_output + rel_path + target_gen.get_file_extension();
+            fs::write_file(target_file, target_code);
+            
+            io::println("  ✅ Generated: " + target_file);
+        }
+        
+        // Generate target-specific build files
+        return generate_target_build_files(target, target_output);
+    }
+    
+    // Generate target-specific build files
+    function generate_target_build_files(string target, string target_output) private returns (bool) {
+        io::println("📦 Generating build files for: " + target);
+        
+        TargetBuildGenerator build_gen = TargetBuildGenerator::new(target);
+        
+        // Generate build configuration
+        string build_config = build_gen.generate_build_config(compilation_units.keys());
+        string build_file = target_output + build_gen.get_build_filename();
+        
+        fs::write_file(build_file, build_config);
+        io::println("  ✅ Generated build file: " + build_file);
+        
+        // Generate deployment scripts
+        string deploy_script = build_gen.generate_deploy_script();
+        string deploy_file = target_output + "deploy." + build_gen.get_script_extension();
+        
+        fs::write_file(deploy_file, deploy_script);
+        io::println("  ✅ Generated deploy script: " + deploy_file);
+        
+        return true;
+    }
+    
+    // Check if target is supported
+    function is_supported_target(string target) private view returns (bool) {
+        for (string supported : supported_targets) {
+            if (supported == target) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // Initialize target configurations
+    function initialize_target_configs() private {
+        // EVM configuration
+        target_configs["evm"] = TargetConfig::new(
+            "evm",
+            ".sol",
+            "hardhat.config.js",
+            "js",
+            "Ethereum Virtual Machine",
+            true
+        );
+        
+        // Solana configuration
+        target_configs["solana"] = TargetConfig::new(
+            "solana",
+            ".rs",
+            "Cargo.toml",
+            "sh",
+            "Solana Runtime",
+            true
+        );
+        
+        // Cosmos configuration
+        target_configs["cosmos"] = TargetConfig::new(
+            "cosmos",
+            ".go",
+            "go.mod",
+            "sh",
+            "Cosmos SDK",
+            true
+        );
+        
+        // Move configuration
+        target_configs["move"] = TargetConfig::new(
+            "move",
+            ".move",
+            "Move.toml",
+            "sh",
+            "Move VM",
+            false
+        );
+        
+        // Substrate configuration
+        target_configs["substrate"] = TargetConfig::new(
+            "substrate",
+            ".rs",
+            "Cargo.toml",
+            "sh",
+            "Substrate Runtime",
+            false
+        );
+    }
+    
+    // Generate cross-compilation report
+    function generate_cross_compilation_report() private {
+        io::println("📊 Generating cross-compilation report...");
+        
+        string report = "# OMEGA Cross-Compilation Report\n\n";
+        report += "Generated on: " + SecureTimestamp::new().get_secure_timestamp() + "\n\n";
+        report += "## Supported Targets\n\n";
+        
+        for (string target : supported_targets) {
+            TargetConfig config = target_configs[target];
+            report += "### " + config.description + "\n";
+            report += "- Target: `" + target + "`\n";
+            report += "- File Extension: `" + config.file_extension + "`\n";
+            report += "- Build File: `" + config.build_filename + "`\n";
+            report += "- Deploy Script: `" + config.script_extension + "`\n";
+            report += "- Production Ready: " + (config.production_ready ? "✅" : "⚠️") + "\n\n";
+        }
+        
+        report += "## Compilation Statistics\n";
+        CompilationStats stats = get_compilation_stats();
+        report += "- Total Files: " + string(stats.total_files) + "\n";
+        report += "- Total Tokens: " + string(stats.total_tokens) + "\n";
+        report += "- Total Lines: " + string(stats.total_lines) + "\n\n";
+        
+        report += "## Build Instructions\n\n";
+        report += "Each target directory contains:\n";
+        report += "1. Generated source code files\n";
+        report += "2. Build configuration file\n";
+        report += "3. Deployment script\n\n";
+        
+        report += "### Quick Start\n\n";
+        report += "```bash\n";
+        report += "# Build for specific target\n";
+        report += "cd output/evm && npm install && npx hardhat compile\n\n";
+        report += "# Deploy to testnet\n";
+        report += "cd output/evm && ./deploy.sh\n";
+        report += "```\n";
+        
+        fs::write_file(output_directory + "/CROSS_COMPILATION_REPORT.md", report);
+        io::println("✅ Generated cross-compilation report: " + output_directory + "/CROSS_COMPILATION_REPORT.md");
+    }
 }
 
 // Compilation Unit Structure
@@ -395,14 +608,62 @@ struct CompilationStats {
     uint256 compilation_time_ms;
 }
 
+// Target Configuration
+struct TargetConfig {
+    string name;
+    string file_extension;
+    string build_filename;
+    string script_extension;
+    string description;
+    bool production_ready;
+}
+
 // Main self-hosting entry point
 function main() {
     io::println("🚀 OMEGA Self-Hosting Compiler v1.1.0");
     io::println("📦 Compiling OMEGA using OMEGA itself");
     
+    // Parse command line arguments
+    string[] args = env::args();
+    string mode = "bootstrap"; // Default mode
+    string target = "all"; // Default target
+    
+    // Process command line arguments
+    for (uint256 i = 1; i < args.length; i++) {
+        if (args[i] == "--cross-compile" || args[i] == "-c") {
+            mode = "cross_compile";
+            if (i + 1 < args.length) {
+                target = args[i + 1];
+                i++;
+            }
+        } else if (args[i] == "--target" || args[i] == "-t") {
+            if (i + 1 < args.length) {
+                target = args[i + 1];
+                i++;
+            }
+        } else if (args[i] == "--help" || args[i] == "-h") {
+            print_usage();
+            process::exit(0);
+        }
+    }
+    
     SelfHostingCompiler compiler = SelfHostingCompiler::new("src/", "build/", "omega_self_hosted");
     
-    bool success = compiler.bootstrap();
+    bool success = false;
+    
+    if (mode == "cross_compile") {
+        io::println("🌐 Cross-compilation mode");
+        io::println("🎯 Target: " + target);
+        
+        if (target == "all") {
+            success = compiler.compile_for_all_targets();
+        } else {
+            success = compiler.compile_for_target(target);
+        }
+    } else {
+        // Bootstrap mode (default)
+        success = compiler.bootstrap();
+    }
     
     if (success) {
         CompilationStats stats = compiler.get_compilation_stats();
@@ -416,4 +677,20 @@ function main() {
         io::println("❌ Self-hosting compilation failed");
         process::exit(1);
     }
+}
+
+// Print usage information
+function print_usage() {
+    io::println("Usage: omega_self_hosting [options]");
+    io::println("");
+    io::println("Options:");
+    io::println("  -h, --help              Show this help message");
+    io::println("  -c, --cross-compile     Enable cross-compilation mode");
+    io::println("  -t, --target TARGET     Specify target (evm, solana, cosmos, move, substrate, all)");
+    io::println("");
+    io::println("Examples:");
+    io::println("  omega_self_hosting                    # Bootstrap compilation (default)");
+    io::println("  omega_self_hosting --cross-compile     # Cross-compile for all targets");
+    io::println("  omega_self_hosting -c -t evm           # Cross-compile for EVM only");
+    io::println("  omega_self_hosting -c -t solana        # Cross-compile for Solana only");
 }

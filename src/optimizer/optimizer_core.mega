@@ -152,7 +152,9 @@ blockchain OmegaOptimizer {
     function optimize(IRModule memory module) public returns (ComprehensiveResult memory) {
         require(initialized, "OmegaOptimizer not initialized");
         
-        uint256 start_time = block.timestamp;
+        // Use secure timestamp for optimization timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
         ComprehensiveResult memory result;
         result.optimized_module = module;
         result.success = true;
@@ -198,7 +200,8 @@ blockchain OmegaOptimizer {
         
         // Calculate final statistics
         result.stats = _calculate_optimization_stats(module, result.optimized_module);
-        result.total_time = block.timestamp - start_time;
+        uint256 end_time = secure_ts.get_secure_timestamp();
+        result.total_time = end_time - start_time;
         total_execution_time += result.total_time;
         total_passes_run++;
         
@@ -254,7 +257,9 @@ blockchain OmegaOptimizer {
         IRModule memory module,
         string memory pass_name
     ) private returns (OptimizationPassResult memory) {
-        uint256 start_time = block.timestamp;
+        // Use secure timestamp for pass timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
         OptimizationPassResult memory result;
         result.pass_name = pass_name;
         result.applied = false;
@@ -295,7 +300,8 @@ blockchain OmegaOptimizer {
             result.details = "Function inlining applied";
         }
         
-        result.execution_time = block.timestamp - start_time;
+        uint256 end_time = secure_ts.get_secure_timestamp();
+        result.execution_time = end_time - start_time;
         return result;
     }
     

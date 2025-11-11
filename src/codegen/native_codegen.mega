@@ -9,6 +9,7 @@ import std::string;
 import "../parser/ast_nodes.mega";
 import "../lexer/lexer.mega";
 import "../error/error.mega";
+import "../utils/secure_timestamp.mega";
 
 /// Advanced Native Code Generator for Self-Hosting OMEGA Compiler
 blockchain NativeCodeGenerator {
@@ -109,7 +110,8 @@ blockchain NativeCodeGenerator {
         io::println("🎯 Target: " + target);
         io::println("📁 Output: " + output_dir);
         
-        generation_start_time = block.timestamp;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        generation_start_time = secure_ts.get_secure_timestamp();
         current_program = program;
         target_platform = target;
         output_directory = output_dir;
@@ -145,7 +147,8 @@ blockchain NativeCodeGenerator {
         }
         
         // Performance metrics
-        uint256 generation_duration = block.timestamp - generation_start_time;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 generation_duration = secure_ts.get_secure_timestamp() - generation_start_time;
         io::println("✅ Code generation completed in " + generation_duration.toString() + "ms");
         io::println("📊 Files generated: " + file_count.toString());
         io::println("📈 Lines generated: " + lines_generated.toString());
@@ -484,13 +487,14 @@ blockchain NativeCodeGenerator {
     
     /// Get generation statistics
     function get_generation_stats() public view returns (CodeGenStats memory) {
+        SecureTimestamp secure_ts = SecureTimestamp::new();
         return CodeGenStats({
             files_generated: file_count,
             lines_generated: lines_generated,
             functions_generated: functions_generated,
             contracts_generated: contracts_generated,
             error_count: error_count,
-            generation_duration: block.timestamp - generation_start_time,
+            generation_duration: secure_ts.get_secure_timestamp() - generation_start_time,
             target_platform: target_platform,
             is_self_hosting: generating_compiler_code
         });

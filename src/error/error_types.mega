@@ -1,0 +1,420 @@
+// OMEGA Error Types - Comprehensive error type definitions
+// Written in MEGA language for production compiler
+
+/// Comprehensive error type enumeration
+enum ErrorType {
+    // Basic compilation errors
+    SyntaxError,           // Syntax parsing errors
+    TypeError,             // Type system violations
+    SemanticError,         // Semantic analysis errors
+    CompilationError,      // General compilation failures
+    RuntimeError,          // Runtime execution errors
+    
+    // Advanced compilation errors
+    InternalError,         // Internal compiler errors
+    SystemError,           // System-level errors
+    ConfigurationError,    // Configuration-related errors
+    ResourceError,         // Resource allocation errors
+    SecurityError,         // Security violation errors
+    
+    // Test-specific errors
+    TestAssertionError,    // Test assertion failures
+    TestTimeoutError,      // Test execution timeouts
+    TestMemoryError,       // Test memory issues
+    TestSecurityError,     // Test security violations
+    TestPerformanceError,  // Test performance issues
+    
+    // Parser errors
+    UnexpectedToken,       // Unexpected token encountered
+    MissingToken,          // Expected token missing
+    InvalidToken,          // Invalid token format
+    MismatchedBraces,      // Unmatched braces/brackets
+    InvalidExpression,     // Invalid expression structure
+    
+    // Semantic errors
+    UndefinedSymbol,       // Undefined identifier
+    DuplicateSymbol,       // Duplicate symbol definition
+    InvalidSymbolUsage,    // Invalid symbol usage
+    TypeMismatch,          // Type compatibility errors
+    InvalidConversion,     // Invalid type conversion
+    
+    // Blockchain-specific errors
+    InvalidBlockchainState, // Invalid blockchain state
+    InvalidTransaction,    // Invalid transaction
+    InvalidContract,     // Invalid contract definition
+    CrossChainError,     // Cross-chain communication errors
+    ConsensusError       // Consensus mechanism errors
+}
+
+/// Error severity levels
+enum ErrorSeverity {
+    Info,      // Informational messages
+    Warning,   // Warning messages
+    Error,     // Non-fatal errors
+    Critical,  // Critical errors
+    Fatal      // Fatal errors that stop compilation
+}
+
+/// Error context types
+enum ErrorContextType {
+    General,           // General compilation context
+    Parsing,           // Parser-specific context
+    SemanticAnalysis,  // Semantic analysis context
+    TypeChecking,      // Type checking context
+    CodeGeneration,    // Code generation context
+    Optimization,      // Optimization context
+    Testing,           // Testing context
+    Runtime,           // Runtime context
+    System             // System context
+}
+
+/// Diagnostic severity levels
+enum DiagnosticSeverity {
+    Info,
+    Warning,
+    Error,
+    Critical
+}
+
+/// Diagnostic types
+enum DiagnosticType {
+    ErrorContext,
+    SystemState,
+    RecoverySuggestion,
+    PerformanceWarning,
+    SecurityAlert
+}
+
+/// Error location structure
+struct ErrorLocation {
+    string file;      // Source file path
+    uint256 line;     // Line number (1-indexed)
+    uint256 column;   // Column number (1-indexed)
+    uint256 position; // Absolute position in file
+}
+
+/// Error context structure
+struct ErrorContext {
+    string description;           // Context description
+    ErrorLocation location;     // Location in source
+    ErrorContextType context_type; // Type of context
+    string[] relevant_symbols;  // Relevant symbols in context
+    string scope_info;          // Scope information
+}
+
+/// Main error structure
+struct OmegaError {
+    ErrorType error_type;       // Type of error
+    ErrorSeverity severity;     // Severity level
+    string message;             // Error message
+    ErrorLocation location;     // Error location
+    ErrorContext context;       // Error context
+    string[] suggestions;       // Recovery suggestions
+    string documentation_link;  // Link to documentation
+    uint256 error_code;         // Unique error code
+}
+
+/// Error registry for managing error types
+blockchain ErrorRegistry {
+    state {
+        mapping(string => ErrorType) error_patterns;
+        mapping(ErrorType => string) error_descriptions;
+        mapping(ErrorType => string) error_documentation;
+        mapping(ErrorType => uint256) error_codes;
+        ErrorType[] registered_error_types;
+    }
+    
+    constructor() {
+        initialize_default_errors();
+    }
+    
+    /// Register error pattern
+    function register_error_pattern(string pattern, ErrorType error_type) public {
+        error_patterns[pattern] = error_type;
+        
+        bool found = false;
+        for (uint256 i = 0; i < registered_error_types.length; i++) {
+            if (registered_error_types[i] == error_type) {
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            registered_error_types.push(error_type);
+        }
+    }
+    
+    /// Get error type for pattern
+    function get_error_type(string pattern) public view returns (ErrorType) {
+        if (error_patterns[pattern] != ErrorType(0)) {
+            return error_patterns[pattern];
+        }
+        return ErrorType.InternalError; // Default fallback
+    }
+    
+    /// Set error description
+    function set_error_description(ErrorType error_type, string description) public {
+        error_descriptions[error_type] = description;
+    }
+    
+    /// Get error description
+    function get_error_description(ErrorType error_type) public view returns (string) {
+        return error_descriptions[error_type];
+    }
+    
+    /// Set error documentation
+    function set_error_documentation(ErrorType error_type, string documentation) public {
+        error_documentation[error_type] = documentation;
+    }
+    
+    /// Get error documentation
+    function get_error_documentation(ErrorType error_type) public view returns (string) {
+        return error_documentation[error_type];
+    }
+    
+    /// Set error code
+    function set_error_code(ErrorType error_type, uint256 code) public {
+        error_codes[error_type] = code;
+    }
+    
+    /// Get error code
+    function get_error_code(ErrorType error_type) public view returns (uint256) {
+        return error_codes[error_type];
+    }
+    
+    /// Get all registered error types
+    function get_registered_error_types() public view returns (ErrorType[] memory) {
+        return registered_error_types;
+    }
+    
+    /// Clear all registrations
+    function clear() public {
+        for (uint256 i = 0; i < registered_error_types.length; i++) {
+            delete error_descriptions[registered_error_types[i]];
+            delete error_documentation[registered_error_types[i]];
+            delete error_codes[registered_error_types[i]];
+        }
+        
+        registered_error_types = [];
+    }
+    
+    /// Initialize default error types
+    function initialize_default_errors() private {
+        // Syntax errors
+        set_error_description(ErrorType.SyntaxError, "Syntax error in source code");
+        set_error_code(ErrorType.SyntaxError, 1000);
+        
+        set_error_description(ErrorType.TypeError, "Type system violation");
+        set_error_code(ErrorType.TypeError, 2000);
+        
+        set_error_description(ErrorType.SemanticError, "Semantic analysis error");
+        set_error_code(ErrorType.SemanticError, 3000);
+        
+        set_error_description(ErrorType.CompilationError, "General compilation failure");
+        set_error_code(ErrorType.CompilationError, 4000);
+        
+        set_error_description(ErrorType.RuntimeError, "Runtime execution error");
+        set_error_code(ErrorType.RuntimeError, 5000);
+        
+        set_error_description(ErrorType.InternalError, "Internal compiler error");
+        set_error_code(ErrorType.InternalError, 9000);
+        
+        set_error_description(ErrorType.SystemError, "System-level error");
+        set_error_code(ErrorType.SystemError, 9100);
+        
+        set_error_description(ErrorType.ConfigurationError, "Configuration error");
+        set_error_code(ErrorType.ConfigurationError, 9200);
+        
+        set_error_description(ErrorType.ResourceError, "Resource allocation error");
+        set_error_code(ErrorType.ResourceError, 9300);
+        
+        set_error_description(ErrorType.SecurityError, "Security violation");
+        set_error_code(ErrorType.SecurityError, 9400);
+        
+        // Test errors
+        set_error_description(ErrorType.TestAssertionError, "Test assertion failed");
+        set_error_code(ErrorType.TestAssertionError, 8000);
+        
+        set_error_description(ErrorType.TestTimeoutError, "Test execution timeout");
+        set_error_code(ErrorType.TestTimeoutError, 8100);
+        
+        set_error_description(ErrorType.TestMemoryError, "Test memory error");
+        set_error_code(ErrorType.TestMemoryError, 8200);
+        
+        set_error_description(ErrorType.TestSecurityError, "Test security violation");
+        set_error_code(ErrorType.TestSecurityError, 8300);
+        
+        set_error_description(ErrorType.TestPerformanceError, "Test performance issue");
+        set_error_code(ErrorType.TestPerformanceError, 8400);
+    }
+}
+
+/// Error reporter for formatting and output
+blockchain ErrorReporter {
+    state {
+        ReportFormat default_format;
+        bool show_suggestions;
+        bool show_context;
+        bool show_documentation;
+        mapping(address => bool) output_filter;
+    }
+    
+    constructor() {
+        default_format = ReportFormat.Console;
+        show_suggestions = true;
+        show_context = true;
+        show_documentation = true;
+    }
+    
+    /// Report error with specified format
+    function report_error(OmegaError memory error, string[] memory additional_suggestions) public {
+        string memory formatted_error = format_error(error, additional_suggestions);
+        
+        // Output based on format
+        if (default_format == ReportFormat.Console) {
+            console_output(formatted_error);
+        } else if (default_format == ReportFormat.JSON) {
+            json_output(formatted_error);
+        } else if (default_format == ReportFormat.XML) {
+            xml_output(formatted_error);
+        } else if (default_format == ReportFormat.HTML) {
+            html_output(formatted_error);
+        }
+        
+        emit ErrorReported(error.message, error.location.file, error.location.line);
+    }
+    
+    /// Format error message
+    function format_error(OmegaError memory error, string[] memory additional_suggestions) 
+        private view returns (string memory) {
+        
+        string memory formatted = string.concat(
+            "Error [", uint2str(error.error_code), "]: ",
+            error_type_to_string(error.error_type), " - ",
+            error.message, "\n",
+            "Location: ", error.location.file, ":", uint2str(error.location.line), ":", uint2str(error.location.column), "\n"
+        );
+        
+        if (show_context && bytes(error.context.description).length > 0) {
+            formatted = string.concat(formatted, "Context: ", error.context.description, "\n");
+        }
+        
+        if (show_suggestions) {
+            formatted = string.concat(formatted, "Suggestions:\n");
+            
+            // Add built-in suggestions
+            for (uint256 i = 0; i < error.suggestions.length; i++) {
+                formatted = string.concat(formatted, "  - ", error.suggestions[i], "\n");
+            }
+            
+            // Add additional suggestions
+            for (uint256 i = 0; i < additional_suggestions.length; i++) {
+                formatted = string.concat(formatted, "  - ", additional_suggestions[i], "\n");
+            }
+        }
+        
+        if (show_documentation && bytes(error.documentation_link).length > 0) {
+            formatted = string.concat(formatted, "Documentation: ", error.documentation_link, "\n");
+        }
+        
+        return formatted;
+    }
+    
+    /// Convert error type to string
+    function error_type_to_string(ErrorType error_type) private pure returns (string memory) {
+        if (error_type == ErrorType.SyntaxError) return "SyntaxError";
+        if (error_type == ErrorType.TypeError) return "TypeError";
+        if (error_type == ErrorType.SemanticError) return "SemanticError";
+        if (error_type == ErrorType.CompilationError) return "CompilationError";
+        if (error_type == ErrorType.RuntimeError) return "RuntimeError";
+        if (error_type == ErrorType.InternalError) return "InternalError";
+        if (error_type == ErrorType.SystemError) return "SystemError";
+        if (error_type == ErrorType.ConfigurationError) return "ConfigurationError";
+        if (error_type == ErrorType.ResourceError) return "ResourceError";
+        if (error_type == ErrorType.SecurityError) return "SecurityError";
+        if (error_type == ErrorType.TestAssertionError) return "TestAssertionError";
+        if (error_type == ErrorType.TestTimeoutError) return "TestTimeoutError";
+        if (error_type == ErrorType.TestMemoryError) return "TestMemoryError";
+        if (error_type == ErrorType.TestSecurityError) return "TestSecurityError";
+        if (error_type == ErrorType.TestPerformanceError) return "TestPerformanceError";
+        if (error_type == ErrorType.UnexpectedToken) return "UnexpectedToken";
+        if (error_type == ErrorType.MissingToken) return "MissingToken";
+        if (error_type == ErrorType.InvalidToken) return "InvalidToken";
+        if (error_type == ErrorType.MismatchedBraces) return "MismatchedBraces";
+        if (error_type == ErrorType.InvalidExpression) return "InvalidExpression";
+        if (error_type == ErrorType.UndefinedSymbol) return "UndefinedSymbol";
+        if (error_type == ErrorType.DuplicateSymbol) return "DuplicateSymbol";
+        if (error_type == ErrorType.InvalidSymbolUsage) return "InvalidSymbolUsage";
+        if (error_type == ErrorType.TypeMismatch) return "TypeMismatch";
+        if (error_type == ErrorType.InvalidConversion) return "InvalidConversion";
+        if (error_type == ErrorType.InvalidBlockchainState) return "InvalidBlockchainState";
+        if (error_type == ErrorType.InvalidTransaction) return "InvalidTransaction";
+        if (error_type == ErrorType.InvalidContract) return "InvalidContract";
+        if (error_type == ErrorType.CrossChainError) return "CrossChainError";
+        if (error_type == ErrorType.ConsensusError) return "ConsensusError";
+        
+        return "UnknownError";
+    }
+    
+    /// Convert uint to string
+    function uint2str(uint256 value) private pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        
+        uint256 temp = value;
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    /// Output functions (simplified)
+    function console_output(string message) private pure {
+        // Console output implementation
+    }
+    
+    function json_output(string message) private pure {
+        // JSON output implementation
+    }
+    
+    function xml_output(string message) private pure {
+        // XML output implementation
+    }
+    
+    function html_output(string message) private pure {
+        // HTML output implementation
+    }
+    
+    /// Events
+    event ErrorReported(string message, string file, uint256 line);
+}
+
+/// Report format enumeration
+enum ReportFormat {
+    Console,    // Console text output
+    JSON,       // JSON format
+    XML,        // XML format
+    HTML        // HTML format
+}
+
+/// Error diagnostic structure
+struct ErrorDiagnostic {
+    DiagnosticType type;
+    string message;
+    ErrorLocation location;
+    DiagnosticSeverity severity;
+}

@@ -98,7 +98,11 @@ blockchain OmegaCodeGenerator {
     /// Main code generation function
     function generate_code(IRModule memory module, GenerationConfig memory gen_config) public returns (GenerationResult memory) {
         stats.total_generations++;
-        generation_timestamp = block.timestamp;
+        
+        // Use secure timestamp for generation
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        generation_timestamp = secure_ts.get_secure_timestamp();
+        
         current_module = module;
         config = gen_config;
         
@@ -111,7 +115,7 @@ blockchain OmegaCodeGenerator {
             total_lines: 0
         });
         
-        uint startTime = block.timestamp;
+        uint startTime = secure_ts.get_secure_timestamp();
         
         // Validate IR module first
         if (config.validate_output && !validator.validate_ir_module(module)) {
@@ -143,7 +147,8 @@ blockchain OmegaCodeGenerator {
         }
         
         // Calculate generation time
-        result.generation_time = block.timestamp - startTime;
+        uint endTime = secure_ts.get_secure_timestamp();
+        result.generation_time = endTime - startTime;
         
         // Update statistics
         if (result.success) {

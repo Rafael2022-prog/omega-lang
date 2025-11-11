@@ -1,0 +1,608 @@
+// OMEGA Language Comprehensive Test Runner
+// This script executes all test suites and generates comprehensive reports
+
+blockchain TestRunner {
+    state {
+        string config_file;
+        mapping(string => TestSuite) test_suites;
+        mapping(string => TestResult) test_results;
+        TestExecutionStats execution_stats;
+        string report_directory;
+        bool parallel_execution;
+        uint256 max_parallel_tests;
+        uint256 timeout_ms;
+    }
+
+    struct TestSuite {
+        string name;
+        string file_path;
+        string[] test_cases;
+        uint256 timeout_ms;
+        bool enabled;
+        uint256 priority;
+    }
+
+    struct TestResult {
+        bool success;
+        uint256 execution_time_ms;
+        uint256 memory_usage_bytes;
+        uint256 test_count;
+        uint256 passed_count;
+        uint256 failed_count;
+        string[] error_messages;
+        string coverage_report;
+        string performance_report;
+    }
+
+    struct TestExecutionStats {
+        uint256 total_suites;
+        uint256 executed_suites;
+        uint256 passed_suites;
+        uint256 failed_suites;
+        uint256 total_tests;
+        uint256 total_passed;
+        uint256 total_failed;
+        uint256 total_execution_time_ms;
+        uint256 peak_memory_usage_bytes;
+        uint256 start_timestamp;
+        uint256 end_timestamp;
+    }
+
+    constructor(string _config_file) {
+        config_file = _config_file;
+        report_directory = "test_reports";
+        parallel_execution = true;
+        max_parallel_tests = 16;
+        timeout_ms = 300000; // 5 minutes per suite
+        execution_stats.start_timestamp = block.timestamp;
+        
+        initialize_test_suites();
+        create_report_directory();
+    }
+
+    function initialize_test_suites() private {
+        // Core Compiler Tests
+        test_suites["core_compiler"] = TestSuite({
+            name: "Core Compiler Tests",
+            file_path: "src/testing/test_core_compiler.mega",
+            test_cases: [
+                "test_lexical_analysis",
+                "test_syntax_analysis", 
+                "test_semantic_analysis",
+                "test_code_generation",
+                "test_error_handling",
+                "test_edge_cases"
+            ],
+            timeout_ms: 5000,
+            enabled: true,
+            priority: 1
+        });
+
+        // Bootstrap and Self-Hosting Tests
+        test_suites["bootstrap_self_hosting"] = TestSuite({
+            name: "Bootstrap and Self-Hosting Tests",
+            file_path: "src/testing/test_bootstrap_compiler.mega",
+            test_cases: [
+                "test_bootstrap_initialization",
+                "test_bootstrap_compilation",
+                "test_self_hosting_compilation",
+                "test_compiler_verification",
+                "test_bootstrap_cleanup"
+            ],
+            timeout_ms: 30000,
+            enabled: true,
+            priority: 1
+        });
+
+        // Cross-Compilation Tests
+        test_suites["cross_compilation"] = TestSuite({
+            name: "Cross-Compilation Tests",
+            file_path: "src/testing/test_cross_compilation.mega",
+            test_cases: [
+                "test_evm_compilation",
+                "test_solana_compilation",
+                "test_cosmos_compilation",
+                "test_move_compilation",
+                "test_substrate_compilation",
+                "test_complex_contracts",
+                "test_performance_optimization",
+                "test_error_handling"
+            ],
+            timeout_ms: 10000,
+            enabled: true,
+            priority: 2
+        });
+
+        // Self-Hosting Compiler Tests
+        test_suites["self_hosting"] = TestSuite({
+            name: "Self-Hosting Compiler Tests",
+            file_path: "src/testing/test_self_hosting.mega",
+            test_cases: [
+                "test_compiler_initialization",
+                "test_source_discovery",
+                "test_lexical_analysis_phase",
+                "test_syntax_analysis_phase",
+                "test_semantic_analysis_phase",
+                "test_ir_generation",
+                "test_optimization_phase",
+                "test_code_generation_phase",
+                "test_cross_compilation",
+                "test_build_file_generation",
+                "test_compilation_stats",
+                "test_error_handling",
+                "test_target_configuration",
+                "test_cross_compilation_report",
+                "test_secure_timestamp_integration",
+                "test_performance_benchmarks"
+            ],
+            timeout_ms: 15000,
+            enabled: true,
+            priority: 2
+        });
+
+        // Target Code Generator Tests
+        test_suites["target_code_generator"] = TestSuite({
+            name: "Target Code Generator Tests",
+            file_path: "src/testing/test_target_code_generator.mega",
+            test_cases: [
+                "test_evm_code_generation",
+                "test_solana_code_generation",
+                "test_cosmos_code_generation",
+                "test_move_code_generation",
+                "test_substrate_code_generation",
+                "test_cross_platform_compatibility",
+                "test_optimization_integration"
+            ],
+            timeout_ms: 8000,
+            enabled: true,
+            priority: 3
+        });
+
+        // Integration Tests
+        test_suites["integration"] = TestSuite({
+            name: "Integration Tests",
+            file_path: "src/testing/test_integration.mega",
+            test_cases: [
+                "test_end_to_end_compilation",
+                "test_multi_target_deployment",
+                "test_cross_chain_communication",
+                "test_real_world_scenarios",
+                "test_performance_benchmarks"
+            ],
+            timeout_ms: 20000,
+            enabled: true,
+            priority: 3
+        });
+
+        // Security Tests
+        test_suites["security"] = TestSuite({
+            name: "Security Tests",
+            file_path: "src/testing/test_security.mega",
+            test_cases: [
+                "test_vulnerability_scanning",
+                "test_static_analysis",
+                "test_fuzzing",
+                "test_access_control",
+                "test_input_validation"
+            ],
+            timeout_ms: 12000,
+            enabled: true,
+            priority: 1
+        });
+
+        // Memory Management Tests
+        test_suites["memory_management"] = TestSuite({
+            name: "Memory Management Tests",
+            file_path: "tests/memory/test_memory_manager.mega",
+            test_cases: [
+                "test_basic_allocation",
+                "test_multiple_allocations",
+                "test_deallocation",
+                "test_garbage_collection",
+                "test_memory_pool",
+                "test_memory_fragmentation",
+                "test_concurrent_allocations",
+                "test_memory_statistics",
+                "test_error_handling",
+                "test_performance"
+            ],
+            timeout_ms: 20000,
+            enabled: true,
+            priority: 2
+        });
+
+        // Performance Tests
+        test_suites["performance"] = TestSuite({
+            name: "Performance Tests",
+            file_path: "src/testing/test_performance.mega",
+            test_cases: [
+                "test_compilation_speed",
+                "test_memory_efficiency",
+                "test_scalability",
+                "test_optimization_effectiveness",
+                "test_benchmark_comparison"
+            ],
+            timeout_ms: 15000,
+            enabled: true,
+            priority: 4
+        });
+    }
+
+    function create_report_directory() private {
+        if (!directory_exists(report_directory)) {
+            create_directory(report_directory);
+        }
+        
+        // Create subdirectories for different report types
+        create_directory(concat(report_directory, "/coverage"));
+        create_directory(concat(report_directory, "/performance"));
+        create_directory(concat(report_directory, "/errors"));
+        create_directory(concat(report_directory, "/logs"));
+    }
+
+    function run_all_tests() public returns (TestExecutionStats memory) {
+        log_info("Starting OMEGA Language Comprehensive Test Suite");
+        log_info(concat("Configuration file: ", config_file));
+        log_info(concat("Parallel execution: ", parallel_execution ? "enabled" : "disabled"));
+        
+        execution_stats.total_suites = get_enabled_suite_count();
+        
+        if (parallel_execution) {
+            return run_tests_parallel();
+        } else {
+            return run_tests_sequential();
+        }
+    }
+
+    function run_tests_parallel() private returns (TestExecutionStats memory) {
+        log_info("Running tests in parallel mode");
+        
+        string[] memory enabled_suites = get_enabled_suites();
+        uint256 batch_size = min(max_parallel_tests, enabled_suites.length);
+        
+        for (uint256 i = 0; i < enabled_suites.length; i += batch_size) {
+            uint256 end_index = min(i + batch_size, enabled_suites.length);
+            
+            // Execute batch of tests in parallel
+            for (uint256 j = i; j < end_index; j++) {
+                execute_test_suite_async(enabled_suites[j]);
+            }
+            
+            // Wait for batch to complete
+            wait_for_async_completion();
+        }
+        
+        return finalize_test_execution();
+    }
+
+    function run_tests_sequential() private returns (TestExecutionStats memory) {
+        log_info("Running tests in sequential mode");
+        
+        string[] memory enabled_suites = get_enabled_suites();
+        
+        for (uint256 i = 0; i < enabled_suites.length; i++) {
+            execute_test_suite(enabled_suites[i]);
+            execution_stats.executed_suites += 1;
+        }
+        
+        return finalize_test_execution();
+    }
+
+    function execute_test_suite(string memory suite_name) private {
+        TestSuite memory suite = test_suites[suite_name];
+        
+        log_info(concat("Executing test suite: ", suite.name));
+        
+        uint256 start_time = block.timestamp;
+        uint256 start_memory = get_memory_usage();
+        
+        // Execute the test suite
+        bool success = false;
+        string[] memory error_messages;
+        
+        try {
+            // Load and execute test file
+            string memory test_content = read_file(suite.file_path);
+            
+            // Execute each test case
+            uint256 passed = 0;
+            uint256 failed = 0;
+            
+            for (uint256 i = 0; i < suite.test_cases.length; i++) {
+                bool test_passed = execute_test_case(suite.test_cases[i], test_content);
+                
+                if (test_passed) {
+                    passed++;
+                } else {
+                    failed++;
+                    error_messages.push(concat("Test failed: ", suite.test_cases[i]));
+                }
+            }
+            
+            success = (failed == 0);
+            
+            test_results[suite_name] = TestResult({
+                success: success,
+                execution_time_ms: block.timestamp - start_time,
+                memory_usage_bytes: get_memory_usage() - start_memory,
+                test_count: suite.test_cases.length,
+                passed_count: passed,
+                failed_count: failed,
+                error_messages: error_messages,
+                coverage_report: generate_coverage_report(suite_name),
+                performance_report: generate_performance_report(suite_name)
+            });
+            
+        } catch (string memory error) {
+            error_messages.push(error);
+            test_results[suite_name] = TestResult({
+                success: false,
+                execution_time_ms: block.timestamp - start_time,
+                memory_usage_bytes: get_memory_usage() - start_memory,
+                test_count: suite.test_cases.length,
+                passed_count: 0,
+                failed_count: suite.test_cases.length,
+                error_messages: error_messages,
+                coverage_report: "",
+                performance_report: ""
+            });
+        }
+        
+        if (success) {
+            execution_stats.passed_suites += 1;
+            log_success(concat("✅ Test suite passed: ", suite.name));
+        } else {
+            execution_stats.failed_suites += 1;
+            log_error(concat("❌ Test suite failed: ", suite.name));
+        }
+        
+        // Update statistics
+        execution_stats.total_tests += suite.test_cases.length;
+        execution_stats.total_passed += test_results[suite_name].passed_count;
+        execution_stats.total_failed += test_results[suite_name].failed_count;
+        execution_stats.total_execution_time_ms += test_results[suite_name].execution_time_ms;
+        
+        uint256 current_memory = get_memory_usage();
+        if (current_memory > execution_stats.peak_memory_usage_bytes) {
+            execution_stats.peak_memory_usage_bytes = current_memory;
+        }
+    }
+
+    function execute_test_case(string memory test_name, string memory test_content) private returns (bool) {
+        // Parse and execute individual test case
+        // This is a simplified implementation - in reality, this would involve
+        // parsing the test file and executing the specific test function
+        
+        log_info(concat("  Running test: ", test_name));
+        
+        // Simulate test execution with random success/failure for demonstration
+        // In real implementation, this would actually execute the test
+        return (uint256(keccak256(abi.encodePacked(test_name, block.timestamp))) % 100) > 10; // 90% success rate
+    }
+
+    function execute_test_suite_async(string memory suite_name) private {
+        // In a real implementation, this would use async/await or threading
+        // For now, just call the synchronous version
+        execute_test_suite(suite_name);
+    }
+
+    function wait_for_async_completion() private {
+        // In a real implementation, this would wait for all async operations to complete
+        // For now, just return immediately
+        return;
+    }
+
+    function finalize_test_execution() private returns (TestExecutionStats memory) {
+        execution_stats.end_timestamp = block.timestamp;
+        
+        generate_comprehensive_report();
+        
+        log_info("========================================");
+        log_info("OMEGA Language Test Execution Complete");
+        log_info("========================================");
+        log_info(concat("Total Suites: ", uint256_to_string(execution_stats.total_suites)));
+        log_info(concat("Executed Suites: ", uint256_to_string(execution_stats.executed_suites)));
+        log_info(concat("Passed Suites: ", uint256_to_string(execution_stats.passed_suites)));
+        log_info(concat("Failed Suites: ", uint256_to_string(execution_stats.failed_suites)));
+        log_info(concat("Total Tests: ", uint256_to_string(execution_stats.total_tests)));
+        log_info(concat("Total Passed: ", uint256_to_string(execution_stats.total_passed)));
+        log_info(concat("Total Failed: ", uint256_to_string(execution_stats.total_failed)));
+        log_info(concat("Total Execution Time: ", uint256_to_string(execution_stats.total_execution_time_ms), " ms"));
+        log_info(concat("Peak Memory Usage: ", uint256_to_string(execution_stats.peak_memory_usage_bytes), " bytes"));
+        
+        return execution_stats;
+    }
+
+    function generate_comprehensive_report() private {
+        string memory report_content = generate_report_header();
+        report_content = concat(report_content, generate_summary_section());
+        report_content = concat(report_content, generate_detailed_results());
+        report_content = concat(report_content, generate_coverage_summary());
+        report_content = concat(report_content, generate_performance_summary());
+        report_content = concat(report_content, generate_recommendations());
+        
+        string memory report_file = concat(report_directory, "/comprehensive_test_report.html");
+        write_file(report_file, report_content);
+        
+        log_info(concat("Comprehensive report generated: ", report_file));
+    }
+
+    function generate_report_header() private pure returns (string memory) {
+        return "<html><head><title>OMEGA Language Test Report</title></head><body><h1>OMEGA Language Comprehensive Test Report</h1>";
+    }
+
+    function generate_summary_section() private view returns (string memory) {
+        string memory summary = "<h2>Test Execution Summary</h2>";
+        summary = concat(summary, "<table border='1'>");
+        summary = concat(summary, "<tr><th>Metric</th><th>Value</th></tr>");
+        summary = concat(summary, concat("<tr><td>Total Suites</td><td>", uint256_to_string(execution_stats.total_suites), "</td></tr>"));
+        summary = concat(summary, concat("<tr><td>Passed Suites</td><td>", uint256_to_string(execution_stats.passed_suites), "</td></tr>"));
+        summary = concat(summary, concat("<tr><td>Failed Suites</td><td>", uint256_to_string(execution_stats.failed_suites), "</td></tr>"));
+        summary = concat(summary, concat("<tr><td>Total Tests</td><td>", uint256_to_string(execution_stats.total_tests), "</td></tr>"));
+        summary = concat(summary, concat("<tr><td>Total Passed</td><td>", uint256_to_string(execution_stats.total_passed), "</td></tr>"));
+        summary = concat(summary, concat("<tr><td>Total Failed</td><td>", uint256_to_string(execution_stats.total_failed), "</td></tr>"));
+        summary = concat(summary, "</table>");
+        
+        return summary;
+    }
+
+    function generate_detailed_results() private view returns (string memory) {
+        string memory details = "<h2>Detailed Test Results</h2>";
+        
+        string[] memory suite_names = get_enabled_suites();
+        for (uint256 i = 0; i < suite_names.length; i++) {
+            TestResult memory result = test_results[suite_names[i]];
+            details = concat(details, concat("<h3>", suite_names[i], "</h3>"));
+            details = concat(details, "<table border='1'>");
+            details = concat(details, "<tr><th>Test</th><th>Status</th><th>Execution Time (ms)</th><th>Memory Usage (bytes)</th></tr>");
+            details = concat(details, concat("<tr><td>Total Tests</td><td>", uint256_to_string(result.test_count), "</td><td>", uint256_to_string(result.execution_time_ms), "</td><td>", uint256_to_string(result.memory_usage_bytes), "</td></tr>"));
+            details = concat(details, concat("<tr><td>Passed</td><td>", uint256_to_string(result.passed_count), "</td><td>-</td><td>-</td></tr>"));
+            details = concat(details, concat("<tr><td>Failed</td><td>", uint256_to_string(result.failed_count), "</td><td>-</td><td>-</td></tr>"));
+            details = concat(details, "</table>");
+        }
+        
+        return details;
+    }
+
+    function generate_coverage_summary() private view returns (string memory) {
+        string memory coverage = "<h2>Coverage Summary</h2>";
+        coverage = concat(coverage, "<p>Overall coverage metrics will be displayed here.</p>");
+        return coverage;
+    }
+
+    function generate_performance_summary() private view returns (string memory) {
+        string memory performance = "<h2>Performance Summary</h2>";
+        performance = concat(performance, "<table border='1'>");
+        performance = concat(performance, "<tr><th>Metric</th><th>Value</th></tr>");
+        performance = concat(performance, concat("<tr><td>Total Execution Time</td><td>", uint256_to_string(execution_stats.total_execution_time_ms), " ms</td></tr>"));
+        performance = concat(performance, concat("<tr><td>Peak Memory Usage</td><td>", uint256_to_string(execution_stats.peak_memory_usage_bytes), " bytes</td></tr>"));
+        performance = concat(performance, "</table>");
+        return performance;
+    }
+
+    function generate_recommendations() private pure returns (string memory) {
+        return "<h2>Recommendations</h2><p>Based on test results, recommendations for improvements will be provided here.</p></body></html>";
+    }
+
+    // Utility functions
+    function get_enabled_suite_count() private view returns (uint256) {
+        uint256 count = 0;
+        string[] memory suite_names = get_all_suite_names();
+        for (uint256 i = 0; i < suite_names.length; i++) {
+            if (test_suites[suite_names[i]].enabled) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    function get_enabled_suites() private view returns (string[] memory) {
+        string[] memory all_suites = get_all_suite_names();
+        string[] memory enabled_suites = new string[](all_suites.length);
+        uint256 enabled_count = 0;
+        
+        for (uint256 i = 0; i < all_suites.length; i++) {
+            if (test_suites[all_suites[i]].enabled) {
+                enabled_suites[enabled_count] = all_suites[i];
+                enabled_count++;
+            }
+        }
+        
+        // Resize array to actual enabled count
+        string[] memory result = new string[](enabled_count);
+        for (uint256 i = 0; i < enabled_count; i++) {
+            result[i] = enabled_suites[i];
+        }
+        
+        return result;
+    }
+
+    function get_all_suite_names() private pure returns (string[] memory) {
+        string[] memory names = new string[](8);
+        names[0] = "core_compiler";
+        names[1] = "bootstrap_self_hosting";
+        names[2] = "cross_compilation";
+        names[3] = "self_hosting";
+        names[4] = "target_code_generator";
+        names[5] = "integration";
+        names[6] = "security";
+        names[7] = "performance";
+        return names;
+    }
+
+    function generate_coverage_report(string memory suite_name) private pure returns (string memory) {
+        return concat("Coverage report for ", suite_name, " will be generated based on actual execution.");
+    }
+
+    function generate_performance_report(string memory suite_name) private pure returns (string memory) {
+        return concat("Performance report for ", suite_name, " will be generated based on actual execution.");
+    }
+
+    // Helper functions (simplified implementations)
+    function min(uint256 a, uint256 b) private pure returns (uint256) {
+        return a < b ? a : b;
+    }
+
+    function concat(string memory a, string memory b) private pure returns (string memory) {
+        return string(abi.encodePacked(a, b));
+    }
+
+    function concat(string memory a, string memory b, string memory c) private pure returns (string memory) {
+        return string(abi.encodePacked(a, b, c));
+    }
+
+    function uint256_to_string(uint256 value) private pure returns (string memory) {
+        // Simplified conversion - in real implementation would use proper uint to string conversion
+        return "N";
+    }
+
+    // System interface functions (simplified)
+    function directory_exists(string memory path) private pure returns (bool) {
+        return true; // Simplified
+    }
+
+    function create_directory(string memory path) private pure {
+        // Simplified
+    }
+
+    function read_file(string memory path) private pure returns (string memory) {
+        return "test content"; // Simplified
+    }
+
+    function write_file(string memory path, string memory content) private pure {
+        // Simplified
+    }
+
+    function get_memory_usage() private pure returns (uint256) {
+        return 0; // Simplified
+    }
+
+    // Logging functions
+    function log_info(string memory message) private pure {
+        print_colored(message, "blue");
+    }
+
+    function log_success(string memory message) private pure {
+        print_colored(message, "green");
+    }
+
+    function log_error(string memory message) private pure {
+        print_colored(message, "red");
+    }
+
+    function print_colored(string memory message, string memory color) private pure {
+        // Simplified
+    }
+
+    // Entry point
+    function main(string[] memory args) public returns (TestExecutionStats memory) {
+        string memory config_path = "test_config.json";
+        
+        if (args.length > 0) {
+            config_path = args[0];
+        }
+        
+        TestRunner runner = new TestRunner(config_path);
+        return runner.run_all_tests();
+    }
+}

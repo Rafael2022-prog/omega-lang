@@ -4,6 +4,7 @@
 
 import "../parser/ast_nodes.mega";
 import "../error/error_types.mega";
+import "./secure_timestamp.mega";
 
 /// Comprehensive memory safety checker untuk OMEGA compiler
 /// Mengimplementasikan static analysis dan runtime checks untuk memory safety
@@ -150,10 +151,11 @@ blockchain MemorySafetyChecker {
                 }));
             } else {
                 // Mark as freed
+                SecureTimestamp secure_ts = SecureTimestamp::new();
                 freed_memory[pattern.memory_address] = FreeInfo({
                     is_freed: true,
                     free_location: pattern.source_location,
-                    free_timestamp: block.timestamp
+                    free_timestamp: secure_ts.get_secure_timestamp()
                 });
             }
             

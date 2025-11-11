@@ -1,0 +1,621 @@
+// OMEGA Garbage Collector
+// Implementasi garbage collection untuk mengelola memory lifecycle
+
+import std::collections;
+import std::math;
+import "./memory_pool.mega";
+import "../utils/secure_timestamp.mega";
+
+/// Garbage collection strategies
+enum GCStrategy {
+    MARK_SWEEP,           // Traditional mark and sweep
+    REFERENCE_COUNTING,   // Reference counting
+    GENERATIONAL,         // Generational garbage collection
+    INCREMENTAL,          // Incremental garbage collection
+    CONCURRENT            // Concurrent garbage collection
+}
+
+/// Object reference tracking
+struct ObjectReference {
+    bytes32 object_id;           // Unique object identifier
+    uint256 reference_count;     // Reference count for RC
+    bool is_marked;              // Mark for mark-sweep
+    uint256 creation_time;       // Object creation time
+    uint256 last_access_time;     // Last access time
+    address owner;                // Object owner
+    bytes32[] references;         // Objects this object references
+    bytes32[] referenced_by;     // Objects that reference this object
+    uint256 object_size;          // Size of object in bytes
+    string object_type;           // Type information
+    uint256 generation;           // Generation for generational GC
+}
+
+/// Garbage collection statistics
+struct GCStats {
+    uint256 total_collections;     // Total GC cycles
+    uint256 objects_collected;    // Total objects collected
+    uint256 memory_freed;          // Total memory freed
+    uint256 collection_time;       // Total time spent in GC
+    uint256 avg_collection_time;   // Average collection time
+    uint256 min_collection_time;   // Minimum collection time
+    uint256 max_collection_time;   // Maximum collection time
+    uint256 last_collection_time;  // Last collection timestamp
+    uint256 collections_by_strategy[5]; // Collections per strategy
+}
+
+/// GC configuration
+struct GCConfig {
+    GCStrategy default_strategy;    // Default GC strategy
+    uint256 collection_threshold;   // Memory threshold for collection
+    uint256 time_threshold;          // Time threshold for collection
+    uint256 max_pause_time;        // Maximum pause time for incremental GC
+    uint256 generational_threshold;  // Threshold for generational promotion
+    bool enable_concurrent_gc;      // Enable concurrent collection
+    bool enable_statistics;          // Enable GC statistics
+    bool enable_debugging;           // Enable GC debugging
+}
+
+/// Main Garbage Collector blockchain
+blockchain GarbageCollector {
+    state {
+        GCConfig config;                                    // GC configuration
+        mapping(bytes32 => ObjectReference) objects;        // Object registry
+        mapping(address => bytes32[]) user_objects;          // Objects per user
+        GCStats stats;                                       // GC statistics
+        bytes32[] root_objects;                              // Root objects for marking
+        bytes32[] collection_queue;                          // Queue for incremental collection
+        bool gc_active;                                       // GC active flag
+        uint256 gc_start_time;                              // GC start time
+        MemoryPool memory_pool;                              // Reference to memory pool
+        mapping(string => uint256) type_statistics;        // Statistics by object type
+        uint256 total_heap_size;                            // Total heap size
+        uint256 used_heap_size;                             // Used heap size
+    }
+    
+    constructor(address memory_pool_address) {
+        config = GCConfig({
+            default_strategy: GCStrategy::MARK_SWEEP,
+            collection_threshold: 75,          // 75% heap usage
+            time_threshold: 300,               // 5 minutes
+            max_pause_time: 100,               // 100ms max pause
+            generational_threshold: 2,         // Promote after 2 collections
+            enable_concurrent_gc: false,
+            enable_statistics: true,
+            enable_debugging: false
+        });
+        
+        stats = GCStats({
+            total_collections: 0,
+            objects_collected: 0,
+            memory_freed: 0,
+            collection_time: 0,
+            avg_collection_time: 0,
+            min_collection_time: type(uint256).max,
+            max_collection_time: 0,
+            last_collection_time: 0,
+            collections_by_strategy: [0, 0, 0, 0, 0]
+        });
+        
+        gc_active = false;
+        memory_pool = MemoryPool(memory_pool_address);
+        total_heap_size = 1024 * 1024 * 100; // 100MB default
+        used_heap_size = 0;
+    }
+    
+    /// Register new object for garbage collection
+    function register_object(bytes32 object_id, uint256 size, string memory object_type) public {
+        require(objects[object_id].object_id == bytes32(0), "Object already registered");
+        require(size > 0, "Invalid object size");
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        
+        objects[object_id] = ObjectReference({
+            object_id: object_id,
+            reference_count: 1,
+            is_marked: false,
+            creation_time: current_time,
+            last_access_time: current_time,
+            owner: msg.sender,
+            references: new bytes32[](0),
+            referenced_by: new bytes32[](0),
+            object_size: size,
+            object_type: object_type,
+            generation: 0
+        });
+        
+        user_objects[msg.sender].push(object_id);
+        used_heap_size += size;
+        type_statistics[object_type]++;
+        
+        // Add as root object initially
+        root_objects.push(object_id);
+        
+        // Check if collection is needed
+        if (should_collect()) {
+            collect_garbage();
+        }
+    }
+    
+    /// Unregister object (manual deletion)
+    function unregister_object(bytes32 object_id) public {
+        require(objects[object_id].object_id != bytes32(0), "Object not found");
+        require(objects[object_id].owner == msg.sender, "Unauthorized");
+        
+        ObjectReference storage obj = objects[object_id];
+        used_heap_size -= obj.object_size;
+        type_statistics[obj.object_type]--;
+        
+        // Remove from root objects if present
+        remove_from_root_objects(object_id);
+        
+        // Remove from user's objects
+        remove_user_object(msg.sender, object_id);
+        
+        // Delete object
+        delete objects[object_id];
+    }
+    
+    /// Add reference between objects
+    function add_reference(bytes32 from_object, bytes32 to_object) public {
+        require(objects[from_object].object_id != bytes32(0), "Source object not found");
+        require(objects[to_object].object_id != bytes32(0), "Target object not found");
+        
+        objects[from_object].references.push(to_object);
+        objects[to_object].referenced_by.push(from_object);
+        objects[to_object].reference_count++;
+        
+        // Update access time
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        objects[from_object].last_access_time = secure_ts.get_secure_timestamp();
+    }
+    
+    /// Remove reference between objects
+    function remove_reference(bytes32 from_object, bytes32 to_object) public {
+        require(objects[from_object].object_id != bytes32(0), "Source object not found");
+        require(objects[to_object].object_id != bytes32(0), "Target object not found");
+        
+        remove_from_array(objects[from_object].references, to_object);
+        remove_from_array(objects[to_object].referenced_by, from_object);
+        
+        if (objects[to_object].reference_count > 0) {
+            objects[to_object].reference_count--;
+        }
+        
+        // Update access time
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        objects[from_object].last_access_time = secure_ts.get_secure_timestamp();
+    }
+    
+    /// Main garbage collection function
+    function collect_garbage() public returns (uint256) {
+        require(!gc_active, "GC already active");
+        
+        gc_active = true;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        gc_start_time = secure_ts.get_secure_timestamp();
+        
+        uint256 collected_count = 0;
+        uint256 freed_memory = 0;
+        
+        // Choose collection strategy
+        GCStrategy strategy = choose_collection_strategy();
+        
+        if (config.enable_debugging) {
+            io::println("Starting garbage collection with strategy: " + uint256(strategy).toString());
+        }
+        
+        // Execute collection based on strategy
+        if (strategy == GCStrategy::MARK_SWEEP) {
+            (collected_count, freed_memory) = mark_and_sweep();
+        } else if (strategy == GCStrategy::REFERENCE_COUNTING) {
+            (collected_count, freed_memory) = reference_counting_collection();
+        } else if (strategy == GCStrategy::GENERATIONAL) {
+            (collected_count, freed_memory) = generational_collection();
+        } else if (strategy == GCStrategy::INCREMENTAL) {
+            (collected_count, freed_memory) = incremental_collection();
+        } else if (strategy == GCStrategy::CONCURRENT) {
+            (collected_count, freed_memory) = concurrent_collection();
+        }
+        
+        // Update statistics
+        uint256 collection_time = secure_ts.get_secure_timestamp() - gc_start_time;
+        update_gc_stats(collected_count, freed_memory, collection_time, strategy);
+        
+        gc_active = false;
+        
+        if (config.enable_debugging) {
+            io::println("Garbage collection completed:");
+            io::println("- Collected objects: " + collected_count.toString());
+            io::println("- Freed memory: " + freed_memory.toString() + " bytes");
+            io::println("- Collection time: " + collection_time.toString() + " ms");
+        }
+        
+        return collected_count;
+    }
+    
+    /// Mark and sweep garbage collection
+    function mark_and_sweep() internal returns (uint256, uint256) {
+        uint256 collected_count = 0;
+        uint256 freed_memory = 0;
+        
+        // Mark phase - mark all reachable objects
+        for (uint256 i = 0; i < root_objects.length; i++) {
+            mark_object(root_objects[i]);
+        }
+        
+        // Sweep phase - collect unmarked objects
+        bytes32[] memory objects_to_collect = new bytes32[](get_object_count());
+        uint256 collect_index = 0;
+        
+        // Find unmarked objects
+        for (uint256 i = 0; i < root_objects.length; i++) {
+            bytes32 object_id = root_objects[i];
+            if (objects[object_id].is_marked == false) {
+                objects_to_collect[collect_index] = object_id;
+                collect_index++;
+            }
+        }
+        
+        // Collect unmarked objects
+        for (uint256 i = 0; i < collect_index; i++) {
+            if (objects_to_collect[i] != bytes32(0)) {
+                collect_object(objects_to_collect[i]);
+                collected_count++;
+                freed_memory += objects[objects_to_collect[i]].object_size;
+            }
+        }
+        
+        // Reset marks for next collection
+        reset_marks();
+        
+        return (collected_count, freed_memory);
+    }
+    
+    /// Reference counting garbage collection
+    function reference_counting_collection() internal returns (uint256, uint256) {
+        uint256 collected_count = 0;
+        uint256 freed_memory = 0;
+        
+        // Find objects with zero reference count
+        bytes32[] memory objects_to_collect = new bytes32[](get_object_count());
+        uint256 collect_index = 0;
+        
+        for (uint256 i = 0; i < root_objects.length; i++) {
+            bytes32 object_id = root_objects[i];
+            if (objects[object_id].reference_count == 0) {
+                objects_to_collect[collect_index] = object_id;
+                collect_index++;
+            }
+        }
+        
+        // Collect objects with zero references
+        for (uint256 i = 0; i < collect_index; i++) {
+            if (objects_to_collect[i] != bytes32(0)) {
+                collect_object(objects_to_collect[i]);
+                collected_count++;
+                freed_memory += objects[objects_to_collect[i]].object_size;
+            }
+        }
+        
+        return (collected_count, freed_memory);
+    }
+    
+    /// Generational garbage collection
+    function generational_collection() internal returns (uint256, uint256) {
+        uint256 collected_count = 0;
+        uint256 freed_memory = 0;
+        
+        // Collect young generation (generation 0)
+        bytes32[] memory young_objects = get_objects_by_generation(0);
+        
+        for (uint256 i = 0; i < young_objects.length; i++) {
+            bytes32 object_id = young_objects[i];
+            if (should_collect_young_object(object_id)) {
+                collect_object(object_id);
+                collected_count++;
+                freed_memory += objects[object_id].object_size;
+            } else {
+                // Promote to older generation
+                objects[object_id].generation++;
+            }
+        }
+        
+        // Periodically collect old generation
+        if (stats.total_collections % 10 == 0) {
+            bytes32[] memory old_objects = get_objects_by_generation(1);
+            
+            for (uint256 i = 0; i < old_objects.length; i++) {
+                bytes32 object_id = old_objects[i];
+                if (should_collect_old_object(object_id)) {
+                    collect_object(object_id);
+                    collected_count++;
+                    freed_memory += objects[object_id].object_size;
+                }
+            }
+        }
+        
+        return (collected_count, freed_memory);
+    }
+    
+    /// Incremental garbage collection
+    function incremental_collection() internal returns (uint256, uint256) {
+        uint256 collected_count = 0;
+        uint256 freed_memory = 0;
+        
+        // Process collection queue incrementally
+        uint256 max_iterations = 100; // Limit iterations for incremental approach
+        uint256 processed = 0;
+        
+        while (collection_queue.length > 0 && processed < max_iterations) {
+            bytes32 object_id = collection_queue[collection_queue.length - 1];
+            collection_queue.pop();
+            
+            if (should_collect_object(object_id)) {
+                collect_object(object_id);
+                collected_count++;
+                freed_memory += objects[object_id].object_size;
+            }
+            
+            processed++;
+        }
+        
+        return (collected_count, freed_memory);
+    }
+    
+    /// Concurrent garbage collection (simplified simulation)
+    function concurrent_collection() internal returns (uint256, uint256) {
+        // In a real implementation, this would run in a separate thread
+        // For now, we'll use incremental collection as a placeholder
+        return incremental_collection();
+    }
+    
+    /// Mark object and its references as reachable
+    function mark_object(bytes32 object_id) internal {
+        if (objects[object_id].is_marked) {
+            return;
+        }
+        
+        objects[object_id].is_marked = true;
+        
+        // Mark all referenced objects
+        for (uint256 i = 0; i < objects[object_id].references.length; i++) {
+            bytes32 referenced_object = objects[object_id].references[i];
+            if (referenced_object != bytes32(0)) {
+                mark_object(referenced_object);
+            }
+        }
+    }
+    
+    /// Collect individual object
+    function collect_object(bytes32 object_id) internal {
+        ObjectReference storage obj = objects[object_id];
+        
+        // Remove all references to this object
+        for (uint256 i = 0; i < obj.referenced_by.length; i++) {
+            bytes32 referencing_object = obj.referenced_by[i];
+            if (referencing_object != bytes32(0) && objects[referencing_object].object_id != bytes32(0)) {
+                remove_from_array(objects[referencing_object].references, object_id);
+            }
+        }
+        
+        // Remove from root objects if present
+        remove_from_root_objects(object_id);
+        
+        // Remove from user's objects
+        remove_user_object(obj.owner, object_id);
+        
+        // Update type statistics
+        type_statistics[obj.object_type]--;
+        used_heap_size -= obj.object_size;
+        
+        // Delete object
+        delete objects[object_id];
+    }
+    
+    /// Reset all mark bits
+    function reset_marks() internal {
+        for (uint256 i = 0; i < root_objects.length; i++) {
+            bytes32 object_id = root_objects[i];
+            if (objects[object_id].object_id != bytes32(0)) {
+                objects[object_id].is_marked = false;
+            }
+        }
+    }
+    
+    /// Choose appropriate collection strategy
+    function choose_collection_strategy() internal view returns (GCStrategy) {
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        
+        // Choose based on heap usage and time constraints
+        if (used_heap_size > (total_heap_size * 90) / 100) {
+            return GCStrategy::MARK_SWEEP; // Aggressive collection for high memory usage
+        } else if (current_time - stats.last_collection_time < config.time_threshold) {
+            return GCStrategy::INCREMENTAL; // Quick incremental collection
+        } else if (stats.total_collections % 5 == 0) {
+            return GCStrategy::GENERATIONAL; // Periodic generational collection
+        } else {
+            return config.default_strategy;
+        }
+    }
+    
+    /// Check if garbage collection should run
+    function should_collect() internal view returns (bool) {
+        uint256 heap_usage_percentage = (used_heap_size * 100) / total_heap_size;
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        
+        return heap_usage_percentage >= config.collection_threshold ||
+               current_time - stats.last_collection_time >= config.time_threshold;
+    }
+    
+    /// Check if young object should be collected
+    function should_collect_young_object(bytes32 object_id) internal view returns (bool) {
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        
+        ObjectReference storage obj = objects[object_id];
+        
+        // Collect if not accessed recently and has few references
+        return current_time - obj.last_access_time > 60 && // 1 minute
+               obj.reference_count < 2;
+    }
+    
+    /// Check if old object should be collected
+    function should_collect_old_object(bytes32 object_id) internal view returns (bool) {
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        
+        ObjectReference storage obj = objects[object_id];
+        
+        // Collect if not accessed for a long time
+        return current_time - obj.last_access_time > 300; // 5 minutes
+    }
+    
+    /// Check if object should be collected
+    function should_collect_object(bytes32 object_id) internal view returns (bool) {
+        return objects[object_id].reference_count == 0;
+    }
+    
+    /// Update garbage collection statistics
+    function update_gc_stats(uint256 collected_count, uint256 freed_memory, uint256 collection_time, GCStrategy strategy) internal {
+        stats.total_collections++;
+        stats.objects_collected += collected_count;
+        stats.memory_freed += freed_memory;
+        stats.collection_time += collection_time;
+        stats.last_collection_time = gc_start_time;
+        stats.collections_by_strategy[uint256(strategy)]++;
+        
+        // Update average, min, max collection times
+        if (stats.total_collections == 1) {
+            stats.avg_collection_time = collection_time;
+            stats.min_collection_time = collection_time;
+            stats.max_collection_time = collection_time;
+        } else {
+            stats.avg_collection_time = (stats.avg_collection_time * (stats.total_collections - 1) + collection_time) / stats.total_collections;
+            stats.min_collection_time = math::min(stats.min_collection_time, collection_time);
+            stats.max_collection_time = math::max(stats.max_collection_time, collection_time);
+        }
+    }
+    
+    /// Get objects by generation
+    function get_objects_by_generation(uint256 generation) internal view returns (bytes32[] memory) {
+        bytes32[] memory result = new bytes32[](root_objects.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < root_objects.length; i++) {
+            bytes32 object_id = root_objects[i];
+            if (objects[object_id].generation == generation) {
+                result[count] = object_id;
+                count++;
+            }
+        }
+        
+        // Resize array
+        bytes32[] memory final_result = new bytes32[](count);
+        for (uint256 i = 0; i < count; i++) {
+            final_result[i] = result[i];
+        }
+        
+        return final_result;
+    }
+    
+    /// Get total object count
+    function get_object_count() internal view returns (uint256) {
+        return root_objects.length;
+    }
+    
+    /// Remove from root objects
+    function remove_from_root_objects(bytes32 object_id) internal {
+        for (uint256 i = 0; i < root_objects.length; i++) {
+            if (root_objects[i] == object_id) {
+                root_objects[i] = root_objects[root_objects.length - 1];
+                root_objects.pop();
+                break;
+            }
+        }
+    }
+    
+    /// Remove from user's objects
+    function remove_user_object(address user, bytes32 object_id) internal {
+        bytes32[] storage user_obj_list = user_objects[user];
+        
+        for (uint256 i = 0; i < user_obj_list.length; i++) {
+            if (user_obj_list[i] == object_id) {
+                user_obj_list[i] = user_obj_list[user_obj_list.length - 1];
+                user_obj_list.pop();
+                break;
+            }
+        }
+    }
+    
+    /// Remove value from array
+    function remove_from_array(bytes32[] storage array, bytes32 value) internal {
+        for (uint256 i = 0; i < array.length; i++) {
+            if (array[i] == value) {
+                array[i] = array[array.length - 1];
+                array.pop();
+                break;
+            }
+        }
+    }
+    
+    /// Get garbage collection statistics
+    function get_gc_stats() public view returns (GCStats memory) {
+        return stats;
+    }
+    
+    /// Get heap usage statistics
+    function get_heap_stats() public view returns (uint256 total_heap, uint256 used_heap, uint256 free_heap) {
+        return (total_heap_size, used_heap_size, total_heap_size - used_heap_size);
+    }
+    
+    /// Get object information
+    function get_object_info(bytes32 object_id) public view returns (ObjectReference memory) {
+        return objects[object_id];
+    }
+    
+    /// Get user's objects
+    function get_user_objects(address user) public view returns (bytes32[] memory) {
+        return user_objects[user];
+    }
+    
+    /// Force garbage collection
+    function force_collection() public returns (uint256) {
+        return collect_garbage();
+    }
+    
+    /// Update GC configuration
+    function update_config(GCConfig memory new_config) public {
+        config = new_config;
+    }
+    
+    /// Get GC report
+    function get_gc_report() public view returns (string memory) {
+        string memory report = "=== OMEGA Garbage Collection Report ===\n";
+        
+        report = string(abi.encodePacked(report, "Total Collections: "));
+        report = string(abi.encodePacked(report, stats.total_collections.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "Objects Collected: "));
+        report = string(abi.encodePacked(report, stats.objects_collected.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "Memory Freed: "));
+        report = string(abi.encodePacked(report, (stats.memory_freed / 1024).toString()));
+        report = string(abi.encodePacked(report, " KB\n"));
+        
+        report = string(abi.encodePacked(report, "Avg Collection Time: "));
+        report = string(abi.encodePacked(report, stats.avg_collection_time.toString()));
+        report = string(abi.encodePacked(report, " ms\n"));
+        
+        report = string(abi.encodePacked(report, "Heap Usage: "));
+        report = string(abi.encodePacked(report, (used_heap_size * 100 / total_heap_size).toString()));
+        report = string(abi.encodePacked(report, "%\n"));
+        
+        return report;
+    }
+}

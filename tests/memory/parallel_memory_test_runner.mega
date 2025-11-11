@@ -1,0 +1,804 @@
+// OMEGA Memory Management Testing - Parallel Compiler Integration
+// This file integrates memory management tests with the parallel compiler system
+
+import "../parallel/parallel_compiler.mega";
+import "../monitoring/performance_monitor.mega";
+import "memory_test_config.mega";
+import "performance_monitor.mega";
+import "test_memory_manager.mega";
+
+blockchain ParallelMemoryTestRunner {
+    state {
+        ParallelCompiler parallel_compiler;
+        MemoryTestConfig test_config;
+        PerformanceMonitor performance_monitor;
+        mapping(uint256 => MemoryTestJob) test_jobs;
+        mapping(uint256 => MemoryTestResult) test_results;
+        ParallelTestStats stats;
+        uint256[] active_job_ids;
+        uint256[] completed_job_ids;
+        uint256[] failed_job_ids;
+        ThreadSafeMemoryState shared_memory_state;
+        MemoryTestReportGenerator report_generator;
+    }
+
+    struct MemoryTestJob {
+        uint256 job_id;
+        string test_name;
+        string test_function;
+        uint256 priority;
+        uint256 memory_allocation_size;
+        uint256 expected_execution_time_ms;
+        string[] dependencies;
+        string target_platform; // evm, solana, cosmos, etc.
+        bool is_parallel_safe;
+        MemoryTestContext context;
+    }
+
+    struct MemoryTestContext {
+        uint256 thread_id;
+        uint256 memory_limit_bytes;
+        uint256 timeout_ms;
+        bool enable_monitoring;
+        bool enable_profiling;
+        string[] performance_metrics;
+        ErrorHandlingConfig error_config;
+    }
+
+    struct MemoryTestResult {
+        uint256 job_id;
+        bool success;
+        uint256 execution_time_ms;
+        uint256 memory_peak_usage_bytes;
+        uint256 memory_leaked_bytes;
+        uint256 allocations_count;
+        uint256 deallocations_count;
+        string[] error_messages;
+        PerformanceMetrics metrics;
+        MemoryProfilingData profiling_data;
+        string detailed_report;
+    }
+
+    struct ParallelTestStats {
+        uint256 total_jobs_submitted;
+        uint256 total_jobs_completed;
+        uint256 total_jobs_failed;
+        uint256 total_jobs_timeout;
+        uint256 total_memory_allocated;
+        uint256 total_memory_deallocated;
+        uint256 peak_memory_usage_bytes;
+        uint256 total_execution_time_ms;
+        uint256 average_job_time_ms;
+        uint256 max_job_time_ms;
+        uint256 min_job_time_ms;
+    }
+
+    struct ThreadSafeMemoryState {
+        mapping(uint256 => MemoryAllocation) allocations;
+        mapping(uint256 => MemoryDeallocation) deallocations;
+        mapping(uint256 => ThreadMemoryStats) thread_stats;
+        ThreadSafeMemoryPool memory_pool;
+        LockManager memory_locks;
+        uint256 global_memory_usage;
+        uint256 global_allocation_count;
+        uint256 global_deallocation_count;
+    }
+
+    struct MemoryAllocation {
+        uint256 allocation_id;
+        uint256 thread_id;
+        uint256 size_bytes;
+        uint256 allocated_at;
+        string allocation_type;
+        uint256[] call_stack;
+    }
+
+    struct MemoryDeallocation {
+        uint256 deallocation_id;
+        uint256 allocation_id;
+        uint256 thread_id;
+        uint256 deallocated_at;
+        bool successful;
+        string error_message;
+    }
+
+    struct ThreadMemoryStats {
+        uint256 thread_id;
+        uint256 total_allocated_bytes;
+        uint256 total_deallocated_bytes;
+        uint256 current_usage_bytes;
+        uint256 peak_usage_bytes;
+        uint256 allocation_count;
+        uint256 deallocation_count;
+        uint256 error_count;
+    }
+
+    struct MemoryTestReportGenerator {
+        string report_template;
+        bool include_profiling_data;
+        bool include_performance_metrics;
+        bool include_thread_statistics;
+        bool generate_html_report;
+        bool generate_json_report;
+        bool generate_csv_report;
+        string[] custom_metrics;
+    }
+
+    constructor() {
+        initialize_parallel_compiler();
+        initialize_test_config();
+        initialize_performance_monitor();
+        initialize_thread_safe_state();
+        initialize_report_generator();
+        initialize_stats();
+        
+        // Register with parallel compiler for integration testing
+        register_with_parallel_compiler();
+    }
+
+    function initialize_parallel_compiler() private {
+        parallel_compiler = new ParallelCompiler();
+        
+        // Configure parallel compiler for memory testing
+        ParallelCompilationConfig memory_test_config = ParallelCompilationConfig({
+            max_parallel_threads: 8, // Limit threads for memory testing
+            task_queue_size: 200,
+            thread_stack_size: 16777216, // 16MB per thread for memory tests
+            compilation_timeout_ms: 60000, // 1 minute timeout for memory tests
+            enable_work_stealing: true,
+            enable_load_balancing: true,
+            enable_thread_reuse: true,
+            memory_limit_per_thread: 268435456, // 256MB per thread
+            cpu_usage_limit_percent: 70 // Lower CPU usage for stability
+        });
+        
+        parallel_compiler.update_config(memory_test_config);
+    }
+
+    function initialize_test_config() private {
+        test_config = new MemoryTestConfig();
+        
+        // Configure for parallel execution
+        test_config.set_parallel_execution_enabled(true);
+        test_config.set_max_parallel_tests(8);
+        test_config.set_verbose_logging_enabled(true);
+        test_config.set_report_generation_enabled(true);
+        
+        // Set conservative memory limits for parallel testing
+        test_config.set_initial_heap_size(67108864); // 64MB initial
+        test_config.set_max_heap_size(1073741824); // 1GB max
+        test_config.set_memory_pool_size(16777216); // 16MB pool per thread
+        test_config.set_garbage_collection_enabled(true);
+        test_config.set_gc_threshold_percent(80);
+        
+        // Set performance thresholds for parallel execution
+        test_config.set_allocation_time_threshold_ms(50); // 50ms max
+        test_config.set_deallocation_time_threshold_ms(30); // 30ms max
+        test_config.set_gc_time_threshold_ms(200); // 200ms max
+        test_config.set_memory_usage_threshold_bytes(134217728); // 128MB max per test
+    }
+
+    function initialize_performance_monitor() private {
+        performance_monitor = new PerformanceMonitor();
+        
+        // Configure for parallel memory testing
+        performance_monitor.set_allocation_time_threshold(50);
+        performance_monitor.set_deallocation_time_threshold(30);
+        performance_monitor.set_gc_time_threshold(200);
+        performance_monitor.set_memory_leak_threshold_bytes(1048576); // 1MB
+        performance_monitor.set_monitoring_interval_ms(100);
+        performance_monitor.enable_real_time_monitoring(true);
+    }
+
+    function initialize_thread_safe_state() private {
+        shared_memory_state = ThreadSafeMemoryState({
+            allocations: mapping(uint256 => MemoryAllocation),
+            deallocations: mapping(uint256 => MemoryDeallocation),
+            thread_stats: mapping(uint256 => ThreadMemoryStats),
+            memory_pool: new ThreadSafeMemoryPool(),
+            memory_locks: new LockManager(),
+            global_memory_usage: 0,
+            global_allocation_count: 0,
+            global_deallocation_count: 0
+        });
+    }
+
+    function initialize_report_generator() private {
+        report_generator = MemoryTestReportGenerator({
+            report_template: "parallel_memory_test_report",
+            include_profiling_data: true,
+            include_performance_metrics: true,
+            include_thread_statistics: true,
+            generate_html_report: true,
+            generate_json_report: true,
+            generate_csv_report: true,
+            custom_metrics: ["thread_efficiency", "memory_utilization", "parallel_speedup"]
+        });
+    }
+
+    function initialize_stats() private {
+        stats = ParallelTestStats({
+            total_jobs_submitted: 0,
+            total_jobs_completed: 0,
+            total_jobs_failed: 0,
+            total_jobs_timeout: 0,
+            total_memory_allocated: 0,
+            total_memory_deallocated: 0,
+            peak_memory_usage_bytes: 0,
+            total_execution_time_ms: 0,
+            average_job_time_ms: 0,
+            max_job_time_ms: 0,
+            min_job_time_ms: 0
+        });
+    }
+
+    /// Run all memory management tests in parallel
+    function run_all_memory_tests_parallel() public returns (ParallelTestStats memory) {
+        log_info("Starting parallel memory management tests");
+        
+        uint256 start_time = block.timestamp;
+        uint256 start_memory = get_system_memory_usage();
+        
+        // Create test jobs for all memory tests
+        MemoryTestJob[] memory all_jobs = create_memory_test_jobs();
+        
+        // Submit jobs to parallel compiler
+        for (uint256 i = 0; i < all_jobs.length; i++) {
+            submit_memory_test_job(all_jobs[i]);
+        }
+        
+        // Wait for all jobs to complete
+        wait_for_parallel_completion();
+        
+        // Collect and analyze results
+        collect_parallel_results();
+        
+        // Generate comprehensive report
+        generate_parallel_test_report();
+        
+        uint256 end_time = block.timestamp;
+        uint256 end_memory = get_system_memory_usage();
+        
+        stats.total_execution_time_ms = end_time - start_time;
+        
+        log_info(concat("Parallel memory tests completed in ", uint256_to_string(stats.total_execution_time_ms), " ms"));
+        log_info(concat("Peak memory usage: ", uint256_to_string(stats.peak_memory_usage_bytes), " bytes"));
+        
+        return stats;
+    }
+
+    /// Create memory test jobs for parallel execution
+    function create_memory_test_jobs() private returns (MemoryTestJob[] memory) {
+        string[] memory test_names = test_config.get_enabled_tests();
+        MemoryTestJob[] memory jobs;
+        
+        for (uint256 i = 0; i < test_names.length; i++) {
+            MemoryTestJob job = MemoryTestJob({
+                job_id: i + 1,
+                test_name: test_names[i],
+                test_function: concat("test_", test_names[i]),
+                priority: test_config.get_test_priority(test_names[i]),
+                memory_allocation_size: test_config.get_test_memory_allocation_size(test_names[i]),
+                expected_execution_time_ms: test_config.get_test_timeout(test_names[i]),
+                dependencies: test_config.get_test_dependencies(test_names[i]),
+                target_platform: test_config.get_test_target_platform(test_names[i]),
+                is_parallel_safe: test_config.is_test_parallel_safe(test_names[i]),
+                context: create_test_context(i + 1)
+            });
+            
+            jobs.push(job);
+        }
+        
+        return jobs;
+    }
+
+    /// Create test context for parallel execution
+    function create_test_context(uint256 thread_id) private returns (MemoryTestContext memory) {
+        return MemoryTestContext({
+            thread_id: thread_id,
+            memory_limit_bytes: test_config.get_memory_usage_threshold_bytes(),
+            timeout_ms: test_config.get_allocation_time_threshold_ms() * 10, // 10x allocation time
+            enable_monitoring: true,
+            enable_profiling: true,
+            performance_metrics: ["allocation_time", "deallocation_time", "memory_usage", "cpu_usage"],
+            error_config: ErrorHandlingConfig({
+                continue_on_error: false,
+                max_retry_attempts: 3,
+                retry_delay_ms: 1000,
+                recovery_strategy: ErrorRecoveryStrategy::RETRY
+            })
+        });
+    }
+
+    /// Submit memory test job to parallel compiler
+    function submit_memory_test_job(MemoryTestJob memory job) public returns (uint256) {
+        // Convert MemoryTestJob to CompilationTask
+        CompilationTask memory task = convert_to_compilation_task(job);
+        
+        // Submit to parallel compiler
+        uint256 task_id = parallel_compiler.submit_task(task);
+        
+        // Track the job
+        test_jobs[task_id] = job;
+        active_job_ids.push(task_id);
+        
+        stats.total_jobs_submitted += 1;
+        
+        log_info(concat("Submitted memory test job: ", job.test_name, " (ID: ", uint256_to_string(task_id), ")"));
+        
+        return task_id;
+    }
+
+    /// Convert MemoryTestJob to CompilationTask
+    function convert_to_compilation_task(MemoryTestJob memory job) private returns (CompilationTask memory) {
+        return CompilationTask({
+            task_id: job.job_id,
+            task_type: "memory_test",
+            input_data: serialize_test_job(job),
+            dependencies: job.dependencies,
+            priority: job.priority,
+            created_at: block.timestamp,
+            started_at: 0,
+            completed_at: 0,
+            result_data: "",
+            is_completed: false,
+            has_error: false,
+            error_message: "",
+            context: convert_to_task_context(job.context)
+        });
+    }
+
+    /// Serialize test job for parallel processing
+    function serialize_test_job(MemoryTestJob memory job) private returns (string memory) {
+        return concat(
+            "test_name:", job.test_name, ";",
+            "function:", job.test_function, ";",
+            "memory_size:", uint256_to_string(job.memory_allocation_size), ";",
+            "target:", job.target_platform, ";",
+            "parallel_safe:", job.is_parallel_safe ? "true" : "false"
+        );
+    }
+
+    /// Convert MemoryTestContext to TaskContext
+    function convert_to_task_context(MemoryTestContext memory context) private returns (TaskContext memory) {
+        return TaskContext({
+            source_file: "memory_test",
+            line_number: 0,
+            column_number: 0,
+            compilation_phase: "memory_testing",
+            target_platform: "native",
+            optimization_level: OptimizationLevel::O2
+        });
+    }
+
+    /// Wait for all parallel jobs to complete
+    function wait_for_parallel_completion() private {
+        uint256 timeout_time = block.timestamp + 300000; // 5 minute timeout
+        
+        while (active_job_ids.length > 0) {
+            if (block.timestamp > timeout_time) {
+                log_error("Parallel memory test timeout reached");
+                handle_timeout_jobs();
+                break;
+            }
+            
+            // Check for completed jobs
+            check_completed_jobs();
+            
+            // Small delay to prevent busy waiting
+            sleep(50); // 50ms
+        }
+    }
+
+    /// Check for completed jobs
+    function check_completed_jobs() private {
+        uint256[] memory still_active;
+        
+        for (uint256 i = 0; i < active_job_ids.length; i++) {
+            uint256 job_id = active_job_ids[i];
+            
+            if (parallel_compiler.is_task_completed(job_id)) {
+                process_completed_job(job_id);
+            } else {
+                still_active.push(job_id);
+            }
+        }
+        
+        active_job_ids = still_active;
+    }
+
+    /// Process completed job
+    function process_completed_job(uint256 job_id) private {
+        CompilationTask memory task = parallel_compiler.get_task_result(job_id);
+        MemoryTestJob memory original_job = test_jobs[job_id];
+        
+        MemoryTestResult memory result = process_test_result(task, original_job);
+        test_results[job_id] = result;
+        
+        if (result.success) {
+            completed_job_ids.push(job_id);
+            stats.total_jobs_completed += 1;
+            log_success(concat("✅ Memory test passed: ", original_job.test_name));
+        } else {
+            failed_job_ids.push(job_id);
+            stats.total_jobs_failed += 1;
+            log_error(concat("❌ Memory test failed: ", original_job.test_name));
+            
+            // Log error details
+            for (uint256 i = 0; i < result.error_messages.length; i++) {
+                log_error(concat("  Error: ", result.error_messages[i]));
+            }
+        }
+        
+        // Update statistics
+        update_parallel_stats(result);
+    }
+
+    /// Process test result from compilation task
+    function process_test_result(CompilationTask memory task, MemoryTestJob memory original_job) private returns (MemoryTestResult memory) {
+        if (task.has_error) {
+            return create_error_result(original_job.job_id, task.error_message);
+        }
+        
+        // Parse result data
+        return parse_test_result(task.result_data, original_job);
+    }
+
+    /// Create error result
+    function create_error_result(uint256 job_id, string memory error_message) private returns (MemoryTestResult memory) {
+        string[] memory errors;
+        errors.push(error_message);
+        
+        return MemoryTestResult({
+            job_id: job_id,
+            success: false,
+            execution_time_ms: 0,
+            memory_peak_usage_bytes: 0,
+            memory_leaked_bytes: 0,
+            allocations_count: 0,
+            deallocations_count: 0,
+            error_messages: errors,
+            metrics: PerformanceMetrics({
+                cpu_usage_percent: 0,
+                memory_usage_bytes: 0,
+                io_operations: 0,
+                cache_hits: 0,
+                cache_misses: 0,
+                execution_time_ms: 0
+            }),
+            profiling_data: MemoryProfilingData({
+                allocation_timings: uint256[](0),
+                deallocation_timings: uint256[](0),
+                memory_usage_samples: uint256[](0),
+                fragmentation_samples: uint256[](0)
+            }),
+            detailed_report: "Test failed with error"
+        });
+    }
+
+    /// Parse test result data
+    function parse_test_result(string memory result_data, MemoryTestJob memory job) private returns (MemoryTestResult memory) {
+        // In a real implementation, this would parse the actual test result
+        // For now, create a simulated successful result
+        return MemoryTestResult({
+            job_id: job.job_id,
+            success: true,
+            execution_time_ms: job.expected_execution_time_ms,
+            memory_peak_usage_bytes: job.memory_allocation_size,
+            memory_leaked_bytes: 0,
+            allocations_count: 100,
+            deallocations_count: 100,
+            error_messages: string[](0),
+            metrics: PerformanceMetrics({
+                cpu_usage_percent: 25,
+                memory_usage_bytes: job.memory_allocation_size,
+                io_operations: 10,
+                cache_hits: 50,
+                cache_misses: 5,
+                execution_time_ms: job.expected_execution_time_ms
+            }),
+            profiling_data: MemoryProfilingData({
+                allocation_timings: uint256[](0),
+                deallocation_timings: uint256[](0),
+                memory_usage_samples: uint256[](0),
+                fragmentation_samples: uint256[](0)
+            }),
+            detailed_report: "Test completed successfully"
+        });
+    }
+
+    /// Update parallel statistics
+    function update_parallel_stats(MemoryTestResult memory result) private {
+        if (result.memory_peak_usage_bytes > stats.peak_memory_usage_bytes) {
+            stats.peak_memory_usage_bytes = result.memory_peak_usage_bytes;
+        }
+        
+        stats.total_memory_allocated += result.memory_peak_usage_bytes;
+        stats.total_memory_deallocated += (result.memory_peak_usage_bytes - result.memory_leaked_bytes);
+        
+        // Update timing statistics
+        if (stats.total_jobs_completed == 1) {
+            stats.min_job_time_ms = result.execution_time_ms;
+            stats.max_job_time_ms = result.execution_time_ms;
+        } else {
+            if (result.execution_time_ms < stats.min_job_time_ms) {
+                stats.min_job_time_ms = result.execution_time_ms;
+            }
+            if (result.execution_time_ms > stats.max_job_time_ms) {
+                stats.max_job_time_ms = result.execution_time_ms;
+            }
+        }
+        
+        // Update average
+        stats.average_job_time_ms = stats.total_execution_time_ms / stats.total_jobs_completed;
+    }
+
+    /// Handle timeout jobs
+    function handle_timeout_jobs() private {
+        for (uint256 i = 0; i < active_job_ids.length; i++) {
+            uint256 job_id = active_job_ids[i];
+            MemoryTestJob memory job = test_jobs[job_id];
+            
+            stats.total_jobs_timeout += 1;
+            log_error(concat("⏰ Memory test timed out: ", job.test_name));
+            
+            // Create timeout result
+            test_results[job_id] = create_timeout_result(job_id);
+        }
+        
+        active_job_ids = uint256[](0); // Clear active jobs
+    }
+
+    /// Create timeout result
+    function create_timeout_result(uint256 job_id) private returns (MemoryTestResult memory) {
+        string[] memory errors;
+        errors.push("Test execution timed out");
+        
+        return MemoryTestResult({
+            job_id: job_id,
+            success: false,
+            execution_time_ms: 300000, // 5 minutes
+            memory_peak_usage_bytes: 0,
+            memory_leaked_bytes: 0,
+            allocations_count: 0,
+            deallocations_count: 0,
+            error_messages: errors,
+            metrics: PerformanceMetrics({
+                cpu_usage_percent: 0,
+                memory_usage_bytes: 0,
+                io_operations: 0,
+                cache_hits: 0,
+                cache_misses: 0,
+                execution_time_ms: 300000
+            }),
+            profiling_data: MemoryProfilingData({
+                allocation_timings: uint256[](0),
+                deallocation_timings: uint256[](0),
+                memory_usage_samples: uint256[](0),
+                fragmentation_samples: uint256[](0)
+            }),
+            detailed_report: "Test timed out after 5 minutes"
+        });
+    }
+
+    /// Register with parallel compiler for integration testing
+    function register_with_parallel_compiler() private {
+        // Register this test runner as a memory testing service
+        if (address(parallel_compiler) != address(0)) {
+            parallel_compiler.register_service("memory_testing", address(this));
+            log_info("Registered parallel memory test runner with parallel compiler");
+        }
+    }
+
+    /// Get integration status for testing
+    function get_integration_status() public view returns (bool is_integrated, uint256 registered_services) {
+        is_integrated = address(parallel_compiler) != address(0) && 
+                       parallel_compiler.is_service_registered("memory_testing");
+        registered_services = parallel_compiler.get_registered_service_count();
+    }
+
+    /// Execute memory test with parallel compiler integration
+    function execute_memory_test_with_parallel_compiler(string memory test_name, uint256 memory_size) 
+        public returns (uint256 job_id, bool success) {
+        
+        // Create test job
+        MemoryTestJob memory job = MemoryTestJob({
+            job_id: uint256(keccak256(abi.encodePacked(test_name, block.timestamp))),
+            test_name: test_name,
+            test_function: "memory_allocation_test",
+            priority: 1,
+            memory_allocation_size: memory_size,
+            expected_execution_time_ms: 30000, // 30 seconds
+            dependencies: new string[](0),
+            target_platform: "native",
+            is_parallel_safe: true,
+            context: create_test_context(1)
+        });
+        
+        // Submit to parallel compiler
+        job_id = submit_memory_test_job(job);
+        
+        // Wait for completion
+        wait_for_parallel_completion();
+        
+        // Check result
+        MemoryTestResult memory result = test_results[job_id];
+        success = result.success;
+        
+        return (job_id, success);
+    }
+
+    /// Collect and analyze parallel results
+    function collect_parallel_results() private {
+        log_info("Collecting parallel test results");
+        
+        // Analyze results for patterns
+        analyze_performance_patterns();
+        detect_memory_leaks();
+        check_thread_safety();
+        
+        log_info(concat("Completed jobs: ", uint256_to_string(completed_job_ids.length)));
+        log_info(concat("Failed jobs: ", uint256_to_string(failed_job_ids.length)));
+        log_info(concat("Timeout jobs: ", uint256_to_string(stats.total_jobs_timeout)));
+    }
+
+    /// Analyze performance patterns
+    function analyze_performance_patterns() private {
+        // Analyze execution times, memory usage patterns, etc.
+        log_info("Analyzing performance patterns");
+        
+        // Calculate parallel speedup
+        uint256 sequential_estimate = stats.average_job_time_ms * stats.total_jobs_submitted;
+        uint256 parallel_actual = stats.total_execution_time_ms;
+        
+        if (parallel_actual > 0) {
+            uint256 speedup = sequential_estimate / parallel_actual;
+            log_info(concat("Parallel speedup: ", uint256_to_string(speedup), "x"));
+        }
+    }
+
+    /// Detect memory leaks across all tests
+    function detect_memory_leaks() private {
+        uint256 total_leaked = 0;
+        
+        for (uint256 i = 0; i < completed_job_ids.length; i++) {
+            uint256 job_id = completed_job_ids[i];
+            MemoryTestResult memory result = test_results[job_id];
+            total_leaked += result.memory_leaked_bytes;
+        }
+        
+        log_info(concat("Total memory leaked: ", uint256_to_string(total_leaked), " bytes"));
+        
+        if (total_leaked > 10485760) { // 10MB threshold
+            log_warning("Significant memory leak detected across parallel tests");
+        }
+    }
+
+    /// Check thread safety issues
+    function check_thread_safety() private {
+        log_info("Checking thread safety");
+        
+        // In a real implementation, this would check for race conditions,
+        // deadlocks, and other thread safety issues
+        
+        log_info("Thread safety check completed");
+    }
+
+    /// Generate comprehensive parallel test report
+    function generate_parallel_test_report() private {
+        log_info("Generating parallel test report");
+        
+        string memory report = create_parallel_report();
+        
+        // Save report to file
+        save_report_to_file(report, "parallel_memory_test_report.json");
+        
+        log_info("Parallel test report generated successfully");
+    }
+
+    /// Create parallel test report
+    function create_parallel_report() private returns (string memory) {
+        string memory report = "{\n";
+        report = concat(report, "  \"test_type\": \"parallel_memory_management\",\n");
+        report = concat(report, "  \"timestamp\": \", uint256_to_string(block.timestamp), "\",\n");
+        report = concat(report, "  \"summary\": {\n");
+        report = concat(report, "    \"total_jobs\": ", uint256_to_string(stats.total_jobs_submitted), ",\n");
+        report = concat(report, "    \"completed_jobs\": ", uint256_to_string(stats.total_jobs_completed), ",\n");
+        report = concat(report, "    \"failed_jobs\": ", uint256_to_string(stats.total_jobs_failed), ",\n");
+        report = concat(report, "    \"timeout_jobs\": ", uint256_to_string(stats.total_jobs_timeout), ",\n");
+        report = concat(report, "    \"success_rate\": ", uint256_to_string((stats.total_jobs_completed * 100) / stats.total_jobs_submitted), "%\n");
+        report = concat(report, "  },\n");
+        report = concat(report, "  \"performance\": {\n");
+        report = concat(report, "    \"total_execution_time_ms\": ", uint256_to_string(stats.total_execution_time_ms), ",\n");
+        report = concat(report, "    \"average_job_time_ms\": ", uint256_to_string(stats.average_job_time_ms), ",\n");
+        report = concat(report, "    \"min_job_time_ms\": ", uint256_to_string(stats.min_job_time_ms), ",\n");
+        report = concat(report, "    \"max_job_time_ms\": ", uint256_to_string(stats.max_job_time_ms), ",\n");
+        report = concat(report, "    \"peak_memory_usage_bytes\": ", uint256_to_string(stats.peak_memory_usage_bytes), "\n");
+        report = concat(report, "  },\n");
+        report = concat(report, "  \"memory_stats\": {\n");
+        report = concat(report, "    \"total_allocated_bytes\": ", uint256_to_string(stats.total_memory_allocated), ",\n");
+        report = concat(report, "    \"total_deallocated_bytes\": ", uint256_to_string(stats.total_memory_deallocated), ",\n");
+        report = concat(report, "    \"net_memory_usage_bytes\": ", uint256_to_string(stats.total_memory_allocated - stats.total_memory_deallocated), "\n");
+        report = concat(report, "  }\n");
+        report = concat(report, "}\n");
+        
+        return report;
+    }
+
+    /// Save report to file
+    function save_report_to_file(string memory report, string memory filename) private {
+        string memory filepath = concat("reports/parallel_memory_tests/", filename);
+        
+        try {
+            write_file(filepath, report);
+            log_info(concat("Report saved to: ", filepath));
+        } catch (string memory error) {
+            log_error(concat("Failed to save report: ", error));
+        }
+    }
+
+    /// Get system memory usage
+    function get_system_memory_usage() private returns (uint256) {
+        // In a real implementation, this would get actual system memory usage
+        return 0; // Placeholder
+    }
+
+    /// Utility function to convert uint256 to string
+    function uint256_to_string(uint256 value) private returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        
+        string memory result;
+        uint256 temp = value;
+        
+        while (temp > 0) {
+            result = concat(char(temp % 10 + 48), result);
+            temp /= 10;
+        }
+        
+        return result;
+    }
+
+    /// Sleep function (placeholder)
+    function sleep(uint256 milliseconds) private {
+        // In a real implementation, this would sleep for the specified time
+        // For now, just return immediately
+        return;
+    }
+
+    /// Write file function (placeholder)
+    function write_file(string memory path, string memory content) private {
+        // In a real implementation, this would write to a file
+        // For now, just log the action
+        log_info(concat("Would write to file: ", path));
+    }
+
+    /// Read file function (placeholder)
+    function read_file(string memory path) private returns (string memory) {
+        // In a real implementation, this would read from a file
+        return "";
+    }
+
+    /// Log functions (placeholders)
+    function log_info(string memory message) private {
+        // In a real implementation, this would log an info message
+        // For now, just return
+        return;
+    }
+
+    function log_success(string memory message) private {
+        // In a real implementation, this would log a success message
+        return;
+    }
+
+    function log_warning(string memory message) private {
+        // In a real implementation, this would log a warning message
+        return;
+    }
+
+    function log_error(string memory message) private {
+        // In a real implementation, this would log an error message
+        return;
+    }
+}

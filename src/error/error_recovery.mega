@@ -4,6 +4,7 @@
 
 import "./error_types.mega";
 import "../parser/ast_nodes.mega";
+import "../security/secure_timestamp.mega";
 
 /// Advanced error recovery system untuk OMEGA compiler
 /// Mengimplementasikan multiple recovery strategies dan graceful degradation
@@ -44,7 +45,7 @@ blockchain ErrorRecoverySystem {
             });
         }
         
-        uint256 start_time = block.timestamp;
+        uint256 start_time = secure_ts.get_secure_timestamp();
         
         // Select optimal recovery strategy
         RecoveryStrategy strategy = select_recovery_strategy(error, context);
@@ -53,7 +54,7 @@ blockchain ErrorRecoverySystem {
         RecoveryResult memory result = execute_recovery_strategy(error, context, strategy);
         
         // Update metrics and history
-        uint256 recovery_time = block.timestamp - start_time;
+        uint256 recovery_time = secure_ts.get_secure_timestamp() - start_time;
         result.recovery_time = recovery_time;
         
         metrics.record_recovery_attempt(error.error_type, strategy, result.success, recovery_time);

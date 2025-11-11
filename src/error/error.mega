@@ -1,3 +1,9 @@
+import std::io;
+import std::fs;
+import std::path;
+import std::collections;
+import "../utils/secure_timestamp.mega";
+
 // OMEGA Error Handling System - Written in MEGA
 // Comprehensive error management untuk OMEGA compiler
 // Mendukung error types, error reporting, dan error recovery
@@ -46,7 +52,8 @@ blockchain OmegaErrorHandler {
         } else if (severity == ErrorSeverity.Error || severity == ErrorSeverity.Fatal) {
             statistics.total_errors += 1;
             if (statistics.first_error_time == 0) {
-                statistics.first_error_time = block.timestamp;
+                SecureTimestamp secure_ts = SecureTimestamp::new();
+                statistics.first_error_time = secure_ts.get_secure_timestamp();
             }
         }
         
@@ -135,7 +142,8 @@ blockchain OmegaErrorHandler {
         } else if (error.severity == ErrorSeverity.Error || error.severity == ErrorSeverity.Fatal) {
             statistics.total_errors += 1;
             if (statistics.first_error_time == 0) {
-                statistics.first_error_time = block.timestamp;
+                SecureTimestamp secure_ts = SecureTimestamp::new();
+                statistics.first_error_time = secure_ts.get_secure_timestamp();
             }
         }
         
@@ -572,7 +580,7 @@ function report_error(OmegaError error) public {
     } else if (error.severity == ErrorSeverity.Error || error.severity == ErrorSeverity.Fatal) {
         statistics.total_errors += 1;
         if (statistics.first_error_time == 0) {
-            statistics.first_error_time = block.timestamp;
+            statistics.first_error_time = secure_ts.get_secure_timestamp();
         }
     }
     

@@ -11,6 +11,7 @@ import "./statement_parser.mega";
 import "./declaration_parser.mega";
 import "../lexer/lexer.mega" as Lexer;
 import "../error/error.mega";
+import "../utils/secure_timestamp.mega";
 
 /// Advanced OMEGA Parser for Self-Hosting Compiler
 blockchain OmegaParser {
@@ -99,7 +100,9 @@ blockchain OmegaParser {
     /// Enhanced main parsing function for self-hosting
     function parse(Token[] memory input_tokens, string memory filename) public returns (Program memory) {
         io::println("🔍 Parsing (Self-Hosting): " + filename);
-        parse_start_time = block.timestamp;
+        // Use secure timestamp for parsing timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        parse_start_time = secure_ts.get_secure_timestamp();
         
         tokens = input_tokens;
         token_count = tokens.length;
@@ -123,7 +126,7 @@ blockchain OmegaParser {
         Program memory program = parse_program();
         
         // Performance metrics
-        uint256 parse_duration = block.timestamp - parse_start_time;
+        uint256 parse_duration = secure_ts.get_secure_timestamp() - parse_start_time;
         io::println("✅ Parsing completed in " + parse_duration.toString() + "ms");
         io::println("📊 Nodes created: " + nodes_created.toString());
         io::println("🧠 Memory usage: " + memory_usage.toString() + " bytes");
@@ -553,7 +556,7 @@ blockchain OmegaParser {
             nodes_created: nodes_created,
             error_count: error_count,
             memory_usage: memory_usage,
-            parse_duration: block.timestamp - parse_start_time,
+            parse_duration: secure_ts.get_secure_timestamp() - parse_start_time,
             is_self_hosting: in_self_hosting_mode,
             parsing_compiler_code: parsing_compiler_code
         });

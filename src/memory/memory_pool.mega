@@ -1,0 +1,457 @@
+// OMEGA Memory Pool Management System
+// Implementasi memory pool untuk efisiensi alokasi memori dan garbage collection
+
+import std::collections;
+import std::math;
+import "../utils/secure_timestamp.mega";
+
+/// Memory block structure untuk tracking alokasi memori
+struct MemoryBlock {
+    uint256 size;              // Ukuran block dalam bytes
+    bool is_free;              // Status block (free/allocated)
+    uint256 allocation_time;   // Waktu alokasi
+    uint256 last_access_time;  // Waktu akses terakhir
+    address owner;            // Address yang mengalokasi block
+    string memory_tag;        // Tag untuk debugging
+    bytes32 next_block;        // Reference ke block berikutnya
+    bytes32 prev_block;        // Reference ke block sebelumnya
+}
+
+/// Memory pool configuration
+struct MemoryPoolConfig {
+    uint256 pool_size;         // Total ukuran pool dalam bytes
+    uint256 block_size;        // Ukuran default block
+    uint256 max_blocks;        // Maximum jumlah blocks
+    uint256 gc_threshold;      // Threshold untuk garbage collection
+    uint256 max_allocation_time; // Maximum time before auto-collection
+    bool enable_auto_gc;       // Enable automatic garbage collection
+    bool enable_debugging;     // Enable memory debugging
+}
+
+/// Memory usage statistics
+struct MemoryStats {
+    uint256 total_allocated;   // Total memory allocated
+    uint256 total_free;        // Total memory free
+    uint256 active_blocks;     // Number of active blocks
+    uint256 free_blocks;       // Number of free blocks
+    uint256 gc_cycles;         // Number of garbage collection cycles
+    uint256 allocation_count;  // Total allocation operations
+    uint256 deallocation_count;  // Total deallocation operations
+    uint256 last_gc_time;      // Last garbage collection time
+}
+
+/// Main Memory Pool blockchain
+blockchain MemoryPool {
+    state {
+        MemoryPoolConfig config;                    // Pool configuration
+        mapping(bytes32 => MemoryBlock) blocks;     // Memory blocks registry
+        mapping(address => bytes32[]) user_blocks;   // Blocks per user
+        MemoryStats stats;                           // Memory statistics
+        bytes32 free_list_head;                      // Head of free list
+        bytes32 allocated_list_head;                 // Head of allocated list
+        bool gc_in_progress;                        // GC status flag
+        uint256 pool_creation_time;                  // Pool creation timestamp
+        mapping(string => uint256) memory_tags;      // Memory tags for debugging
+    }
+    
+    constructor() {
+        config = MemoryPoolConfig({
+            pool_size: 1024 * 1024 * 100,  // 100MB default
+            block_size: 1024,               // 1KB default blocks
+            max_blocks: 100000,
+            gc_threshold: 80,                // GC when 80% full
+            max_allocation_time: 3600,      // 1 hour max allocation time
+            enable_auto_gc: true,
+            enable_debugging: false
+        });
+        
+        stats = MemoryStats({
+            total_allocated: 0,
+            total_free: config.pool_size,
+            active_blocks: 0,
+            free_blocks: 0,
+            gc_cycles: 0,
+            allocation_count: 0,
+            deallocation_count: 0,
+            last_gc_time: 0,
+            pool_creation_time: 0
+        });
+        
+        gc_in_progress = false;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        pool_creation_time = secure_ts.get_secure_timestamp();
+        
+        initialize_memory_pool();
+    }
+    
+    /// Initialize memory pool dengan free blocks
+    function initialize_memory_pool() internal {
+        uint256 blocks_count = config.pool_size / config.block_size;
+        if (blocks_count > config.max_blocks) {
+            blocks_count = config.max_blocks;
+        }
+        
+        bytes32 prev_block = bytes32(0);
+        
+        for (uint256 i = 0; i < blocks_count; i++) {
+            bytes32 block_id = keccak256(abi.encodePacked("memory_block_", i, pool_creation_time));
+            
+            SecureTimestamp secure_ts = SecureTimestamp::new();
+            uint256 current_time = secure_ts.get_secure_timestamp();
+            
+            blocks[block_id] = MemoryBlock({
+                size: config.block_size,
+                is_free: true,
+                allocation_time: 0,
+                last_access_time: current_time,
+                owner: address(0),
+                memory_tag: "",
+                next_block: bytes32(0),
+                prev_block: prev_block
+            });
+            
+            if (i == 0) {
+                free_list_head = block_id;
+            } else {
+                blocks[prev_block].next_block = block_id;
+            }
+            
+            prev_block = block_id;
+            stats.free_blocks++;
+        }
+        
+        stats.total_free = stats.free_blocks * config.block_size;
+    }
+    
+    /// Allocate memory block
+    function allocate(uint256 size, string memory tag) public returns (bytes32) {
+        require(size > 0, "Invalid allocation size");
+        require(!gc_in_progress, "Garbage collection in progress");
+        
+        // Find suitable free block
+        bytes32 block_id = find_free_block(size);
+        require(block_id != bytes32(0), "No available memory blocks");
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        
+        // Allocate block
+        blocks[block_id].is_free = false;
+        blocks[block_id].allocation_time = current_time;
+        blocks[block_id].last_access_time = current_time;
+        blocks[block_id].owner = msg.sender;
+        blocks[block_id].memory_tag = tag;
+        
+        // Update statistics
+        stats.total_allocated += blocks[block_id].size;
+        stats.total_free -= blocks[block_id].size;
+        stats.active_blocks++;
+        stats.free_blocks--;
+        stats.allocation_count++;
+        
+        // Add to user's blocks
+        user_blocks[msg.sender].push(block_id);
+        
+        // Update lists
+        remove_from_free_list(block_id);
+        add_to_allocated_list(block_id);
+        
+        // Check if garbage collection is needed
+        if (config.enable_auto_gc && should_run_gc()) {
+            run_garbage_collection();
+        }
+        
+        if (config.enable_debugging) {
+            memory_tags[tag] = memory_tags[tag] + 1;
+        }
+        
+        return block_id;
+    }
+    
+    /// Deallocate memory block
+    function deallocate(bytes32 block_id) public {
+        require(blocks[block_id].is_free == false, "Block already free");
+        require(blocks[block_id].owner == msg.sender || msg.sender == address(this), "Unauthorized deallocation");
+        
+        // Free the block
+        blocks[block_id].is_free = true;
+        blocks[block_id].allocation_time = 0;
+        blocks[block_id].owner = address(0);
+        
+        // Update statistics
+        stats.total_allocated -= blocks[block_id].size;
+        stats.total_free += blocks[block_id].size;
+        stats.active_blocks--;
+        stats.free_blocks++;
+        stats.deallocation_count++;
+        
+        // Update lists
+        remove_from_allocated_list(block_id);
+        add_to_free_list(block_id);
+        
+        // Remove from user's blocks
+        remove_user_block(msg.sender, block_id);
+    }
+    
+    /// Find free block yang cukup besar
+    function find_free_block(uint256 required_size) internal view returns (bytes32) {
+        bytes32 current = free_list_head;
+        
+        while (current != bytes32(0)) {
+            if (blocks[current].size >= required_size && blocks[current].is_free) {
+                return current;
+            }
+            current = blocks[current].next_block;
+        }
+        
+        return bytes32(0);
+    }
+    
+    /// Run garbage collection
+    function run_garbage_collection() public {
+        require(!gc_in_progress, "GC already in progress");
+        
+        gc_in_progress = true;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 gc_start_time = secure_ts.get_secure_timestamp();
+        
+        uint256 collected_blocks = 0;
+        uint256 collected_memory = 0;
+        
+        // Collect expired blocks (blocks yang tidak diakses dalam waktu lama)
+        bytes32 current = allocated_list_head;
+        
+        while (current != bytes32(0)) {
+            bytes32 next = blocks[current].next_block;
+            
+            if (should_collect_block(current)) {
+                // Auto-collect block
+                deallocate(current);
+                collected_blocks++;
+                collected_memory += blocks[current].size;
+            }
+            
+            current = next;
+        }
+        
+        // Defragment memory (merge adjacent free blocks)
+        defragment_memory();
+        
+        // Update statistics
+        stats.gc_cycles++;
+        stats.last_gc_time = gc_start_time;
+        
+        gc_in_progress = false;
+        
+        if (config.enable_debugging) {
+            io::println("Garbage collection completed:");
+            io::println("- Collected blocks: " + collected_blocks.toString());
+            io::println("- Collected memory: " + collected_memory.toString() + " bytes");
+            io::println("- Total GC cycles: " + stats.gc_cycles.toString());
+        }
+    }
+    
+    /// Check if block should be collected
+    function should_collect_block(bytes32 block_id) internal view returns (bool) {
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        
+        // Don't collect if block was accessed recently
+        if (current_time - blocks[block_id].last_access_time < 300) { // 5 minutes
+            return false;
+        }
+        
+        // Don't collect if allocation time is too recent
+        if (current_time - blocks[block_id].allocation_time < config.max_allocation_time) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /// Defragment memory dengan merge adjacent free blocks
+    function defragment_memory() internal {
+        bytes32 current = free_list_head;
+        
+        while (current != bytes32(0) && blocks[current].next_block != bytes32(0)) {
+            bytes32 next_block = blocks[current].next_block;
+            
+            // Check if next block is also free and adjacent
+            if (blocks[next_block].is_free && is_adjacent(current, next_block)) {
+                // Merge blocks
+                blocks[current].size += blocks[next_block].size;
+                blocks[current].next_block = blocks[next_block].next_block;
+                
+                if (blocks[next_block].next_block != bytes32(0)) {
+                    blocks[blocks[next_block].next_block].prev_block = current;
+                }
+                
+                // Remove next block from free list
+                stats.free_blocks--;
+                delete blocks[next_block];
+            } else {
+                current = next_block;
+            }
+        }
+    }
+    
+    /// Check if two blocks are adjacent in memory
+    function is_adjacent(bytes32 block1, bytes32 block2) internal pure returns (bool) {
+        // Simplified adjacency check - in real implementation would check memory addresses
+        return uint256(block1) + 1 == uint256(block2);
+    }
+    
+    /// Remove block from free list
+    function remove_from_free_list(bytes32 block_id) internal {
+        if (free_list_head == block_id) {
+            free_list_head = blocks[block_id].next_block;
+        }
+        
+        if (blocks[block_id].prev_block != bytes32(0)) {
+            blocks[blocks[block_id].prev_block].next_block = blocks[block_id].next_block;
+        }
+        
+        if (blocks[block_id].next_block != bytes32(0)) {
+            blocks[blocks[block_id].next_block].prev_block = blocks[block_id].prev_block;
+        }
+        
+        blocks[block_id].prev_block = bytes32(0);
+        blocks[block_id].next_block = bytes32(0);
+    }
+    
+    /// Add block to free list
+    function add_to_free_list(bytes32 block_id) internal {
+        blocks[block_id].next_block = free_list_head;
+        if (free_list_head != bytes32(0)) {
+            blocks[free_list_head].prev_block = block_id;
+        }
+        free_list_head = block_id;
+    }
+    
+    /// Remove block from allocated list
+    function remove_from_allocated_list(bytes32 block_id) internal {
+        if (allocated_list_head == block_id) {
+            allocated_list_head = blocks[block_id].next_block;
+        }
+        
+        if (blocks[block_id].prev_block != bytes32(0)) {
+            blocks[blocks[block_id].prev_block].next_block = blocks[block_id].next_block;
+        }
+        
+        if (blocks[block_id].next_block != bytes32(0)) {
+            blocks[blocks[block_id].next_block].prev_block = blocks[block_id].prev_block;
+        }
+        
+        blocks[block_id].prev_block = bytes32(0);
+        blocks[block_id].next_block = bytes32(0);
+    }
+    
+    /// Add block to allocated list
+    function add_to_allocated_list(bytes32 block_id) internal {
+        blocks[block_id].next_block = allocated_list_head;
+        if (allocated_list_head != bytes32(0)) {
+            blocks[allocated_list_head].prev_block = block_id;
+        }
+        allocated_list_head = block_id;
+    }
+    
+    /// Remove block from user's block list
+    function remove_user_block(address user, bytes32 block_id) internal {
+        bytes32[] storage user_block_list = user_blocks[user];
+        
+        for (uint256 i = 0; i < user_block_list.length; i++) {
+            if (user_block_list[i] == block_id) {
+                // Remove by swapping with last element
+                user_block_list[i] = user_block_list[user_block_list.length - 1];
+                user_block_list.pop();
+                break;
+            }
+        }
+    }
+    
+    /// Check if garbage collection should run
+    function should_run_gc() internal view returns (bool) {
+        uint256 usage_percentage = (stats.total_allocated * 100) / config.pool_size;
+        return usage_percentage >= config.gc_threshold;
+    }
+    
+    /// Update block access time
+    function update_access_time(bytes32 block_id) public {
+        require(blocks[block_id].is_free == false, "Cannot update free block");
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        blocks[block_id].last_access_time = secure_ts.get_secure_timestamp();
+    }
+    
+    /// Get memory statistics
+    function get_memory_stats() public view returns (MemoryStats memory) {
+        return stats;
+    }
+    
+    /// Get pool configuration
+    function get_pool_config() public view returns (MemoryPoolConfig memory) {
+        return config;
+    }
+    
+    /// Get user's allocated blocks
+    function get_user_blocks(address user) public view returns (bytes32[] memory) {
+        return user_blocks[user];
+    }
+    
+    /// Get block information
+    function get_block_info(bytes32 block_id) public view returns (MemoryBlock memory) {
+        return blocks[block_id];
+    }
+    
+    /// Force garbage collection
+    function force_gc() public {
+        run_garbage_collection();
+    }
+    
+    /// Update pool configuration
+    function update_config(MemoryPoolConfig memory new_config) public {
+        config = new_config;
+    }
+    
+    /// Enable/disable debugging
+    function set_debugging(bool enabled) public {
+        config.enable_debugging = enabled;
+    }
+    
+    /// Get memory usage report
+    function get_memory_report() public view returns (string memory) {
+        uint256 usage_percentage = (stats.total_allocated * 100) / config.pool_size;
+        uint256 free_percentage = 100 - usage_percentage;
+        
+        string memory report = "=== OMEGA Memory Pool Report ===\n";
+        report = string(abi.encodePacked(report, "Pool Size: "));
+        report = string(abi.encodePacked(report, (config.pool_size / 1024 / 1024).toString()));
+        report = string(abi.encodePacked(report, " MB\n"));
+        
+        report = string(abi.encodePacked(report, "Total Allocated: "));
+        report = string(abi.encodePacked(report, (stats.total_allocated / 1024).toString()));
+        report = string(abi.encodePacked(report, " KB ("));
+        report = string(abi.encodePacked(report, usage_percentage.toString()));
+        report = string(abi.encodePacked(report, "%)\n"));
+        
+        report = string(abi.encodePacked(report, "Total Free: "));
+        report = string(abi.encodePacked(report, (stats.total_free / 1024).toString()));
+        report = string(abi.encodePacked(report, " KB ("));
+        report = string(abi.encodePacked(report, free_percentage.toString()));
+        report = string(abi.encodePacked(report, "%)\n"));
+        
+        report = string(abi.encodePacked(report, "Active Blocks: "));
+        report = string(abi.encodePacked(report, stats.active_blocks.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "Free Blocks: "));
+        report = string(abi.encodePacked(report, stats.free_blocks.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "GC Cycles: "));
+        report = string(abi.encodePacked(report, stats.gc_cycles.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        return report;
+    }
+}

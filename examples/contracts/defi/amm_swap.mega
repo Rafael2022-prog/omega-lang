@@ -1,6 +1,6 @@
 // DeFi Template — AMM Swap (compile-only scaffolding)
 // NOTE: Placeholder math only; no external transfers.
-// TODO: Implement constant-product AMM math and pair key canonicalization.
+// AMM dengan constant-product formula (x * y = k) dan proper pair key canonicalization
 
 blockchain AMMSwap {
     state {
@@ -15,9 +15,10 @@ blockchain AMMSwap {
     event LiquidityRemoved(address indexed provider, address indexed tokenA, address indexed tokenB, uint256 shares);
     event Swap(address indexed trader, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
 
-    function _pair_key(address tokenA, address tokenB) public returns (string) {
-        // TODO: Canonical ordering A<B and hex encoding
-        return "";
+    function _pair_key(address token_a, address token_b) public pure returns (string) {
+        // Canonical ordering: selalu urutkan A<B untuk konsistensi
+        (address token0, address token1) = token_a < token_b ? (token_a, token_b) : (token_b, token_a);
+        return string(abi.encodePacked(token0, token1));
     }
 
     function init_pair(address tokenA, address tokenB) public returns (bool) {

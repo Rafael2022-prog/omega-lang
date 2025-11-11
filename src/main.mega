@@ -14,6 +14,7 @@ import "ir/ir_core";
 import "optimizer/optimizer_core";
 import "codegen/codegen";
 import "error/error";
+import "utils/secure_timestamp";
 
 /// Main entry point function untuk OMEGA compiler
 /// Membuat instance OmegaCompilerMain dan menjalankan dengan command line arguments
@@ -248,7 +249,8 @@ blockchain OmegaCompiler {
         }
 
         // Record start time untuk performance metrics
-        uint256 start_time = block.timestamp;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
 
         // Phase 1: Lexical Analysis - tokenize source code
         if (config.verbose) _print_info("Phase 1: Lexical Analysis");
@@ -316,7 +318,8 @@ blockchain OmegaCompiler {
         _write_output_files_from_result(gen_result, build_config);
 
         // Update compilation statistics
-        stats.compilation_time_ms = (block.timestamp - start_time) * 1000;
+        uint256 end_time = secure_ts.get_secure_timestamp();
+        stats.compilation_time_ms = (end_time - start_time) * 1000;
         stats.generated_files = build_config.target_platforms.length;
 
         // Print success message

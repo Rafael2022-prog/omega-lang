@@ -2,6 +2,8 @@
 // Comprehensive benchmarking untuk compiler performance, memory usage, dan optimization effectiveness
 // Mendukung regression testing dan performance tracking over time
 
+import "../security/secure_timestamp.mega";
+
 /// Main performance benchmarking blockchain
 /// Mengorganisir dan menjalankan berbagai benchmark tests
 blockchain OmegaPerformanceBenchmarks {
@@ -543,7 +545,8 @@ blockchain OmegaPerformanceBenchmarks {
     
     /// Update historical results
     function update_historical_results(BenchmarkResults results) public {
-        historical_results.add_result(block.timestamp, results);
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        historical_results.add_result(secure_ts.get_secure_timestamp(), results);
         
         // Keep only last 100 results untuk avoid unbounded growth
         if (historical_results.count() > 100) {
@@ -564,10 +567,11 @@ blockchain OmegaPerformanceBenchmarks {
     
     /// Log performance regression untuk investigation
     function log_performance_regression(string benchmark_name, PerformanceComparison comparison) public {
+        SecureTimestamp secure_ts = SecureTimestamp::new();
         emit PerformanceRegression(
             benchmark_name,
             comparison.description,
-            block.timestamp
+            secure_ts.get_secure_timestamp()
         );
     }
     
@@ -619,7 +623,7 @@ blockchain OmegaPerformanceBenchmarks {
                     
                     positions[msg.sender] = LiquidityPosition({
                         amount: positions[msg.sender].amount + amount,
-                        timestamp: block.timestamp,
+                        timestamp: SecureTimestamp::new().get_secure_timestamp(),
                         rewards: calculateRewards(msg.sender)
                     });
                     
@@ -630,7 +634,7 @@ blockchain OmegaPerformanceBenchmarks {
                     LiquidityPosition memory position = positions[user];
                     if (position.amount == 0) return 0;
                     
-                    uint256 timeElapsed = block.timestamp - position.timestamp;
+                    uint256 timeElapsed = SecureTimestamp::new().get_secure_timestamp() - position.timestamp;
                     uint256 rewardRate = (position.amount * timeElapsed) / (365 days);
                     
                     return rewardRate * 5 / 100; // 5% APY
@@ -882,7 +886,7 @@ library BenchmarkRunner {
         result.suite_name = suite.name;
         result.total_benchmarks = suite.benchmarks.length;
         
-        uint256 start_time = block.timestamp;
+        uint256 start_time = SecureTimestamp::new().get_secure_timestamp();
         
         for (uint256 i = 0; i < suite.benchmarks.length; i++) {
             BenchmarkResult benchmark_result = execute_benchmark(suite.benchmarks[i], config);
@@ -895,7 +899,7 @@ library BenchmarkRunner {
             }
         }
         
-        result.total_time = Duration::from_seconds(block.timestamp - start_time);
+        result.total_time = Duration::from_seconds(SecureTimestamp::new().get_secure_timestamp() - start_time);
         
         return result;
     }
@@ -931,7 +935,7 @@ library BenchmarkRunner {
         
         PerformanceMetrics metrics;
         
-        uint256 start_time = block.timestamp;
+        uint256 start_time = SecureTimestamp::new().get_secure_timestamp();
         uint256 start_memory = get_memory_usage();
         
         // Compile test data
@@ -939,7 +943,7 @@ library BenchmarkRunner {
             OmegaCompiler::compile(benchmark.test_data, CompilationTarget::EVM);
         }
         
-        uint256 end_time = block.timestamp;
+        uint256 end_time = SecureTimestamp::new().get_secure_timestamp();
         uint256 end_memory = get_memory_usage();
         
         metrics.compilation_time = Duration::from_seconds((end_time - start_time) / config.measurement_iterations);
@@ -978,7 +982,7 @@ library BenchmarkRunner {
             return metrics;
         } else if (benchmark.test_function == "benchmark_gas_optimization") {
             uint256 total_gas = 0;
-            uint256 start_time = block.timestamp;
+            uint256 start_time = SecureTimestamp::new().get_secure_timestamp();
             
             for (uint256 i = 0; i < benchmark.iterations; i++) {
                 // Simulate gas usage of optimized runtime operation
@@ -986,7 +990,7 @@ library BenchmarkRunner {
                 total_gas += iter_gas;
             }
             
-            uint256 end_time = block.timestamp;
+            uint256 end_time = SecureTimestamp::new().get_secure_timestamp();
             metrics.execution_time = Duration::from_seconds((end_time - start_time) / benchmark.iterations);
             metrics.gas_used_avg = total_gas / benchmark.iterations;
             metrics.gas_used_p95 = 50000;
@@ -996,14 +1000,14 @@ library BenchmarkRunner {
         }
         
         // Default runtime benchmark: measure execution time only
-        uint256 start_time = block.timestamp;
+        uint256 start_time = SecureTimestamp::new().get_secure_timestamp();
         
         for (uint256 i = 0; i < benchmark.iterations; i++) {
             // Execute test function
             execute_test_function(benchmark.test_function);
         }
         
-        uint256 end_time = block.timestamp;
+        uint256 end_time = SecureTimestamp::new().get_secure_timestamp();
         
         metrics.execution_time = Duration::from_seconds((end_time - start_time) / benchmark.iterations);
         

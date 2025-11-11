@@ -67,52 +67,64 @@ output_name = "omega.so"
 solana_version = "1.14"
 
 [dependencies]
-# OMEGA standard library
-omega-std = { version = "1.0.0", path = "lib/std" }
-# OMEGA compiler infrastructure
-omega-compiler = { version = "1.0.0", path = "lib/compiler" }
-# Cross-chain communication
-omega-cross-chain = { version = "1.0.0", path = "lib/cross-chain" }
-# Blockchain integrations
-omega-evm = { version = "1.0.0", path = "lib/evm" }
-omega-solana = { version = "1.0.0", path = "lib/solana" }
-omega-cosmos = { version = "1.0.0", path = "lib/cosmos" }
+# OMEGA compiler modules (langsung dari src)
+omega-lexer = { version = "1.1.0", path = "src/lexer" }
+omega-parser = { version = "1.1.0", path = "src/parser" }
+omega-semantic = { version = "1.1.0", path = "src/semantic" }
+omega-ir = { version = "1.1.0", path = "src/ir" }
+omega-codegen = { version = "1.1.0", path = "src/codegen" }
+omega-error = { version = "1.1.0", path = "src/error" }
+omega-optimization = { version = "1.1.0", path = "src/optimization" }
+omega-security = { version = "1.1.0", path = "src/security" }
+omega-std = { version = "1.1.0", path = "src/std" }
+omega-testing = { version = "1.1.0", path = "src/testing" }
 
 [dev-dependencies]
 # Testing framework
-omega-test = { version = "1.0.0", path = "lib/test" }
-# Benchmarking
-omega-bench = { version = "1.0.0", path = "lib/bench" }
+omega-testing = { version = "1.1.0", path = "src/testing" }
 
 [features]
 # Default features
-default = ["std", "compiler", "evm", "solana"]
-# Standard library
+default = ["evm", "solana", "cosmos", "cross-chain"]
+
+# Core modules
 std = ["omega-std"]
-# Full compiler suite
-compiler = ["omega-compiler"]
-# EVM support
-evm = ["omega-evm"]
-# Solana support  
-solana = ["omega-solana"]
-# Cosmos support
-cosmos = ["omega-cosmos"]
+lexer = ["omega-lexer"]
+parser = ["omega-parser"]
+semantic = ["omega-semantic"]
+ir = ["omega-ir"]
+codegen = ["omega-codegen"]
+error = ["omega-error"]
+optimization = ["omega-optimization"]
+security = ["omega-security"]
+testing = ["omega-testing"]
+
+# Blockchain targets
+evm = ["omega-codegen/evm"]
+solana = ["omega-codegen/solana"]
+cosmos = ["omega-codegen/cosmos"]
+substrate = ["omega-codegen/substrate"]
+move = ["omega-codegen/move"]
+near = ["omega-codegen/near"]
+
 # Cross-chain features
-cross-chain = ["omega-cross-chain"]
-# All blockchain targets
-all-targets = ["evm", "solana", "cosmos", "cross-chain"]
+cross-chain = ["evm", "solana", "cosmos", "omega-codegen/cross-chain"]
+
+# All features
+all-targets = ["evm", "solana", "cosmos", "substrate", "move", "near", "cross-chain"]
+all-compiler = ["lexer", "parser", "semantic", "ir", "codegen", "error", "optimization", "security", "testing"]
 
 [testing]
 # Test directories
-test_dirs = ["tests", "src/tests"]
+test_dirs = ["tests"]
 # Test patterns
-test_patterns = ["*_test.mega", "test_*.mega"]
+test_patterns = ["*_tests.mega", "test_*.mega", "*_test.mega"]
 # Integration test directory
-integration_tests = "tests/integration"
+integration_tests = "tests"
 # Unit test inline in source
 unit_tests_inline = true
 # Cross-chain test configuration
-cross_chain_tests = "tests/cross-chain"
+cross_chain_tests = "tests"
 
 [benchmarking]
 # Benchmark directory

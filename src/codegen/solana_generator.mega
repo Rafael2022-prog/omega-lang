@@ -4,6 +4,7 @@
 import "../ir/ir.mega";
 import "../error/error.mega";
 import "./base_generator.mega";
+import "../utils/secure_timestamp.mega";
 
 /// Solana-specific code generator untuk menghasilkan Rust/Anchor code
 blockchain SolanaCodeGenerator is BaseCodeGenerator {
@@ -90,7 +91,8 @@ blockchain SolanaCodeGenerator is BaseCodeGenerator {
             return "";
         }
         
-        uint256 start_time = block.timestamp * 1000; // Simplified timestamp
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp() * 1000; // Simplified timestamp
         
         string memory result = "";
         
@@ -112,7 +114,7 @@ blockchain SolanaCodeGenerator is BaseCodeGenerator {
         result = string(abi.encodePacked(result, generate_error_codes()));
         
         // Update statistics
-        stats.generation_time_ms = (block.timestamp * 1000) - start_time;
+        stats.generation_time_ms = (secure_ts.get_secure_timestamp() * 1000) - start_time;
         update_stats_contracts();
         
         return result;
@@ -138,7 +140,8 @@ blockchain SolanaCodeGenerator is BaseCodeGenerator {
     function generate_program_id() internal pure returns (string memory) {
         // Generate deterministic program ID based on contract name and timestamp
         string memory contract_name = current_context.contract_name;
-        uint256 timestamp = block.timestamp;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 timestamp = secure_ts.get_secure_timestamp();
         
         // Create a deterministic but unique program ID
         bytes32 hash = keccak256(abi.encodePacked(contract_name, timestamp, "OMEGA_SOLANA"));
@@ -522,7 +525,7 @@ blockchain SolanaCodeGenerator is BaseCodeGenerator {
         
         // Address literals (convert to Pubkey)
         if (bytes(value).length == 42 && starts_with(value, "0x")) {
-            return string(abi.encodePacked("Pubkey::from_str(\"", value, "\").unwrap()"));
+            return string(abi.encodePacked("Pubkey::from_str(\"", value, "\").unwrap_or_else(|_| Pubkey::default())"));
         }
         
         // Boolean literals

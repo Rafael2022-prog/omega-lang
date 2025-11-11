@@ -15,6 +15,7 @@ import "../error/error.mega";
 import "../lexer/lexer.mega";
 import "../parser/parser.mega";
 import "../codegen/native_codegen.mega";
+import "../utils/secure_timestamp.mega";
 
 /// Production-Ready Performance Optimizer untuk OMEGA Self-Hosting Compiler
 /// Mengimplementasikan advanced optimization passes, parallel compilation, dan production monitoring
@@ -136,7 +137,9 @@ blockchain PerformanceOptimizer {
                                    bool enable_self_hosting) public returns (ProductionOptimizationResult memory) {
         
         io::println("🚀 Starting production optimization...");
-        uint256 start_time = time::now_ms();
+        // Use secure timestamp for parallel compilation timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
         
         // Enable production mode
         production_mode = true;
@@ -534,7 +537,9 @@ blockchain PerformanceOptimizer {
     function run_single_benchmark(BenchmarkTestCase memory test_case, uint8 optimization_level) 
         private returns (BenchmarkResult memory) {
         
-        uint256 start_time = block.timestamp;
+        // Use secure timestamp for benchmark timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
         
         try {
             // Run optimization
@@ -544,7 +549,7 @@ blockchain PerformanceOptimizer {
                 optimization_level
             );
             
-            uint256 end_time = block.timestamp;
+            uint256 end_time = secure_ts.get_secure_timestamp();
             
             return BenchmarkResult({
                 success: true,
@@ -555,7 +560,7 @@ blockchain PerformanceOptimizer {
             });
             
         } catch Error(string memory error) {
-            uint256 end_time = block.timestamp;
+            uint256 end_time = secure_ts.get_secure_timestamp();
             
             return BenchmarkResult({
                 success: false,
@@ -756,7 +761,7 @@ struct OptimizationWarning {
             result.files_processed += batch_size;
         }
         
-        result.compilation_time_ms = time::now_ms() - start_time;
+        result.compilation_time_ms = secure_ts.get_secure_timestamp() - start_time;
         result.success = compilation_success;
         
         // Calculate efficiency
@@ -786,7 +791,9 @@ struct OptimizationWarning {
         });
         
         io::println("🔁 Starting self-hosting optimization cycles...");
-        uint256 start_time = time::now_ms();
+        // Use secure timestamp for self-hosting timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
         
         // Phase 1: Bootstrap compilation
         io::println("🥾 Phase 1: Bootstrap compilation");
@@ -798,7 +805,7 @@ struct OptimizationWarning {
             return result;
         }
         
-        result.bootstrap_time_ms = time::now_ms() - bootstrap_start;
+        result.bootstrap_time_ms = secure_ts.get_secure_timestamp() - bootstrap_start;
         io::println("✅ Bootstrap compilation successful (" + result.bootstrap_time_ms.toString() + "ms)");
         
         // Phase 2: Self-hosting cycles
@@ -806,9 +813,9 @@ struct OptimizationWarning {
         for (uint256 cycle = 1; cycle <= max_cycles; cycle++) {
             io::println("🔄 Self-hosting cycle " + cycle.toString() + "/" + max_cycles.toString());
             
-            uint256 cycle_start = time::now_ms();
+            uint256 cycle_start = secure_ts.get_secure_timestamp();
             bool cycle_success = compile_with_self_hosted_compiler(source_files, target_platform);
-            uint256 cycle_time = time::now_ms() - cycle_start;
+            uint256 cycle_time = secure_ts.get_secure_timestamp() - cycle_start;
             
             if (!cycle_success) {
                 io::println("❌ Self-hosting cycle " + cycle.toString() + " failed");
@@ -862,9 +869,9 @@ struct OptimizationWarning {
         uint256 initial_memory = memory_manager.get_current_usage_mb();
         
         // Run garbage collection
-        uint256 gc_start = time::now_ms();
+        uint256 gc_start = secure_ts.get_secure_timestamp();
         result.gc_cycles = memory_manager.run_full_gc();
-        uint256 gc_time = time::now_ms() - gc_start;
+        uint256 gc_time = secure_ts.get_secure_timestamp() - gc_start;
         
         // Optimize cache usage
         cache_manager.optimize_cache_size();

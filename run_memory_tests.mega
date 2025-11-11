@@ -1,0 +1,357 @@
+// OMEGA Memory Management Test Execution Script
+// Specialized test runner for memory management components
+
+import "./tests/memory/test_memory_manager.mega";
+import "./src/monitoring/performance_monitor.mega";
+
+blockchain MemoryTestRunner {
+    state {
+        TestMemoryManager test_manager;
+        PerformanceMonitor performance_monitor;
+        MemoryTestConfig test_config;
+        mapping(string => TestResult) test_results;
+        uint256 total_tests;
+        uint256 passed_tests;
+        uint256 failed_tests;
+        uint256 start_time;
+        uint256 peak_memory_usage;
+        bool verbose_logging;
+    }
+    
+    struct TestResult {
+        bool passed;
+        uint256 execution_time;
+        uint256 memory_used;
+        string error_message;
+        string performance_metrics;
+    }
+    
+    constructor(bool _verbose_logging) {
+        verbose_logging = _verbose_logging;
+        total_tests = 0;
+        passed_tests = 0;
+        failed_tests = 0;
+        peak_memory_usage = 0;
+        
+        // Initialize test components
+        test_manager = new TestMemoryManager();
+        performance_monitor = new PerformanceMonitor();
+        test_config = new MemoryTestConfig();
+        
+        if (verbose_logging) {
+            io::println("=== OMEGA Memory Management Test Runner ===");
+            io::println("Initializing test environment...");
+            io::println("  - Verbose logging: " + (verbose_logging ? "enabled" : "disabled"));
+            io::println("  - Performance monitoring: enabled");
+            io::println("  - Memory tracking: enabled");
+        }
+    }
+    
+    /// Run all memory management tests with monitoring
+    function run_all_memory_tests() public returns (bool) {
+        start_time = block.timestamp;
+        
+        if (verbose_logging) {
+            io::println("Starting comprehensive memory management test suite...");
+            io::println("Test configuration:");
+            io::println("  - Verbose logging: " + (verbose_logging ? "enabled" : "disabled"));
+            io::println("  - Performance monitoring: enabled");
+            io::println("  - Memory tracking: enabled");
+        }
+        
+        // Start performance monitoring
+        performance_monitor.start_monitoring();
+        
+        // Run the comprehensive test suite
+        bool all_passed = test_manager.run_all_tests();
+        
+        // Stop monitoring and collect results
+        performance_monitor.stop_monitoring();
+        
+        // Analyze results
+        analyze_test_results();
+        
+        // Generate comprehensive report
+        generate_memory_test_report();
+        
+        return all_passed;
+    }
+    
+    /// Run individual memory test with performance tracking
+    function run_memory_test(string memory test_name) public returns (TestResult memory) {
+        uint256 test_start = block.timestamp;
+        uint256 initial_memory = get_current_memory_usage();
+        
+        if (verbose_logging) {
+            io::println("Running test: " + test_name);
+        }
+        
+        bool test_passed = false;
+        string memory error_msg = "";
+        
+        try {
+            // Execute specific test based on name
+            if (strings::equals(test_name, "basic_allocation")) {
+                test_passed = test_manager.test_basic_allocation();
+            } else if (strings::equals(test_name, "multiple_allocations")) {
+                test_passed = test_manager.test_multiple_allocations();
+            } else if (strings::equals(test_name, "deallocation")) {
+                test_passed = test_manager.test_deallocation();
+            } else if (strings::equals(test_name, "garbage_collection")) {
+                test_passed = test_manager.test_garbage_collection();
+            } else if (strings::equals(test_name, "memory_pool")) {
+                test_passed = test_manager.test_memory_pool();
+            } else if (strings::equals(test_name, "memory_fragmentation")) {
+                test_passed = test_manager.test_memory_fragmentation();
+            } else if (strings::equals(test_name, "concurrent_allocations")) {
+                test_passed = test_manager.test_concurrent_allocations();
+            } else if (strings::equals(test_name, "memory_statistics")) {
+                test_passed = test_manager.test_memory_statistics();
+            } else if (strings::equals(test_name, "error_handling")) {
+                test_passed = test_manager.test_error_handling();
+            } else if (strings::equals(test_name, "performance")) {
+                test_passed = test_manager.test_performance();
+            } else {
+                error_msg = "Unknown test: " + test_name;
+                test_passed = false;
+            }
+            
+        } catch (string memory error) {
+            error_msg = error;
+            test_passed = false;
+        }
+        
+        uint256 test_end = block.timestamp;
+        uint256 final_memory = get_current_memory_usage();
+        
+        TestResult memory result = TestResult({
+            passed: test_passed,
+            execution_time: test_end - test_start,
+            memory_used: final_memory - initial_memory,
+            error_message: error_msg,
+            performance_metrics: get_performance_metrics()
+        });
+        
+        // Update statistics
+        total_tests++;
+        if (test_passed) {
+            passed_tests++;
+        } else {
+            failed_tests++;
+        }
+        
+        // Track peak memory usage
+        if (final_memory > peak_memory_usage) {
+            peak_memory_usage = final_memory;
+        }
+        
+        test_results[test_name] = result;
+        
+        if (verbose_logging) {
+            io::println("  Result: " + (test_passed ? "PASSED" : "FAILED"));
+            io::println("  Time: " + result.execution_time.toString() + "ms");
+            io::println("  Memory: " + result.memory_used.toString() + " bytes");
+            if (!test_passed && bytes(result.error_message).length > 0) {
+                io::println("  Error: " + result.error_message);
+            }
+        }
+        
+        return result;
+    }
+    
+    /// Analyze test results and performance metrics
+    function analyze_test_results() private {
+        if (verbose_logging) {
+            io::println("\n=== Test Analysis ===");
+        }
+        
+        // Get test results from the test manager
+        mapping(string => bool) memory results = test_manager.get_test_results();
+        mapping(string => string) memory errors = test_manager.get_test_errors();
+        
+        // Analyze each test
+        string[] memory test_names = [
+            "test_basic_allocation",
+            "test_multiple_allocations", 
+            "test_deallocation",
+            "test_garbage_collection",
+            "test_memory_pool",
+            "test_memory_fragmentation",
+            "test_concurrent_allocations",
+            "test_memory_statistics",
+            "test_error_handling",
+            "test_performance"
+        ];
+        
+        for (uint256 i = 0; i < test_names.length; i++) {
+            string memory test_name = test_names[i];
+            bool passed = results[test_name];
+            string memory error = errors[test_name];
+            
+            if (verbose_logging) {
+                io::println(test_name + ": " + (passed ? "✅ PASSED" : "❌ FAILED"));
+                if (!passed && bytes(error).length > 0) {
+                    io::println("  Error: " + error);
+                }
+            }
+        }
+        
+        // Get performance metrics from monitor
+        if (performance_monitor != address(0)) {
+            PerformanceMetrics memory metrics = performance_monitor.get_performance_summary();
+            
+            if (verbose_logging) {
+                io::println("\n=== Performance Metrics ===");
+                io::println("Average CPU usage: " + metrics.avg_cpu_usage.toString() + "%");
+                io::println("Peak memory usage: " + metrics.peak_memory_usage.toString() + " bytes");
+                io::println("Total execution time: " + metrics.total_execution_time.toString() + "ms");
+            }
+        }
+    }
+    
+    /// Generate comprehensive test report
+    function generate_memory_test_report() private {
+        uint256 total_time = block.timestamp - start_time;
+        
+        io::println("\n" + strings::repeat("=", 60));
+        io::println("OMEGA MEMORY MANAGEMENT TEST REPORT");
+        io::println(strings::repeat("=", 60));
+        
+        io::println("\nTest Summary:");
+        io::println("  Total Tests: " + total_tests.toString());
+        io::println("  Passed: " + passed_tests.toString() + " (" + 
+                   ((passed_tests * 100) / total_tests).toString() + "%)");
+        io::println("  Failed: " + failed_tests.toString() + " (" + 
+                   ((failed_tests * 100) / total_tests).toString() + "%)");
+        
+        io::println("\nPerformance Metrics:");
+        io::println("  Total Execution Time: " + total_time.toString() + "ms");
+        io::println("  Peak Memory Usage: " + peak_memory_usage.toString() + " bytes");
+        io::println("  Average Test Time: " + (total_time / total_tests).toString() + "ms");
+        
+        // Detailed results
+        io::println("\nDetailed Results:");
+        string[] memory test_names = [
+            "basic_allocation",
+            "multiple_allocations",
+            "deallocation", 
+            "garbage_collection",
+            "memory_pool",
+            "memory_fragmentation",
+            "concurrent_allocations",
+            "memory_statistics",
+            "error_handling",
+            "performance"
+        ];
+        
+        for (uint256 i = 0; i < test_names.length; i++) {
+            string memory test_name = test_names[i];
+            TestResult memory result = test_results[test_name];
+            
+            if (result.execution_time > 0) { // Test was executed
+                io::println("  " + test_name + ":");
+                io::println("    Status: " + (result.passed ? "PASSED" : "FAILED"));
+                io::println("    Time: " + result.execution_time.toString() + "ms");
+                io::println("    Memory: " + result.memory_used.toString() + " bytes");
+                
+                if (!result.passed && bytes(result.error_message).length > 0) {
+                    io::println("    Error: " + result.error_message);
+                }
+            }
+        }
+        
+        io::println("\n" + strings::repeat("=", 60));
+        io::println("Report Generated: " + timestamp_to_string(block.timestamp));
+        io::println(strings::repeat("=", 60));
+    }
+    
+    /// Get current memory usage
+    function get_current_memory_usage() private returns (uint256) {
+        // This would interface with the memory manager
+        if (test_manager != address(0)) {
+            MemoryManager memory_mgr = test_manager.get_memory_manager();
+            if (memory_mgr != address(0)) {
+                MemoryManagerStats memory stats = memory_mgr.get_memory_stats();
+                return stats.total_memory_used;
+            }
+        }
+        return 0;
+    }
+    
+    /// Get performance metrics
+    function get_performance_metrics() private returns (string memory) {
+        if (performance_monitor != address(0)) {
+            return performance_monitor.get_performance_summary_string();
+        }
+        return "No performance data available";
+    }
+    
+    /// Get test statistics
+    function get_test_statistics() public view returns (uint256, uint256, uint256, uint256) {
+        return (total_tests, passed_tests, failed_tests, peak_memory_usage);
+    }
+    
+    /// Get detailed test results
+    function get_test_results() public view returns (mapping(string => TestResult) memory) {
+        return test_results;
+    }
+}
+
+/// Main entry point for memory test execution
+function main(string[] memory args) {
+    bool verbose = false;
+    string memory test_filter = "";
+    
+    // Parse command line arguments
+    for (uint256 i = 0; i < args.length; i++) {
+        if (strings::equals(args[i], "--verbose") || strings::equals(args[i], "-v")) {
+            verbose = true;
+        } else if (strings::equals(args[i], "--test") || strings::equals(args[i], "-t")) {
+            if (i + 1 < args.length) {
+                test_filter = args[i + 1];
+                i++;
+            }
+        } else if (strings::equals(args[i], "--help") || strings::equals(args[i], "-h")) {
+            io::println("OMEGA Memory Management Test Runner");
+            io::println("Usage: omega run_memory_tests.mega [options]");
+            io::println("Options:");
+            io::println("  --verbose, -v     Enable verbose logging");
+            io::println("  --test, -t <name> Run specific test");
+            io::println("  --help, -h        Show this help");
+            return;
+        }
+    }
+    
+    // Create test runner
+    MemoryTestRunner runner = new MemoryTestRunner(verbose);
+    
+    io::println("Starting OMEGA Memory Management Tests...");
+    
+    bool success;
+    if (bytes(test_filter).length > 0) {
+        // Run specific test
+        MemoryTestRunner.TestResult memory result = runner.run_memory_test(test_filter);
+        success = result.passed;
+    } else {
+        // Run all tests
+        success = runner.run_all_memory_tests();
+    }
+    
+    // Get final statistics
+    (uint256 total, uint256 passed, uint256 failed, uint256 peak_memory) = runner.get_test_statistics();
+    
+    io::println("\n=== Final Summary ===");
+    io::println("Total Tests: " + total.toString());
+    io::println("Passed: " + passed.toString());
+    io::println("Failed: " + failed.toString());
+    io::println("Peak Memory: " + peak_memory.toString() + " bytes");
+    io::println("Success Rate: " + ((passed * 100) / total).toString() + "%");
+    
+    if (success) {
+        io::println("\n✅ All memory tests completed successfully!");
+    } else {
+        io::println("\n❌ Some memory tests failed!");
+    }
+    
+    return success;
+}

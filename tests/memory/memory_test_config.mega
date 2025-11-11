@@ -1,0 +1,391 @@
+# OMEGA Memory Management Test Configuration
+# This file defines the configuration for memory management tests
+
+blockchain MemoryTestConfig {
+    state {
+        // Test execution settings
+        bool parallel_execution_enabled;
+        uint32 max_parallel_tests;
+        uint32 test_timeout_ms;
+        bool verbose_logging;
+        bool generate_reports;
+        string report_directory;
+        
+        // Memory settings
+        uint64 initial_heap_size;
+        uint64 max_heap_size;
+        uint64 memory_pool_size;
+        bool enable_garbage_collection;
+        uint32 gc_threshold_percent;
+        
+        // Performance thresholds
+        uint32 max_allocation_time_ms;
+        uint32 max_deallocation_time_ms;
+        uint32 max_gc_time_ms;
+        uint64 max_memory_usage_bytes;
+        
+        // Test case configurations
+        mapping(string => TestCaseConfig) test_configs;
+        
+        // Monitoring settings
+        bool enable_performance_monitoring;
+        bool enable_memory_tracking;
+        uint32 monitoring_interval_ms;
+    }
+    
+    constructor() {
+        // Default test execution settings
+        parallel_execution_enabled = true;
+        max_parallel_tests = 4;
+        test_timeout_ms = 30000; // 30 seconds
+        verbose_logging = false;
+        generate_reports = true;
+        report_directory = "test_reports/memory";
+        
+        // Default memory settings
+        initial_heap_size = 64 * 1024 * 1024; // 64MB
+        max_heap_size = 512 * 1024 * 1024; // 512MB
+        memory_pool_size = 16 * 1024 * 1024; // 16MB
+        enable_garbage_collection = true;
+        gc_threshold_percent = 80;
+        
+        // Default performance thresholds
+        max_allocation_time_ms = 100; // 100ms
+        max_deallocation_time_ms = 50; // 50ms
+        max_gc_time_ms = 5000; // 5 seconds
+        max_memory_usage_bytes = 1024 * 1024 * 1024; // 1GB
+        
+        // Default monitoring settings
+        enable_performance_monitoring = true;
+        enable_memory_tracking = true;
+        monitoring_interval_ms = 100; // 100ms
+        
+        // Initialize test case configurations
+        initialize_test_configs();
+    }
+    
+    function initialize_test_configs() public {
+        // Basic allocation test configuration
+        test_configs["basic_allocation"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 5000,
+            memory_threshold_bytes: 1024 * 1024, // 1MB
+            expected_allocations: 100,
+            expected_deallocations: 100,
+            performance_threshold_ms: 1000
+        });
+        
+        // Multiple allocations test configuration
+        test_configs["multiple_allocations"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 10000,
+            memory_threshold_bytes: 10 * 1024 * 1024, // 10MB
+            expected_allocations: 1000,
+            expected_deallocations: 1000,
+            performance_threshold_ms: 2000
+        });
+        
+        // Deallocation test configuration
+        test_configs["deallocation"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 8000,
+            memory_threshold_bytes: 5 * 1024 * 1024, // 5MB
+            expected_allocations: 500,
+            expected_deallocations: 500,
+            performance_threshold_ms: 1500
+        });
+        
+        // Garbage collection test configuration
+        test_configs["garbage_collection"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 15000,
+            memory_threshold_bytes: 50 * 1024 * 1024, // 50MB
+            expected_allocations: 5000,
+            expected_deallocations: 5000,
+            performance_threshold_ms: 5000
+        });
+        
+        // Memory pool test configuration
+        test_configs["memory_pool"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 10000,
+            memory_threshold_bytes: 20 * 1024 * 1024, // 20MB
+            expected_allocations: 2000,
+            expected_deallocations: 2000,
+            performance_threshold_ms: 2000
+        });
+        
+        // Memory fragmentation test configuration
+        test_configs["memory_fragmentation"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 20000,
+            memory_threshold_bytes: 100 * 1024 * 1024, // 100MB
+            expected_allocations: 10000,
+            expected_deallocations: 10000,
+            performance_threshold_ms: 10000
+        });
+        
+        // Concurrent allocations test configuration
+        test_configs["concurrent_allocations"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 25000,
+            memory_threshold_bytes: 200 * 1024 * 1024, // 200MB
+            expected_allocations: 5000,
+            expected_deallocations: 5000,
+            performance_threshold_ms: 15000
+        });
+        
+        // Memory statistics test configuration
+        test_configs["memory_statistics"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 6000,
+            memory_threshold_bytes: 8 * 1024 * 1024, // 8MB
+            expected_allocations: 300,
+            expected_deallocations: 300,
+            performance_threshold_ms: 2000
+        });
+        
+        // Error handling test configuration
+        test_configs["error_handling"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 4000,
+            memory_threshold_bytes: 2 * 1024 * 1024, // 2MB
+            expected_allocations: 50,
+            expected_deallocations: 50,
+            performance_threshold_ms: 1000
+        });
+        
+        // Performance test configuration
+        test_configs["performance"] = TestCaseConfig({
+            enabled: true,
+            timeout_ms: 30000,
+            memory_threshold_bytes: 300 * 1024 * 1024, // 300MB
+            expected_allocations: 100000,
+            expected_deallocations: 100000,
+            performance_threshold_ms: 25000
+        });
+    }
+    
+    function update_config(
+        string memory key,
+        bool value
+    ) public {
+        if (key == "parallel_execution") {
+            parallel_execution_enabled = value;
+        } else if (key == "verbose_logging") {
+            verbose_logging = value;
+        } else if (key == "generate_reports") {
+            generate_reports = value;
+        } else if (key == "enable_garbage_collection") {
+            enable_garbage_collection = value;
+        } else if (key == "enable_performance_monitoring") {
+            enable_performance_monitoring = value;
+        } else if (key == "enable_memory_tracking") {
+            enable_memory_tracking = value;
+        }
+    }
+    
+    function update_numeric_config(
+        string memory key,
+        uint32 value
+    ) public {
+        if (key == "max_parallel_tests") {
+            max_parallel_tests = value;
+        } else if (key == "test_timeout_ms") {
+            test_timeout_ms = value;
+        } else if (key == "gc_threshold_percent") {
+            gc_threshold_percent = value;
+        } else if (key == "max_allocation_time_ms") {
+            max_allocation_time_ms = value;
+        } else if (key == "max_deallocation_time_ms") {
+            max_deallocation_time_ms = value;
+        } else if (key == "max_gc_time_ms") {
+            max_gc_time_ms = value;
+        } else if (key == "monitoring_interval_ms") {
+            monitoring_interval_ms = value;
+        }
+    }
+    
+    function update_memory_config(
+        string memory key,
+        uint64 value
+    ) public {
+        if (key == "initial_heap_size") {
+            initial_heap_size = value;
+        } else if (key == "max_heap_size") {
+            max_heap_size = value;
+        } else if (key == "memory_pool_size") {
+            memory_pool_size = value;
+        } else if (key == "max_memory_usage_bytes") {
+            max_memory_usage_bytes = value;
+        }
+    }
+    
+    function get_test_config(
+        string memory test_name
+    ) public view returns (TestCaseConfig memory) {
+        return test_configs[test_name];
+    }
+    
+    function enable_test(
+        string memory test_name,
+        bool enabled
+    ) public {
+        test_configs[test_name].enabled = enabled;
+    }
+    
+    function update_test_timeout(
+        string memory test_name,
+        uint32 timeout_ms
+    ) public {
+        test_configs[test_name].timeout_ms = timeout_ms;
+    }
+    
+    function is_test_enabled(
+        string memory test_name
+    ) public view returns (bool) {
+        return test_configs[test_name].enabled;
+    }
+    
+    function get_all_enabled_tests() public view returns (string[] memory) {
+        string[] memory enabled_tests = new string[](10);
+        uint256 count = 0;
+        
+        string[10] memory all_tests = [
+            "basic_allocation",
+            "multiple_allocations",
+            "deallocation",
+            "garbage_collection",
+            "memory_pool",
+            "memory_fragmentation",
+            "concurrent_allocations",
+            "memory_statistics",
+            "error_handling",
+            "performance"
+        ];
+        
+        for (uint256 i = 0; i < all_tests.length; i++) {
+            if (test_configs[all_tests[i]].enabled) {
+                enabled_tests[count] = all_tests[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        string[] memory result = new string[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = enabled_tests[i];
+        }
+        
+        return result;
+    }
+    
+    function validate_configuration() public view returns (bool, string memory) {
+        // Validate memory settings
+        if (initial_heap_size > max_heap_size) {
+            return (false, "Initial heap size cannot exceed max heap size");
+        }
+        
+        if (memory_pool_size > initial_heap_size) {
+            return (false, "Memory pool size cannot exceed initial heap size");
+        }
+        
+        if (gc_threshold_percent > 100) {
+            return (false, "GC threshold cannot exceed 100%");
+        }
+        
+        if (max_parallel_tests == 0) {
+            return (false, "Max parallel tests cannot be zero");
+        }
+        
+        if (test_timeout_ms == 0) {
+            return (false, "Test timeout cannot be zero");
+        }
+        
+        return (true, "Configuration is valid");
+    }
+    
+    function get_summary() public view returns (string memory) {
+        (bool valid, string memory validation_msg) = validate_configuration();
+        
+        string memory summary = string.concat(
+            "Memory Test Configuration Summary:\n",
+            "==================================\n",
+            "Parallel Execution: ", parallel_execution_enabled ? "Enabled" : "Disabled", "\n",
+            "Max Parallel Tests: ", uint32_to_string(max_parallel_tests), "\n",
+            "Test Timeout: ", uint32_to_string(test_timeout_ms), " ms\n",
+            "Verbose Logging: ", verbose_logging ? "Enabled" : "Disabled", "\n",
+            "Generate Reports: ", generate_reports ? "Enabled" : "Disabled", "\n",
+            "Report Directory: ", report_directory, "\n",
+            "\nMemory Settings:\n",
+            "Initial Heap Size: ", uint64_to_string(initial_heap_size / (1024 * 1024)), " MB\n",
+            "Max Heap Size: ", uint64_to_string(max_heap_size / (1024 * 1024)), " MB\n",
+            "Memory Pool Size: ", uint64_to_string(memory_pool_size / (1024 * 1024)), " MB\n",
+            "Garbage Collection: ", enable_garbage_collection ? "Enabled" : "Disabled", "\n",
+            "GC Threshold: ", uint32_to_string(gc_threshold_percent), "%\n",
+            "\nPerformance Thresholds:\n",
+            "Max Allocation Time: ", uint32_to_string(max_allocation_time_ms), " ms\n",
+            "Max Deallocation Time: ", uint32_to_string(max_deallocation_time_ms), " ms\n",
+            "Max GC Time: ", uint32_to_string(max_gc_time_ms), " ms\n",
+            "Max Memory Usage: ", uint64_to_string(max_memory_usage_bytes / (1024 * 1024)), " MB\n",
+            "\nMonitoring Settings:\n",
+            "Performance Monitoring: ", enable_performance_monitoring ? "Enabled" : "Disabled", "\n",
+            "Memory Tracking: ", enable_memory_tracking ? "Enabled" : "Disabled", "\n",
+            "Monitoring Interval: ", uint32_to_string(monitoring_interval_ms), " ms\n",
+            "\nConfiguration Status: ", validation_msg, "\n"
+        );
+        
+        return summary;
+    }
+    
+    // Helper functions for string conversion
+    function uint32_to_string(uint32 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint32 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    function uint64_to_string(uint64 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint64 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+}
+
+// Test case configuration structure
+struct TestCaseConfig {
+    bool enabled;
+    uint32 timeout_ms;
+    uint64 memory_threshold_bytes;
+    uint32 expected_allocations;
+    uint32 expected_deallocations;
+    uint32 performance_threshold_ms;
+}

@@ -631,7 +631,20 @@ blockchain OmegaSemanticAnalyzer {
         // Type check return value jika ada
         if (stmt.has_return_value) {
             Type memory return_type = type_check_expression(stmt.return_value);
-            // TODO: Check against function's declared return type
+            
+            // Validasi return type terhadap function signature
+            if (current_function_type.has_return_type) {
+                if (!types_compatible(return_type, current_function_type.return_type)) {
+                    add_error(string.concat(
+                        "Return type mismatch: expected ", 
+                        type_to_string(current_function_type.return_type),
+                        ", got ",
+                        type_to_string(return_type)
+                    ));
+                }
+            } else {
+                add_error("Function does not declare a return type");
+            }
         }
     }
     
@@ -645,9 +658,29 @@ blockchain OmegaSemanticAnalyzer {
             return;
         }
         
-        // TODO: Type check event arguments terhadap event definition
+        // Type check event arguments terhadap event definition
+        EventDefinition memory event_def = get_event_definition(stmt.event_name);
+        if (event_def.parameters.length != stmt.arguments.length) {
+            add_error(string.concat(
+                "Event ", stmt.event_name, " expects ", 
+                uint256_to_string(event_def.parameters.length), 
+                " arguments, got ", 
+                uint256_to_string(stmt.arguments.length)
+            ));
+            return;
+        }
+        
         for (uint256 i = 0; i < stmt.arguments.length; i++) {
-            type_check_expression(stmt.arguments[i]);
+            Type memory arg_type = type_check_expression(stmt.arguments[i]);
+            if (!types_compatible(arg_type, event_def.parameters[i].data_type)) {
+                add_error(string.concat(
+                    "Event argument ", uint256_to_string(i), 
+                    " type mismatch: expected ",
+                    type_to_string(event_def.parameters[i].data_type),
+                    ", got ",
+                    type_to_string(arg_type)
+                ));
+            }
         }
     }
     
@@ -1160,8 +1193,8 @@ blockchain OmegaSemanticAnalyzer {
     function add_error(string memory message) private {
         errors.push(SemanticError({
             message: message,
-            line: 0, // TODO: Add line number tracking
-            column: 0
+            line: current_line_number,
+            column: current_column_number
         }));
     }
     

@@ -2,6 +2,8 @@
 // Advanced testing capabilities: property-based testing, fuzzing, parallel execution,
 // test generation, mutation testing, dan comprehensive reporting
 
+import "../security/secure_timestamp.mega";
+
 /// Enhanced test framework dengan advanced capabilities
 blockchain OmegaEnhancedTestFramework {
     state {
@@ -606,7 +608,8 @@ blockchain OmegaEnhancedTestFramework {
     /// Initialize test session
     function initialize_test_session() public returns (TestSession) {
         TestSession session = TestSession::new();
-        session.start_time = block.timestamp;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        session.start_time = secure_ts.get_secure_timestamp();
         session.config = config;
         session.coverage_tracker = coverage_tracker;
         return session;

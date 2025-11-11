@@ -1,0 +1,544 @@
+// OMEGA Test Suite Runner
+// Master test execution coordinator for all OMEGA components
+
+import "../memory/test_runner.mega";
+import "../memory/test_config.mega";
+import "../memory/parallel_memory_test_runner.mega";
+import "../memory/performance_monitor.mega";
+import "../../src/memory/memory_manager.mega";
+import "../../src/memory/memory_pool.mega";
+import "../../src/memory/garbage_collector.mega";
+
+blockchain RunAllTests {
+    state {
+        TestSuite[] test_suites;
+        TestSuiteRunner[] suite_runners;
+        TestConfiguration global_config;
+        TestReportCollector report_collector;
+        PerformanceMonitor global_monitor;
+        TestScheduler scheduler;
+        TestDependencyManager dependency_manager;
+        TestResultCache result_cache;
+        bool execution_in_progress;
+        uint256 total_suites;
+        uint256 completed_suites;
+        uint256 failed_suites;
+        mapping(string => TestSuiteResult) suite_results;
+    }
+    
+    constructor(TestConfiguration config) {
+        global_config = config;
+        report_collector = new TestReportCollector();
+        global_monitor = new PerformanceMonitor();
+        scheduler = new TestScheduler(config);
+        dependency_manager = new TestDependencyManager();
+        result_cache = new TestResultCache();
+        execution_in_progress = false;
+        total_suites = 0;
+        completed_suites = 0;
+        failed_suites = 0;
+        
+        initialize_test_suites();
+    }
+    
+    /// Initialize all test suites
+    function initialize_test_suites() {
+        // Memory Management Test Suite
+        TestSuite memory_suite = TestSuite{
+            name: "memory_management",
+            description: "Comprehensive memory management testing",
+            test_categories: [
+                "basic_allocation",
+                "memory_pool",
+                "garbage_collection",
+                "memory_leak_detection",
+                "performance_benchmarks",
+                "concurrent_access",
+                "fragmentation_analysis"
+            ],
+            test_files: [
+                "memory/test_config.mega",
+                "memory/test_runner.mega",
+                "memory/parallel_memory_test_runner.mega",
+                "memory/performance_monitor.mega"
+            ],
+            dependencies: [
+                "src/memory/memory_manager.mega",
+                "src/memory/memory_pool.mega",
+                "src/memory/garbage_collector.mega"
+            ],
+            priority: TestPriority.HIGH,
+            timeout: 300, // 5 minutes
+            parallel_execution: true,
+            max_parallel_tests: 8
+        };
+        
+        // Compiler Test Suite
+        TestSuite compiler_suite = TestSuite{
+            name: "compiler",
+            description: "Compiler functionality and integration tests",
+            test_categories: [
+                "lexical_analysis",
+                "parsing",
+                "semantic_analysis",
+                "code_generation",
+                "optimization",
+                "error_handling",
+                "parallel_compilation"
+            ],
+            test_files: [
+                "lexer_tests.mega",
+                "parser_tests.mega",
+                "semantic_tests.mega",
+                "codegen_tests.mega",
+                "integration_tests.mega"
+            ],
+            dependencies: [
+                "src/lexer/main.mega",
+                "src/parser/main.mega",
+                "src/semantic/main.mega",
+                "src/codegen/main.mega",
+                "src/parallel/main.mega"
+            ],
+            priority: TestPriority.HIGH,
+            timeout: 600, // 10 minutes
+            parallel_execution: true,
+            max_parallel_tests: 4
+        };
+        
+        // Security Test Suite
+        TestSuite security_suite = TestSuite{
+            name: "security",
+            description: "Security vulnerability and safety tests",
+            test_categories: [
+                "memory_safety",
+                "type_safety",
+                "access_control",
+                "input_validation",
+                "injection_prevention",
+                "cryptographic_operations",
+                "audit_logging"
+            ],
+            test_files: [
+                "security/memory_safety_tests.mega",
+                "security/type_safety_tests.mega",
+                "security/access_control_tests.mega",
+                "security/input_validation_tests.mega"
+            ],
+            dependencies: [
+                "src/security/main.mega",
+                "src/semantic/safety_checker.mega",
+                "src/utils/validator.mega"
+            ],
+            priority: TestPriority.CRITICAL,
+            timeout: 300, // 5 minutes
+            parallel_execution: false,
+            max_parallel_tests: 1
+        };
+        
+        // Performance Test Suite
+        TestSuite performance_suite = TestSuite{
+            name: "performance",
+            description: "Performance benchmarks and optimization tests",
+            test_categories: [
+                "compilation_speed",
+                "execution_performance",
+                "memory_efficiency",
+                "scalability_tests",
+                "throughput_benchmarks",
+                "latency_measurement",
+                "resource_utilization"
+            ],
+            test_files: [
+                "performance/compilation_benchmarks.mega",
+                "performance/execution_benchmarks.mega",
+                "performance/memory_benchmarks.mega",
+                "performance/scalability_tests.mega"
+            ],
+            dependencies: [
+                "src/monitoring/performance_monitor.mega",
+                "src/optimization/main.mega",
+                "src/utils/benchmark.mega"
+            ],
+            priority: TestPriority.MEDIUM,
+            timeout: 900, // 15 minutes
+            parallel_execution: true,
+            max_parallel_tests: 6
+        };
+        
+        // Integration Test Suite
+        TestSuite integration_suite = TestSuite{
+            name: "integration",
+            description: "End-to-end integration and system tests",
+            test_categories: [
+                "cross_component_integration",
+                "external_system_integration",
+                "api_integration",
+                "database_integration",
+                "file_system_integration",
+                "network_integration",
+                "deployment_integration"
+            ],
+            test_files: [
+                "integration/component_integration_tests.mega",
+                "integration/system_integration_tests.mega",
+                "integration/api_integration_tests.mega",
+                "integration/deployment_tests.mega"
+            ],
+            dependencies: [
+                "src/package_manager/main.mega",
+                "src/utils/integration_helper.mega",
+                "src/monitoring/integration_monitor.mega"
+            ],
+            priority: TestPriority.MEDIUM,
+            timeout: 1200, // 20 minutes
+            parallel_execution: true,
+            max_parallel_tests: 3
+        };
+        
+        // Cross-Chain Test Suite
+        TestSuite cross_chain_suite = TestSuite{
+            name: "cross_chain",
+            description: "Cross-chain compatibility and interoperability tests",
+            test_categories: [
+                "evm_compatibility",
+                "solana_compatibility",
+                "cosmos_compatibility",
+                "cross_chain_communication",
+                "bridge_functionality",
+                "asset_transfer",
+                "state_synchronization"
+            ],
+            test_files: [
+                "cross_chain/evm_compatibility_tests.mega",
+                "cross_chain/solana_compatibility_tests.mega",
+                "cross_chain/cosmos_compatibility_tests.mega",
+                "cross_chain/bridge_tests.mega"
+            ],
+            dependencies: [
+                "src/codegen/evm_generator.mega",
+                "src/codegen/solana_generator.mega",
+                "src/codegen/cosmos_generator.mega",
+                "src/cross_chain/main.mega"
+            ],
+            priority: TestPriority.HIGH,
+            timeout: 900, // 15 minutes
+            parallel_execution: true,
+            max_parallel_tests: 2
+        };
+        
+        test_suites = [memory_suite, compiler_suite, security_suite, performance_suite, integration_suite, cross_chain_suite];
+        total_suites = test_suites.length;
+    }
+    
+    /// Run all test suites
+    function run_all_suites() returns (CompleteTestReport) {
+        execution_in_progress = true;
+        global_monitor.start_operation("complete_test_suite_execution");
+        
+        Write-Verbose("Starting complete test suite execution...");
+        
+        // Check dependencies first
+        if (!dependency_manager.check_all_dependencies()) {
+            return CompleteTestReport{
+                success: false,
+                error_message: "Dependency check failed",
+                suite_results: [],
+                timestamp: timestamp(),
+                total_duration: 0
+            };
+        }
+        
+        // Schedule and execute test suites
+        TestSuiteExecutionPlan execution_plan = scheduler.create_execution_plan(test_suites);
+        
+        for (let plan_item in execution_plan.execution_order) {
+            TestSuite suite = plan_item.suite;
+            
+            Write-Verbose("Executing test suite: " + suite.name);
+            
+            // Check if we can use cached results
+            if (result_cache.has_valid_result(suite.name)) {
+                TestSuiteResult cached_result = result_cache.get_result(suite.name);
+                suite_results[suite.name] = cached_result;
+                completed_suites++;
+                
+                if (cached_result.success) {
+                    Write-Verbose("Using cached result for suite: " + suite.name);
+                } else {
+                    failed_suites++;
+                    Write-Verbose("Using cached failed result for suite: " + suite.name);
+                }
+                continue;
+            }
+            
+            // Execute the test suite
+            TestSuiteRunner runner = new TestSuiteRunner(suite, global_config);
+            TestSuiteResult result = runner.execute_suite();
+            
+            // Cache the result
+            result_cache.store_result(suite.name, result);
+            
+            suite_results[suite.name] = result;
+            completed_suites++;
+            
+            if (!result.success) {
+                failed_suites++;
+                Write-Verbose("Test suite failed: " + suite.name + " - " + result.error_message);
+                
+                // For critical suites, stop execution
+                if (suite.priority == TestPriority.CRITICAL) {
+                    break;
+                }
+            } else {
+                Write-Verbose("Test suite completed successfully: " + suite.name);
+            }
+            
+            // Collect detailed report
+            report_collector.collect_suite_report(result);
+        }
+        
+        global_monitor.end_operation("complete_test_suite_execution");
+        execution_in_progress = false;
+        
+        return generate_complete_report();
+    }
+    
+    /// Run specific test suites
+    function run_specific_suites(string[] suite_names) returns (CompleteTestReport) {
+        TestSuite[] selected_suites;
+        
+        for (let suite_name in suite_names) {
+            for (let suite in test_suites) {
+                if (suite.name == suite_name) {
+                    selected_suites.push(suite);
+                    break;
+                }
+            }
+        }
+        
+        if (selected_suites.empty()) {
+            return CompleteTestReport{
+                success: false,
+                error_message: "No valid test suites selected",
+                suite_results: [],
+                timestamp: timestamp(),
+                total_duration: 0
+            };
+        }
+        
+        // Temporarily replace test_suites with selected ones
+        TestSuite[] original_suites = test_suites;
+        test_suites = selected_suites;
+        total_suites = selected_suites.length;
+        
+        CompleteTestReport report = run_all_suites();
+        
+        // Restore original suites
+        test_suites = original_suites;
+        total_suites = original_suites.length;
+        
+        return report;
+    }
+    
+    /// Run tests by category
+    function run_by_category(string category) returns (CompleteTestReport) {
+        TestSuite[] matching_suites;
+        
+        for (let suite in test_suites) {
+            for (let suite_category in suite.test_categories) {
+                if (suite_category == category) {
+                    matching_suites.push(suite);
+                    break;
+                }
+            }
+        }
+        
+        if (matching_suites.empty()) {
+            return CompleteTestReport{
+                success: false,
+                error_message: "No test suites found for category: " + category,
+                suite_results: [],
+                timestamp: timestamp(),
+                total_duration: 0
+            };
+        }
+        
+        string[] suite_names;
+        for (let suite in matching_suites) {
+            suite_names.push(suite.name);
+        }
+        
+        return run_specific_suites(suite_names);
+    }
+    
+    /// Get test suite information
+    function get_suite_info() returns (TestSuiteInfo[]) {
+        TestSuiteInfo[] info;
+        
+        for (let suite in test_suites) {
+            TestSuiteResult cached_result = null;
+            if (result_cache.has_valid_result(suite.name)) {
+                cached_result = result_cache.get_result(suite.name);
+            }
+            
+            info.push(TestSuiteInfo{
+                name: suite.name,
+                description: suite.description,
+                categories: suite.test_categories,
+                priority: suite.priority,
+                timeout: suite.timeout,
+                parallel_execution: suite.parallel_execution,
+                max_parallel_tests: suite.max_parallel_tests,
+                cached_result: cached_result,
+                dependencies_satisfied: dependency_manager.check_dependencies(suite.dependencies)
+            });
+        }
+        
+        return info;
+    }
+    
+    /// Get current execution status
+    function get_execution_status() returns (TestExecutionStatus) {
+        return TestExecutionStatus{
+            in_progress: execution_in_progress,
+            total_suites: total_suites,
+            completed_suites: completed_suites,
+            failed_suites: failed_suites,
+            progress_percentage: completed_suites * 100 / max(total_suites, 1),
+            current_suite: get_current_suite_name(),
+            estimated_remaining_time: calculate_remaining_time()
+        };
+    }
+    
+    /// Stop test execution
+    function stop_execution() {
+        execution_in_progress = false;
+        scheduler.stop_all();
+        
+        for (let runner in suite_runners) {
+            runner.stop();
+        }
+        
+        Write-Verbose("Test execution stopped by user");
+    }
+    
+    /// Clear result cache
+    function clear_cache() {
+        result_cache.clear();
+        Write-Verbose("Test result cache cleared");
+    }
+    
+    /// Generate execution report
+    function generate_execution_report() returns (TestExecutionReport) {
+        return TestExecutionReport{
+            timestamp: timestamp(),
+            execution_status: get_execution_status(),
+            suite_results: suite_results,
+            performance_metrics: global_monitor.get_metrics(),
+            dependency_status: dependency_manager.get_status(),
+            cache_statistics: result_cache.get_statistics()
+        };
+    }
+    
+    /// Private helper functions
+    function generate_complete_report() private returns (CompleteTestReport) {
+        TestSuiteResult[] results;
+        uint256 total_duration = 0;
+        uint256 total_passed = 0;
+        uint256 total_failed = 0;
+        
+        for (let suite_name in suite_results) {
+            TestSuiteResult result = suite_results[suite_name];
+            results.push(result);
+            total_duration += result.duration;
+            
+            if (result.success) {
+                total_passed += result.passed_tests;
+            } else {
+                total_failed += result.failed_tests;
+            }
+        }
+        
+        bool overall_success = (failed_suites == 0) && (total_failed == 0);
+        
+        return CompleteTestReport{
+            success: overall_success,
+            error_message: overall_success ? "" : failed_suites + " test suites failed",
+            suite_results: results,
+            timestamp: timestamp(),
+            total_duration: total_duration,
+            total_suites: total_suites,
+            passed_suites: total_suites - failed_suites,
+            failed_suites: failed_suites,
+            total_tests: total_passed + total_failed,
+            passed_tests: total_passed,
+            failed_tests: total_failed,
+            success_rate: total_passed * 100 / max(total_passed + total_failed, 1),
+            performance_metrics: global_monitor.get_metrics(),
+            detailed_report: report_collector.get_complete_report()
+        };
+    }
+    
+    function get_current_suite_name() private returns (string) {
+        // Implementation to get currently executing suite
+        for (let suite_name in suite_results) {
+            if (!suite_results.exists(suite_name)) {
+                return suite_name;
+            }
+        }
+        return "";
+    }
+    
+    function calculate_remaining_time() private returns (uint256) {
+        if (completed_suites == 0) {
+            return 0;
+        }
+        
+        uint256 average_duration = 0;
+        uint256 count = 0;
+        
+        for (let result in suite_results) {
+            average_duration += result.duration;
+            count++;
+        }
+        
+        if (count == 0) {
+            return 0;
+        }
+        
+        average_duration = average_duration / count;
+        uint256 remaining_suites = total_suites - completed_suites;
+        
+        return average_duration * remaining_suites;
+    }
+    
+    /// Utility functions
+    function Write-Verbose(string message) private {
+        if (global_config.verbose) {
+            print("[TEST] " + message);
+        }
+    }
+    
+    function timestamp() private returns (uint256) {
+        return block.timestamp;
+    }
+    
+    function print(string message) private {
+        // System print function
+    }
+    
+    function random() private returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender)));
+    }
+    
+    function sleep(uint256 milliseconds) private {
+        // System sleep function - would be implemented by target platform
+    }
+    
+    event TestSuiteStarted(string suite_name, uint256 timestamp);
+    event TestSuiteCompleted(string suite_name, bool success, uint256 duration);
+    event AllTestsCompleted(uint256 total_suites, uint256 passed_suites, uint256 failed_suites);
+    event TestExecutionStopped(uint256 timestamp);
+    event CacheCleared(uint256 timestamp);
+}

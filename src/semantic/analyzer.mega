@@ -40,7 +40,9 @@ blockchain OmegaSemanticAnalyzer {
     
     /// Analyze complete program with three-phase analysis
     function analyze(Program memory program, string memory file_path) public returns (AnalysisResults memory) {
-        uint256 start_time = block.timestamp;
+        // Use secure timestamp for analysis timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
         current_file = file_path;
         
         // Set file context for all analyzers
@@ -71,7 +73,8 @@ blockchain OmegaSemanticAnalyzer {
         
         // Finalize results
         current_phase = AnalysisPhase.Complete;
-        results.analysis_time_ms = (block.timestamp - start_time) * 1000;
+        uint256 end_time = secure_ts.get_secure_timestamp();
+        results.analysis_time_ms = (end_time - start_time) * 1000;
         results.errors_found = error_handler.get_error_count();
         results.warnings_found = error_handler.get_warning_count();
         

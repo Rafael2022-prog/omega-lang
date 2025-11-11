@@ -2,7 +2,6 @@
 // Implements minimal native machine code generation and syscall lowering hooks
 
 import "../ir/ir.mega";
-import "../ir/ir_legacy.mega";
 import "../error/error.mega";
 import "../std/sys.mega";
 
@@ -115,7 +114,7 @@ blockchain NativeCodeGenerator {
 
         // Attempt to lower syscall-related events where applicable
         if (_is_linux_x86_64(target_architecture)) {
-            bytes lowered = _lower_sys_events_legacy(ir_module);
+            bytes lowered = _lower_sys_events(ir_module);
             if (lowered.length > 0) {
                 mc.data = _append(mc.data, lowered);
             } else {
@@ -135,8 +134,8 @@ blockchain NativeCodeGenerator {
         return true;
     }
 
-    // Internal: lower SysCallRequested/SysErrnoRequested from legacy IR statements
-    function _lower_sys_events_legacy(IRModule ir_module) private returns (bytes) {
+    // Internal: lower SysCallRequested/SysErrnoRequested from IR statements
+    function _lower_sys_events(IRModule ir_module) private returns (bytes) {
         bytes out = bytes(0);
         for (uint256 bi = 0; bi < ir_module.blockchains.length; bi++) {
             BlockchainIR memory bc = ir_module.blockchains[bi];
@@ -147,16 +146,16 @@ blockchain NativeCodeGenerator {
         return out;
     }
 
-    function _lower_block_legacy(BlockIR memory block) private returns (bytes) {
+    function _lower_block(BlockIR memory block) private returns (bytes) {
         bytes out = bytes(0);
         for (uint256 si = 0; si < block.statements.length; si++) {
             StatementIR memory stmt = block.statements[si];
-            out = _append(out, _lower_statement_legacy(stmt));
+            out = _append(out, _lower_statement(stmt));
         }
         return out;
     }
 
-    function _lower_statement_legacy(StatementIR memory stmt) private returns (bytes) {
+    function _lower_statement(StatementIR memory stmt) private returns (bytes) {
         if (stmt.stmt_type == IRStatementType.Emit) {
             string ev = stmt.event_name;
             if (!lowering_hooks[ev]) {
@@ -175,15 +174,15 @@ blockchain NativeCodeGenerator {
             }
             return bytes(0);
         } else if (stmt.stmt_type == IRStatementType.Block) {
-            return _lower_block_legacy(stmt.block);
+            return _lower_block(stmt.block);
         } else if (stmt.stmt_type == IRStatementType.If) {
-            bytes out = _lower_statement_legacy(stmt.then_branch);
+            bytes out = _lower_statement(stmt.then_branch);
             if (stmt.has_else_branch) {
-                out = _append(out, _lower_statement_legacy(stmt.else_branch));
+                out = _append(out, _lower_statement(stmt.else_branch));
             }
             return out;
         } else if (stmt.stmt_type == IRStatementType.While || stmt.stmt_type == IRStatementType.For) {
-            return _lower_statement_legacy(stmt.body);
+            return _lower_statement(stmt.body);
         }
         return bytes(0);
     }

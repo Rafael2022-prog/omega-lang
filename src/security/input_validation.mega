@@ -4,6 +4,7 @@
 
 import "../parser/ast_nodes.mega";
 import "../error/error_types.mega";
+import "./secure_timestamp.mega";
 
 /// Comprehensive input validation system untuk OMEGA compiler
 /// Mengimplementasikan multiple layers of validation untuk security dan safety
@@ -36,7 +37,8 @@ blockchain InputValidationSystem {
     function validate_input(bytes memory input, InputType input_type, 
                           ValidationContext memory context) public returns (ValidationResult memory) {
         
-        uint256 start_time = block.timestamp;
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
         
         // Check cache first for performance
         bytes32 validation_key = generate_validation_key(input, input_type, context);
@@ -50,7 +52,7 @@ blockchain InputValidationSystem {
         ValidationResult memory result = perform_validation(input, input_type, context);
         
         // Update metrics
-        uint256 validation_time = block.timestamp - start_time;
+        uint256 validation_time = secure_ts.get_secure_timestamp() - start_time;
         metrics.record_validation(input_type, result.is_valid, validation_time);
         
         // Cache result if appropriate

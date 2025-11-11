@@ -1,0 +1,427 @@
+# OMEGA Performance Monitor for Memory Tests
+# This module provides performance monitoring and metrics collection
+
+blockchain PerformanceMonitor {
+    state {
+        mapping(string => PerformanceMetric) metrics;
+        mapping(string => uint256[]) timing_history;
+        mapping(string => uint64[]) memory_history;
+        
+        uint256 monitoring_start_time;
+        uint64 baseline_memory;
+        bool is_monitoring_active;
+        uint32 monitoring_interval_ms;
+        
+        // Thresholds for performance alerts
+        uint32 allocation_time_threshold_ms;
+        uint32 deallocation_time_threshold_ms;
+        uint32 gc_time_threshold_ms;
+        uint64 memory_leak_threshold_bytes;
+        
+        // Statistics
+        uint32 total_samples;
+        uint32 alert_count;
+        mapping(string => uint32) alert_types;
+    }
+    
+    constructor() {
+        monitoring_start_time = 0;
+        baseline_memory = 0;
+        is_monitoring_active = false;
+        monitoring_interval_ms = 100; // 100ms default
+        
+        // Default thresholds
+        allocation_time_threshold_ms = 100;
+        deallocation_time_threshold_ms = 50;
+        gc_time_threshold_ms = 5000;
+        memory_leak_threshold_bytes = 10 * 1024 * 1024; // 10MB
+        
+        total_samples = 0;
+        alert_count = 0;
+        
+        initialize_default_metrics();
+    }
+    
+    function initialize_default_metrics() private {
+        // Initialize common performance metrics
+        metrics["allocation_time"] = PerformanceMetric({
+            name: "allocation_time",
+            unit: "ms",
+            min_value: 0,
+            max_value: 0,
+            avg_value: 0,
+            last_value: 0,
+            sample_count: 0,
+            total_value: 0
+        });
+        
+        metrics["deallocation_time"] = PerformanceMetric({
+            name: "deallocation_time",
+            unit: "ms",
+            min_value: 0,
+            max_value: 0,
+            avg_value: 0,
+            last_value: 0,
+            sample_count: 0,
+            total_value: 0
+        });
+        
+        metrics["gc_time"] = PerformanceMetric({
+            name: "gc_time",
+            unit: "ms",
+            min_value: 0,
+            max_value: 0,
+            avg_value: 0,
+            last_value: 0,
+            sample_count: 0,
+            total_value: 0
+        });
+        
+        metrics["memory_usage"] = PerformanceMetric({
+            name: "memory_usage",
+            unit: "bytes",
+            min_value: 0,
+            max_value: 0,
+            avg_value: 0,
+            last_value: 0,
+            sample_count: 0,
+            total_value: 0
+        });
+        
+        metrics["allocation_rate"] = PerformanceMetric({
+            name: "allocation_rate",
+            unit: "ops/sec",
+            min_value: 0,
+            max_value: 0,
+            avg_value: 0,
+            last_value: 0,
+            sample_count: 0,
+            total_value: 0
+        });
+    }
+    
+    function start_monitoring() public {
+        monitoring_start_time = block.timestamp;
+        baseline_memory = get_current_memory_usage();
+        is_monitoring_active = true;
+        
+        print("Performance monitoring started");
+        print("Baseline memory: " + uint64_to_string(baseline_memory) + " bytes");
+    }
+    
+    function stop_monitoring() public {
+        is_monitoring_active = false;
+        uint256 duration = block.timestamp - monitoring_start_time;
+        
+        print("Performance monitoring stopped");
+        print("Duration: " + uint256_to_string(duration) + " seconds");
+        print("Total samples: " + uint32_to_string(total_samples));
+        print("Total alerts: " + uint32_to_string(alert_count));
+    }
+    
+    function record_timing(
+        string memory metric_name,
+        uint32 duration_ms
+    ) public {
+        if (!is_monitoring_active) return;
+        
+        PerformanceMetric storage metric = metrics[metric_name];
+        
+        // Update metric statistics
+        if (metric.sample_count == 0) {
+            metric.min_value = duration_ms;
+            metric.max_value = duration_ms;
+        } else {
+            if (duration_ms < metric.min_value) {
+                metric.min_value = duration_ms;
+            }
+            if (duration_ms > metric.max_value) {
+                metric.max_value = duration_ms;
+            }
+        }
+        
+        metric.sample_count++;
+        metric.total_value += duration_ms;
+        metric.avg_value = metric.total_value / metric.sample_count;
+        metric.last_value = duration_ms;
+        
+        // Store in history
+        timing_history[metric_name].push(duration_ms);
+        
+        // Check for performance alerts
+        check_performance_alert(metric_name, duration_ms);
+        
+        total_samples++;
+    }
+    
+    function record_memory_usage(
+        string memory category,
+        uint64 memory_bytes
+    ) public {
+        if (!is_monitoring_active) return;
+        
+        PerformanceMetric storage metric = metrics["memory_usage"];
+        
+        // Update memory statistics
+        if (metric.sample_count == 0) {
+            metric.min_value = memory_bytes;
+            metric.max_value = memory_bytes;
+        } else {
+            if (memory_bytes < metric.min_value) {
+                metric.min_value = memory_bytes;
+            }
+            if (memory_bytes > metric.max_value) {
+                metric.max_value = memory_bytes;
+            }
+        }
+        
+        metric.sample_count++;
+        metric.total_value += memory_bytes;
+        metric.avg_value = metric.total_value / metric.sample_count;
+        metric.last_value = memory_bytes;
+        
+        // Store in history
+        memory_history[category].push(memory_bytes);
+        
+        // Check for memory leak
+        if (memory_bytes > baseline_memory + memory_leak_threshold_bytes) {
+            alert_count++;
+            alert_types["memory_leak"]++;
+            print("ALERT: Potential memory leak detected!");
+            print("Current: " + uint64_to_string(memory_bytes) + " bytes");
+            print("Baseline: " + uint64_to_string(baseline_memory) + " bytes");
+        }
+    }
+    
+    function record_allocation_rate(
+        uint32 allocations,
+        uint256 time_window_ms
+    ) public {
+        if (!is_monitoring_active || time_window_ms == 0) return;
+        
+        uint32 rate = (allocations * 1000) / time_window_ms; // allocations per second
+        
+        PerformanceMetric storage metric = metrics["allocation_rate"];
+        
+        if (metric.sample_count == 0) {
+            metric.min_value = rate;
+            metric.max_value = rate;
+        } else {
+            if (rate < metric.min_value) {
+                metric.min_value = rate;
+            }
+            if (rate > metric.max_value) {
+                metric.max_value = rate;
+            }
+        }
+        
+        metric.sample_count++;
+        metric.total_value += rate;
+        metric.avg_value = metric.total_value / metric.sample_count;
+        metric.last_value = rate;
+    }
+    
+    function check_performance_alert(
+        string memory metric_name,
+        uint32 value
+    ) private {
+        uint32 threshold = 0;
+        
+        if (metric_name == "allocation_time") {
+            threshold = allocation_time_threshold_ms;
+        } else if (metric_name == "deallocation_time") {
+            threshold = deallocation_time_threshold_ms;
+        } else if (metric_name == "gc_time") {
+            threshold = gc_time_threshold_ms;
+        }
+        
+        if (threshold > 0 && value > threshold) {
+            alert_count++;
+            alert_types[metric_name + "_threshold"]++;
+            print("ALERT: " + metric_name + " threshold exceeded!");
+            print("Value: " + uint32_to_string(value) + " ms, Threshold: " + uint32_to_string(threshold) + " ms");
+        }
+    }
+    
+    function get_metric(
+        string memory metric_name
+    ) public view returns (PerformanceMetric memory) {
+        return metrics[metric_name];
+    }
+    
+    function get_timing_history(
+        string memory metric_name
+    ) public view returns (uint256[] memory) {
+        return timing_history[metric_name];
+    }
+    
+    function get_memory_history(
+        string memory category
+    ) public view returns (uint64[] memory) {
+        return memory_history[category];
+    }
+    
+    function get_performance_summary() public view returns (string memory) {
+        string memory summary = "Performance Monitoring Summary:\n";
+        summary = string.concat(summary, "================================\n");
+        summary = string.concat(summary, "Monitoring Duration: ");
+        summary = string.concat(summary, uint256_to_string(block.timestamp - monitoring_start_time));
+        summary = string.concat(summary, " seconds\n");
+        summary = string.concat(summary, "Total Samples: ");
+        summary = string.concat(summary, uint32_to_string(total_samples));
+        summary = string.concat(summary, "\nTotal Alerts: ");
+        summary = string.concat(summary, uint32_to_string(alert_count));
+        summary = string.concat(summary, "\n\nMetrics:\n");
+        
+        // Add metrics summary
+        summary = string.concat(summary, get_metric_summary("allocation_time"));
+        summary = string.concat(summary, get_metric_summary("deallocation_time"));
+        summary = string.concat(summary, get_metric_summary("gc_time"));
+        summary = string.concat(summary, get_metric_summary("memory_usage"));
+        summary = string.concat(summary, get_metric_summary("allocation_rate"));
+        
+        return summary;
+    }
+    
+    function get_metric_summary(
+        string memory metric_name
+    ) private view returns (string memory) {
+        PerformanceMetric storage metric = metrics[metric_name];
+        
+        string memory summary = string.concat("  ", metric_name, ":\n");
+        summary = string.concat(summary, "    Min: ");
+        summary = string.concat(summary, uint256_to_string(metric.min_value));
+        summary = string.concat(summary, " ", metric.unit, "\n");
+        summary = string.concat(summary, "    Max: ");
+        summary = string.concat(summary, uint256_to_string(metric.max_value));
+        summary = string.concat(summary, " ", metric.unit, "\n");
+        summary = string.concat(summary, "    Avg: ");
+        summary = string.concat(summary, uint256_to_string(metric.avg_value));
+        summary = string.concat(summary, " ", metric.unit, "\n");
+        summary = string.concat(summary, "    Samples: ");
+        summary = string.concat(summary, uint32_to_string(metric.sample_count));
+        summary = string.concat(summary, "\n");
+        
+        return summary;
+    }
+    
+    function update_threshold(
+        string memory threshold_type,
+        uint32 new_threshold
+    ) public {
+        if (threshold_type == "allocation") {
+            allocation_time_threshold_ms = new_threshold;
+        } else if (threshold_type == "deallocation") {
+            deallocation_time_threshold_ms = new_threshold;
+        } else if (threshold_type == "gc") {
+            gc_time_threshold_ms = new_threshold;
+        } else if (threshold_type == "memory_leak") {
+            memory_leak_threshold_bytes = new_threshold;
+        }
+        
+        print("Updated threshold: ");
+        print(threshold_type + " = " + uint32_to_string(new_threshold));
+    }
+    
+    function reset_metrics() public {
+        // Reset all metrics
+        delete metrics["allocation_time"];
+        delete metrics["deallocation_time"];
+        delete metrics["gc_time"];
+        delete metrics["memory_usage"];
+        delete metrics["allocation_rate"];
+        
+        // Clear history
+        delete timing_history["allocation_time"];
+        delete timing_history["deallocation_time"];
+        delete timing_history["gc_time"];
+        delete memory_history["test_execution"];
+        
+        total_samples = 0;
+        alert_count = 0;
+        
+        // Re-initialize
+        initialize_default_metrics();
+        
+        print("All metrics reset");
+    }
+    
+    function get_current_memory_usage() private view returns (uint64) {
+        // This would interface with the actual memory manager
+        // For now, return a simulated value
+        return 1024 * 1024 * 10; // 10MB baseline
+    }
+    
+    // Helper functions for string conversion
+    function uint32_to_string(uint32 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint32 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    function uint256_to_string(uint256 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + (value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+    
+    function uint64_to_string(uint64 value) private pure returns (string memory) {
+        if (value == 0) return "0";
+        
+        uint64 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        
+        return string(buffer);
+    }
+}
+
+// Performance metric structure
+struct PerformanceMetric {
+    string name;
+    string unit;
+    uint256 min_value;
+    uint256 max_value;
+    uint256 avg_value;
+    uint256 last_value;
+    uint32 sample_count;
+    uint256 total_value;
+}

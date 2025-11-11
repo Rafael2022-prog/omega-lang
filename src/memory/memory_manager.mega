@@ -1,0 +1,555 @@
+// OMEGA Memory Manager
+// Sistem manajemen memori utama yang mengintegrasikan memory pool dan garbage collection
+
+import std::collections;
+import std::math;
+import "./memory_pool.mega";
+import "./garbage_collector.mega";
+import "../utils/secure_timestamp.mega";
+
+/// Memory allocation request
+struct AllocationRequest {
+    uint256 size;              // Requested size in bytes
+    string object_type;        // Type of object being allocated
+    string memory_tag;         // Tag for debugging/monitoring
+    uint256 priority;          // Allocation priority (0-10)
+    uint256 max_lifetime;      // Maximum expected lifetime in seconds
+    bool require_contiguous;   // Require contiguous memory
+    address owner;             // Requesting address
+}
+
+/// Memory allocation result
+struct AllocationResult {
+    bool success;              // Allocation success flag
+    bytes32 object_id;         // Allocated object ID
+    bytes32 memory_block_id;   // Memory block ID
+    uint256 allocated_size;    // Actual allocated size
+    uint256 allocation_time;   // Time of allocation
+    string error_message;      // Error message if failed
+    uint256 memory_usage;      // Current memory usage percentage
+}
+
+/// Memory manager statistics
+struct MemoryManagerStats {
+    uint256 total_allocations;     // Total allocation requests
+    uint256 successful_allocations; // Successful allocations
+    uint256 failed_allocations;    // Failed allocations
+    uint256 total_deallocations;   // Total deallocations
+    uint256 active_objects;        // Currently active objects
+    uint256 total_memory_used;     // Total memory in use
+    uint256 peak_memory_usage;     // Peak memory usage
+    uint256 avg_allocation_time;   // Average allocation time
+    uint256 avg_deallocation_time; // Average deallocation time
+    uint256 last_gc_time;          // Last garbage collection time
+    uint256 memory_fragmentation;  // Memory fragmentation percentage
+}
+
+/// Memory manager configuration
+struct MemoryManagerConfig {
+    uint256 heap_size;                   // Total heap size
+    uint256 min_block_size;              // Minimum block size
+    uint256 max_block_size;              // Maximum block size
+    uint256 gc_threshold;                // GC threshold percentage
+    uint256 fragmentation_threshold;     // Fragmentation threshold
+    bool enable_auto_gc;                 // Enable automatic GC
+    bool enable_memory_pooling;          // Enable memory pooling
+    bool enable_statistics;              // Enable statistics
+    bool enable_debugging;               // Enable debugging
+    GCStrategy default_gc_strategy;      // Default GC strategy
+}
+
+/// Main Memory Manager blockchain
+blockchain MemoryManager {
+    state {
+        MemoryManagerConfig config;                        // Configuration
+        MemoryManagerStats stats;                            // Statistics
+        MemoryPool memory_pool;                              // Memory pool instance
+        GarbageCollector garbage_collector;                  // Garbage collector instance
+        mapping(bytes32 => AllocationRequest) allocations;   // Active allocations
+        mapping(bytes32 => AllocationResult) results;       // Allocation results
+        mapping(address => bytes32[]) user_allocations;     // User allocations
+        mapping(string => uint256) type_allocations;        // Allocations by type
+        mapping(uint256 => bytes32[]) priority_queues;      // Priority-based allocation queues
+        uint256 memory_manager_creation_time;               // Creation timestamp
+        bool memory_manager_initialized;                    // Initialization flag
+        mapping(string => uint256) performance_metrics;     // Performance metrics
+    }
+    
+    constructor() {
+        config = MemoryManagerConfig({
+            heap_size: 1024 * 1024 * 200,      // 200MB default heap
+            min_block_size: 64,                 // 64 bytes minimum
+            max_block_size: 1024 * 1024 * 10,  // 10MB maximum
+            gc_threshold: 80,                   // 80% usage triggers GC
+            fragmentation_threshold: 25,        // 25% fragmentation triggers defrag
+            enable_auto_gc: true,
+            enable_memory_pooling: true,
+            enable_statistics: true,
+            enable_debugging: false,
+            default_gc_strategy: GCStrategy::MARK_SWEEP
+        });
+        
+        stats = MemoryManagerStats({
+            total_allocations: 0,
+            successful_allocations: 0,
+            failed_allocations: 0,
+            total_deallocations: 0,
+            active_objects: 0,
+            total_memory_used: 0,
+            peak_memory_usage: 0,
+            avg_allocation_time: 0,
+            avg_deallocation_time: 0,
+            last_gc_time: 0,
+            memory_fragmentation: 0
+        });
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        memory_manager_creation_time = secure_ts.get_secure_timestamp();
+        memory_manager_initialized = false;
+        
+        // Initialize subsystems
+        initialize_memory_system();
+    }
+    
+    /// Initialize memory system components
+    function initialize_memory_system() internal {
+        // Create memory pool
+        memory_pool = new MemoryPool();
+        
+        // Create garbage collector with memory pool reference
+        garbage_collector = new GarbageCollector(address(memory_pool));
+        
+        // Configure subsystems
+        configure_memory_pool();
+        configure_garbage_collector();
+        
+        memory_manager_initialized = true;
+        
+        if (config.enable_debugging) {
+            io::println("OMEGA Memory Manager initialized successfully");
+        }
+    }
+    
+    /// Configure memory pool
+    function configure_memory_pool() internal {
+        MemoryPoolConfig memory pool_config = MemoryPoolConfig({
+            pool_size: config.heap_size,
+            block_size: config.min_block_size,
+            max_blocks: config.heap_size / config.min_block_size,
+            gc_threshold: config.gc_threshold,
+            max_allocation_time: 3600, // 1 hour
+            enable_auto_gc: config.enable_auto_gc,
+            enable_debugging: config.enable_debugging
+        });
+        
+        memory_pool.update_config(pool_config);
+    }
+    
+    /// Configure garbage collector
+    function configure_garbage_collector() internal {
+        GCConfig memory gc_config = GCConfig({
+            default_strategy: config.default_gc_strategy,
+            collection_threshold: config.gc_threshold,
+            time_threshold: 300, // 5 minutes
+            max_pause_time: 100, // 100ms
+            generational_threshold: 2,
+            enable_concurrent_gc: false,
+            enable_statistics: config.enable_statistics,
+            enable_debugging: config.enable_debugging
+        });
+        
+        garbage_collector.update_config(gc_config);
+    }
+    
+    /// Allocate memory with advanced features
+    function allocate(AllocationRequest memory request) public returns (AllocationResult memory) {
+        require(memory_manager_initialized, "Memory manager not initialized");
+        require(request.size > 0, "Invalid allocation size");
+        require(request.size <= config.max_block_size, "Size exceeds maximum block size");
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
+        
+        stats.total_allocations++;
+        
+        // Create allocation result
+        AllocationResult memory result = AllocationResult({
+            success: false,
+            object_id: bytes32(0),
+            memory_block_id: bytes32(0),
+            allocated_size: 0,
+            allocation_time: start_time,
+            error_message: "",
+            memory_usage: 0
+        });
+        
+        // Validate allocation request
+        if (!validate_allocation_request(request)) {
+            result.error_message = "Invalid allocation request";
+            stats.failed_allocations++;
+            return result;
+        }
+        
+        // Check if garbage collection is needed
+        if (should_trigger_gc_before_allocation(request.size)) {
+            if (config.enable_debugging) {
+                io::println("Triggering GC before allocation");
+            }
+            garbage_collector.force_collection();
+        }
+        
+        // Attempt memory allocation
+        bytes32 memory_block_id = attempt_memory_allocation(request);
+        
+        if (memory_block_id == bytes32(0)) {
+            result.error_message = "Memory allocation failed";
+            stats.failed_allocations++;
+            
+            if (config.enable_debugging) {
+                io::println("Memory allocation failed for size: " + request.size.toString());
+            }
+            
+            return result;
+        }
+        
+        // Generate unique object ID
+        bytes32 object_id = generate_object_id(request);
+        
+        // Register object with garbage collector
+        garbage_collector.register_object(object_id, request.size, request.object_type);
+        
+        // Store allocation information
+        allocations[object_id] = request;
+        
+        // Update result
+        result.success = true;
+        result.object_id = object_id;
+        result.memory_block_id = memory_block_id;
+        result.allocated_size = request.size;
+        result.memory_usage = get_memory_usage_percentage();
+        
+        // Update statistics
+        stats.successful_allocations++;
+        stats.active_objects++;
+        stats.total_memory_used += request.size;
+        
+        if (stats.total_memory_used > stats.peak_memory_usage) {
+            stats.peak_memory_usage = stats.total_memory_used;
+        }
+        
+        // Update user and type tracking
+        user_allocations[msg.sender].push(object_id);
+        type_allocations[request.object_type]++;
+        
+        // Update allocation time statistics
+        uint256 allocation_time = secure_ts.get_secure_timestamp() - start_time;
+        update_allocation_time_stats(allocation_time);
+        
+        // Store result for tracking
+        results[object_id] = result;
+        
+        if (config.enable_debugging) {
+            io::println("Memory allocated successfully:");
+            io::println("- Object ID: " + object_id.toHexString());
+            io::println("- Size: " + request.size.toString() + " bytes");
+            io::println("- Type: " + request.object_type);
+            io::println("- Time: " + allocation_time.toString() + " ms");
+        }
+        
+        return result;
+    }
+    
+    /// Simple allocate function (wrapper)
+    function allocate(uint256 size, string memory object_type) public returns (bytes32) {
+        AllocationRequest memory request = AllocationRequest({
+            size: size,
+            object_type: object_type,
+            memory_tag: "",
+            priority: 5,
+            max_lifetime: 3600, // 1 hour default
+            require_contiguous: false,
+            owner: msg.sender
+        });
+        
+        AllocationResult memory result = allocate(request);
+        
+        if (result.success) {
+            return result.object_id;
+        } else {
+            return bytes32(0);
+        }
+    }
+    
+    /// Deallocate memory
+    function deallocate(bytes32 object_id) public returns (bool) {
+        require(memory_manager_initialized, "Memory manager not initialized");
+        require(allocations[object_id].size > 0, "Invalid object ID");
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp();
+        
+        AllocationRequest storage request = allocations[object_id];
+        AllocationResult storage result = results[object_id];
+        
+        require(request.owner == msg.sender, "Unauthorized deallocation");
+        
+        // Deallocate from memory pool
+        memory_pool.deallocate(result.memory_block_id);
+        
+        // Unregister from garbage collector
+        garbage_collector.unregister_object(object_id);
+        
+        // Update statistics
+        stats.total_deallocations++;
+        stats.active_objects--;
+        stats.total_memory_used -= request.size;
+        type_allocations[request.object_type]--;
+        
+        // Remove from user allocations
+        remove_user_allocation(msg.sender, object_id);
+        
+        // Update deallocation time statistics
+        uint256 deallocation_time = secure_ts.get_secure_timestamp() - start_time;
+        update_deallocation_time_stats(deallocation_time);
+        
+        // Clean up tracking data
+        delete allocations[object_id];
+        delete results[object_id];
+        
+        if (config.enable_debugging) {
+            io::println("Memory deallocated successfully:");
+            io::println("- Object ID: " + object_id.toHexString());
+            io::println("- Size: " + request.size.toString() + " bytes");
+            io::println("- Time: " + deallocation_time.toString() + " ms");
+        }
+        
+        // Check if defragmentation is needed
+        if (should_defragment()) {
+            defragment_memory();
+        }
+        
+        return true;
+    }
+    
+    /// Validate allocation request
+    function validate_allocation_request(AllocationRequest memory request) internal pure returns (bool) {
+        return request.size > 0 &&
+               request.size <= type(uint256).max &&
+               bytes(request.object_type).length > 0 &&
+               request.priority >= 0 &&
+               request.priority <= 10 &&
+               request.max_lifetime > 0;
+    }
+    
+    /// Check if GC should be triggered before allocation
+    function should_trigger_gc_before_allocation(uint256 requested_size) internal view returns (bool) {
+        uint256 projected_usage = stats.total_memory_used + requested_size;
+        uint256 usage_percentage = (projected_usage * 100) / config.heap_size;
+        
+        return usage_percentage >= config.gc_threshold;
+    }
+    
+    /// Attempt memory allocation
+    function attempt_memory_allocation(AllocationRequest memory request) internal returns (bytes32) {
+        return memory_pool.allocate(request.size, request.memory_tag);
+    }
+    
+    /// Generate unique object ID
+    function generate_object_id(AllocationRequest memory request) internal returns (bytes32) {
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 timestamp = secure_ts.get_secure_timestamp();
+        
+        return keccak256(abi.encodePacked(
+            request.object_type,
+            request.size,
+            request.owner,
+            timestamp,
+            stats.total_allocations
+        ));
+    }
+    
+    /// Get memory usage percentage
+    function get_memory_usage_percentage() internal view returns (uint256) {
+        return (stats.total_memory_used * 100) / config.heap_size;
+    }
+    
+    /// Update allocation time statistics
+    function update_allocation_time_stats(uint256 allocation_time) internal {
+        if (stats.successful_allocations == 1) {
+            stats.avg_allocation_time = allocation_time;
+        } else {
+            stats.avg_allocation_time = (stats.avg_allocation_time * (stats.successful_allocations - 1) + allocation_time) / stats.successful_allocations;
+        }
+    }
+    
+    /// Update deallocation time statistics
+    function update_deallocation_time_stats(uint256 deallocation_time) internal {
+        if (stats.total_deallocations == 1) {
+            stats.avg_deallocation_time = deallocation_time;
+        } else {
+            stats.avg_deallocation_time = (stats.avg_deallocation_time * (stats.total_deallocations - 1) + deallocation_time) / stats.total_deallocations;
+        }
+    }
+    
+    /// Remove user allocation
+    function remove_user_allocation(address user, bytes32 object_id) internal {
+        bytes32[] storage user_allocs = user_allocations[user];
+        
+        for (uint256 i = 0; i < user_allocs.length; i++) {
+            if (user_allocs[i] == object_id) {
+                user_allocs[i] = user_allocs[user_allocs.length - 1];
+                user_allocs.pop();
+                break;
+            }
+        }
+    }
+    
+    /// Check if defragmentation is needed
+    function should_defragment() internal view returns (bool) {
+        uint256 fragmentation = calculate_fragmentation();
+        return fragmentation >= config.fragmentation_threshold;
+    }
+    
+    /// Calculate memory fragmentation percentage
+    function calculate_fragmentation() internal view returns (uint256) {
+        // Simplified fragmentation calculation
+        // In real implementation, would analyze free block distribution
+        uint256 free_blocks = memory_pool.get_memory_stats().free_blocks;
+        uint256 total_blocks = free_blocks + stats.active_objects;
+        
+        if (total_blocks == 0) return 0;
+        
+        return (free_blocks * 100) / total_blocks;
+    }
+    
+    /// Defragment memory
+    function defragment_memory() internal {
+        if (config.enable_debugging) {
+            io::println("Starting memory defragmentation");
+        }
+        
+        // Trigger garbage collection to free up memory
+        garbage_collector.force_collection();
+        
+        // Run memory pool defragmentation
+        memory_pool.force_gc();
+        
+        if (config.enable_debugging) {
+            io::println("Memory defragmentation completed");
+        }
+    }
+    
+    /// Force garbage collection
+    function force_garbage_collection() public returns (uint256) {
+        return garbage_collector.force_collection();
+    }
+    
+    /// Get memory statistics
+    function get_memory_stats() public view returns (MemoryManagerStats memory) {
+        return stats;
+    }
+    
+    /// Get memory configuration
+    function get_memory_config() public view returns (MemoryManagerConfig memory) {
+        return config;
+    }
+    
+    /// Get user's allocations
+    function get_user_allocations(address user) public view returns (bytes32[] memory) {
+        return user_allocations[user];
+    }
+    
+    /// Get allocation information
+    function get_allocation_info(bytes32 object_id) public view returns (AllocationRequest memory, AllocationResult memory) {
+        return (allocations[object_id], results[object_id]);
+    }
+    
+    /// Get allocation by type
+    function get_allocations_by_type(string memory object_type) public view returns (uint256) {
+        return type_allocations[object_type];
+    }
+    
+    /// Update memory configuration
+    function update_config(MemoryManagerConfig memory new_config) public {
+        config = new_config;
+        
+        // Reconfigure subsystems
+        configure_memory_pool();
+        configure_garbage_collector();
+    }
+    
+    /// Get comprehensive memory report
+    function get_memory_report() public view returns (string memory) {
+        string memory report = "=== OMEGA Memory Manager Report ===\n\n";
+        
+        // Overall statistics
+        report = string(abi.encodePacked(report, "=== Overall Statistics ===\n"));
+        report = string(abi.encodePacked(report, "Total Allocations: "));
+        report = string(abi.encodePacked(report, stats.total_allocations.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "Successful Allocations: "));
+        report = string(abi.encodePacked(report, stats.successful_allocations.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "Failed Allocations: "));
+        report = string(abi.encodePacked(report, stats.failed_allocations.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "Total Deallocations: "));
+        report = string(abi.encodePacked(report, stats.total_deallocations.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        report = string(abi.encodePacked(report, "Active Objects: "));
+        report = string(abi.encodePacked(report, stats.active_objects.toString()));
+        report = string(abi.encodePacked(report, "\n"));
+        
+        // Memory usage
+        report = string(abi.encodePacked(report, "\n=== Memory Usage ===\n"));
+        report = string(abi.encodePacked(report, "Total Memory: "));
+        report = string(abi.encodePacked(report, (config.heap_size / 1024 / 1024).toString()));
+        report = string(abi.encodePacked(report, " MB\n"));
+        
+        report = string(abi.encodePacked(report, "Used Memory: "));
+        report = string(abi.encodePacked(report, (stats.total_memory_used / 1024 / 1024).toString()));
+        report = string(abi.encodePacked(report, " MB\n"));
+        
+        report = string(abi.encodePacked(report, "Memory Usage: "));
+        report = string(abi.encodePacked(report, get_memory_usage_percentage().toString()));
+        report = string(abi.encodePacked(report, "%\n"));
+        
+        report = string(abi.encodePacked(report, "Peak Memory Usage: "));
+        report = string(abi.encodePacked(report, (stats.peak_memory_usage / 1024 / 1024).toString()));
+        report = string(abi.encodePacked(report, " MB\n"));
+        
+        // Performance metrics
+        report = string(abi.encodePacked(report, "\n=== Performance Metrics ===\n"));
+        report = string(abi.encodePacked(report, "Avg Allocation Time: "));
+        report = string(abi.encodePacked(report, stats.avg_allocation_time.toString()));
+        report = string(abi.encodePacked(report, " ms\n"));
+        
+        report = string(abi.encodePacked(report, "Avg Deallocation Time: "));
+        report = string(abi.encodePacked(report, stats.avg_deallocation_time.toString()));
+        report = string(abi.encodePacked(report, " ms\n"));
+        
+        report = string(abi.encodePacked(report, "Memory Fragmentation: "));
+        report = string(abi.encodePacked(report, calculate_fragmentation().toString()));
+        report = string(abi.encodePacked(report, "%\n"));
+        
+        return report;
+    }
+    
+    /// Enable debugging
+    function enable_debugging() public {
+        config.enable_debugging = true;
+        memory_pool.set_debugging(true);
+        garbage_collector.update_config(config.gc_config);
+    }
+    
+    /// Disable debugging
+    function disable_debugging() public {
+        config.enable_debugging = false;
+        memory_pool.set_debugging(false);
+        garbage_collector.update_config(config.gc_config);
+    }
+}

@@ -36,48 +36,43 @@ available = [
 ]
 
 [dependencies]
-# Core MEGA standard library
-mega-std = { version = "1.0.0", path = "lib/mega-std" }
-mega-blockchain = { version = "1.0.0", path = "lib/mega-blockchain" }
-mega-crypto = { version = "1.0.0", path = "lib/mega-crypto" }
-
-# Compiler infrastructure
-mega-lexer = { version = "1.0.0", path = "src/lexer" }
-mega-parser = { version = "1.0.0", path = "src/parser" }
-mega-semantic = { version = "1.0.0", path = "src/semantic" }
-mega-ir = { version = "1.0.0", path = "src/ir" }
-mega-codegen = { version = "1.0.0", path = "src/codegen" }
-
-# External blockchain libraries (for code generation)
-evm-abi = { version = "2.0.0", optional = true }
-solana-program = { version = "1.17.0", optional = true }
-cosmwasm-std = { version = "1.5.0", optional = true }
+# Core OMEGA standard library modules
+omega-std = { version = "1.1.0", path = "src/std" }
+omega-lexer = { version = "1.1.0", path = "src/lexer" }
+omega-parser = { version = "1.1.0", path = "src/parser" }
+omega-semantic = { version = "1.1.0", path = "src/semantic" }
+omega-ir = { version = "1.1.0", path = "src/ir" }
+omega-codegen = { version = "1.1.0", path = "src/codegen" }
+omega-error = { version = "1.1.0", path = "src/error" }
+omega-optimization = { version = "1.1.0", path = "src/optimization" }
+omega-security = { version = "1.1.0", path = "src/security" }
+omega-testing = { version = "1.1.0", path = "src/testing" }
 
 [dev-dependencies]
-mega-test = { version = "1.0.0", path = "lib/mega-test" }
-mega-benchmark = { version = "1.0.0", path = "lib/mega-benchmark" }
+omega-test = { version = "1.1.0", path = "src/testing" }
+omega-benchmark = { version = "1.1.0", path = "src/testing" }
 
 [features]
-default = ["evm", "solana", "parallel"]
+default = ["evm", "solana", "cosmos", "cross-chain"]
 
 # Blockchain targets
-evm = ["evm-abi"]
-solana = ["solana-program"]
-cosmos = ["cosmwasm-std"]
-substrate = []
-move = []
-near = []
+evm = ["omega-codegen/evm"]
+solana = ["omega-codegen/solana"]
+cosmos = ["omega-codegen/cosmos"]
+substrate = ["omega-codegen/substrate"]
+move = ["omega-codegen/move"]
+near = ["omega-codegen/near"]
 
 # Compiler features
-parallel = []
-debug = []
+parallel = ["omega-compiler/parallel"]
+debug = ["omega-error/debug"]
 profiling = []
-cross-chain = ["evm", "solana", "cosmos"]
+cross-chain = ["evm", "solana", "cosmos", "omega-codegen/cross-chain"]
 
 # Optimization features
-aggressive-optimization = []
-size-optimization = []
-gas-optimization = ["evm"]
+aggressive-optimization = ["omega-optimization/aggressive"]
+size-optimization = ["omega-optimization/size"]
+gas-optimization = ["evm", "omega-optimization/gas"]
 
 [build]
 # Build scripts and hooks

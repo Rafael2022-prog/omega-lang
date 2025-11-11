@@ -77,7 +77,9 @@ blockchain EVMCodeGenerator is BaseCodeGenerator {
             return "";
         }
         
-        uint256 start_time = block.timestamp * 1000; // Simplified timestamp
+        // Use secure timestamp for generation timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp() * 1000; // Simplified timestamp
         
         string memory result = "";
         
@@ -93,7 +95,8 @@ blockchain EVMCodeGenerator is BaseCodeGenerator {
         }
         
         // Update statistics
-        stats.generation_time_ms = (block.timestamp * 1000) - start_time;
+        uint256 end_time = secure_ts.get_secure_timestamp() * 1000;
+        stats.generation_time_ms = end_time - start_time;
         update_stats_contracts();
         
         return result;

@@ -22,9 +22,23 @@ blockchain LendingPool {
         base_interest_rate = _base_rate;
     }
 
-    function _key(address user, address token) public returns (string) {
-        // TODO: Derive canonical key (e.g., keccak256(user||token) -> hex string)
-        return "";
+    function _key(address user, address token) public pure returns (string) {
+        // Implementasi canonical key derivation menggunakan keccak256
+        bytes32 hash = keccak256(abi.encodePacked(user, token));
+        return to_hex_string(hash);
+    }
+    
+    function to_hex_string(bytes32 data) private pure returns (string) {
+        bytes memory hex_chars = "0123456789abcdef";
+        bytes memory result = new bytes(64);
+        
+        for (uint256 i = 0; i < 32; i++) {
+            bytes1 byte_val = bytes1(uint8(uint256(data) >> (8 * (31 - i))));
+            result[i * 2] = hex_chars[uint8(byte_val >> 4)];
+            result[i * 2 + 1] = hex_chars[uint8(byte_val & 0x0f)];
+        }
+        
+        return string(result);
     }
 
     function deposit(address token, uint256 amount) public returns (bool) {

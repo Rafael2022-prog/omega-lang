@@ -107,15 +107,10 @@ $startTime = Get-Date
 Write-Host "🔍 Test Type: $TestType" -ForegroundColor Cyan
 $normalizedTestType = ("" + $TestType).Trim().ToLower()
 Write-Host "Normalized Test Type: $normalizedTestType" -ForegroundColor Cyan
-Add-Content -Path "R:\OMEGA\debug.txt" -Value "TESTTYPE:$normalizedTestType"
-# DEBUG: Ensure testResults gets at least one entry
-$testResults["Debug Entry"] = $true
-Add-Content -Path "R:\OMEGA\debug.txt" -Value "COUNT_AFTER_DEBUG:$($testResults.Count)"
 if ($Category) {
     Write-Host "📂 Category: $Category" -ForegroundColor Cyan
 }
 
-Write-Host "DEBUG: executing switch with normalizedTestType='$normalizedTestType'" -ForegroundColor DarkGray
 switch ($normalizedTestType) {
     "all" {
         Write-Host "🏃 Running all integration tests..." -ForegroundColor Cyan
@@ -232,6 +227,10 @@ blockchain RegressionTestRunner {
     default {
         Write-Host "❌ Unknown test type: $TestType" -ForegroundColor Red
         Write-Host "Available types: all, modular, legacy, unit, category, regression" -ForegroundColor Yellow
+        # Set default test result to avoid undefined variable
+        if ($null -eq $testResults) { 
+            [hashtable]$testResults = @{} 
+        }
         exit 1
     }
 }
@@ -241,11 +240,14 @@ if (-not $startTime) { $startTime = Get-Date }
 $endTime = Get-Date
 $executionTime = New-TimeSpan -Start $startTime -End $endTime
 
+# Ensure testResults is initialized
+if ($null -eq $testResults) { 
+    [hashtable]$testResults = @{} 
+}
+
 # Fallback: if no tests were run yet, execute based on TestType here
-if ($null -eq $testResults -or $testResults.Count -eq 0) {
-    # Ensure hashtable exists
-    if ($null -eq $testResults) { [hashtable]$testResults = @{} }
-    Write-Host "DEBUG: Fallback path executing tests based on TestType '$TestType'" -ForegroundColor DarkGray
+if ($testResults.Count -eq 0) {
+    Write-Host "Executing fallback tests for TestType '$TestType'" -ForegroundColor Yellow
     $normalizedTestTypeBottom = ("" + $TestType).Trim().ToLower()
     switch ($normalizedTestTypeBottom) {
         "all" {
@@ -320,11 +322,10 @@ if ($null -eq $testResults -or $testResults.Count -eq 0) {
 }
 
 # Print summary
-Add-Content -Path "R:\OMEGA\debug.txt" -Value "COUNT_BEFORE_SUMMARY:$($testResults.Count)"
 # Ensure testResults exists before indexing
-if ($null -eq $testResults) { $testResults = @{} }
-# Force at least one entry to verify hashtable update
-$testResults["Post-Summary Debug"] = $true
+if ($null -eq $testResults) { 
+    [hashtable]$testResults = @{} 
+}
 Write-Host ""
 Write-Host "Test Execution Summary" -ForegroundColor Cyan
 Write-Host "=========================" -ForegroundColor Cyan
