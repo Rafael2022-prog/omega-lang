@@ -1,0 +1,37 @@
+{
+  "name": "omega-language-support",
+  "version": "1.0.0",
+  "displayName": "OMEGA Language Support for TRAE",
+  "description": "Language support and icons for OMEGA blockchain programming language",
+  "iconThemes": [
+    {
+      "id": "omega-icons",
+      "label": "OMEGA Icons",
+      "path": "./.trae/icon-theme.json"
+    }
+  ],
+  "languages": [
+    {
+      "id": "omega",
+      "aliases": ["OMEGA", "omega"],
+      "extensions": [".mega", ".omega"],
+      "configuration": "./.trae/language-configuration.json",
+      "icon": {
+        "light": "./omega-vscode-extension/images/omega-file-icon-light.svg",
+        "dark": "./omega-vscode-extension/images/omega-file-icon-dark.svg"
+      }
+    }
+  ],
+  "fileAssociations": [
+    {
+      "extension": ".mega",
+      "language": "omega",
+      "icon": "./omega-vscode-extension/images/omega-file-icon-mega.svg"
+    },
+    {
+      "extension": ".omega",
+      "language": "omega", 
+      "icon": "./omega-vscode-extension/images/omega-file-icon-mega.svg"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "publisher": "omega-lang",
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.75.0"
   },
   "categories": [
     "Programming Languages",
@@ -33,9 +33,7 @@
     "url": "https://github.com/Rafael2022-prog/omega-lang/issues"
   },
   "homepage": "https://www.omegalang.xyz",
-  "activationEvents": [
-    "onLanguage:omega"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
@@ -127,7 +125,7 @@
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
+    "@types/vscode": "^1.75.0",
     "@types/node": "16.x",
     "typescript": "^4.9.4"
   },

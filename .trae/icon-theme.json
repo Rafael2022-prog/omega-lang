@@ -1,0 +1,34 @@
+{
+  "name": "omega-icons",
+  "version": "1.0.0",
+  "description": "OMEGA Blockchain Language Icon Theme",
+  "icons": {
+    "omega-file": {
+      "iconPath": "./omega-vscode-extension/images/omega-file-icon-mega.svg",
+      "fileExtensions": ["mega"],
+      "fileNames": ["*.mega"]
+    },
+    "omega-light": {
+      "iconPath": "./omega-vscode-extension/images/omega-file-icon-light.svg",
+      "fileExtensions": ["mega"],
+      "fileNames": ["*.mega"]
+    },
+    "omega-dark": {
+      "iconPath": "./omega-vscode-extension/images/omega-file-icon-dark.svg",
+      "fileExtensions": ["mega"],
+      "fileNames": ["*.mega"]
+    }
+  },
+  "fileExtensions": {
+    "mega": "omega-file"
+  },
+  "languageIds": {
+    "omega": "omega-file"
+  },
+  "light": {
+    "omega-file": "omega-light"
+  },
+  "dark": {
+    "omega-file": "omega-dark"
+  }
+}

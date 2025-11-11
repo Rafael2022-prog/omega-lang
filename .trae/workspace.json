@@ -6,7 +6,9 @@
       "*.mega": "omega"
     },
     "workbench.iconTheme": "omega-icons",
-    "editor.fileIconTheme": "omega-icons"
+    "editor.fileIconTheme": "omega-icons",
+    "trae.fileIconTheme": "omega-icons",
+    "omega.iconTheme": "omega-icons"
   },
   "extensions": {
     "recommendations": []
@@ -14,6 +16,13 @@
   "folders": [
     {
       "path": "."
+    }
+  ],
+  "iconThemes": [
+    {
+      "id": "omega-icons",
+      "label": "OMEGA Icons",
+      "path": "./.trae/icon-theme.json"
     }
   ]
 }

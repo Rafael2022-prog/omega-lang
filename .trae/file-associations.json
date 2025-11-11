@@ -3,7 +3,17 @@
     "*.mega": {
       "language": "omega",
       "icon": {
-        "path": "./temp-logo.svg",
+        "path": "./omega-vscode-extension/images/omega-file-icon-mega.svg",
+        "type": "svg"
+      },
+      "description": "OMEGA Blockchain Source File",
+      "mimeType": "text/x-omega",
+      "category": "source"
+    },
+    "*.omega": {
+      "language": "omega",
+      "icon": {
+        "path": "./omega-vscode-extension/images/omega-file-icon-mega.svg",
         "type": "svg"
       },
       "description": "OMEGA Blockchain Source File",
@@ -13,15 +23,20 @@
   },
   "languageConfiguration": {
     "omega": {
-      "displayName": "OMEGA",
-      "extensions": [".mega"],
+      "displayName": "OMEGA Blockchain Language",
+      "extensions": [".mega", ".omega"],
       "icon": {
-        "light": "./temp-logo.svg",
-        "dark": "./temp-logo.svg"
+        "light": "./omega-vscode-extension/images/omega-file-icon-light.svg",
+        "dark": "./omega-vscode-extension/images/omega-file-icon-dark.svg"
       },
       "syntaxHighlighting": {
         "enabled": true,
         "theme": "omega-dark"
+      },
+      "features": {
+        "codeCompletion": true,
+        "syntaxValidation": true,
+        "semanticHighlighting": true
       }
     }
   },
@@ -30,9 +45,14 @@
     "version": "1.0.0",
     "icons": {
       "mega-file": {
-        "iconPath": "./temp-logo.svg",
-        "fileExtensions": ["mega"],
-        "fileNames": []
+        "iconPath": "./omega-vscode-extension/images/omega-file-icon-mega.svg",
+        "fileExtensions": ["mega", "omega"],
+        "fileNames": ["*.mega", "*.omega"]
+      },
+      "omega-logo": {
+        "iconPath": "./omega-vscode-extension/images/omega-icon.svg",
+        "fileExtensions": [],
+        "fileNames": ["omega.toml", "omega-build.toml"]
       }
     }
   }
