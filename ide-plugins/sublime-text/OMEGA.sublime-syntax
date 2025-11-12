@@ -1,0 +1,67 @@
+%YAML 1.2
+---
+name: OMEGA
+file_extensions:
+  - mega
+  - omega
+scope: source.omega
+
+variables:
+  identifier: '\b[a-zA-Z_]\w*\b'
+  number: '\b\d+\.?\d*\b'
+
+contexts:
+  main:
+    - include: comments
+    - include: strings
+    - include: numbers
+    - include: keywords
+    - include: operators
+    - include: builtin_types
+    - include: builtin_functions
+
+  comments:
+    - match: '//.*$'
+      scope: comment.line.double-slash.omega
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.omega
+      push:
+        - meta_scope: comment.block.omega
+        - match: '\*/'
+          scope: punctuation.definition.comment.end.omega
+          pop: true
+
+  strings:
+    - match: '"'
+      scope: punctuation.definition.string.begin.omega
+      push:
+        - meta_scope: string.quoted.double.omega
+        - match: '\\.'
+          scope: constant.character.escape.omega
+        - match: '"'
+          scope: punctuation.definition.string.end.omega
+          pop: true
+
+  numbers:
+    - match: '{{number}}'
+      scope: constant.numeric.omega
+
+  keywords:
+    - match: '\b(blockchain|state|constructor|function|public|private|view|pure|payable|returns|emit|event|mapping|require|if|else|for|while|return|true|false)\b'
+      scope: keyword.control.omega
+    - match: '\b(address|uint256|string|bool)\b'
+      scope: storage.type.omega
+
+  operators:
+    - match: '[+\-*/%=<>!&|^~]'
+      scope: keyword.operator.omega
+    - match: '(\+\+|--|==|!=|<=|>=|&&|\|\||<<|>>)'
+      scope: keyword.operator.omega
+
+  builtin_types:
+    - match: '\b(msg|block|tx|now)\b'
+      scope: variable.language.omega
+
+  builtin_functions:
+    - match: '\b(transfer|balance_of|mint|approve|allowance)\b'
+      scope: support.function.omega

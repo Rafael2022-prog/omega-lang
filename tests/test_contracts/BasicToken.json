@@ -1,0 +1,24 @@
+{
+  "name": "Basic Token Contract Test",
+  "description": "Test suite for basic OMEGA token contract compilation and security",
+  "test_files": ["BasicToken.omega"],
+  "expected_outputs": {
+    "evm": {
+      "success": true,
+      "should_contain": ["contract", "function", "event"],
+      "gas_usage_range": [50000, 200000]
+    },
+    "solana": {
+      "success": true,
+      "should_contain": ["program", "instruction"]
+    }
+  },
+  "timeout": 60,
+  "platforms": ["Windows-AMD64", "Linux-x86_64", "Darwin-x86_64"],
+  "skip_on_failure": false,
+  "security_requirements": {
+    "max_critical_vulnerabilities": 0,
+    "max_high_vulnerabilities": 1,
+    "max_medium_vulnerabilities": 3
+  }
+}

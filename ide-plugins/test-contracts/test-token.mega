@@ -1,0 +1,66 @@
+// Test Contract for IDE Plugin Testing
+blockchain TestToken {
+    state {
+        mapping(address => uint256) balances;
+        mapping(address => mapping(address => uint256)) allowances;
+        uint256 total_supply;
+        string name;
+        string symbol;
+        address owner;
+    }
+    
+    constructor(string _name, string _symbol, uint256 _initial_supply) {
+        name = _name;
+        symbol = _symbol;
+        total_supply = _initial_supply;
+        owner = msg.sender;
+        balances[msg.sender] = _initial_supply;
+        
+        emit Transfer(address(0), msg.sender, _initial_supply);
+    }
+    
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function approve(address spender, uint256 amount) public returns (bool) {
+        allowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+    
+    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        require(balances[from] >= amount, "Insufficient balance");
+        require(allowances[from][msg.sender] >= amount, "Insufficient allowance");
+        require(to != address(0), "Invalid recipient");
+        
+        balances[from] -= amount;
+        balances[to] += amount;
+        allowances[from][msg.sender] -= amount;
+        
+        emit Transfer(from, to, amount);
+        return true;
+    }
+    
+    function balanceOf(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    function allowance(address _owner, address spender) public view returns (uint256) {
+        return allowances[_owner][spender];
+    }
+    
+    function totalSupply() public view returns (uint256) {
+        return total_supply;
+    }
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+}

@@ -1,32 +1,30 @@
 {
   "name": "omega-language-support",
   "displayName": "OMEGA Language Support",
-  "description": "Full-featured language support for OMEGA blockchain programming language",
+  "description": "Language support for OMEGA blockchain programming language",
   "version": "1.0.0",
   "publisher": "omega-lang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/omega-lang/omega"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Programming Languages",
-    "Snippets",
-    "Linters",
-    "Debuggers",
-    "Formatters"
+    "Programming Languages"
   ],
   "keywords": [
     "omega",
     "blockchain",
     "smart-contracts",
-    "programming-language",
-    "cross-compilation"
+    "programming-language"
   ],
-  "icon": "icons/omega-icon.png",
-  "galleryBanner": {
-    "color": "#1e1e1e",
-    "theme": "dark"
-  },
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:omega",
+    "onCommand:omega.compile"
+  ],
   "contributes": {
     "languages": [
       {
@@ -39,11 +37,7 @@
           ".mega",
           ".omega"
         ],
-        "configuration": "./language-configuration.json",
-        "icon": {
-          "dark": "./icons/omega-dark.svg",
-          "light": "./icons/omega-light.svg"
-        }
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -64,429 +58,6 @@
         "command": "omega.compile",
         "title": "Compile OMEGA File",
         "category": "OMEGA"
-      },
-      {
-        "command": "omega.buildProject",
-        "title": "Build OMEGA Project",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.runTests",
-        "title": "Run OMEGA Tests",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.deploy",
-        "title": "Deploy to Blockchain",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.createProject",
-        "title": "Create New OMEGA Project",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.addTarget",
-        "title": "Add Compilation Target",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.showTargets",
-        "title": "Show Available Targets",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.packageManager",
-        "title": "Open Package Manager",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.installPackage",
-        "title": "Install Package",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.formatDocument",
-        "title": "Format OMEGA Document",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.showDocumentation",
-        "title": "Show Documentation",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.runDiagnostics",
-        "title": "Run Diagnostics",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.generateDocumentation",
-        "title": "Generate Documentation",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.optimizeCode",
-        "title": "Optimize Code",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.crossCompile",
-        "title": "Cross-Compile to All Targets",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.bootstrapCompiler",
-        "title": "Bootstrap Compiler",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.runAllTests",
-        "title": "Run All Tests",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.performanceAnalysis",
-        "title": "Performance Analysis",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.securityScan",
-        "title": "Security Scan",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.showAST",
-        "title": "Show Abstract Syntax Tree",
-        "category": "OMEGA"
-      },
-      {
-        "command": "omega.showIR",
-        "title": "Show Intermediate Representation",
-        "category": "OMEGA"
-      }
-    ],
-    "menus": {
-      "editor/context": [
-        {
-          "when": "resourceExtname == .mega || resourceExtname == .omega",
-          "command": "omega.compile",
-          "group": "omega"
-        },
-        {
-          "when": "resourceExtname == .mega || resourceExtname == .omega",
-          "command": "omega.formatDocument",
-          "group": "omega"
-        },
-        {
-          "when": "resourceExtname == .mega || resourceExtname == .omega",
-          "command": "omega.runDiagnostics",
-          "group": "omega"
-        }
-      ],
-      "explorer/context": [
-        {
-          "when": "resourceExtname == .mega || resourceExtname == .omega",
-          "command": "omega.compile",
-          "group": "omega"
-        },
-        {
-          "when": "resourceExtname == .mega || resourceExtname == .omega",
-          "command": "omega.buildProject",
-          "group": "omega"
-        }
-      ],
-      "view/title": [
-        {
-          "command": "omega.createProject",
-          "when": "view == omegaExplorer",
-          "group": "navigation"
-        }
-      ]
-    },
-    "views": {
-      "explorer": [
-        {
-          "id": "omegaExplorer",
-          "name": "OMEGA Project Explorer"
-        }
-      ]
-    },
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "omega",
-          "title": "OMEGA",
-          "icon": "$(omega-icon)"
-        }
-      ]
-    },
-    "configuration": {
-      "title": "OMEGA",
-      "properties": {
-        "omega.compiler.path": {
-          "type": "string",
-          "default": "omega",
-          "description": "Path to the OMEGA compiler executable"
-        },
-        "omega.compiler.args": {
-          "type": "array",
-          "default": [],
-          "description": "Additional arguments to pass to the compiler"
-        },
-        "omega.targets.enabled": {
-          "type": "array",
-          "default": ["evm", "solana"],
-          "description": "List of enabled compilation targets"
-        },
-        "omega.targets.evm.outputDir": {
-          "type": "string",
-          "default": "./build/evm",
-          "description": "Output directory for EVM compilation"
-        },
-        "omega.targets.solana.outputDir": {
-          "type": "string",
-          "default": "./build/solana",
-          "description": "Output directory for Solana compilation"
-        },
-        "omega.targets.cosmos.outputDir": {
-          "type": "string",
-          "default": "./build/cosmos",
-          "description": "Output directory for Cosmos compilation"
-        },
-        "omega.targets.move.outputDir": {
-          "type": "string",
-          "default": "./build/move",
-          "description": "Output directory for Move compilation"
-        },
-        "omega.targets.substrate.outputDir": {
-          "type": "string",
-          "default": "./build/substrate",
-          "description": "Output directory for Substrate compilation"
-        },
-        "omega.formatting.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable code formatting"
-        },
-        "omega.formatting.style": {
-          "type": "string",
-          "enum": ["standard", "compact", "verbose"],
-          "default": "standard",
-          "description": "Code formatting style"
-        },
-        "omega.linting.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable linting"
-        },
-        "omega.linting.severity": {
-          "type": "string",
-          "enum": ["error", "warning", "info"],
-          "default": "warning",
-          "description": "Default linting severity"
-        },
-        "omega.autoComplete.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable auto-completion"
-        },
-        "omega.autoComplete.triggerCharacters": {
-          "type": "array",
-          "default": [".", " ", "(", "{"],
-          "description": "Characters that trigger auto-completion"
-        },
-        "omega.diagnostics.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable diagnostics"
-        },
-        "omega.diagnostics.updateDelay": {
-          "type": "number",
-          "default": 500,
-          "description": "Delay in milliseconds before updating diagnostics"
-        },
-        "omega.packageManager.registry": {
-          "type": "string",
-          "default": "https://registry.omega-lang.org",
-          "description": "Default package registry URL"
-        },
-        "omega.packageManager.autoUpdate": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically update packages"
-        },
-        "omega.packageManager.securityScan": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable security scanning for packages"
-        },
-        "omega.testing.autoRun": {
-          "type": "boolean",
-          "default": false,
-          "description": "Automatically run tests on file save"
-        },
-        "omega.testing.showOutput": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show test output in terminal"
-        },
-        "omega.testing.timeout": {
-          "type": "number",
-          "default": 30000,
-          "description": "Test timeout in milliseconds"
-        },
-        "omega.deployment.networks": {
-          "type": "array",
-          "default": [
-            {
-              "name": "ethereum-sepolia",
-              "url": "https://sepolia.infura.io/v3/YOUR_PROJECT_ID",
-              "chainId": 11155111
-            },
-            {
-              "name": "solana-devnet",
-              "url": "https://api.devnet.solana.com",
-              "chainId": 103
-            }
-          ],
-          "description": "Configured deployment networks"
-        },
-        "omega.deployment.gasPrice": {
-          "type": "string",
-          "default": "auto",
-          "description": "Gas price setting for deployment"
-        },
-        "omega.deployment.confirmations": {
-          "type": "number",
-          "default": 2,
-          "description": "Number of confirmations required"
-        },
-        "omega.performance.maxWorkers": {
-          "type": "number",
-          "default": 4,
-          "description": "Maximum number of worker threads"
-        },
-        "omega.performance.cacheSize": {
-          "type": "number",
-          "default": 512,
-          "description": "Cache size in MB"
-        },
-        "omega.performance.enableParallel": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable parallel compilation"
-        },
-        "omega.advanced.enableLogging": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable detailed logging"
-        },
-        "omega.advanced.logLevel": {
-          "type": "string",
-          "enum": ["debug", "info", "warning", "error"],
-          "default": "info",
-          "description": "Logging level"
-        },
-        "omega.advanced.showAST": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show Abstract Syntax Tree in output"
-        },
-        "omega.advanced.showIR": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show Intermediate Representation in output"
-        }
-      }
-    },
-    "taskDefinitions": [
-      {
-        "type": "omega",
-        "required": [],
-        "properties": {
-          "target": {
-            "type": "string",
-            "description": "Compilation target (evm, solana, cosmos, move, substrate)"
-          },
-          "output": {
-            "type": "string",
-            "description": "Output directory"
-          },
-          "optimize": {
-            "type": "boolean",
-            "description": "Enable optimization"
-          },
-          "debug": {
-            "type": "boolean",
-            "description": "Enable debug mode"
-          }
-        }
-      }
-    ],
-    "debuggers": [
-      {
-        "type": "omega",
-        "label": "OMEGA Debugger",
-        "program": "./out/debugAdapter.js",
-        "runtime": "node",
-        "configurationAttributes": {
-          "launch": {
-            "required": ["program"],
-            "properties": {
-              "program": {
-                "type": "string",
-                "description": "Path to the OMEGA program to debug"
-              },
-              "args": {
-                "type": "array",
-                "description": "Command line arguments",
-                "default": []
-              },
-              "cwd": {
-                "type": "string",
-                "description": "Working directory",
-                "default": "${workspaceFolder}"
-              },
-              "env": {
-                "type": "object",
-                "description": "Environment variables",
-                "default": {}
-              },
-              "stopOnEntry": {
-                "type": "boolean",
-                "description": "Stop on entry",
-                "default": false
-              },
-              "console": {
-                "type": "string",
-                "enum": ["internalConsole", "integratedTerminal", "externalTerminal"],
-                "description": "Console to use",
-                "default": "internalConsole"
-              }
-            }
-          }
-        },
-        "initialConfigurations": [
-          {
-            "type": "omega",
-            "request": "launch",
-            "name": "Debug OMEGA Program",
-            "program": "${workspaceFolder}/main.mega",
-            "stopOnEntry": false,
-            "console": "internalConsole"
-          }
-        ]
-      }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "omega.json",
-        "url": "./schemas/omega-config-schema.json"
-      },
-      {
-        "fileMatch": "omega-package.json",
-        "url": "./schemas/omega-package-schema.json"
       }
     ]
   },
@@ -494,36 +65,16 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js",
     "package": "vsce package",
     "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",
     "@types/node": "16.x",
-    "@typescript-eslint/eslint-plugin": "^5.45.0",
-    "@typescript-eslint/parser": "^5.45.0",
-    "eslint": "^8.28.0",
     "typescript": "^4.9.4",
     "vsce": "^2.15.0"
   },
   "dependencies": {
-    "vscode-languageclient": "^8.0.2",
-    "vscode-languageserver": "^8.0.2",
-    "vscode-languageserver-textdocument": "^1.0.8",
-    "vscode-debugadapter": "^1.51.0",
-    "vscode-debugprotocol": "^1.51.0",
-    "tree-sitter": "^0.20.1",
-    "tree-sitter-omega": "^1.0.0",
-    "axios": "^1.2.0",
-    "chokidar": "^3.5.3",
-    "glob": "^8.0.3",
-    "minimatch": "^5.1.0",
-    "semver": "^7.3.8",
-    "yaml": "^2.1.3",
-    "jsonc-parser": "^3.2.0",
-    "vscode-uri": "^3.0.7"
+    "vscode-languageclient": "^8.0.2"
   }
 }

@@ -1,0 +1,72 @@
+plugins {
+    id 'org.jetbrains.intellij' version '1.13.3'
+    id 'java'
+}
+
+group 'com.omega.lang'
+version '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+// See https://github.com/JetBrains/gradle-intellij-plugin/
+intellij {
+    version = '2023.1.5'
+    type = 'IC' // Community Edition
+    
+    plugins = ['java']
+    
+    patchPluginXml {
+        version = '1.0.0'
+        sinceBuild = '231'
+        untilBuild = '241.*'
+        
+        changeNotes = """
+            <h3>OMEGA Language Support 1.0.0</h3>
+            <ul>
+                <li>Syntax highlighting for OMEGA blockchain language</li>
+                <li>File icon support for .mega and .omega files</li>
+                <li>Code completion for blockchain keywords</li>
+                <li>Integrated with OMEGA compiler</li>
+            </ul>
+        """
+        
+        description = """
+            <h2>OMEGA Language Support</h2>
+            <br/>
+            <p>Plugin untuk bahasa pemrograman OMEGA - blockchain language dengan prinsip "Write Once, Deploy Everywhere".</p>
+            <br/>
+            <b>Features:</b>
+            <ul>
+                <li>Syntax highlighting untuk file .mega dan .omega</li>
+                <li>File icon kustom untuk OMEGA files</li>
+                <li>Auto-completion untuk keywords blockchain</li>
+                <li>Error detection dan quick fixes</li>
+                <li>Integration dengan OMEGA compiler</li>
+            </ul>
+            <br/>
+            <b>Keywords didukung:</b> blockchain, state, constructor, function, public, private, view, pure, payable, returns, emit, event, mapping, address, uint256, string, bool, require
+        """
+    }
+}
+
+tasks {
+    buildSearchableOptions {
+        enabled = false
+    }
+    
+    publishPlugin {
+        token = System.getenv("JETBRAINS_TOKEN")
+        channels = ["stable"]
+    }
+}
+
+test {
+    useJUnitPlatform()
+}

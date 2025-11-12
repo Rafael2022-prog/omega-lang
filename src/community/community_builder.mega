@@ -1,0 +1,787 @@
+// OMEGA Community Builder - Complete Implementation
+// Comprehensive community building and developer onboarding system
+
+import "../utils/secure_timestamp.mega";
+import "../utils/performance_optimizer.mega";
+import "../error/error.mega";
+
+/// Complete community builder with advanced features
+blockchain CommunityBuilder {
+    state {
+        mapping(address => DeveloperProfile) developers;
+        mapping(string => Project) projects;
+        mapping(string => Tutorial) tutorials;
+        mapping(string => CodeTemplate) templates;
+        mapping(string => CommunityEvent) events;
+        mapping(address => uint256) reputation_scores;
+        mapping(string => uint256) contribution_counts;
+        mapping(string => mapping(address => bool)) project_contributors;
+        mapping(string => mapping(address => bool)) tutorial_completions;
+        mapping(string => mapping(address => bool)) event_attendees;
+        mapping(string => uint256) monthly_active_developers;
+        mapping(uint256 => uint256) daily_active_users;
+        
+        address[] developer_list;
+        string[] project_list;
+        string[] tutorial_list;
+        string[] template_list;
+        string[] event_list;
+        
+        uint256 total_developers;
+        uint256 total_projects;
+        uint256 total_tutorials;
+        uint256 total_events;
+        uint256 community_creation_date;
+        uint256 last_activity_timestamp;
+        
+        // Community governance
+        mapping(address => bool) community_moderators;
+        mapping(address => bool) verified_developers;
+        mapping(string => bool) content_approvers;
+        
+        // Reward system
+        mapping(address => uint256) omega_tokens;
+        mapping(string => uint256) reward_multipliers;
+        mapping(address => uint256) last_reward_claim;
+        
+        // Integration APIs
+        mapping(string => APICredential) api_credentials;
+        mapping(string => uint256) api_rate_limits;
+        mapping(string => uint256) api_usage_counts;
+        
+        // Analytics
+        mapping(string => uint256) metric_values;
+        mapping(string => uint256[]) historical_data;
+        
+        SecureTimestamp secure_ts;
+        PerformanceOptimizer optimizer;
+    }
+    
+    constructor() {
+        secure_ts = SecureTimestamp::new();
+        optimizer = PerformanceOptimizer::new();
+        community_creation_date = secure_ts.get_secure_timestamp();
+        last_activity_timestamp = community_creation_date;
+        
+        // Initialize reward multipliers
+        reward_multipliers["tutorial_completion"] = 100;
+        reward_multipliers["project_contribution"] = 200;
+        reward_multipliers["bug_report"] = 50;
+        reward_multipliers["code_review"] = 75;
+        reward_multipliers["documentation"] = 150;
+        reward_multipliers["community_help"] = 25;
+        
+        // Initialize API rate limits
+        api_rate_limits["github"] = 5000;
+        api_rate_limits["discord"] = 10000;
+        api_rate_limits["twitter"] = 300;
+        api_rate_limits["telegram"] = 30;
+        
+        // Add default moderators (contract deployer)
+        community_moderators[msg.sender] = true;
+        verified_developers[msg.sender] = true;
+        
+        emit CommunityInitialized(msg.sender, community_creation_date);
+    }
+    
+    /// Developer onboarding with comprehensive profile creation
+    function onboard_developer(
+        string memory name,
+        string memory email,
+        string memory github_username,
+        string memory skill_level,
+        string[] memory interests,
+        string memory preferred_language
+    ) public returns (string memory developer_id) {
+        require(bytes(name).length > 0, "Name required");
+        require(bytes(email).length > 0, "Email required");
+        require(bytes(developers[msg.sender].name).length == 0, "Already onboarded");
+        
+        developer_id = generate_developer_id(msg.sender);
+        
+        DeveloperProfile memory profile = DeveloperProfile({
+            wallet_address: msg.sender,
+            developer_id: developer_id,
+            name: name,
+            email: email,
+            github_username: github_username,
+            skill_level: skill_level,
+            interests: interests,
+            preferred_language: preferred_language,
+            join_date: secure_ts.get_secure_timestamp(),
+            last_active: secure_ts.get_secure_timestamp(),
+            reputation_score: 100,
+            omega_tokens: 0,
+            completed_tutorials: new string[](0),
+            contributed_projects: new string[](0),
+            attended_events: new string[](0),
+            skills_verified: new bool[](0),
+            is_verified: false,
+            is_active: true,
+            contribution_count: 0,
+            code_reviews_done: 0,
+            bugs_reported: 0,
+            documentation_contributions: 0,
+            community_help_score: 0
+        });
+        
+        developers[msg.sender] = profile;
+        developer_list.push(msg.sender);
+        total_developers++;
+        
+        // Initialize reputation
+        reputation_scores[msg.sender] = 100;
+        
+        // Award welcome bonus
+        award_omega_tokens(msg.sender, 50, "welcome_bonus");
+        
+        // Update analytics
+        update_community_metrics("new_developer", 1);
+        
+        emit DeveloperOnboarded(msg.sender, developer_id, name, skill_level);
+        
+        return developer_id;
+    }
+    
+    /// Create comprehensive tutorial with multiple formats
+    function create_tutorial(
+        string memory tutorial_id,
+        string memory title,
+        string memory description,
+        string memory difficulty_level,
+        string[] memory tags,
+        string memory content_markdown,
+        string memory code_example,
+        string memory video_url,
+        uint256 estimated_time_minutes,
+        string[] memory prerequisites,
+        string memory category
+    ) public returns (bool success) {
+        require(bytes(tutorial_id).length > 0, "Tutorial ID required");
+        require(bytes(title).length > 0, "Title required");
+        require(bytes(content_markdown).length > 0, "Content required");
+        require(community_moderators[msg.sender] || verified_developers[msg.sender], "Unauthorized");
+        
+        Tutorial memory tutorial = Tutorial({
+            tutorial_id: tutorial_id,
+            title: title,
+            description: description,
+            difficulty_level: difficulty_level,
+            tags: tags,
+            content_markdown: content_markdown,
+            code_example: code_example,
+            video_url: video_url,
+            estimated_time_minutes: estimated_time_minutes,
+            prerequisites: prerequisites,
+            category: category,
+            created_by: msg.sender,
+            created_date: secure_ts.get_secure_timestamp(),
+            last_updated: secure_ts.get_secure_timestamp(),
+            completion_count: 0,
+            rating_sum: 0,
+            rating_count: 0,
+            is_featured: false,
+            is_published: true,
+            view_count: 0,
+            likes: 0,
+            comments: new string[](0),
+            related_tutorials: new string[](0),
+            language: developers[msg.sender].preferred_language,
+            version: "1.0.0",
+            deprecated: false
+        });
+        
+        tutorials[tutorial_id] = tutorial;
+        tutorial_list.push(tutorial_id);
+        total_tutorials++;
+        
+        // Award creator
+        award_omega_tokens(msg.sender, reward_multipliers["documentation"], "tutorial_creation");
+        
+        // Update analytics
+        update_community_metrics("tutorial_created", 1);
+        
+        emit TutorialCreated(tutorial_id, title, difficulty_level, category);
+        
+        return true;
+    }
+    
+    /// Create project with comprehensive metadata
+    function create_project(
+        string memory project_id,
+        string memory name,
+        string memory description,
+        string memory github_url,
+        string memory demo_url,
+        string memory documentation_url,
+        string[] memory technologies,
+        string memory category,
+        string memory license,
+        string memory status,
+        bool is_open_source,
+        string memory project_type
+    ) public returns (bool success) {
+        require(bytes(project_id).length > 0, "Project ID required");
+        require(bytes(name).length > 0, "Name required");
+        require(bytes(description).length > 0, "Description required");
+        
+        Project memory project = Project({
+            project_id: project_id,
+            name: name,
+            description: description,
+            github_url: github_url,
+            demo_url: demo_url,
+            documentation_url: documentation_url,
+            technologies: technologies,
+            category: category,
+            license: license,
+            status: status,
+            is_open_source: is_open_source,
+            project_type: project_type,
+            created_by: msg.sender,
+            created_date: secure_ts.get_secure_timestamp(),
+            last_updated: secure_ts.get_secure_timestamp(),
+            contributors: new address[](0),
+            stars: 0,
+            forks: 0,
+            issues: 0,
+            pull_requests: 0,
+            downloads: 0,
+            rating_sum: 0,
+            rating_count: 0,
+            is_featured: false,
+            is_verified: false,
+            deployment_status: "development",
+            test_coverage: 0,
+            security_audit_passed: false,
+            performance_score: 0,
+            code_quality_score: 0
+        });
+        
+        projects[project_id] = project;
+        project_list.push(project_id);
+        total_projects++;
+        
+        // Add creator as contributor
+        project_contributors[project_id][msg.sender] = true;
+        projects[project_id].contributors.push(msg.sender);
+        
+        // Award creator
+        award_omega_tokens(msg.sender, reward_multipliers["project_contribution"], "project_creation");
+        
+        // Update analytics
+        update_community_metrics("project_created", 1);
+        
+        emit ProjectCreated(project_id, name, category, msg.sender);
+        
+        return true;
+    }
+    
+    /// Complete tutorial with progress tracking
+    function complete_tutorial(string memory tutorial_id, uint256 time_taken_minutes, uint256 rating, string memory feedback) public returns (bool success) {
+        require(bytes(tutorials[tutorial_id].tutorial_id).length > 0, "Tutorial not found");
+        require(!tutorial_completions[tutorial_id][msg.sender], "Already completed");
+        require(rating >= 1 && rating <= 5, "Invalid rating");
+        
+        // Mark as completed
+        tutorial_completions[tutorial_id][msg.sender] = true;
+        developers[msg.sender].completed_tutorials.push(tutorial_id);
+        
+        // Update tutorial stats
+        tutorials[tutorial_id].completion_count++;
+        tutorials[tutorial_id].rating_sum += rating;
+        tutorials[tutorial_id].rating_count++;
+        
+        // Award completion bonus
+        uint256 bonus = reward_multipliers["tutorial_completion"] * (tutorials[tutorial_id].difficulty_level == "advanced" ? 2 : 1);
+        award_omega_tokens(msg.sender, bonus, "tutorial_completion");
+        
+        // Update reputation
+        update_reputation(msg.sender, 10);
+        
+        // Update developer activity
+        developers[msg.sender].last_active = secure_ts.get_secure_timestamp();
+        
+        // Update analytics
+        update_community_metrics("tutorial_completed", 1);
+        
+        emit TutorialCompleted(tutorial_id, msg.sender, time_taken_minutes, rating);
+        
+        return true;
+    }
+    
+    /// Contribute to project with comprehensive tracking
+    function contribute_to_project(
+        string memory project_id,
+        string memory contribution_type,
+        string memory description,
+        string memory github_pr_url,
+        uint256 lines_of_code,
+        string memory impact_level
+    ) public returns (bool success) {
+        require(bytes(projects[project_id].project_id).length > 0, "Project not found");
+        require(bytes(contribution_type).length > 0, "Contribution type required");
+        
+        // Add contributor if not already
+        if (!project_contributors[project_id][msg.sender]) {
+            project_contributors[project_id][msg.sender] = true;
+            projects[project_id].contributors.push(msg.sender);
+        }
+        
+        // Update developer profile
+        developers[msg.sender].contributed_projects.push(project_id);
+        developers[msg.sender].contribution_count++;
+        developers[msg.sender].last_active = secure_ts.get_secure_timestamp();
+        
+        // Calculate contribution reward
+        uint256 base_reward = reward_multipliers["project_contribution"];
+        if (keccak256(bytes(impact_level)) == keccak256(bytes("high"))) {
+            base_reward *= 3;
+        } else if (keccak256(bytes(impact_level)) == keccak256(bytes("medium"))) {
+            base_reward *= 2;
+        }
+        
+        base_reward += (lines_of_code / 100) * 10; // Bonus for lines of code
+        
+        award_omega_tokens(msg.sender, base_reward, "project_contribution");
+        
+        // Update reputation
+        update_reputation(msg.sender, 25);
+        
+        // Update project metrics
+        projects[project_id].last_updated = secure_ts.get_secure_timestamp();
+        contribution_counts[project_id]++;
+        
+        // Update analytics
+        update_community_metrics("project_contribution", 1);
+        
+        emit ProjectContributed(project_id, msg.sender, contribution_type, impact_level);
+        
+        return true;
+    }
+    
+    /// Organize community event with comprehensive management
+    function organize_event(
+        string memory event_id,
+        string memory title,
+        string memory description,
+        uint256 start_time,
+        uint256 end_time,
+        string memory event_type,
+        string memory location,
+        uint256 max_attendees,
+        string[] memory tags,
+        string memory registration_url,
+        bool is_virtual,
+        string memory recording_url
+    ) public returns (bool success) {
+        require(bytes(event_id).length > 0, "Event ID required");
+        require(bytes(title).length > 0, "Title required");
+        require(start_time > secure_ts.get_secure_timestamp(), "Invalid start time");
+        require(end_time > start_time, "Invalid end time");
+        require(community_moderators[msg.sender] || verified_developers[msg.sender], "Unauthorized");
+        
+        CommunityEvent memory event = CommunityEvent({
+            event_id: event_id,
+            title: title,
+            description: description,
+            start_time: start_time,
+            end_time: end_time,
+            event_type: event_type,
+            location: location,
+            organizer: msg.sender,
+            max_attendees: max_attendees,
+            tags: tags,
+            registration_url: registration_url,
+            is_virtual: is_virtual,
+            recording_url: recording_url,
+            attendees: new address[](0),
+            attendee_count: 0,
+            rating_sum: 0,
+            rating_count: 0,
+            is_featured: false,
+            is_published: true,
+            feedback: new string[](0),
+            resources: new string[](0),
+            follow_up_actions: new string[](0),
+            creation_date: secure_ts.get_secure_timestamp()
+        });
+        
+        events[event_id] = event;
+        event_list.push(event_id);
+        total_events++;
+        
+        // Award organizer
+        award_omega_tokens(msg.sender, reward_multipliers["community_help"] * 5, "event_organization");
+        
+        // Update analytics
+        update_community_metrics("event_created", 1);
+        
+        emit EventOrganized(event_id, title, event_type, start_time, max_attendees);
+        
+        return true;
+    }
+    
+    /// Attend event with tracking
+    function attend_event(string memory event_id, string memory feedback, uint256 rating) public returns (bool success) {
+        require(bytes(events[event_id].event_id).length > 0, "Event not found");
+        require(!event_attendees[event_id][msg.sender], "Already attending");
+        require(events[event_id].attendee_count < events[event_id].max_attendees, "Event full");
+        
+        // Add attendee
+        event_attendees[event_id][msg.sender] = true;
+        events[event_id].attendees.push(msg.sender);
+        events[event_id].attendee_count++;
+        
+        // Update developer profile
+        developers[msg.sender].attended_events.push(event_id);
+        developers[msg.sender].last_active = secure_ts.get_secure_timestamp();
+        
+        // Add feedback if provided
+        if (bytes(feedback).length > 0) {
+            events[event_id].feedback.push(feedback);
+        }
+        
+        // Update rating
+        if (rating > 0) {
+            events[event_id].rating_sum += rating;
+            events[event_id].rating_count++;
+        }
+        
+        // Award attendance bonus
+        award_omega_tokens(msg.sender, reward_multipliers["community_help"], "event_attendance");
+        
+        // Update reputation
+        update_reputation(msg.sender, 5);
+        
+        // Update analytics
+        update_community_metrics("event_attended", 1);
+        
+        emit EventAttended(event_id, msg.sender, rating);
+        
+        return true;
+    }
+    
+    /// Award Omega tokens with comprehensive tracking
+    function award_omega_tokens(address recipient, uint256 amount, string memory reason) internal returns (bool success) {
+        require(amount > 0, "Invalid amount");
+        require(bytes(reason).length > 0, "Reason required");
+        
+        omega_tokens[recipient] += amount;
+        developers[recipient].omega_tokens += amount;
+        last_reward_claim[recipient] = secure_ts.get_secure_timestamp();
+        
+        emit OmegaTokensAwarded(recipient, amount, reason);
+        
+        return true;
+    }
+    
+    /// Update reputation with comprehensive scoring
+    function update_reputation(address developer, uint256 points) internal returns (bool success) {
+        reputation_scores[developer] += points;
+        developers[developer].reputation_score = reputation_scores[developer];
+        
+        // Check for verification eligibility
+        if (reputation_scores[developer] >= 500 && !developers[developer].is_verified) {
+            developers[developer].is_verified = true;
+            verified_developers[developer] = true;
+            
+            emit DeveloperVerified(developer, reputation_scores[developer]);
+        }
+        
+        emit ReputationUpdated(developer, points, reputation_scores[developer]);
+        
+        return true;
+    }
+    
+    /// Update community metrics with historical tracking
+    function update_community_metrics(string memory metric_name, uint256 value) internal returns (bool success) {
+        metric_values[metric_name] += value;
+        
+        // Add to historical data
+        historical_data[metric_name].push(value);
+        
+        // Update daily active users
+        uint256 today = secure_ts.get_secure_timestamp() / 86400; // Days since epoch
+        daily_active_users[today]++;
+        
+        last_activity_timestamp = secure_ts.get_secure_timestamp();
+        
+        emit CommunityMetricUpdated(metric_name, value, metric_values[metric_name]);
+        
+        return true;
+    }
+    
+    /// Generate unique developer ID
+    function generate_developer_id(address wallet) internal view returns (string memory) {
+        return string(abi.encodePacked("DEV_", uint256_to_string(uint256(uint160(wallet)) % 1000000)));
+    }
+    
+    /// Convert uint256 to string
+    function uint256_to_string(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+    
+    /// Get community statistics
+    function get_community_stats() public view returns (
+        uint256 _total_developers,
+        uint256 _total_projects,
+        uint256 _total_tutorials,
+        uint256 _total_events,
+        uint256 _active_developers_30d,
+        uint256 _community_age_days
+    ) {
+        uint256 current_time = secure_ts.get_secure_timestamp();
+        uint256 thirty_days_ago = current_time - 2592000; // 30 days in seconds
+        
+        uint256 active_30d = 0;
+        for (uint256 i = 0; i < developer_list.length; i++) {
+            address dev = developer_list[i];
+            if (developers[dev].last_active >= thirty_days_ago) {
+                active_30d++;
+            }
+        }
+        
+        return (
+            total_developers,
+            total_projects,
+            total_tutorials,
+            total_events,
+            active_30d,
+            (current_time - community_creation_date) / 86400
+        );
+    }
+    
+    /// Get developer leaderboard
+    function get_developer_leaderboard(uint256 limit) public view returns (address[] memory top_developers, uint256[] memory reputation_scores) {
+        require(limit <= developer_list.length, "Limit too high");
+        
+        address[] memory sorted_developers = new address[](developer_list.length);
+        uint256[] memory scores = new uint256[](developer_list.length);
+        
+        // Copy data
+        for (uint256 i = 0; i < developer_list.length; i++) {
+            sorted_developers[i] = developer_list[i];
+            scores[i] = reputation_scores[developer_list[i]];
+        }
+        
+        // Simple bubble sort (can be optimized for larger datasets)
+        for (uint256 i = 0; i < sorted_developers.length - 1; i++) {
+            for (uint256 j = 0; j < sorted_developers.length - i - 1; j++) {
+                if (scores[j] < scores[j + 1]) {
+                    // Swap scores
+                    uint256 temp_score = scores[j];
+                    scores[j] = scores[j + 1];
+                    scores[j + 1] = temp_score;
+                    
+                    // Swap developers
+                    address temp_dev = sorted_developers[j];
+                    sorted_developers[j] = sorted_developers[j + 1];
+                    sorted_developers[j + 1] = temp_dev;
+                }
+            }
+        }
+        
+        // Return top N
+        address[] memory result_developers = new address[](limit);
+        uint256[] memory result_scores = new uint256[](limit);
+        
+        for (uint256 i = 0; i < limit; i++) {
+            result_developers[i] = sorted_developers[i];
+            result_scores[i] = scores[i];
+        }
+        
+        return (result_developers, result_scores);
+    }
+    
+    /// Emergency functions for community management
+    function emergency_pause() public {
+        require(community_moderators[msg.sender], "Unauthorized");
+        // Implementation for emergency pause
+        emit CommunityPaused(msg.sender, secure_ts.get_secure_timestamp());
+    }
+    
+    function ban_developer(address developer, string memory reason) public {
+        require(community_moderators[msg.sender], "Unauthorized");
+        require(bytes(reason).length > 0, "Reason required");
+        
+        developers[developer].is_active = false;
+        
+        emit DeveloperBanned(developer, reason, msg.sender);
+    }
+    
+    /// Events
+    event CommunityInitialized(address indexed creator, uint256 timestamp);
+    event DeveloperOnboarded(address indexed developer, string developer_id, string name, string skill_level);
+    event TutorialCreated(string tutorial_id, string title, string difficulty, string category);
+    event ProjectCreated(string project_id, string name, string category, address creator);
+    event TutorialCompleted(string tutorial_id, address developer, uint256 time_taken, uint256 rating);
+    event ProjectContributed(string project_id, address contributor, string contribution_type, string impact);
+    event EventOrganized(string event_id, string title, string event_type, uint256 start_time, uint256 max_attendees);
+    event EventAttended(string event_id, address attendee, uint256 rating);
+    event OmegaTokensAwarded(address recipient, uint256 amount, string reason);
+    event ReputationUpdated(address developer, uint256 points_added, uint256 new_score);
+    event DeveloperVerified(address developer, uint256 reputation_score);
+    event CommunityMetricUpdated(string metric, uint256 value_added, uint256 new_total);
+    event CommunityPaused(address moderator, uint256 timestamp);
+    event DeveloperBanned(address developer, string reason, address moderator);
+}
+
+/// Data structures for community builder
+blockchain DeveloperProfile {
+    address wallet_address;
+    string developer_id;
+    string name;
+    string email;
+    string github_username;
+    string skill_level;
+    string[] interests;
+    string preferred_language;
+    uint256 join_date;
+    uint256 last_active;
+    uint256 reputation_score;
+    uint256 omega_tokens;
+    string[] completed_tutorials;
+    string[] contributed_projects;
+    string[] attended_events;
+    bool[] skills_verified;
+    bool is_verified;
+    bool is_active;
+    uint256 contribution_count;
+    uint256 code_reviews_done;
+    uint256 bugs_reported;
+    uint256 documentation_contributions;
+    uint256 community_help_score;
+}
+
+blockchain Project {
+    string project_id;
+    string name;
+    string description;
+    string github_url;
+    string demo_url;
+    string documentation_url;
+    string[] technologies;
+    string category;
+    string license;
+    string status;
+    bool is_open_source;
+    string project_type;
+    address created_by;
+    uint256 created_date;
+    uint256 last_updated;
+    address[] contributors;
+    uint256 stars;
+    uint256 forks;
+    uint256 issues;
+    uint256 pull_requests;
+    uint256 downloads;
+    uint256 rating_sum;
+    uint256 rating_count;
+    bool is_featured;
+    bool is_verified;
+    string deployment_status;
+    uint256 test_coverage;
+    bool security_audit_passed;
+    uint256 performance_score;
+    uint256 code_quality_score;
+}
+
+blockchain Tutorial {
+    string tutorial_id;
+    string title;
+    string description;
+    string difficulty_level;
+    string[] tags;
+    string content_markdown;
+    string code_example;
+    string video_url;
+    uint256 estimated_time_minutes;
+    string[] prerequisites;
+    string category;
+    address created_by;
+    uint256 created_date;
+    uint256 last_updated;
+    uint256 completion_count;
+    uint256 rating_sum;
+    uint256 rating_count;
+    bool is_featured;
+    bool is_published;
+    uint256 view_count;
+    uint256 likes;
+    string[] comments;
+    string[] related_tutorials;
+    string language;
+    string version;
+    bool deprecated;
+}
+
+blockchain CommunityEvent {
+    string event_id;
+    string title;
+    string description;
+    uint256 start_time;
+    uint256 end_time;
+    string event_type;
+    string location;
+    address organizer;
+    uint256 max_attendees;
+    string[] tags;
+    string registration_url;
+    bool is_virtual;
+    string recording_url;
+    address[] attendees;
+    uint256 attendee_count;
+    uint256 rating_sum;
+    uint256 rating_count;
+    bool is_featured;
+    bool is_published;
+    string[] feedback;
+    string[] resources;
+    string[] follow_up_actions;
+    uint256 creation_date;
+}
+
+blockchain CodeTemplate {
+    string template_id;
+    string name;
+    string description;
+    string category;
+    string code_content;
+    string[] tags;
+    address created_by;
+    uint256 created_date;
+    uint256 usage_count;
+    uint256 rating_sum;
+    uint256 rating_count;
+    bool is_verified;
+    string language;
+    string version;
+    string[] dependencies;
+    string documentation_url;
+}
+
+blockchain APICredential {
+    string api_name;
+    string api_key;
+    string api_secret;
+    uint256 rate_limit;
+    uint256 usage_count;
+    uint256 last_used;
+    bool is_active;
+}

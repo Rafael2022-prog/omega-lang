@@ -28,25 +28,27 @@ OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengemb
 - **Multi-Target Generation**: Satu source code untuk berbagai blockchain
 - **Production Ready**: Optimasi tingkat enterprise dengan monitoring real-time
 
+### 🚀 Fitur Utama
+
 ### ✨ Universal Compatibility
-- **EVM Compatible**: Ethereum, Polygon, BSC, Avalanche, Arbitrum
-- **Non-EVM Support**: Solana, Cosmos, Substrate, Move VM
-- **Cross-Chain**: Built-in support untuk komunikasi antar blockchain
+- **EVM Compatible**: Ethereum, Polygon, BSC, Avalanche, Arbitrum ✅
+- **Non-EVM Support**: Solana, Cosmos, Substrate, Move VM 🚧 (Planned)
+- **Cross-Chain**: Built-in support untuk komunikasi antar blockchain 🚧 (Planned)
 
 ### 🔒 Type Safety & Security
-- Strong typing system dengan compile-time checks
-- Built-in security patterns untuk mencegah vulnerabilities
-- Automatic gas optimization untuk target EVM
+- Strong typing system dengan compile-time checks 🚧 (In Development)
+- Built-in security patterns untuk mencegah vulnerabilities 🚧 (Planned)
+- Automatic gas optimization untuk target EVM 🚧 (Planned)
 
 ### 🎯 Developer Experience
-- Sintaks yang familiar dan ekspresif
-- Rich standard library untuk operasi blockchain
-- Comprehensive tooling dan debugging support
+- Sintaks yang familiar dan ekspresif ✅
+- Rich standard library untuk operasi blockchain 🚧 (Planned)
+- Comprehensive tooling dan debugging support 🚧 (In Development)
 
 ### ⚡ Performance Optimized
-- Target-specific optimizations
-- Efficient memory management
-- Minimal runtime overhead
+- Target-specific optimizations 🚧 (Planned)
+- Efficient memory management 🚧 (Planned)
+- Minimal runtime overhead 🚧 (Planned)
 
 ## 📦 Instalasi
 
@@ -54,6 +56,9 @@ OMEGA adalah bahasa pemrograman revolusioner yang dirancang khusus untuk pengemb
 - **OMEGA Runtime** (untuk native compiler)
 - **Git**
 - **PowerShell 7+** (Windows)
+
+### ⚠️ Status Implementasi Saat Ini
+**OMEGA saat ini berada dalam tahap pengembangan awal. CLI wrapper tersedia untuk testing, namun compiler utama masih dalam pengembangan.**
 
 ### Install Native OMEGA Compiler
 ```bash
@@ -90,6 +95,11 @@ choco install omega-lang
 # Homebrew (macOS/Linux) - Coming Soon
 # brew install omega-lang
 ```
+
+### Platform Support
+- ✅ **Windows**: Native support (compile-only)
+- 🚧 **Linux**: CLI wrapper available, compiler in development
+- 🚧 **macOS**: CLI wrapper available, compiler in development
 
 ### Versioning
 - Sumber versi utama ada di file `VERSION` di root repo (contoh: 1.3.0).
@@ -156,13 +166,20 @@ blockchain SimpleToken {
 }
 ```
 
-### 4. Compile untuk Multiple Targets
+### 4. Testing dengan CLI Wrapper ✅ (Available Now)
 ```bash
-.\omega_native.ps1 build
-# Output:
+# Gunakan CLI wrapper yang tersedia untuk testing sintaks
+./omega-cli.ps1 compile contracts/SimpleToken.omega --target evm  # Windows
+./omega-cli.sh compile contracts/SimpleToken.omega --target evm    # Linux/macOS
+```
+
+### 5. Compile untuk Multiple Targets 🚧 (Planned)
+```bash
+omega build
+# Output yang direncanakan:
 # ✅ EVM: SimpleToken.sol generated
 # ✅ Solana: lib.rs + program.toml generated
-# ✅ Build completed successfully (100% Native)
+# ✅ Build completed successfully
 ```
 
 ### 5. Deploy ke Testnet
@@ -254,19 +271,25 @@ blockchain CrossChainBridge {
 
 ## 🧪 Testing Framework
 
-OMEGA menyediakan testing framework yang komprehensif:
+### Status Testing: 🚧 Dalam Pengembangan
+
+OMEGA sedang mengembangkan framework testing komprehensif. Saat ini tersedia:
 
 ```bash
-# Run all tests
+# Run tests dengan CLI wrapper (tersedia sekarang)
+./omega-cli.ps1 test --pattern "*.test.omega"  # Windows
+./omega-cli.sh test --pattern "*.test.omega"   # Linux/macOS
+
+# Run all tests (akan tersedia)
 omega test
 
-# Run specific test suite
+# Run specific test suite (akan tersedia)
 omega test --suite defi_protocols
 
-# Run cross-chain tests
+# Run cross-chain tests (akan tersedia)
 omega test --cross-chain
 
-# Performance benchmarks
+# Performance benchmarks (akan tersedia)
 omega test --benchmark
 ```
 
@@ -328,33 +351,32 @@ omega test
 
 ## 📊 Roadmap
 
-### Phase 1: Core Language (Q1 2025) ✅
+### Phase 1: Core Language (Q1 2025) 🚧 In Progress
 - [x] Language specification
 - [x] Basic compiler architecture
-- [x] EVM code generation
-- [x] Solana code generation
+- [x] EVM code generation (30% complete)
+- [x] Solana code generation (0% complete)
+- [x] CLI wrapper for all platforms ✅
+- [ ] IDE integration (VS Code/Trae) 🚧
 
-### ✅ **COMPLETED ROADMAP - OMEGA v1.3.0 PRODUCTION READY**
+### Phase 2: Advanced Features (Q2 2025)
+- [ ] Cross-chain communication primitives
+- [ ] Advanced optimization passes
+- [ ] Package manager
+- [ ] Testing framework completion
+- [ ] Linux/macOS compiler porting
 
-**Status**: ✅ **ALL PHASES COMPLETED - PRODUCTION READY**
+### Phase 3: Ecosystem (Q3 2025)
+- [ ] Standard library expansion
+- [ ] DeFi protocol templates
+- [ ] Governance framework
+- [ ] Audit tools integration
 
-### Phase 2: Advanced Features (Q2 2025) ✅ **COMPLETED**
-- [x] Cross-chain communication primitives
-- [x] Advanced optimization passes
-- [x] IDE integration (VS Code)
-- [x] Package manager
-
-### Phase 3: Ecosystem (Q3 2025) ✅ **COMPLETED**
-- [x] Standard library expansion
-- [x] DeFi protocol templates
-- [x] Governance framework
-- [x] Audit tools integration
-
-### Phase 4: Production Ready (Q4 2025) ✅ **COMPLETED**
-- [x] Mainnet deployments
-- [x] Security audits
-- [x] Performance benchmarks
-- [x] Enterprise features
+### Phase 4: Production Ready (Q4 2025)
+- [ ] Security audits
+- [ ] Mainnet deployments
+- [ ] Performance benchmarks
+- [ ] Enterprise features
 
 ### 🎯 **OMEGA v1.3.0 - ENHANCED PERFORMANCE & SECURITY RELEASE**
 

@@ -1,0 +1,53 @@
+{
+  "blockchain": {
+    "prefix": "blockchain",
+    "body": [
+      "blockchain ${1:ContractName} {",
+      "    state {",
+      "        ${2:// state variables}",
+      "    }",
+      "    ",
+      "    constructor(${3:// parameters}) {",
+      "        ${4:// constructor body}",
+      "    }",
+      "    ",
+      "    function ${5:functionName}(${6:// parameters}) public ${7:returns} {",
+      "        ${8:// function body}",
+      "    }",
+      "}"
+    ],
+    "description": "OMEGA blockchain contract"
+  },
+  "function": {
+    "prefix": "function",
+    "body": [
+      "function ${1:functionName}(${2:// parameters}) ${3:public} ${4:returns} {",
+      "    ${5:// function body}",
+      "}"
+    ],
+    "description": "OMEGA function"
+  },
+  "state": {
+    "prefix": "state",
+    "body": [
+      "state {",
+      "    ${1:// state variables}",
+      "}"
+    ],
+    "description": "OMEGA state block"
+  },
+  "mapping": {
+    "prefix": "mapping",
+    "body": [
+      "mapping(${1:address} => ${2:uint256}) ${3:variableName};"
+    ],
+    "description": "OMEGA mapping"
+  },
+  "event": {
+    "prefix": "event",
+    "body": [
+      "event ${1:EventName}(${2:// parameters});"
+    ],
+    "description": "OMEGA event"
+  }
+}

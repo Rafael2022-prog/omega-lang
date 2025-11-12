@@ -1,0 +1,13 @@
+[
+    {
+        "scope": "source.omega",
+        "name": "OMEGA",
+        "file_extensions": ["mega", "omega"],
+        "icon": "file_type_omega.png",
+        "settings":
+        {
+            "foreground": "#00D4FF",
+            "background": "#1E1E1E"
+        }
+    }
+]

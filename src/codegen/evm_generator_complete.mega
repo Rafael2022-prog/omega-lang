@@ -1,0 +1,800 @@
+// OMEGA EVM Code Generator - Complete Implementation
+// Enhanced version with full EVM feature support and production-ready code generation
+
+import "../ir/ir.mega";
+import "../error/error.mega";
+import "./base_generator.mega";
+import "../utils/secure_timestamp.mega";
+import "../utils/gas_optimizer.mega";
+
+/// Production-ready EVM code generator with advanced features
+blockchain EVMCodeGeneratorComplete is BaseCodeGenerator {
+    state {
+        mapping(string => string) solidity_type_mappings;
+        mapping(string => string) visibility_mappings;
+        mapping(string => string) mutability_mappings;
+        mapping(string => string) storage_mappings;
+        string[] pragma_directives;
+        bool use_safe_math;
+        string solidity_version;
+        mapping(string => uint256) gas_estimates;
+        mapping(string => string) library_mappings;
+        mapping(string => string) interface_mappings;
+        GasOptimizer gas_optimizer;
+        bool enable_optimization;
+        mapping(string => bool) supported_evm_versions;
+        string target_evm_version;
+        mapping(string => string) custom_errors;
+        bool use_custom_errors;
+    }
+    
+    constructor() BaseCodeGenerator() {
+        initialize_complete_evm_mappings();
+        initialize_pragma_directives();
+        initialize_library_mappings();
+        initialize_interface_mappings();
+        initialize_evm_versions();
+        
+        solidity_version = "^0.8.19";
+        use_safe_math = false;
+        enable_optimization = true;
+        target_evm_version = "paris";
+        use_custom_errors = true;
+        
+        gas_optimizer = new GasOptimizer();
+        initialize_advanced_features();
+    }
+    
+    /// Initialize comprehensive EVM mappings
+    function initialize_complete_evm_mappings() internal {
+        // Basic types
+        solidity_type_mappings["uint"] = "uint256";
+        solidity_type_mappings["int"] = "int256";
+        solidity_type_mappings["bool"] = "bool";
+        solidity_type_mappings["string"] = "string";
+        solidity_type_mappings["bytes"] = "bytes";
+        solidity_type_mappings["address"] = "address";
+        
+        // Fixed-size integers
+        solidity_type_mappings["uint8"] = "uint8";
+        solidity_type_mappings["uint16"] = "uint16";
+        solidity_type_mappings["uint32"] = "uint32";
+        solidity_type_mappings["uint64"] = "uint64";
+        solidity_type_mappings["uint128"] = "uint128";
+        solidity_type_mappings["uint256"] = "uint256";
+        
+        solidity_type_mappings["int8"] = "int8";
+        solidity_type_mappings["int16"] = "int16";
+        solidity_type_mappings["int32"] = "int32";
+        solidity_type_mappings["int64"] = "int64";
+        solidity_type_mappings["int128"] = "int128";
+        solidity_type_mappings["int256"] = "int256";
+        
+        // Byte types
+        solidity_type_mappings["byte"] = "bytes1";
+        solidity_type_mappings["bytes1"] = "bytes1";
+        solidity_type_mappings["bytes32"] = "bytes32";
+        
+        // Array types
+        solidity_type_mappings["uint[]"] = "uint256[]";
+        solidity_type_mappings["int[]"] = "int256[]";
+        solidity_type_mappings["bool[]"] = "bool[]";
+        solidity_type_mappings["string[]"] = "string[]";
+        solidity_type_mappings["address[]"] = "address[]";
+        
+        // Visibility mappings
+        visibility_mappings["public"] = "public";
+        visibility_mappings["private"] = "private";
+        visibility_mappings["internal"] = "internal";
+        visibility_mappings["external"] = "external";
+        
+        // Mutability mappings
+        mutability_mappings["pure"] = "pure";
+        mutability_mappings["view"] = "view";
+        mutability_mappings["payable"] = "payable";
+        mutability_mappings["nonpayable"] = "";
+        
+        // Storage mappings
+        storage_mappings["memory"] = "memory";
+        storage_mappings["storage"] = "storage";
+        storage_mappings["calldata"] = "calldata";
+    }
+    
+    /// Initialize library mappings
+    function initialize_library_mappings() internal {
+        library_mappings["SafeMath"] = "@openzeppelin/contracts/utils/math/SafeMath.sol";
+        library_mappings["Ownable"] = "@openzeppelin/contracts/access/Ownable.sol";
+        library_mappings["ERC20"] = "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+        library_mappings["ERC721"] = "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+        library_mappings["ERC1155"] = "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+        library_mappings["ReentrancyGuard"] = "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+        library_mappings["Pausable"] = "@openzeppelin/contracts/security/Pausable.sol";
+    }
+    
+    /// Initialize interface mappings
+    function initialize_interface_mappings() internal {
+        interface_mappings["IERC20"] = "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+        interface_mappings["IERC721"] = "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+        interface_mappings["IERC1155"] = "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+        interface_mappings["IERC165"] = "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+    }
+    
+    /// Initialize EVM version support
+    function initialize_evm_versions() internal {
+        supported_evm_versions["homestead"] = true;
+        supported_evm_versions["tangerineWhistle"] = true;
+        supported_evm_versions["spuriousDragon"] = true;
+        supported_evm_versions["byzantium"] = true;
+        supported_evm_versions["constantinople"] = true;
+        supported_evm_versions["petersburg"] = true;
+        supported_evm_versions["istanbul"] = true;
+        supported_evm_versions["berlin"] = true;
+        supported_evm_versions["london"] = true;
+        supported_evm_versions["paris"] = true;
+        supported_evm_versions["shanghai"] = true;
+    }
+    
+    /// Initialize advanced EVM features
+    function initialize_advanced_features() internal override {
+        supported_features = [
+            "basic_types", "functions", "events", "modifiers", "inheritance",
+            "interfaces", "libraries", "mappings", "arrays", "structs", "enums",
+            "payable", "view", "pure", "gas_optimization", "assembly", "yul",
+            "custom_errors", "try_catch", "receive_function", "fallback_function",
+            "create2", "delegatecall", "staticcall", "selfdestruct", "chainlink",
+            "upgradeable_contracts", "proxy_patterns", "access_control", "roles"
+        ];
+    }
+    
+    /// Main generation function with optimization
+    function generate(IRModule memory module) public override returns (string memory) {
+        if (!validate_module(module)) {
+            return "";
+        }
+        
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        uint256 start_time = secure_ts.get_secure_timestamp() * 1000;
+        
+        string memory result = "";
+        
+        // Generate file header
+        result = string(abi.encodePacked(result, generate_file_header(module)));
+        
+        // Generate pragma and imports
+        result = string(abi.encodePacked(result, generate_pragma_section()));
+        result = string(abi.encodePacked(result, generate_imports_section(module)));
+        
+        // Generate interfaces first
+        result = string(abi.encodePacked(result, generate_interfaces(module)));
+        
+        // Generate libraries
+        result = string(abi.encodePacked(result, generate_libraries(module)));
+        
+        // Generate main contracts
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            result = string(abi.encodePacked(result, generate_complete_contract(module.blockchains[i])));
+        }
+        
+        // Apply gas optimizations if enabled
+        if (enable_optimization) {
+            result = gas_optimizer.optimize_solidity_code(result);
+        }
+        
+        // Update statistics
+        uint256 end_time = secure_ts.get_secure_timestamp() * 1000;
+        stats.generation_time_ms = end_time - start_time;
+        update_stats_contracts();
+        
+        return result;
+    }
+    
+    /// Generate file header with metadata
+    function generate_file_header(IRModule memory module) internal view returns (string memory) {
+        return string(abi.encodePacked(
+            "// SPDX-License-Identifier: MIT\n",
+            "// Generated by OMEGA Compiler v", compiler_version, "\n",
+            "// Target: EVM (", target_evm_version, ")\n",
+            "// Timestamp: ", uint256_to_string(block.timestamp), "\n",
+            "// Source: ", module.name, "\n\n"
+        ));
+    }
+    
+    /// Generate comprehensive pragma section
+    function generate_pragma_section() internal view returns (string memory) {
+        string memory result = "// SPDX-License-Identifier: MIT\n";
+        
+        // Solidity version pragma
+        result = string(abi.encodePacked(result, "pragma solidity ", solidity_version, ";\n"));
+        
+        // ABI encoder pragma
+        result = string(abi.encodePacked(result, "pragma experimental ABIEncoderV2;\n"));
+        
+        // EVM version pragma if specified
+        if (bytes(target_evm_version).length > 0) {
+            result = string(abi.encodePacked(result, "pragma abicoder v2;\n"));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate comprehensive imports section
+    function generate_imports_section(IRModule memory module) internal returns (string memory) {
+        string memory result = "";
+        
+        // Add OpenZeppelin imports based on usage
+        if (uses_safe_math(module)) {
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/utils/math/SafeMath.sol\";\n"));
+        }
+        
+        if (uses_ownable(module)) {
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/access/Ownable.sol\";\n"));
+        }
+        
+        if (uses_reentrancy_guard(module)) {
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/security/ReentrancyGuard.sol\";\n"));
+        }
+        
+        if (uses_pausable(module)) {
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/security/Pausable.sol\";\n"));
+        }
+        
+        // Add ERC imports based on detected patterns
+        if (uses_erc20(module)) {
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/token/ERC20/ERC20.sol\";\n"));
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/token/ERC20/IERC20.sol\";\n"));
+        }
+        
+        if (uses_erc721(module)) {
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/token/ERC721/ERC721.sol\";\n"));
+            result = string(abi.encodePacked(result, "import \"@openzeppelin/contracts/token/ERC721/IERC721.sol\";\n"));
+        }
+        
+        // Add module-specific imports
+        for (uint i = 0; i < module.imports.length; i++) {
+            result = string(abi.encodePacked(result, generate_import(module.imports[i])));
+        }
+        
+        if (bytes(result).length > 0) {
+            result = string(abi.encodePacked(result, "\n"));
+        }
+        
+        return result;
+    }
+    
+    /// Generate complete contract with all features
+    function generate_complete_contract(BlockchainIR memory blockchain) internal returns (string memory) {
+        push_context(blockchain.name, "");
+        
+        string memory result = "";
+        
+        // Contract declaration with inheritance
+        result = string(abi.encodePacked(result, generate_contract_declaration(blockchain)));
+        result = string(abi.encodePacked(result, " {\n"));
+        push_indent();
+        
+        // Custom errors
+        if (use_custom_errors) {
+            result = string(abi.encodePacked(result, generate_custom_errors(blockchain)));
+        }
+        
+        // State variables with proper visibility
+        result = string(abi.encodePacked(result, generate_state_variables_with_visibility(blockchain.state_variables)));
+        
+        // Events with indexed parameters
+        result = string(abi.encodePacked(result, generate_events_with_indexing(blockchain.events)));
+        
+        // Modifiers with conditions
+        result = string(abi.encodePacked(result, generate_modifiers_with_conditions(blockchain.modifiers)));
+        
+        // Constructor with initialization
+        if (blockchain.constructor.name.length > 0) {
+            result = string(abi.encodePacked(result, generate_complete_constructor(blockchain.constructor)));
+        }
+        
+        // Receive and fallback functions
+        result = string(abi.encodePacked(result, generate_receive_function(blockchain)));
+        result = string(abi.encodePacked(result, generate_fallback_function(blockchain)));
+        
+        // Main functions with full feature support
+        result = string(abi.encodePacked(result, generate_complete_functions(blockchain.functions)));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, "}\n\n"));
+        
+        pop_context();
+        update_stats_contracts();
+        
+        return result;
+    }
+    
+    /// Generate contract declaration with inheritance
+    function generate_contract_declaration(BlockchainIR memory blockchain) internal returns (string memory) {
+        string memory result = string(abi.encodePacked("contract ", blockchain.name));
+        
+        // Build inheritance list
+        string memory inheritance = "";
+        
+        // Add OpenZeppelin base contracts based on detected patterns
+        if (uses_ownable(blockchain)) {
+            inheritance = string(abi.encodePacked(inheritance, "Ownable"));
+        }
+        
+        if (uses_reentrancy_guard(blockchain)) {
+            if (bytes(inheritance).length > 0) inheritance = string(abi.encodePacked(inheritance, ", "));
+            inheritance = string(abi.encodePacked(inheritance, "ReentrancyGuard"));
+        }
+        
+        if (uses_pausable(blockchain)) {
+            if (bytes(inheritance).length > 0) inheritance = string(abi.encodePacked(inheritance, ", "));
+            inheritance = string(abi.encodePacked(inheritance, "Pausable"));
+        }
+        
+        // Add explicit parent contracts
+        for (uint i = 0; i < blockchain.parent_contracts.length; i++) {
+            if (bytes(inheritance).length > 0) inheritance = string(abi.encodePacked(inheritance, ", "));
+            inheritance = string(abi.encodePacked(inheritance, blockchain.parent_contracts[i]));
+        }
+        
+        if (bytes(inheritance).length > 0) {
+            result = string(abi.encodePacked(result, " is ", inheritance));
+        }
+        
+        return result;
+    }
+    
+    /// Generate custom errors
+    function generate_custom_errors(BlockchainIR memory blockchain) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "// Custom Errors\n"));
+        
+        // Add standard custom errors
+        result = string(abi.encodePacked(result, get_indent(), "error InsufficientBalance(uint256 requested, uint256 available);\n"));
+        result = string(abi.encodePacked(result, get_indent(), "error InvalidAddress(address addr);\n"));
+        result = string(abi.encodePacked(result, get_indent(), "error UnauthorizedAccess(address caller);\n"));
+        result = string(abi.encodePacked(result, get_indent(), "error InvalidAmount(uint256 amount);\n"));
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate state variables with proper visibility
+    function generate_state_variables_with_visibility(StateVariableIR[] memory variables) internal returns (string memory) {
+        if (variables.length == 0) return "";
+        
+        string memory result = string(abi.encodePacked(get_indent(), "// State Variables\n"));
+        
+        for (uint i = 0; i < variables.length; i++) {
+            result = string(abi.encodePacked(result, generate_state_variable_with_visibility(variables[i])));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate single state variable with visibility
+    function generate_state_variable_with_visibility(StateVariableIR memory variable) internal returns (string memory) {
+        string memory visibility = "private"; // Default visibility
+        
+        if (variable.is_public) {
+            visibility = "public";
+        }
+        
+        string memory mutability = "";
+        if (variable.is_constant) {
+            mutability = " constant";
+        } else if (variable.is_immutable) {
+            mutability = " immutable";
+        }
+        
+        string memory initial_value = "";
+        if (bytes(variable.initial_value).length > 0) {
+            initial_value = string(abi.encodePacked(" = ", variable.initial_value));
+        }
+        
+        return string(abi.encodePacked(
+            get_indent(),
+            visibility,
+            mutability,
+            " ",
+            convert_type(variable.var_type),
+            " ",
+            variable.name,
+            initial_value,
+            ";\n"
+        ));
+    }
+    
+    /// Generate events with proper indexing
+    function generate_events_with_indexing(EventIR[] memory events) internal returns (string memory) {
+        if (events.length == 0) return "";
+        
+        string memory result = string(abi.encodePacked(get_indent(), "// Events\n"));
+        
+        for (uint i = 0; i < events.length; i++) {
+            result = string(abi.encodePacked(result, generate_event_with_indexing(events[i])));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate single event with indexing
+    function generate_event_with_indexing(EventIR memory event_ir) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "event ", event_ir.name, "("));
+        
+        for (uint i = 0; i < event_ir.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            
+            ParameterIR memory param = event_ir.parameters[i];
+            string memory indexed_keyword = param.is_indexed ? "indexed " : "";
+            
+            result = string(abi.encodePacked(result, indexed_keyword, convert_type(param.param_type), " ", param.name));
+        }
+        
+        return string(abi.encodePacked(result, ");\n"));
+    }
+    
+    /// Generate modifiers with conditions
+    function generate_modifiers_with_conditions(ModifierIR[] memory modifiers) internal returns (string memory) {
+        if (modifiers.length == 0) return "";
+        
+        string memory result = string(abi.encodePacked(get_indent(), "// Modifiers\n"));
+        
+        for (uint i = 0; i < modifiers.length; i++) {
+            result = string(abi.encodePacked(result, generate_modifier_with_condition(modifiers[i])));
+        }
+        
+        return string(abi.encodePacked(result, "\n"));
+    }
+    
+    /// Generate single modifier with condition
+    function generate_modifier_with_condition(ModifierIR memory modifier) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "modifier ", modifier.name));
+        
+        // Add parameters if any
+        if (modifier.parameters.length > 0) {
+            result = string(abi.encodePacked(result, "("));
+            for (uint i = 0; i < modifier.parameters.length; i++) {
+                if (i > 0) result = string(abi.encodePacked(result, ", "));
+                ParameterIR memory param = modifier.parameters[i];
+                result = string(abi.encodePacked(result, convert_type(param.param_type), " ", param.name));
+            }
+            result = string(abi.encodePacked(result, ")"));
+        }
+        
+        result = string(abi.encodePacked(result, " {\n"));
+        push_indent();
+        
+        // Generate modifier body
+        for (uint i = 0; i < modifier.body.length; i++) {
+            result = string(abi.encodePacked(result, generate_statement(modifier.body[i])));
+        }
+        
+        // Add _; for execution
+        result = string(abi.encodePacked(result, get_indent(), "_;\n"));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        return result;
+    }
+    
+    /// Generate complete constructor
+    function generate_complete_constructor(FunctionIR memory constructor) internal returns (string memory) {
+        string memory result = string(abi.encodePacked(get_indent(), "constructor("));
+        
+        // Generate constructor parameters
+        for (uint i = 0; i < constructor.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            ParameterIR memory param = constructor.parameters[i];
+            result = string(abi.encodePacked(result, convert_type(param.param_type), " ", param.name));
+        }
+        
+        result = string(abi.encodePacked(result, ")"));
+        
+        // Add modifier invocations
+        for (uint i = 0; i < constructor.modifiers.length; i++) {
+            result = string(abi.encodePacked(result, " ", constructor.modifiers[i]));
+        }
+        
+        result = string(abi.encodePacked(result, " {\n"));
+        push_indent();
+        
+        // Generate constructor body
+        for (uint i = 0; i < constructor.body.length; i++) {
+            result = string(abi.encodePacked(result, generate_statement(constructor.body[i])));
+        }
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        return result;
+    }
+    
+    /// Generate receive function
+    function generate_receive_function(BlockchainIR memory blockchain) internal returns (string memory) {
+        // Check if blockchain needs receive function
+        if (!needs_receive_function(blockchain)) {
+            return "";
+        }
+        
+        string memory result = string(abi.encodePacked(get_indent(), "receive() external payable {\n"));
+        push_indent();
+        
+        result = string(abi.encodePacked(result, get_indent(), "// Handle plain Ether transfers\n"));
+        result = string(abi.encodePacked(result, get_indent(), "emit EtherReceived(msg.sender, msg.value);\n"));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        return result;
+    }
+    
+    /// Generate fallback function
+    function generate_fallback_function(BlockchainIR memory blockchain) internal returns (string memory) {
+        // Check if blockchain needs fallback function
+        if (!needs_fallback_function(blockchain)) {
+            return "";
+        }
+        
+        string memory result = string(abi.encodePacked(get_indent(), "fallback() external payable {\n"));
+        push_indent();
+        
+        result = string(abi.encodePacked(result, get_indent(), "// Handle unknown function calls\n"));
+        result = string(abi.encodePacked(result, get_indent(), "revert(\"Function not found\");\n"));
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        return result;
+    }
+    
+    /// Generate complete functions with all features
+    function generate_complete_functions(FunctionIR[] memory functions) internal returns (string memory) {
+        string memory result = "";
+        
+        for (uint i = 0; i < functions.length; i++) {
+            if (functions[i].function_type != FunctionType.Constructor) {
+                result = string(abi.encodePacked(result, generate_complete_function(functions[i])));
+            }
+        }
+        
+        return result;
+    }
+    
+    /// Generate single complete function
+    function generate_complete_function(FunctionIR memory function_ir) internal returns (string memory) {
+        string memory result = "";
+        
+        // Function documentation
+        if (bytes(function_ir.documentation).length > 0) {
+            result = string(abi.encodePacked(result, get_indent(), "/**\n"));
+            result = string(abi.encodePacked(result, get_indent(), " * ", function_ir.documentation, "\n"));
+            result = string(abi.encodePacked(result, get_indent(), " */\n"));
+        }
+        
+        // Function declaration
+        result = string(abi.encodePacked(result, get_indent(), "function ", function_ir.name, "("));
+        
+        // Generate function parameters
+        for (uint i = 0; i < function_ir.parameters.length; i++) {
+            if (i > 0) result = string(abi.encodePacked(result, ", "));
+            ParameterIR memory param = function_ir.parameters[i];
+            result = string(abi.encodePacked(result, convert_type(param.param_type), " ", param.name));
+        }
+        
+        result = string(abi.encodePacked(result, ") "));
+        
+        // Add visibility and mutability
+        result = string(abi.encodePacked(result, function_ir.visibility, " "));
+        if (bytes(function_ir.mutability).length > 0) {
+            result = string(abi.encodePacked(result, function_ir.mutability, " "));
+        }
+        
+        // Add return parameters
+        if (function_ir.return_parameters.length > 0) {
+            result = string(abi.encodePacked(result, "returns ("));
+            for (uint i = 0; i < function_ir.return_parameters.length; i++) {
+                if (i > 0) result = string(abi.encodePacked(result, ", "));
+                ParameterIR memory ret_param = function_ir.return_parameters[i];
+                result = string(abi.encodePacked(result, convert_type(ret_param.param_type), " ", ret_param.name));
+            }
+            result = string(abi.encodePacked(result, ") "));
+        }
+        
+        // Add modifier invocations
+        for (uint i = 0; i < function_ir.modifiers.length; i++) {
+            result = string(abi.encodePacked(result, function_ir.modifiers[i], " "));
+        }
+        
+        result = string(abi.encodePacked(result, "{\n"));
+        push_indent();
+        
+        // Generate function body with gas optimization
+        for (uint i = 0; i < function_ir.body.length; i++) {
+            result = string(abi.encodePacked(result, generate_optimized_statement(function_ir.body[i])));
+        }
+        
+        pop_indent();
+        result = string(abi.encodePacked(result, get_indent(), "}\n\n"));
+        
+        return result;
+    }
+    
+    /// Helper functions for feature detection
+    function uses_safe_math(IRModule memory module) internal pure returns (bool) {
+        // Check if module uses arithmetic operations that need SafeMath
+        return false; // Disabled for Solidity 0.8+
+    }
+    
+    function uses_ownable(IRModule memory module) internal pure returns (bool) {
+        // Check if module has ownership patterns
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            BlockchainIR memory blockchain = module.blockchains[i];
+            for (uint j = 0; j < blockchain.functions.length; j++) {
+                if (contains(blockchain.functions[j].modifiers, "onlyOwner")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    function uses_reentrancy_guard(IRModule memory module) internal pure returns (bool) {
+        // Check if module has reentrancy protection
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            BlockchainIR memory blockchain = module.blockchains[i];
+            for (uint j = 0; j < blockchain.functions.length; j++) {
+                if (contains(blockchain.functions[j].modifiers, "nonReentrant")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    function uses_pausable(IRModule memory module) internal pure returns (bool) {
+        // Check if module has pause functionality
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            BlockchainIR memory blockchain = module.blockchains[i];
+            for (uint j = 0; j < blockchain.functions.length; j++) {
+                string memory func_name = blockchain.functions[j].name;
+                if (keccak256(bytes(func_name)) == keccak256(bytes("pause")) ||
+                    keccak256(bytes(func_name)) == keccak256(bytes("unpause"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    function uses_erc20(IRModule memory module) internal pure returns (bool) {
+        // Check for ERC20 patterns
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            BlockchainIR memory blockchain = module.blockchains[i];
+            for (uint j = 0; j < blockchain.functions.length; j++) {
+                string memory func_name = blockchain.functions[j].name;
+                if (keccak256(bytes(func_name)) == keccak256(bytes("transfer")) ||
+                    keccak256(bytes(func_name)) == keccak256(bytes("approve")) ||
+                    keccak256(bytes(func_name)) == keccak256(bytes("transferFrom"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    function uses_erc721(IRModule memory module) internal pure returns (bool) {
+        // Check for ERC721 patterns
+        for (uint i = 0; i < module.blockchains.length; i++) {
+            BlockchainIR memory blockchain = module.blockchains[i];
+            for (uint j = 0; j < blockchain.functions.length; j++) {
+                string memory func_name = blockchain.functions[j].name;
+                if (keccak256(bytes(func_name)) == keccak256(bytes("mint")) ||
+                    keccak256(bytes(func_name)) == keccak256(bytes("burn"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    function needs_receive_function(BlockchainIR memory blockchain) internal pure returns (bool) {
+        // Check if contract needs to receive plain Ether
+        for (uint i = 0; i < blockchain.functions.length; i++) {
+            if (blockchain.functions[i].is_payable) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    function needs_fallback_function(BlockchainIR memory blockchain) internal pure returns (bool) {
+        // Most contracts should have a fallback function
+        return true;
+    }
+    
+    function generate_optimized_statement(StatementIR memory stmt) internal returns (string memory) {
+        // Generate statement with gas optimization hints
+        string memory basic_stmt = generate_statement(stmt);
+        
+        if (enable_optimization) {
+            return gas_optimizer.add_optimization_comments(basic_stmt, stmt);
+        }
+        
+        return basic_stmt;
+    }
+    
+    /// Utility functions
+    function contains(string[] memory array, string memory value) internal pure returns (bool) {
+        for (uint i = 0; i < array.length; i++) {
+            if (keccak256(bytes(array[i])) == keccak256(bytes(value))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    function uint256_to_string(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+    
+    /// Override platform-specific functions
+    function get_platform() public pure override returns (TargetPlatform) {
+        return TargetPlatform.EVM;
+    }
+    
+    function get_file_extension() public pure override returns (string memory) {
+        return ".sol";
+    }
+    
+    /// Configuration functions
+    function set_solidity_version(string memory version) public {
+        solidity_version = version;
+        pragma_directives[0] = string(abi.encodePacked("pragma solidity ", version, ";"));
+    }
+    
+    function set_evm_version(string memory version) public {
+        require(supported_evm_versions[version], "Unsupported EVM version");
+        target_evm_version = version;
+    }
+    
+    function enable_optimization(bool enable) public {
+        enable_optimization = enable;
+    }
+    
+    function enable_custom_errors(bool enable) public {
+        use_custom_errors = enable;
+    }
+    
+    /// Gas estimation with optimization
+    function estimate_optimized_gas(string memory function_name) public view returns (uint256) {
+        uint256 base_gas = gas_estimates[function_name];
+        if (enable_optimization) {
+            return gas_optimizer.estimate_optimized_gas(base_gas);
+        }
+        return base_gas;
+    }
+    
+    /// Reset generator state
+    function reset() public override {
+        super.reset();
+        solidity_version = "^0.8.19";
+        use_safe_math = false;
+        enable_optimization = true;
+        target_evm_version = "paris";
+        use_custom_errors = true;
+        initialize_pragma_directives();
+    }
+}

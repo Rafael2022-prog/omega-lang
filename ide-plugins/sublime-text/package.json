@@ -1,0 +1,19 @@
+{
+    "name": "OMEGA Language Support",
+    "description": "Syntax highlighting and language support for OMEGA blockchain programming language",
+    "author": "OMEGA Language Team",
+    "homepage": "https://omegalang.xyz",
+    "issues": "https://github.com/omega-lang/omega/issues",
+    "donate": "https://omegalang.xyz/donate",
+    "buy": null,
+    "readme": "https://raw.githubusercontent.com/omega-lang/omega/main/README.md",
+    "previous_names": [],
+    "labels": ["language", "blockchain", "smart-contracts", "syntax-highlighting"],
+    "version": "1.0.0",
+    "url": "https://github.com/omega-lang/omega/releases/download/v1.0.0/OMEGA.sublime-package",
+    "date": "2025-01-01 00:00:00",
+    "sublime_text": ">=3000",
+    "platforms": ["*"],
+    "dependencies": [],
+    "packages": ["OMEGA Language Support"]
+}
