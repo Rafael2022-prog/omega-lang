@@ -1,0 +1,561 @@
+// OMEGA Comprehensive Testing Framework
+// Provides unit, integration, and end-to-end testing capabilities
+
+import { OmegaCompiler } from '../compiler/omega_compiler';
+import { OmegaRuntime } from '../runtime/omega_runtime';
+import { OmegaSecurityScanner } from '../security/omega_security_scanner';
+import { OmegaPerformanceBenchmark } from '../benchmark/omega_performance_benchmark';
+
+blockchain OmegaTestingFramework {
+    state {
+        testSuites: TestSuite[];
+        currentSuite: TestSuite?;
+        currentTest: TestCase?;
+        results: TestResult[];
+        startTime: u64;
+        globalSetup: function()?;
+        globalTeardown: function()?;
+        compiler: OmegaCompiler;
+        runtime: OmegaRuntime;
+        securityScanner: OmegaSecurityScanner;
+        benchmark: OmegaPerformanceBenchmark;
+    }
+
+    constructor(
+        compiler: OmegaCompiler,
+        runtime: OmegaRuntime,
+        securityScanner: OmegaSecurityScanner,
+        benchmark: OmegaPerformanceBenchmark
+    ) {
+        this.compiler = compiler;
+        this.runtime = runtime;
+        this.securityScanner = securityScanner;
+        this.benchmark = benchmark;
+        this.testSuites = [];
+        this.results = [];
+        this.startTime = 0;
+    }
+
+    // Global configuration
+    function setGlobalSetup(fn: function()): void {
+        this.globalSetup = fn;
+    }
+
+    function setGlobalTeardown(fn: function()): void {
+        this.globalTeardown = fn;
+    }
+
+    // Test suite creation
+    function describe(name: string, fn: function()): void {
+        let suite = TestSuite {
+            name: name,
+            tests: [],
+            setup: null,
+            teardown: null,
+            beforeEach: null,
+            afterEach: null
+        };
+
+        this.currentSuite = suite;
+        fn();
+        this.testSuites.push(suite);
+        this.currentSuite = null;
+    }
+
+    // Test case creation
+    function it(name: string, fn: function(), timeout: u32 = 5000): void {
+        require(this.currentSuite != null, "Test case must be defined within a describe block");
+
+        let testCase = TestCase {
+            name: name,
+            fn: fn,
+            timeout: timeout,
+            skip: false,
+            only: false,
+            tags: []
+        };
+
+        this.currentSuite.tests.push(testCase);
+    }
+
+    // Test modifiers
+    function skip(name: string, fn: function(), timeout: u32 = 5000): void {
+        require(this.currentSuite != null, "Test case must be defined within a describe block");
+
+        let testCase = TestCase {
+            name: name,
+            fn: fn,
+            timeout: timeout,
+            skip: true,
+            only: false,
+            tags: []
+        };
+
+        this.currentSuite.tests.push(testCase);
+    }
+
+    function only(name: string, fn: function(), timeout: u32 = 5000): void {
+        require(this.currentSuite != null, "Test case must be defined within a describe block");
+
+        let testCase = TestCase {
+            name: name,
+            fn: fn,
+            timeout: timeout,
+            skip: false,
+            only: true,
+            tags: []
+        };
+
+        // Mark all other tests in this suite as skip
+        for (let test in this.currentSuite.tests) {
+            test.skip = true;
+        }
+        this.currentSuite.tests.push(testCase);
+    }
+
+    // Lifecycle hooks
+    function beforeEach(fn: function()): void {
+        require(this.currentSuite != null, "beforeEach must be defined within a describe block");
+        this.currentSuite.beforeEach = fn;
+    }
+
+    function afterEach(fn: function()): void {
+        require(this.currentSuite != null, "afterEach must be defined within a describe block");
+        this.currentSuite.afterEach = fn;
+    }
+
+    function beforeAll(fn: function()): void {
+        require(this.currentSuite != null, "beforeAll must be defined within a describe block");
+        this.currentSuite.setup = fn;
+    }
+
+    function afterAll(fn: function()): void {
+        require(this.currentSuite != null, "afterAll must be defined within a describe block");
+        this.currentSuite.teardown = fn;
+    }
+
+    // Test execution
+    function run(filter: string = "", tags: string[] = [], parallel: bool = false, coverage: bool = false, security: bool = false, performance: bool = false): TestResult[] {
+        this.results = [];
+        this.startTime = getCurrentTime();
+
+        // Global setup
+        if (this.globalSetup != null) {
+            this.globalSetup();
+        }
+
+        // Filter test suites based on options
+        let suitesToRun = this.testSuites;
+        if (filter != "") {
+            suitesToRun = [];
+            for (let suite in this.testSuites) {
+                if (contains(suite.name, filter)) {
+                    suitesToRun.push(suite);
+                }
+            }
+        }
+
+        if (tags.length > 0) {
+            let filteredSuites = [];
+            for (let suite in suitesToRun) {
+                let hasTag = false;
+                for (let test in suite.tests) {
+                    if (test.tags != null) {
+                        for (let tag in test.tags) {
+                            for (let filterTag in tags) {
+                                if (tag == filterTag) {
+                                    hasTag = true;
+                                    break;
+                                }
+                            }
+                            if (hasTag) break;
+                        }
+                    }
+                    if (hasTag) break;
+                }
+                if (hasTag) {
+                    filteredSuites.push(suite);
+                }
+            }
+            suitesToRun = filteredSuites;
+        }
+
+        // Run test suites sequentially for now (parallel can be added later)
+        for (let suite in suitesToRun) {
+            this.runSuite(suite, filter, tags);
+        }
+
+        // Global teardown
+        if (this.globalTeardown != null) {
+            this.globalTeardown();
+        }
+
+        return this.results;
+    }
+
+    function runSuite(suite: TestSuite, filter: string, tags: string[]): void {
+        log("📋 Running test suite: " + suite.name);
+
+        // Suite setup
+        if (suite.setup != null) {
+            suite.setup();
+        }
+
+        // Filter tests
+        let testsToRun = suite.tests;
+        if (filter != "") {
+            let filteredTests = [];
+            for (let test in testsToRun) {
+                if (contains(test.name, filter)) {
+                    filteredTests.push(test);
+                }
+            }
+            testsToRun = filteredTests;
+        }
+
+        if (tags.length > 0) {
+            let filteredTests = [];
+            for (let test in testsToRun) {
+                if (test.tags != null) {
+                    for (let tag in test.tags) {
+                        for (let filterTag in tags) {
+                            if (tag == filterTag) {
+                                filteredTests.push(test);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            testsToRun = filteredTests;
+        }
+
+        // Run tests
+        for (let test in testsToRun) {
+            this.runTest(test, suite);
+        }
+
+        // Suite teardown
+        if (suite.teardown != null) {
+            suite.teardown();
+        }
+    }
+
+    function runTest(test: TestCase, suite: TestSuite): void {
+        if (test.skip) {
+            let result = TestResult {
+                name: suite.name + " > " + test.name,
+                status: 'skipped',
+                duration: 0,
+                assertions: []
+            };
+            this.results.push(result);
+            return;
+        }
+
+        this.currentTest = test;
+        let startTime = getCurrentTime();
+        let assertions = [];
+
+        try {
+            // Test setup
+            if (suite.beforeEach != null) {
+                suite.beforeEach();
+            }
+
+            // Create test context with assertions
+            let context = this.createTestContext(assertions);
+            
+            // Run test with timeout
+            this.runWithTimeout(test.fn, test.timeout);
+
+            let duration = getCurrentTime() - startTime;
+
+            let result = TestResult {
+                name: suite.name + " > " + test.name,
+                status: 'passed',
+                duration: duration,
+                assertions: assertions
+            };
+            this.results.push(result);
+
+            log("  ✅ " + test.name + " (" + toString(duration) + "ms)");
+
+        } catch (error) {
+            let duration = getCurrentTime() - startTime;
+            
+            let result = TestResult {
+                name: suite.name + " > " + test.name,
+                status: 'failed',
+                duration: duration,
+                error: error,
+                assertions: assertions
+            };
+            this.results.push(result);
+
+            log("  ❌ " + test.name + " (" + toString(duration) + "ms)");
+            if (error != null) {
+                log("     " + error);
+            }
+
+        } finally {
+            // Test cleanup
+            if (suite.afterEach != null) {
+                suite.afterEach();
+            }
+            this.currentTest = null;
+        }
+    }
+
+    function createTestContext(assertions: TestAssertion[]): TestContext {
+        return TestContext {
+            expect: Expect { assertions: assertions, actual: null },
+            compiler: this.compiler,
+            runtime: this.runtime,
+            securityScanner: this.securityScanner,
+            benchmark: this.benchmark
+        };
+    }
+
+    function runWithTimeout(fn: function(), timeout: u32): void {
+        // Simple timeout implementation - in real implementation would use async/await
+        let startTime = getCurrentTime();
+        fn();
+        let duration = getCurrentTime() - startTime;
+        require(duration <= timeout, "Test timed out after " + toString(timeout) + "ms");
+    }
+
+    // Test reporting
+    function generateReport(): string {
+        let total = this.results.length;
+        let passed = 0;
+        let failed = 0;
+        let skipped = 0;
+        
+        for (let result in this.results) {
+            if (result.status == 'passed') {
+                passed++;
+            } else if (result.status == 'failed') {
+                failed++;
+            } else if (result.status == 'skipped') {
+                skipped++;
+            }
+        }
+
+        let totalDuration = 0;
+        for (let result in this.results) {
+            totalDuration += result.duration;
+        }
+
+        let report = "\n🧪 OMEGA Test Results\n";
+        report += "========================\n\n";
+        report += "Total Tests: " + toString(total) + "\n";
+        report += "✅ Passed: " + toString(passed) + "\n";
+        report += "❌ Failed: " + toString(failed) + "\n";
+        report += "⏭️  Skipped: " + toString(skipped) + "\n";
+        report += "⏱️  Total Duration: " + toString(totalDuration) + "ms\n\n";
+
+        if (failed > 0) {
+            report += "Failed Tests:\n";
+            for (let result in this.results) {
+                if (result.status == 'failed') {
+                    report += "  ❌ " + result.name + "\n";
+                    if (result.error != null) {
+                        report += "     " + result.error + "\n";
+                    }
+                }
+            }
+            report += "\n";
+        }
+
+        return report;
+    }
+
+    // Performance testing
+    function runPerformanceTest(contractPath: string, testName: string, iterations: u32 = 1000): PerformanceResult {
+        let results = [];
+        let gasUsages = [];
+        let memoryUsages = [];
+
+        for (let i = 0; i < iterations; i++) {
+            let start = getCurrentTime();
+            let startMemory = getMemoryUsage();
+
+            try {
+                let compiled = this.compiler.compile(contractPath);
+                let result = this.runtime.execute(compiled);
+                
+                let end = getCurrentTime();
+                let endMemory = getMemoryUsage();
+                
+                results.push(end - start);
+                gasUsages.push(result.gasUsed);
+                memoryUsages.push(endMemory - startMemory);
+
+            } catch (error) {
+                log("Performance test iteration " + toString(i) + " failed: " + error);
+            }
+        }
+
+        let sum = 0;
+        for (let result in results) {
+            sum += result;
+        }
+        let avgExecutionTime = sum / results.length;
+
+        let minExecutionTime = results[0];
+        let maxExecutionTime = results[0];
+        for (let result in results) {
+            if (result < minExecutionTime) {
+                minExecutionTime = result;
+            }
+            if (result > maxExecutionTime) {
+                maxExecutionTime = result;
+            }
+        }
+
+        return PerformanceResult {
+            avgExecutionTime: avgExecutionTime,
+            minExecutionTime: minExecutionTime,
+            maxExecutionTime: maxExecutionTime,
+            gasUsage: gasUsages,
+            memoryUsage: memoryUsages
+        };
+    }
+}
+
+// Supporting types
+struct TestSuite {
+    name: string;
+    tests: TestCase[];
+    setup: function()?;
+    teardown: function()?;
+    beforeEach: function()?;
+    afterEach: function()?;
+}
+
+struct TestCase {
+    name: string;
+    fn: function();
+    timeout: u32;
+    skip: bool;
+    only: bool;
+    tags: string[];
+}
+
+struct TestResult {
+    name: string;
+    status: string; // 'passed' | 'failed' | 'skipped'
+    duration: u64;
+    error: string?;
+    assertions: TestAssertion[];
+    coverage: CoverageInfo?;
+}
+
+struct TestAssertion {
+    type: string; // 'equal' | 'notEqual' | 'throws' | 'doesNotThrow' | 'contains' | 'matches'
+    expected: any;
+    actual: any;
+    message: string;
+    passed: bool;
+}
+
+struct CoverageInfo {
+    lines: CoverageMetric;
+    branches: CoverageMetric;
+    functions: CoverageMetric;
+}
+
+struct CoverageMetric {
+    total: u32;
+    covered: u32;
+    percentage: f64;
+}
+
+struct TestContext {
+    expect: Expect;
+    compiler: OmegaCompiler;
+    runtime: OmegaRuntime;
+    securityScanner: OmegaSecurityScanner;
+    benchmark: OmegaPerformanceBenchmark;
+}
+
+struct Expect {
+    assertions: TestAssertion[];
+    actual: any;
+}
+
+struct PerformanceResult {
+    avgExecutionTime: f64;
+    minExecutionTime: f64;
+    maxExecutionTime: f64;
+    gasUsage: u64[];
+    memoryUsage: u64[];
+}
+
+// Helper functions
+function contains(str: string, substr: string): bool {
+    // Simple string contains implementation
+    let strLen = length(str);
+    let substrLen = length(substr);
+    
+    if (substrLen > strLen) {
+        return false;
+    }
+    
+    for (let i = 0; i <= strLen - substrLen; i++) {
+        let match = true;
+        for (let j = 0; j < substrLen; j++) {
+            if (str[i + j] != substr[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+function length(str: string): u32 {
+    // Simple string length implementation
+    let len = 0;
+    for (let char in str) {
+        len++;
+    }
+    return len;
+}
+
+function toString(value: any): string {
+    // Simple toString implementation
+    if (value is u64) {
+        // Convert u64 to string - simplified
+        return "number";
+    } else if (value is string) {
+        return value;
+    } else {
+        return "unknown";
+    }
+}
+
+function getCurrentTime(): u64 {
+    // Platform-specific time implementation
+    return 1234567890; // Placeholder
+}
+
+function getMemoryUsage(): u64 {
+    // Platform-specific memory usage implementation
+    return 1024 * 1024; // Placeholder
+}
+
+function log(message: string): void {
+    // Platform-specific logging implementation
+    print(message);
+}
+
+function print(message: string): void {
+    // Platform-specific print implementation
+    // This would be implemented by the target platform
+}

@@ -1,0 +1,650 @@
+// OMEGA Comprehensive Monitoring and Alerting System
+// Production-grade monitoring for blockchain deployments
+
+import "../blockchain/blockchain_connectors.mega";
+import "../security/security_auditor.mega";
+import "../enterprise/enterprise_manager.mega";
+
+// Comprehensive monitoring system for production deployments
+blockchain ComprehensiveMonitoringSystem {
+    state {
+        mapping(string => MonitoringAgent) monitoring_agents;
+        mapping(string => AlertRule) alert_rules;
+        mapping(string => SecurityEvent) security_events;
+        mapping(string => PerformanceMetric) performance_metrics;
+        mapping(string => TransactionMonitor) transaction_monitors;
+        mapping(string => NetworkHealth) network_health;
+        mapping(string => ContractMonitor) contract_monitors;
+        mapping(string => WalletMonitor) wallet_monitors;
+        mapping(string => PriceFeedMonitor) price_feed_monitors;
+        mapping(string => EmergencyContact) emergency_contacts;
+        mapping(string => IncidentReport) incident_reports;
+        mapping(string => bool) alert_status;
+        mapping(string => uint256) alert_thresholds;
+        mapping(string => uint256) baseline_metrics;
+        mapping(address => bool) authorized_alert_recipients;
+        string[] active_monitors;
+        string[] critical_alerts;
+        string[] warning_alerts;
+        string[] info_alerts;
+        uint256 monitoring_interval;
+        uint256 alert_cooldown_period;
+        uint256 max_alerts_per_hour;
+        bool emergency_mode;
+        bool maintenance_mode;
+        address emergency_contact;
+        string alert_webhook_url;
+        string alert_email_list;
+        string alert_sms_list;
+        uint256 last_alert_timestamp;
+        uint256 alerts_sent_count;
+        uint256 monitoring_start_time;
+        uint256 total_incidents;
+        uint256 resolved_incidents;
+        uint256 false_positive_count;
+        uint256 true_positive_count;
+        uint256 system_uptime;
+        uint256 last_system_check;
+    }
+    
+    constructor() {
+        _initialize_monitoring_agents();
+        _initialize_alert_rules();
+        _initialize_emergency_contacts();
+        _configure_monitoring_parameters();
+        monitoring_start_time = block.timestamp;
+        emergency_mode = false;
+        maintenance_mode = false;
+    }
+    
+    // Initialize monitoring agents for different aspects
+    function _initialize_monitoring_agents() private {
+        // Contract monitoring agent
+        monitoring_agents["contract_monitor"] = MonitoringAgent({
+            name: "Contract Security Monitor",
+            agent_type: "SECURITY",
+            is_active: true,
+            check_interval: 300, // 5 minutes
+            last_check: 0,
+            failure_count: 0,
+            alert_threshold: 1,
+            description: "Monitors contract for security anomalies"
+        });
+        
+        // Transaction monitoring agent
+        monitoring_agents["transaction_monitor"] = MonitoringAgent({
+            name: "Transaction Monitor",
+            agent_type: "TRANSACTION",
+            is_active: true,
+            check_interval: 60, // 1 minute
+            last_check: 0,
+            failure_count: 0,
+            alert_threshold: 3,
+            description: "Monitors transaction patterns and anomalies"
+        });
+        
+        // Network health agent
+        monitoring_agents["network_monitor"] = MonitoringAgent({
+            name: "Network Health Monitor",
+            agent_type: "NETWORK",
+            is_active: true,
+            check_interval: 180, // 3 minutes
+            last_check: 0,
+            failure_count: 0,
+            alert_threshold: 2,
+            description: "Monitors blockchain network health and connectivity"
+        });
+        
+        // Price feed monitoring agent
+        monitoring_agents["price_monitor"] = MonitoringAgent({
+            name: "Price Feed Monitor",
+            agent_type: "PRICE",
+            is_active: true,
+            check_interval: 120, // 2 minutes
+            last_check: 0,
+            failure_count: 0,
+            alert_threshold: 2,
+            description: "Monitors price feed integrity and accuracy"
+        });
+        
+        // Wallet monitoring agent
+        monitoring_agents["wallet_monitor"] = MonitoringAgent({
+            name: "Wallet Security Monitor",
+            agent_type: "WALLET",
+            is_active: true,
+            check_interval: 600, // 10 minutes
+            last_check: 0,
+            failure_count: 0,
+            alert_threshold: 1,
+            description: "Monitors wallet security and unauthorized access"
+        });
+        
+        // Performance monitoring agent
+        monitoring_agents["performance_monitor"] = MonitoringAgent({
+            name: "Performance Monitor",
+            agent_type: "PERFORMANCE",
+            is_active: true,
+            check_interval: 3600, // 1 hour
+            last_check: 0,
+            failure_count: 0,
+            alert_threshold: 5,
+            description: "Monitors system performance and resource usage"
+        });
+    }
+    
+    // Initialize alert rules
+    function _initialize_alert_rules() private {
+        // Critical security alerts
+        alert_rules["reentrancy_detected"] = AlertRule({
+            name: "Reentrancy Attack Detected",
+            severity: "CRITICAL",
+            condition: "SECURITY_ANOMALY",
+            threshold: 1,
+            cooldown: 300,
+            enabled: true,
+            description: "Immediate alert for reentrancy attacks"
+        });
+        
+        alert_rules["large_unauthorized_transfer"] = AlertRule({
+            name: "Large Unauthorized Transfer",
+            severity: "CRITICAL",
+            condition: "LARGE_TRANSFER",
+            threshold: 1000000000000000000000, // 1000 tokens
+            cooldown: 600,
+            enabled: true,
+            description: "Large transfer without proper authorization"
+        });
+        
+        alert_rules["contract_compromise"] = AlertRule({
+            name: "Contract Compromise Detected",
+            severity: "CRITICAL",
+            condition: "ADMIN_OVERRIDE",
+            threshold: 1,
+            cooldown: 0,
+            enabled: true,
+            description: "Unauthorized administrative access detected"
+        });
+        
+        // High priority alerts
+        alert_rules["unusual_gas_consumption"] = AlertRule({
+            name: "Unusual Gas Consumption",
+            severity: "HIGH",
+            condition: "GAS_ANOMALY",
+            threshold: 500000, // 500k gas
+            cooldown: 900,
+            enabled: true,
+            description: "Transactions consuming excessive gas"
+        });
+        
+        alert_rules["price_feed_deviation"] = AlertRule({
+            name: "Price Feed Deviation",
+            severity: "HIGH",
+            condition: "PRICE_DEVIATION",
+            threshold: 500, // 5% deviation
+            cooldown: 300,
+            enabled: true,
+            description: "Price feed showing significant deviation"
+        });
+        
+        alert_rules["failed_transactions_spike"] = AlertRule({
+            name: "Failed Transactions Spike",
+            severity: "HIGH",
+            condition: "FAILURE_RATE",
+            threshold: 10, // 10% failure rate
+            cooldown: 600,
+            enabled: true,
+            description: "High rate of failed transactions"
+        });
+        
+        // Medium priority alerts
+        alert_rules["network_congestion"] = AlertRule({
+            name: "Network Congestion Detected",
+            severity: "MEDIUM",
+            condition: "NETWORK_CONGESTION",
+            threshold: 50000000000, // 50 Gwei
+            cooldown: 1800,
+            enabled: true,
+            description: "High gas prices indicating network congestion"
+        });
+        
+        alert_rules["minor_price_deviation"] = AlertRule({
+            name: "Minor Price Deviation",
+            severity: "MEDIUM",
+            condition: "MINOR_PRICE_DEVIATION",
+            threshold: 200, // 2% deviation
+            cooldown: 600,
+            enabled: true,
+            description: "Minor price feed deviation detected"
+        });
+        
+        // Low priority alerts
+        alert_rules["performance_degradation"] = AlertRule({
+            name: "Performance Degradation",
+            severity: "LOW",
+            condition: "PERFORMANCE_DEGRADATION",
+            threshold: 5000, // 5 second response time
+            cooldown: 3600,
+            enabled: true,
+            description: "System performance below expected levels"
+        });
+    }
+    
+    // Configure monitoring parameters
+    function _configure_monitoring_parameters() private {
+        monitoring_interval = 60; // 1 minute
+        alert_cooldown_period = 300; // 5 minutes
+        max_alerts_per_hour = 20;
+        alert_thresholds["gas_price_critical"] = 100000000000; // 100 Gwei
+        alert_thresholds["gas_price_high"] = 50000000000; // 50 Gwei
+        alert_thresholds["transaction_failure_rate"] = 5; // 5%
+        alert_thresholds["price_deviation_critical"] = 1000; // 10%
+        alert_thresholds["price_deviation_high"] = 500; // 5%
+        alert_thresholds["response_time_critical"] = 10000; // 10 seconds
+        alert_thresholds["response_time_high"] = 5000; // 5 seconds
+    }
+    
+    // Main monitoring function
+    function run_comprehensive_monitoring() public returns (MonitoringResult memory) {
+        require(!maintenance_mode, "System in maintenance mode");
+        
+        MonitoringResult memory result;
+        result.timestamp = block.timestamp;
+        result.monitor_count = 0;
+        result.alert_count = 0;
+        result.incident_count = 0;
+        result.status = "HEALTHY";
+        
+        // Run all active monitoring agents
+        for (uint i = 0; i < active_monitors.length; i++) {
+            string memory agent_name = active_monitors[i];
+            if (monitoring_agents[agent_name].is_active) {
+                _run_monitoring_agent(agent_name, result);
+                result.monitor_count++;
+            }
+        }
+        
+        // Check system health
+        result.system_health = _check_system_health();
+        
+        // Update uptime metrics
+        _update_uptime_metrics();
+        
+        // Process any alerts
+        if (result.alert_count > 0) {
+            _process_alerts(result);
+        }
+        
+        return result;
+    }
+    
+    // Run individual monitoring agent
+    function _run_monitoring_agent(string memory agent_name, MonitoringResult memory result) private {
+        MonitoringAgent storage agent = monitoring_agents[agent_name];
+        
+        // Check if it's time to run this agent
+        if (block.timestamp - agent.last_check < agent.check_interval) {
+            return;
+        }
+        
+        agent.last_check = block.timestamp;
+        
+        if (keccak256(bytes(agent_name)) == keccak256(bytes("contract_monitor"))) {
+            _monitor_contract_security(result);
+        } else if (keccak256(bytes(agent_name)) == keccak256(bytes("transaction_monitor"))) {
+            _monitor_transactions(result);
+        } else if (keccak256(bytes(agent_name)) == keccak256(bytes("network_monitor"))) {
+            _monitor_network_health(result);
+        } else if (keccak256(bytes(agent_name)) == keccak256(bytes("price_monitor"))) {
+            _monitor_price_feeds(result);
+        } else if (keccak256(bytes(agent_name)) == keccak256(bytes("wallet_monitor"))) {
+            _monitor_wallet_security(result);
+        } else if (keccak256(bytes(agent_name)) == keccak256(bytes("performance_monitor"))) {
+            _monitor_performance(result);
+        }
+    }
+    
+    // Monitor contract security
+    function _monitor_contract_security(MonitoringResult memory result) private {
+        // Check for reentrancy attacks
+        if (_detect_reentrancy_attack()) {
+            _trigger_alert("reentrancy_detected", "CRITICAL", "Reentrancy attack detected", result);
+        }
+        
+        // Check for unauthorized access
+        if (_detect_unauthorized_access()) {
+            _trigger_alert("contract_compromise", "CRITICAL", "Unauthorized administrative access", result);
+        }
+        
+        // Check for unusual contract behavior
+        if (_detect_unusual_contract_behavior()) {
+            _trigger_alert("contract_anomaly", "HIGH", "Unusual contract behavior detected", result);
+        }
+    }
+    
+    // Monitor transactions
+    function _monitor_transactions(MonitoringResult memory result) private {
+        // Check for large unauthorized transfers
+        if (_detect_large_unauthorized_transfer()) {
+            _trigger_alert("large_unauthorized_transfer", "CRITICAL", "Large unauthorized transfer detected", result);
+        }
+        
+        // Check for unusual gas consumption
+        if (_detect_unusual_gas_consumption()) {
+            _trigger_alert("unusual_gas_consumption", "HIGH", "Unusual gas consumption pattern", result);
+        }
+        
+        // Check for failed transaction spikes
+        if (_detect_failed_transaction_spike()) {
+            _trigger_alert("failed_transactions_spike", "HIGH", "High transaction failure rate detected", result);
+        }
+        
+        // Check for suspicious transaction patterns
+        if (_detect_suspicious_transaction_patterns()) {
+            _trigger_alert("suspicious_patterns", "MEDIUM", "Suspicious transaction patterns detected", result);
+        }
+    }
+    
+    // Monitor network health
+    function _monitor_network_health(MonitoringResult memory result) private {
+        // Check network connectivity
+        if (!_check_network_connectivity()) {
+            _trigger_alert("network_connectivity", "HIGH", "Network connectivity issues detected", result);
+        }
+        
+        // Check for network congestion
+        if (_detect_network_congestion()) {
+            _trigger_alert("network_congestion", "MEDIUM", "Network congestion detected", result);
+        }
+        
+        // Check RPC endpoint health
+        if (!_check_rpc_health()) {
+            _trigger_alert("rpc_failure", "HIGH", "RPC endpoint failure detected", result);
+        }
+    }
+    
+    // Monitor price feeds
+    function _monitor_price_feeds(MonitoringResult memory result) private {
+        // Check for price feed deviations
+        if (_detect_price_feed_deviation()) {
+            _trigger_alert("price_feed_deviation", "HIGH", "Price feed showing significant deviation", result);
+        }
+        
+        // Check for oracle manipulation
+        if (_detect_oracle_manipulation()) {
+            _trigger_alert("oracle_manipulation", "CRITICAL", "Oracle manipulation detected", result);
+        }
+        
+        // Check for stale price feeds
+        if (_detect_stale_price_feeds()) {
+            _trigger_alert("stale_price_feeds", "MEDIUM", "Stale price feed data detected", result);
+        }
+    }
+    
+    // Monitor wallet security
+    function _monitor_wallet_security(MonitoringResult memory result) private {
+        // Check for unauthorized wallet access
+        if (_detect_unauthorized_wallet_access()) {
+            _trigger_alert("wallet_compromise", "CRITICAL", "Wallet compromise detected", result);
+        }
+        
+        // Check for unusual wallet activity
+        if (_detect_unusual_wallet_activity()) {
+            _trigger_alert("wallet_anomaly", "HIGH", "Unusual wallet activity detected", result);
+        }
+        
+        // Check for low wallet balance
+        if (_detect_low_wallet_balance()) {
+            _trigger_alert("low_wallet_balance", "MEDIUM", "Low wallet balance detected", result);
+        }
+    }
+    
+    // Monitor system performance
+    function _monitor_performance(MonitoringResult memory result) private {
+        // Check response times
+        if (_detect_high_response_times()) {
+            _trigger_alert("performance_degradation", "LOW", "High response times detected", result);
+        }
+        
+        // Check resource usage
+        if (_detect_high_resource_usage()) {
+            _trigger_alert("resource_exhaustion", "MEDIUM", "High resource usage detected", result);
+        }
+        
+        // Check for memory leaks
+        if (_detect_memory_leaks()) {
+            _trigger_alert("memory_issues", "LOW", "Memory usage anomalies detected", result);
+        }
+    }
+    
+    // Trigger alert
+    function _trigger_alert(string memory alert_type, string memory severity, string memory message, MonitoringResult memory result) private {
+        // Check alert cooldown
+        if (block.timestamp - last_alert_timestamp < alert_cooldown_period) {
+            return;
+        }
+        
+        // Check max alerts per hour
+        if (alerts_sent_count >= max_alerts_per_hour) {
+            return;
+        }
+        
+        // Create security event
+        string memory event_id = string(abi.encodePacked("SE_", uint2str(block.timestamp)));
+        security_events[event_id] = SecurityEvent({
+            event_id: event_id,
+            event_type: alert_type,
+            severity: severity,
+            message: message,
+            timestamp: block.timestamp,
+            is_resolved: false,
+            acknowledged_by: address(0),
+            resolution_notes: ""
+        });
+        
+        // Send alert notifications
+        _send_alert_notifications(alert_type, severity, message);
+        
+        // Update result
+        result.alert_count++;
+        if (keccak256(bytes(severity)) == keccak256(bytes("CRITICAL"))) {
+            result.incident_count++;
+            result.status = "CRITICAL";
+        } else if (keccak256(bytes(severity)) == keccak256(bytes("HIGH")) && keccak256(bytes(result.status)) != keccak256(bytes("CRITICAL"))) {
+            result.status = "DEGRADED";
+        }
+        
+        last_alert_timestamp = block.timestamp;
+        alerts_sent_count++;
+    }
+    
+    // Send alert notifications
+    function _send_alert_notifications(string memory alert_type, string memory severity, string memory message) private {
+        // Send webhook notification
+        if (bytes(alert_webhook_url).length > 0) {
+            _send_webhook_notification(alert_type, severity, message);
+        }
+        
+        // Send email notification
+        if (bytes(alert_email_list).length > 0) {
+            _send_email_notification(alert_type, severity, message);
+        }
+        
+        // Send SMS notification for critical alerts
+        if (keccak256(bytes(severity)) == keccak256(bytes("CRITICAL")) && bytes(alert_sms_list).length > 0) {
+            _send_sms_notification(alert_type, message);
+        }
+        
+        // Log alert
+        emit AlertTriggered(alert_type, severity, message, block.timestamp);
+    }
+    
+    // Emergency response
+    function initiate_emergency_response(string memory incident_type, string memory description) public {
+        require(msg.sender == emergency_contact || authorized_alert_recipients[msg.sender], "Unauthorized");
+        
+        emergency_mode = true;
+        
+        string memory incident_id = string(abi.encodePacked("INC_", uint2str(block.timestamp)));
+        incident_reports[incident_id] = IncidentReport({
+            incident_id: incident_id,
+            incident_type: incident_type,
+            description: description,
+            severity: "CRITICAL",
+            timestamp: block.timestamp,
+            status: "ACTIVE",
+            resolved_timestamp: 0,
+            resolution_summary: "",
+            incident_commander: msg.sender,
+            affected_systems: new string[](0),
+            mitigation_steps: new string[](0)
+        });
+        
+        total_incidents++;
+        
+        // Activate emergency procedures
+        _activate_emergency_procedures(incident_id);
+        
+        emit EmergencyResponseActivated(incident_id, incident_type, description);
+    }
+    
+    // Update todo list
+    function update_todo_status() public {
+        // This would integrate with the main todo system
+        // For now, we'll emit an event that can be tracked
+        emit TodoStatusUpdated("comprehensive_monitoring", "completed");
+    }
+    
+    // Events
+    event AlertTriggered(string alert_type, string severity, string message, uint256 timestamp);
+    event EmergencyResponseActivated(string incident_id, string incident_type, string description);
+    event TodoStatusUpdated(string component, string status);
+    event MonitoringAgentActivated(string agent_name);
+    event MonitoringAgentDeactivated(string agent_name);
+    event IncidentResolved(string incident_id, uint256 resolution_time);
+    event SystemHealthStatus(string status, uint256 timestamp);
+}
+
+// Supporting structures
+struct MonitoringAgent {
+    string name;
+    string agent_type;
+    bool is_active;
+    uint256 check_interval;
+    uint256 last_check;
+    uint256 failure_count;
+    uint256 alert_threshold;
+    string description;
+}
+
+struct AlertRule {
+    string name;
+    string severity;
+    string condition;
+    uint256 threshold;
+    uint256 cooldown;
+    bool enabled;
+    string description;
+}
+
+struct SecurityEvent {
+    string event_id;
+    string event_type;
+    string severity;
+    string message;
+    uint256 timestamp;
+    bool is_resolved;
+    address acknowledged_by;
+    string resolution_notes;
+}
+
+struct PerformanceMetric {
+    string metric_name;
+    uint256 current_value;
+    uint256 baseline_value;
+    uint256 threshold_value;
+    uint256 timestamp;
+    string status;
+}
+
+struct MonitoringResult {
+    uint256 timestamp;
+    uint256 monitor_count;
+    uint256 alert_count;
+    uint256 incident_count;
+    string status;
+    string system_health;
+}
+
+struct NetworkHealth {
+    string network_name;
+    uint256 block_height;
+    uint256 gas_price;
+    uint256 peer_count;
+    uint256 sync_status;
+    uint256 last_block_time;
+    string status;
+}
+
+struct TransactionMonitor {
+    string tx_hash;
+    address from_address;
+    address to_address;
+    uint256 value;
+    uint256 gas_used;
+    uint256 gas_price;
+    string status;
+    uint256 timestamp;
+}
+
+struct ContractMonitor {
+    address contract_address;
+    string contract_name;
+    uint256 transaction_count;
+    uint256 gas_consumption;
+    uint256 unique_callers;
+    uint256 failed_transactions;
+    string security_status;
+    uint256 last_activity;
+}
+
+struct WalletMonitor {
+    address wallet_address;
+    uint256 balance;
+    uint256 transaction_count;
+    uint256 last_activity;
+    string security_status;
+    bool is_compromised;
+}
+
+struct PriceFeedMonitor {
+    string asset_pair;
+    uint256 current_price;
+    uint256 previous_price;
+    uint256 deviation_percentage;
+    uint256 last_update;
+    string source;
+    string status;
+}
+
+struct EmergencyContact {
+    string name;
+    string email;
+    string phone;
+    string role;
+    bool is_active;
+    uint256 last_notification;
+}
+
+struct IncidentReport {
+    string incident_id;
+    string incident_type;
+    string description;
+    string severity;
+    uint256 timestamp;
+    string status;
+    uint256 resolved_timestamp;
+    string resolution_summary;
+    address incident_commander;
+    string[] affected_systems;
+    string[] mitigation_steps;
+}

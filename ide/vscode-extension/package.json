@@ -244,6 +244,88 @@
           "message": 5
         }
       }
+    ],
+    "debuggers": [
+      {
+        "type": "omega",
+        "label": "OMEGA Debugger",
+        "program": "./out/debugger/omega_debug_adapter.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the OMEGA program to debug",
+                "default": "${workspaceFolder}/contracts/main.mega"
+              },
+              "args": {
+                "type": "array",
+                "description": "Command line arguments passed to the program",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Absolute path to the working directory of the program being debugged",
+                "default": "${workspaceFolder}"
+              },
+              "env": {
+                "type": "object",
+                "description": "Environment variables to add to the program",
+                "default": {}
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Automatically stop after launch",
+                "default": false
+              },
+              "console": {
+                "enum": [
+                  "internalConsole",
+                  "integratedTerminal",
+                  "externalTerminal"
+                ],
+                "description": "Where to launch the debug target",
+                "default": "internalConsole"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "omega",
+            "request": "launch",
+            "name": "Debug OMEGA Contract",
+            "program": "${workspaceFolder}/contracts/main.mega",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "console": "internalConsole"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "OMEGA: Launch Program",
+            "description": "A new configuration for launching an OMEGA debugging session",
+            "body": {
+              "type": "omega",
+              "request": "launch",
+              "name": "Debug OMEGA Contract",
+              "program": "^\"\\${workspaceFolder}/contracts/main.mega\"",
+              "args": [],
+              "cwd": "^\"\\${workspaceFolder}\"",
+              "stopOnEntry": false,
+              "console": "internalConsole"
+            }
+          }
+        ]
+      }
     ]
   },
   "scripts": {

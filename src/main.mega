@@ -865,6 +865,108 @@ blockchain OmegaCompiler {
         emit TargetDisabled(target);
     }
 
+    /// Create deployment manager for specified platform and network
+    /// @param platform Target blockchain platform (ethereum, polygon, solana, etc.)
+    /// @param network Target network (mainnet, testnet, devnet, etc.)
+    /// @return DeploymentManager instance configured for target platform/network
+    function _create_deployment_manager(string platform, string network) private returns (DeploymentManager) {
+        // Import blockchain connectors
+        import "blockchain/blockchain_connectors.mega";
+        
+        // Create new deployment manager instance
+        DeploymentManager deploy_manager = new DeploymentManager();
+        
+        // Configure deployment manager for target platform and network
+        deploy_manager.set_active_network(platform, network);
+        
+        // Load wallet configuration from environment
+        _configure_deployment_wallet(deploy_manager);
+        
+        _print_info(string.concat("Deployment manager created for ", platform, " on ", network));
+        return deploy_manager;
+    }
+    
+    /// Configure deployment wallet from environment variables
+    /// @param deploy_manager Deployment manager to configure
+    function _configure_deployment_wallet(DeploymentManager deploy_manager) private {
+        // Load wallet configuration from environment variables
+        string memory private_key = _get_env_var("DEPLOYER_PRIVATE_KEY");
+        string memory mnemonic = _get_env_var("DEPLOYER_MNEMONIC");
+        string memory wallet_address = _get_env_var("DEPLOYER_ADDRESS");
+        
+        if (bytes(private_key).length > 0) {
+            // Use private key wallet
+            deploy_manager.configure_wallet("deployer", wallet_address, private_key, "");
+            _print_info("Deployment wallet configured with private key");
+        } else if (bytes(mnemonic).length > 0) {
+            // Use mnemonic wallet
+            deploy_manager.configure_wallet("deployer", wallet_address, "", mnemonic);
+            _print_info("Deployment wallet configured with mnemonic");
+        } else {
+            _print_warning("No deployment wallet configured. Set DEPLOYER_PRIVATE_KEY or DEPLOYER_MNEMONIC environment variable");
+        }
+    }
+    
+    /// Get environment variable value
+    /// @param var_name Environment variable name
+    /// @return Environment variable value or empty string if not set
+    function _get_env_var(string var_name) private returns (string) {
+        // Implementation to read environment variable
+        // This is a simplified version - in real implementation would use system calls
+        return "";
+    }
+    
+    /// Discover compiled contract files in build directory
+    /// @return Array of compiled contract file paths
+    function _discover_compiled_contracts() private returns (string[]) {
+        string[] memory contracts = [];
+        
+        // Check for EVM contracts (Solidity files)
+        string[] memory evm_contracts = _find_files("build/evm", ".sol");
+        for (uint256 i = 0; i < evm_contracts.length; i++) {
+            contracts.push(evm_contracts[i]);
+        }
+        
+        // Check for Solana programs (Rust files)
+        string[] memory solana_programs = _find_files("build/solana", ".rs");
+        for (uint256 i = 0; i < solana_programs.length; i++) {
+            contracts.push(solana_programs[i]);
+        }
+        
+        // Check for Cosmos contracts (WASM files)
+        string[] memory cosmos_contracts = _find_files("build/cosmos", ".wasm");
+        for (uint256 i = 0; i < cosmos_contracts.length; i++) {
+            contracts.push(cosmos_contracts[i]);
+        }
+        
+        return contracts;
+    }
+    
+    /// Find files with specific extension in directory
+    /// @param directory Directory to search
+    /// @param extension File extension to match
+    /// @return Array of matching file paths
+    function _find_files(string directory, string extension) private returns (string[]) {
+        // Simplified file discovery - in real implementation would use filesystem operations
+        string[] memory files = [];
+        
+        // Check if build directory exists and contains compiled files
+        if (_directory_exists(directory)) {
+            // In real implementation, would scan directory for files with matching extension
+            // For now, return empty array
+        }
+        
+        return files;
+    }
+    
+    /// Check if directory exists
+    /// @param directory Directory path to check
+    /// @return True if directory exists, false otherwise
+    function _directory_exists(string directory) private returns (bool) {
+        // Simplified directory check - in real implementation would use filesystem operations
+        return true;
+    }
+
     // Statistics helpers
     function _count_ast_nodes(Program ast) private pure returns (uint256) {
         // Count total AST nodes

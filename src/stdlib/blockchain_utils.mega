@@ -1,0 +1,453 @@
+// OMEGA Standard Library - Blockchain Utilities
+// Comprehensive blockchain-specific utilities for smart contract development
+
+blockchain BlockchainUtils {
+    // Cryptographic utilities
+    function keccak256(data: bytes): bytes32 {
+        // Platform-specific implementation
+        return platform_keccak256(data);
+    }
+
+    function sha256(data: bytes): bytes32 {
+        // Platform-specific implementation
+        return platform_sha256(data);
+    }
+
+    function ripemd160(data: bytes): bytes20 {
+        // Platform-specific implementation
+        return platform_ripemd160(data);
+    }
+
+    function ecrecover(hash: bytes32, v: uint8, r: bytes32, s: bytes32): address {
+        // Platform-specific implementation
+        return platform_ecrecover(hash, v, r, s);
+    }
+
+    function verifySignature(message: bytes, signature: bytes, signer: address): bool {
+        // Verify ECDSA signature
+        let hash = this.keccak256(message);
+        let v = uint8(signature[64]);
+        let r = bytes32(signature[0:32]);
+        let s = bytes32(signature[32:64]);
+        let recovered = this.ecrecover(hash, v, r, s);
+        return recovered == signer;
+    }
+
+    // Address utilities
+    function isValidAddress(addr: address): bool {
+        // Check if address is valid (non-zero and proper format)
+        return addr != address(0) && uint160(addr) > 0;
+    }
+
+    function isContract(addr: address): bool {
+        // Check if address contains contract code
+        return platform_extcodesize(addr) > 0;
+    }
+
+    function getCodeSize(addr: address): uint256 {
+        // Get size of contract code at address
+        return platform_extcodesize(addr);
+    }
+
+    function getCodeHash(addr: address): bytes32 {
+        // Get hash of contract code at address
+        return platform_extcodehash(addr);
+    }
+
+    // Math utilities with overflow protection
+    function safeAdd(a: uint256, b: uint256): uint256 {
+        let c = a + b;
+        require(c >= a, "SafeMath: addition overflow");
+        return c;
+    }
+
+    function safeSub(a: uint256, b: uint256): uint256 {
+        require(b <= a, "SafeMath: subtraction overflow");
+        return a - b;
+    }
+
+    function safeMul(a: uint256, b: uint256): uint256 {
+        if (a == 0) {
+            return 0;
+        }
+        let c = a * b;
+        require(c / a == b, "SafeMath: multiplication overflow");
+        return c;
+    }
+
+    function safeDiv(a: uint256, b: uint256): uint256 {
+        require(b > 0, "SafeMath: division by zero");
+        return a / b;
+    }
+
+    function safeMod(a: uint256, b: uint256): uint256 {
+        require(b > 0, "SafeMath: modulo by zero");
+        return a % b;
+    }
+
+    function safePow(base: uint256, exponent: uint256): uint256 {
+        if (exponent == 0) {
+            return 1;
+        } else if (exponent == 1) {
+            return base;
+        } else if (base == 0) {
+            return 0;
+        } else {
+            let result = 1;
+            for (let i = 0; i < exponent; i++) {
+                result = this.safeMul(result, base);
+            }
+            return result;
+        }
+    }
+
+    function sqrt(value: uint256): uint256 {
+        if (value == 0) {
+            return 0;
+        }
+        let z = value;
+        let x = (value + 1) / 2;
+        while (x < z) {
+            z = x;
+            x = (value / x + x) / 2;
+        }
+        return z;
+    }
+
+    function min(a: uint256, b: uint256): uint256 {
+        return a < b ? a : b;
+    }
+
+    function max(a: uint256, b: uint256): uint256 {
+        return a > b ? a : b;
+    }
+
+    // Time utilities
+    function getCurrentTimestamp(): uint256 {
+        return platform_timestamp();
+    }
+
+    function getCurrentBlockNumber(): uint256 {
+        return platform_blocknumber();
+    }
+
+    function getCurrentBlockHash(): bytes32 {
+        return platform_blockhash(platform_blocknumber());
+    }
+
+    function getBlockHash(blockNumber: uint256): bytes32 {
+        return platform_blockhash(blockNumber);
+    }
+
+    function getDifficulty(): uint256 {
+        return platform_difficulty();
+    }
+
+    function getGasLimit(): uint256 {
+        return platform_gaslimit();
+    }
+
+    function getCoinbase(): address {
+        return platform_coinbase();
+    }
+
+    function getGasPrice(): uint256 {
+        return platform_gasprice();
+    }
+
+    function getChainId(): uint256 {
+        return platform_chainid();
+    }
+
+    // String utilities
+    function toString(value: uint256): string {
+        if (value == 0) {
+            return "0";
+        }
+        let temp = value;
+        let digits = 0;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        let buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
+    function toHexString(value: uint256): string {
+        if (value == 0) {
+            return "0x0";
+        }
+        let temp = value;
+        let length = 0;
+        while (temp != 0) {
+            length++;
+            temp >>= 8;
+        }
+        return this.toHexStringWithLength(value, length * 2);
+    }
+
+    function toHexStringWithLength(value: uint256, length: uint256): string {
+        let buffer = new bytes(2 + length * 2);
+        buffer[0] = "0";
+        buffer[1] = "x";
+        for (let i = 2 * length + 1; i > 1; --i) {
+            buffer[i] = this.toHexDigit(uint8(value & 0xf));
+            value >>= 4;
+        }
+        require(value == 0, "Strings: hex length insufficient");
+        return string(buffer);
+    }
+
+    function toHexDigit(value: uint8): bytes1 {
+        return bytes1(value < 10 ? uint8(48 + value) : uint8(87 + value));
+    }
+
+    function compareStrings(a: string, b: string): int256 {
+        return platform_strcmp(a, b);
+    }
+
+    function stringLength(str: string): uint256 {
+        return platform_strlen(str);
+    }
+
+    function stringConcat(a: string, b: string): string {
+        return platform_strcat(a, b);
+    }
+
+    function substring(str: string, start: uint256, length: uint256): string {
+        return platform_substr(str, start, length);
+    }
+
+    // Array utilities
+    function arraySum(arr: uint256[]): uint256 {
+        let total = 0;
+        for (let i = 0; i < arr.length; i++) {
+            total = this.safeAdd(total, arr[i]);
+        }
+        return total;
+    }
+
+    function arrayMax(arr: uint256[]): uint256 {
+        require(arr.length > 0, "Array is empty");
+        let maxValue = arr[0];
+        for (let i = 1; i < arr.length; i++) {
+            if (arr[i] > maxValue) {
+                maxValue = arr[i];
+            }
+        }
+        return maxValue;
+    }
+
+    function arrayMin(arr: uint256[]): uint256 {
+        require(arr.length > 0, "Array is empty");
+        let minValue = arr[0];
+        for (let i = 1; i < arr.length; i++) {
+            if (arr[i] < minValue) {
+                minValue = arr[i];
+            }
+        }
+        return minValue;
+    }
+
+    function arrayAverage(arr: uint256[]): uint256 {
+        require(arr.length > 0, "Array is empty");
+        let sum = this.arraySum(arr);
+        return this.safeDiv(sum, arr.length);
+    }
+
+    function arrayContains(arr: address[], value: address): bool {
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i] == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function arrayRemove(arr: address[], value: address): address[] {
+        let newArr = new address[](arr.length - 1);
+        let j = 0;
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i] != value) {
+                newArr[j] = arr[i];
+                j++;
+            }
+        }
+        return newArr;
+    }
+
+    // Merkle tree utilities
+    function merkleRoot(leaves: bytes32[]): bytes32 {
+        require(leaves.length > 0, "No leaves provided");
+        
+        if (leaves.length == 1) {
+            return leaves[0];
+        }
+        
+        let nextLevel = new bytes32[]((leaves.length + 1) / 2);
+        
+        for (let i = 0; i < leaves.length; i += 2) {
+            if (i + 1 < leaves.length) {
+                nextLevel[i / 2] = this.keccak256(abi.encodePacked(leaves[i], leaves[i + 1]));
+            } else {
+                nextLevel[i / 2] = leaves[i];
+            }
+        }
+        
+        return this.merkleRoot(nextLevel);
+    }
+
+    function verifyMerkleProof(leaf: bytes32, proof: bytes32[], root: bytes32, index: uint256): bool {
+        let computedHash = leaf;
+        
+        for (let i = 0; i < proof.length; i++) {
+            if (index % 2 == 0) {
+                computedHash = this.keccak256(abi.encodePacked(computedHash, proof[i]));
+            } else {
+                computedHash = this.keccak256(abi.encodePacked(proof[i], computedHash));
+            }
+            index = index / 2;
+        }
+        
+        return computedHash == root;
+    }
+
+    // Encoding utilities
+    function encodePacked(data: any[]): bytes {
+        return platform_abi_encodePacked(data);
+    }
+
+    function encode(data: any[]): bytes {
+        return platform_abi_encode(data);
+    }
+
+    function decode(data: bytes, types: string[]): any[] {
+        return platform_abi_decode(data, types);
+    }
+
+    // Access control utilities
+    function onlyOwner(): modifier {
+        require(msg.sender == this.owner(), "Ownable: caller is not the owner");
+        _;
+    }
+
+    function onlyRole(role: bytes32): modifier {
+        require(this.hasRole(role, msg.sender), "AccessControl: missing role");
+        _;
+    }
+
+    // Reentrancy protection
+    function nonReentrant(): modifier {
+        require(!this.locked(), "ReentrancyGuard: reentrant call");
+        this.setLocked(true);
+        _;
+        this.setLocked(false);
+    }
+
+    // Pausable functionality
+    function whenNotPaused(): modifier {
+        require(!this.paused(), "Pausable: paused");
+        _;
+    }
+
+    function whenPaused(): modifier {
+        require(this.paused(), "Pausable: not paused");
+        _;
+    }
+
+    // EIP-712 utilities
+    function eip712DomainSeparator(name: string, version: string, chainId: uint256, verifyingContract: address): bytes32 {
+        let typeHash = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+        return keccak256(abi.encode(
+            typeHash,
+            keccak256(bytes(name)),
+            keccak256(bytes(version)),
+            chainId,
+            verifyingContract
+        ));
+    }
+
+    function eip712Hash(domainSeparator: bytes32, structHash: bytes32): bytes32 {
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    // Cross-chain utilities
+    function encodeCrossChainMessage(targetChain: string, payload: bytes): bytes {
+        return abi.encodePacked(targetChain, payload, this.getChainId());
+    }
+
+    function decodeCrossChainMessage(message: bytes): (string, bytes, uint256) {
+        let chainId = abi.decode(message[message.length - 32:], ["uint256"])[0];
+        let targetChain = string(message[0:32]);
+        let payload = message[32:message.length - 32];
+        return (targetChain, payload, chainId);
+    }
+
+    // Gas optimization utilities
+    function optimizeStorage(slot: uint256, value: uint256): void {
+        // Pack multiple values into a single storage slot
+        platform_sstore(slot, value);
+    }
+
+    function packValues(values: uint256[]): uint256 {
+        // Pack multiple uint256 values into a single uint256
+        let packed = 0;
+        let shift = 0;
+        for (let i = 0; i < values.length; i++) {
+            packed |= (values[i] << shift);
+            shift += 64; // Assuming we're packing 4 uint64 values
+        }
+        return packed;
+    }
+
+    function unpackValue(packed: uint256, index: uint256): uint256 {
+        // Unpack a specific value from packed uint256
+        return (packed >> (index * 64)) & 0xFFFFFFFFFFFFFFFF;
+    }
+
+    // Platform-specific function declarations (implemented by target platform)
+    function platform_keccak256(data: bytes): bytes32;
+    function platform_sha256(data: bytes): bytes32;
+    function platform_ripemd160(data: bytes): bytes20;
+    function platform_ecrecover(hash: bytes32, v: uint8, r: bytes32, s: bytes32): address;
+    function platform_extcodesize(addr: address): uint256;
+    function platform_extcodehash(addr: address): bytes32;
+    function platform_timestamp(): uint256;
+    function platform_blocknumber(): uint256;
+    function platform_blockhash(blockNumber: uint256): bytes32;
+    function platform_difficulty(): uint256;
+    function platform_gaslimit(): uint256;
+    function platform_coinbase(): address;
+    function platform_gasprice(): uint256;
+    function platform_chainid(): uint256;
+    function platform_strcmp(a: string, b: string): int256;
+    function platform_strlen(str: string): uint256;
+    function platform_strcat(a: string, b: string): string;
+    function platform_substr(str: string, start: uint256, length: uint256): string;
+    function platform_abi_encodePacked(data: any[]): bytes;
+    function platform_abi_encode(data: any[]): bytes;
+    function platform_abi_decode(data: bytes, types: string[]): any[];
+    function platform_sstore(slot: uint256, value: uint256): void;
+}
+
+// Helper blockchain constants
+blockchain BlockchainConstants {
+    constant MAX_UINT256 = 2**256 - 1;
+    constant MIN_UINT256 = 0;
+    constant MAX_INT256 = 2**255 - 1;
+    constant MIN_INT256 = -2**255;
+    constant ADDRESS_ZERO = address(0);
+    constant BYTES32_ZERO = bytes32(0);
+    constant WEI_PER_ETHER = 10**18;
+    constant GWEI_PER_ETHER = 10**9;
+    constant SECONDS_PER_DAY = 86400;
+    constant SECONDS_PER_HOUR = 3600;
+    constant SECONDS_PER_MINUTE = 60;
+    constant DAYS_PER_YEAR = 365;
+}

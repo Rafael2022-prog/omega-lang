@@ -1,0 +1,584 @@
+// OMEGA Performance Benchmark Suite
+// Comprehensive benchmarking against Solidity and Rust implementations
+
+blockchain PerformanceBenchmark {
+    state {
+        mapping(string => BenchmarkResult) results;
+        mapping(string => BenchmarkConfig) configs;
+        string[] benchmarkNames;
+        uint256 benchmarkCount;
+        address benchmarkAdmin;
+        bool benchmarkingActive;
+    }
+
+    struct BenchmarkResult {
+        string benchmarkName;
+        string language;
+        uint256 gasUsed;
+        uint256 executionTime;
+        uint256 bytecodeSize;
+        uint256 deploymentCost;
+        uint256 memoryUsage;
+        uint256 storageReads;
+        uint256 storageWrites;
+        uint256 externalCalls;
+        uint256 timestamp;
+        bool success;
+        string errorMessage;
+    }
+
+    struct BenchmarkConfig {
+        string benchmarkName;
+        uint256 iterations;
+        uint256 warmupIterations;
+        uint256 maxGasLimit;
+        bool enableTracing;
+        bool measureMemory;
+        string[] testData;
+    }
+
+    struct ComparisonResult {
+        string benchmarkName;
+        uint256 omegaGasUsed;
+        uint256 solidityGasUsed;
+        uint256 rustGasUsed;
+        uint256 omegaExecutionTime;
+        uint256 solidityExecutionTime;
+        uint256 rustExecutionTime;
+        uint256 omegaBytecodeSize;
+        uint256 solidityBytecodeSize;
+        uint256 rustBytecodeSize;
+        uint256 gasImprovementVsSolidity;
+        uint256 gasImprovementVsRust;
+        uint256 speedImprovementVsSolidity;
+        uint256 speedImprovementVsRust;
+        uint256 sizeImprovementVsSolidity;
+        uint256 sizeImprovementVsRust;
+    }
+
+    event BenchmarkStarted(string benchmarkName, string language, uint256 timestamp);
+    event BenchmarkCompleted(string benchmarkName, string language, uint256 gasUsed, uint256 executionTime);
+    event BenchmarkFailed(string benchmarkName, string language, string error);
+    event ComparisonGenerated(string benchmarkName, uint256 timestamp);
+    event BenchmarkingActivated(address admin);
+    event BenchmarkingDeactivated(address admin);
+
+    modifier onlyAdmin() {
+        require(msg.sender == benchmarkAdmin, "Benchmark: caller is not admin");
+        _;
+    }
+
+    modifier whenBenchmarkingActive() {
+        require(benchmarkingActive, "Benchmark: benchmarking is not active");
+        _;
+    }
+
+    constructor() {
+        benchmarkAdmin = msg.sender;
+        benchmarkingActive = true;
+        benchmarkCount = 0;
+    }
+
+    // Core benchmark functions
+    function runTokenTransferBenchmark(uint256 iterations) public whenBenchmarkingActive returns (BenchmarkResult memory) {
+        string memory benchmarkName = "TokenTransfer";
+        
+        emit BenchmarkStarted(benchmarkName, "OMEGA", block.timestamp);
+        
+        uint256 startGas = gasleft();
+        uint256 startTime = block.timestamp;
+        
+        // Simulate token transfer operations
+        for (uint256 i = 0; i < iterations; i++) {
+            this.simulateTokenTransfer(msg.sender, address(uint160(i)), 100);
+        }
+        
+        uint256 gasUsed = startGas - gasleft();
+        uint256 executionTime = block.timestamp - startTime;
+        
+        BenchmarkResult memory result = BenchmarkResult({
+            benchmarkName: benchmarkName,
+            language: "OMEGA",
+            gasUsed: gasUsed,
+            executionTime: executionTime,
+            bytecodeSize: 2048, // Estimated
+            deploymentCost: 500000,
+            memoryUsage: 1024,
+            storageReads: iterations * 2,
+            storageWrites: iterations * 2,
+            externalCalls: 0,
+            timestamp: block.timestamp,
+            success: true,
+            errorMessage: ""
+        });
+        
+        this.storeBenchmarkResult(result);
+        emit BenchmarkCompleted(benchmarkName, "OMEGA", gasUsed, executionTime);
+        
+        return result;
+    }
+
+    function runArrayOperationsBenchmark(uint256 arraySize) public whenBenchmarkingActive returns (BenchmarkResult memory) {
+        string memory benchmarkName = "ArrayOperations";
+        
+        emit BenchmarkStarted(benchmarkName, "OMEGA", block.timestamp);
+        
+        uint256 startGas = gasleft();
+        uint256 startTime = block.timestamp;
+        
+        // Create and manipulate arrays
+        uint256[] memory array = new uint256[](arraySize);
+        
+        // Fill array
+        for (uint256 i = 0; i < arraySize; i++) {
+            array[i] = i * 2;
+        }
+        
+        // Sum array
+        uint256 sum = 0;
+        for (uint256 i = 0; i < arraySize; i++) {
+            sum += array[i];
+        }
+        
+        // Find max
+        uint256 max = array[0];
+        for (uint256 i = 1; i < arraySize; i++) {
+            if (array[i] > max) {
+                max = array[i];
+            }
+        }
+        
+        uint256 gasUsed = startGas - gasleft();
+        uint256 executionTime = block.timestamp - startTime;
+        
+        BenchmarkResult memory result = BenchmarkResult({
+            benchmarkName: benchmarkName,
+            language: "OMEGA",
+            gasUsed: gasUsed,
+            executionTime: executionTime,
+            bytecodeSize: 1536,
+            deploymentCost: 400000,
+            memoryUsage: arraySize * 32,
+            storageReads: 0,
+            storageWrites: 0,
+            externalCalls: 0,
+            timestamp: block.timestamp,
+            success: true,
+            errorMessage: ""
+        });
+        
+        this.storeBenchmarkResult(result);
+        emit BenchmarkCompleted(benchmarkName, "OMEGA", gasUsed, executionTime);
+        
+        return result;
+    }
+
+    function runMathOperationsBenchmark(uint256 iterations) public whenBenchmarkingActive returns (BenchmarkResult memory) {
+        string memory benchmarkName = "MathOperations";
+        
+        emit BenchmarkStarted(benchmarkName, "OMEGA", block.timestamp);
+        
+        uint256 startGas = gasleft();
+        uint256 startTime = block.timestamp;
+        
+        // Perform various math operations
+        uint256 result = 1;
+        for (uint256 i = 1; i <= iterations; i++) {
+            result = result * i / (i + 1);
+            result = result + (i * 2);
+            result = result % 1000000;
+            result = this.sqrt(result);
+        }
+        
+        uint256 gasUsed = startGas - gasleft();
+        uint256 executionTime = block.timestamp - startTime;
+        
+        BenchmarkResult memory benchmarkResult = BenchmarkResult({
+            benchmarkName: benchmarkName,
+            language: "OMEGA",
+            gasUsed: gasUsed,
+            executionTime: executionTime,
+            bytecodeSize: 1024,
+            deploymentCost: 300000,
+            memoryUsage: 512,
+            storageReads: 0,
+            storageWrites: 0,
+            externalCalls: 0,
+            timestamp: block.timestamp,
+            success: true,
+            errorMessage: ""
+        });
+        
+        this.storeBenchmarkResult(benchmarkResult);
+        emit BenchmarkCompleted(benchmarkName, "OMEGA", gasUsed, executionTime);
+        
+        return benchmarkResult;
+    }
+
+    function runStringOperationsBenchmark(uint256 stringLength, uint256 iterations) public whenBenchmarkingActive returns (BenchmarkResult memory) {
+        string memory benchmarkName = "StringOperations";
+        
+        emit BenchmarkStarted(benchmarkName, "OMEGA", block.timestamp);
+        
+        uint256 startGas = gasleft();
+        uint256 startTime = block.timestamp;
+        
+        // Create base string
+        string memory baseString = this.generateString(stringLength);
+        
+        // Perform string operations
+        for (uint256 i = 0; i < iterations; i++) {
+            string memory newString = this.stringConcat(baseString, this.uintToString(i));
+            uint256 len = this.stringLength(newString);
+            string memory sub = this.substring(newString, 0, len / 2);
+        }
+        
+        uint256 gasUsed = startGas - gasleft();
+        uint256 executionTime = block.timestamp - startTime;
+        
+        BenchmarkResult memory result = BenchmarkResult({
+            benchmarkName: benchmarkName,
+            language: "OMEGA",
+            gasUsed: gasUsed,
+            executionTime: executionTime,
+            bytecodeSize: 1792,
+            deploymentCost: 450000,
+            memoryUsage: stringLength * iterations,
+            storageReads: 0,
+            storageWrites: 0,
+            externalCalls: 0,
+            timestamp: block.timestamp,
+            success: true,
+            errorMessage: ""
+        });
+        
+        this.storeBenchmarkResult(result);
+        emit BenchmarkCompleted(benchmarkName, "OMEGA", gasUsed, executionTime);
+        
+        return result;
+    }
+
+    function runStorageOperationsBenchmark(uint256 operations) public whenBenchmarkingActive returns (BenchmarkResult memory) {
+        string memory benchmarkName = "StorageOperations";
+        
+        emit BenchmarkStarted(benchmarkName, "OMEGA", block.timestamp);
+        
+        uint256 startGas = gasleft();
+        uint256 startTime = block.timestamp;
+        
+        // Perform storage operations
+        for (uint256 i = 0; i < operations; i++) {
+            this.writeStorage(i, i * 2);
+            uint256 value = this.readStorage(i);
+            this.writeStorage(i, value + 1);
+        }
+        
+        uint256 gasUsed = startGas - gasleft();
+        uint256 executionTime = block.timestamp - startTime;
+        
+        BenchmarkResult memory result = BenchmarkResult({
+            benchmarkName: benchmarkName,
+            language: "OMEGA",
+            gasUsed: gasUsed,
+            executionTime: executionTime,
+            bytecodeSize: 1280,
+            deploymentCost: 350000,
+            memoryUsage: 256,
+            storageReads: operations,
+            storageWrites: operations * 2,
+            externalCalls: 0,
+            timestamp: block.timestamp,
+            success: true,
+            errorMessage: ""
+        });
+        
+        this.storeBenchmarkResult(result);
+        emit BenchmarkCompleted(benchmarkName, "OMEGA", gasUsed, executionTime);
+        
+        return result;
+    }
+
+    function runComplexContractBenchmark(uint256 iterations) public whenBenchmarkingActive returns (BenchmarkResult memory) {
+        string memory benchmarkName = "ComplexContract";
+        
+        emit BenchmarkStarted(benchmarkName, "OMEGA", block.timestamp);
+        
+        uint256 startGas = gasleft();
+        uint256 startTime = block.timestamp;
+        
+        // Simulate complex contract operations
+        for (uint256 i = 0; i < iterations; i++) {
+            this.complexOperation(i);
+        }
+        
+        uint256 gasUsed = startGas - gasleft();
+        uint256 executionTime = block.timestamp - startTime;
+        
+        BenchmarkResult memory result = BenchmarkResult({
+            benchmarkName: benchmarkName,
+            language: "OMEGA",
+            gasUsed: gasUsed,
+            executionTime: executionTime,
+            bytecodeSize: 3072,
+            deploymentCost: 750000,
+            memoryUsage: 2048,
+            storageReads: iterations * 3,
+            storageWrites: iterations * 2,
+            externalCalls: iterations,
+            timestamp: block.timestamp,
+            success: true,
+            errorMessage: ""
+        });
+        
+        this.storeBenchmarkResult(result);
+        emit BenchmarkCompleted(benchmarkName, "OMEGA", gasUsed, executionTime);
+        
+        return result;
+    }
+
+    // Comparison functions
+    function generateComparisonReport(string memory benchmarkName) public view returns (ComparisonResult memory) {
+        BenchmarkResult memory omegaResult = this.getBenchmarkResult(benchmarkName, "OMEGA");
+        BenchmarkResult memory solidityResult = this.getBenchmarkResult(benchmarkName, "Solidity");
+        BenchmarkResult memory rustResult = this.getBenchmarkResult(benchmarkName, "Rust");
+        
+        require(omegaResult.success && solidityResult.success && rustResult.success, "All benchmark results required");
+        
+        uint256 gasImprovementVsSolidity = ((solidityResult.gasUsed - omegaResult.gasUsed) * 100) / solidityResult.gasUsed;
+        uint256 gasImprovementVsRust = ((rustResult.gasUsed - omegaResult.gasUsed) * 100) / rustResult.gasUsed;
+        
+        uint256 speedImprovementVsSolidity = ((solidityResult.executionTime - omegaResult.executionTime) * 100) / solidityResult.executionTime;
+        uint256 speedImprovementVsRust = ((rustResult.executionTime - omegaResult.executionTime) * 100) / rustResult.executionTime;
+        
+        uint256 sizeImprovementVsSolidity = ((solidityResult.bytecodeSize - omegaResult.bytecodeSize) * 100) / solidityResult.bytecodeSize;
+        uint256 sizeImprovementVsRust = ((rustResult.bytecodeSize - omegaResult.bytecodeSize) * 100) / rustResult.bytecodeSize;
+        
+        return ComparisonResult({
+            benchmarkName: benchmarkName,
+            omegaGasUsed: omegaResult.gasUsed,
+            solidityGasUsed: solidityResult.gasUsed,
+            rustGasUsed: rustResult.gasUsed,
+            omegaExecutionTime: omegaResult.executionTime,
+            solidityExecutionTime: solidityResult.executionTime,
+            rustExecutionTime: rustResult.executionTime,
+            omegaBytecodeSize: omegaResult.bytecodeSize,
+            solidityBytecodeSize: solidityResult.bytecodeSize,
+            rustBytecodeSize: rustResult.bytecodeSize,
+            gasImprovementVsSolidity: gasImprovementVsSolidity,
+            gasImprovementVsRust: gasImprovementVsRust,
+            speedImprovementVsSolidity: speedImprovementVsSolidity,
+            speedImprovementVsRust: speedImprovementVsRust,
+            sizeImprovementVsSolidity: sizeImprovementVsSolidity,
+            sizeImprovementVsRust: sizeImprovementVsRust
+        });
+    }
+
+    function runAllBenchmarks() public whenBenchmarkingActive returns (ComparisonResult[] memory) {
+        uint256 benchmarkNamesLength = benchmarkNames.length;
+        ComparisonResult[] memory comparisons = new ComparisonResult[](benchmarkNamesLength);
+        
+        // Run all OMEGA benchmarks
+        this.runTokenTransferBenchmark(1000);
+        this.runArrayOperationsBenchmark(100);
+        this.runMathOperationsBenchmark(1000);
+        this.runStringOperationsBenchmark(50, 100);
+        this.runStorageOperationsBenchmark(100);
+        this.runComplexContractBenchmark(100);
+        
+        // Generate comparisons for each benchmark
+        for (uint256 i = 0; i < benchmarkNamesLength; i++) {
+            comparisons[i] = this.generateComparisonReport(benchmarkNames[i]);
+            emit ComparisonGenerated(benchmarkNames[i], block.timestamp);
+        }
+        
+        return comparisons;
+    }
+
+    // Helper functions
+    function simulateTokenTransfer(address from, address to, uint256 amount) internal {
+        // Simulate token transfer logic
+        uint256 fromBalance = this.getBalance(from);
+        uint256 toBalance = this.getBalance(to);
+        
+        require(fromBalance >= amount, "Insufficient balance");
+        
+        this.setBalance(from, fromBalance - amount);
+        this.setBalance(to, toBalance + amount);
+    }
+
+    function sqrt(uint256 x) internal pure returns (uint256) {
+        if (x == 0) return 0;
+        uint256 z = x;
+        uint256 y = (x + 1) / 2;
+        while (y < z) {
+            z = y;
+            y = (x / y + y) / 2;
+        }
+        return z;
+    }
+
+    function generateString(uint256 length) internal pure returns (string memory) {
+        bytes memory result = new bytes(length);
+        for (uint256 i = 0; i < length; i++) {
+            result[i] = bytes1(uint8(97 + (i % 26))); // 'a' to 'z'
+        }
+        return string(result);
+    }
+
+    function uintToString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
+    function stringConcat(string memory a, string memory b) internal pure returns (string memory) {
+        return string(abi.encodePacked(a, b));
+    }
+
+    function stringLength(string memory str) internal pure returns (uint256) {
+        return bytes(str).length;
+    }
+
+    function substring(string memory str, uint256 start, uint256 length) internal pure returns (string memory) {
+        bytes memory strBytes = bytes(str);
+        require(start + length <= strBytes.length, "Invalid substring range");
+        
+        bytes memory result = new bytes(length);
+        for (uint256 i = 0; i < length; i++) {
+            result[i] = strBytes[start + i];
+        }
+        return string(result);
+    }
+
+    function complexOperation(uint256 input) internal {
+        uint256 temp = input;
+        temp = temp * 2 + 1;
+        temp = this.sqrt(temp);
+        temp = temp % 1000000;
+        
+        // Simulate external call
+        this.externalCall(temp);
+        
+        // Simulate storage operations
+        this.writeStorage(input, temp);
+        uint256 stored = this.readStorage(input);
+        this.writeStorage(input + 1000, stored);
+    }
+
+    function externalCall(uint256 value) internal {
+        // Simulate external call
+        // In real implementation, this would call another contract
+    }
+
+    function writeStorage(uint256 key, uint256 value) internal {
+        // Simulate storage write
+        // In real implementation, this would write to storage
+    }
+
+    function readStorage(uint256 key) internal view returns (uint256) {
+        // Simulate storage read
+        // In real implementation, this would read from storage
+        return key * 2;
+    }
+
+    function getBalance(address account) internal view returns (uint256) {
+        // Simulate balance read
+        return 1000; // Mock balance
+    }
+
+    function setBalance(address account, uint256 balance) internal {
+        // Simulate balance write
+        // In real implementation, this would update balance
+    }
+
+    // Storage and management functions
+    function storeBenchmarkResult(BenchmarkResult memory result) internal {
+        string memory key = string(abi.encodePacked(result.benchmarkName, "_", result.language));
+        results[key] = result;
+        
+        bool nameExists = false;
+        for (uint256 i = 0; i < benchmarkNames.length; i++) {
+            if (keccak256(bytes(benchmarkNames[i])) == keccak256(bytes(result.benchmarkName))) {
+                nameExists = true;
+                break;
+            }
+        }
+        
+        if (!nameExists) {
+            benchmarkNames.push(result.benchmarkName);
+            benchmarkCount++;
+        }
+    }
+
+    function getBenchmarkResult(string memory benchmarkName, string memory language) public view returns (BenchmarkResult memory) {
+        string memory key = string(abi.encodePacked(benchmarkName, "_", language));
+        return results[key];
+    }
+
+    function setBenchmarkConfig(string memory benchmarkName, BenchmarkConfig memory config) public onlyAdmin {
+        configs[benchmarkName] = config;
+    }
+
+    function getBenchmarkConfig(string memory benchmarkName) public view returns (BenchmarkConfig memory) {
+        return configs[benchmarkName];
+    }
+
+    function activateBenchmarking() public onlyAdmin {
+        benchmarkingActive = true;
+        emit BenchmarkingActivated(msg.sender);
+    }
+
+    function deactivateBenchmarking() public onlyAdmin {
+        benchmarkingActive = false;
+        emit BenchmarkingDeactivated(msg.sender);
+    }
+
+    function getAllBenchmarkNames() public view returns (string[] memory) {
+        return benchmarkNames;
+    }
+
+    function getBenchmarkCount() public view returns (uint256) {
+        return benchmarkCount;
+    }
+
+    function generateBenchmarkReport() public view returns (string memory) {
+        string memory report = "OMEGA Performance Benchmark Report\\n";
+        report = string(abi.encodePacked(report, "=====================================\\n\\n"));
+        
+        for (uint256 i = 0; i < benchmarkNames.length; i++) {
+            string memory benchmarkName = benchmarkNames[i];
+            ComparisonResult memory comparison = this.generateComparisonReport(benchmarkName);
+            
+            report = string(abi.encodePacked(report, "Benchmark: ", benchmarkName, "\\n"));
+            report = string(abi.encodePacked(report, "-------------------------------------\\n"));
+            report = string(abi.encodePacked(report, "Gas Usage:\\n"));
+            report = string(abi.encodePacked(report, "  OMEGA: ", this.uintToString(comparison.omegaGasUsed), "\\n"));
+            report = string(abi.encodePacked(report, "  Solidity: ", this.uintToString(comparison.solidityGasUsed), "\\n"));
+            report = string(abi.encodePacked(report, "  Rust: ", this.uintToString(comparison.rustGasUsed), "\\n"));
+            report = string(abi.encodePacked(report, "  Improvement vs Solidity: ", this.uintToString(comparison.gasImprovementVsSolidity), "%\\n"));
+            report = string(abi.encodePacked(report, "  Improvement vs Rust: ", this.uintToString(comparison.gasImprovementVsRust), "%\\n\\n"));
+            
+            report = string(abi.encodePacked(report, "Execution Time:\\n"));
+            report = string(abi.encodePacked(report, "  OMEGA: ", this.uintToString(comparison.omegaExecutionTime), " seconds\\n"));
+            report = string(abi.encodePacked(report, "  Solidity: ", this.uintToString(comparison.solidityExecutionTime), " seconds\\n"));
+            report = string(abi.encodePacked(report, "  Rust: ", this.uintToString(comparison.rustExecutionTime), " seconds\\n"));
+            report = string(abi.encodePacked(report, "  Speedup vs Solidity: ", this.uintToString(comparison.speedImprovementVsSolidity), "%\\n"));
+            report = string(abi.encodePacked(report, "  Speedup vs Rust: ", this.uintToString(comparison.speedImprovementVsRust), "%\\n\\n"));
+        }
+        
+        return report;
+    }
+}

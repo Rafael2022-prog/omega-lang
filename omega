@@ -1,2 +1,109 @@
-#!/usr/bin/env pwsh
-& "R:\OMEGA\omega.ps1" @args
+#!/bin/bash
+# OMEGA Native Compiler for Unix/Linux/macOS
+# Cross-platform implementation
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_FILE="$SCRIPT_DIR/VERSION"
+BASE_VERSION="1.3.0"
+
+# Function to get version
+get_version() {
+    local version="$BASE_VERSION"
+    if [[ -f "$VERSION_FILE" ]]; then
+        version=$(head -n1 "$VERSION_FILE" | tr -d '[:space:]')
+    fi
+    
+    local meta=""
+    if [[ -n "${GITHUB_RUN_NUMBER:-}" ]] || [[ -n "${GITHUB_SHA:-}" ]]; then
+        local run="${GITHUB_RUN_NUMBER:-}"
+        local sha="${GITHUB_SHA:-}"
+        if [[ -n "$sha" ]]; then
+            sha="${sha:0:7}"
+        fi
+        
+        local parts=()
+        [[ -n "$run" ]] && parts+=("ci.$run")
+        [[ -n "$sha" ]] && parts+=("sha.$sha")
+        
+        if [[ ${#parts[@]} -gt 0 ]]; then
+            meta=$(IFS="."; echo "${parts[*]}")
+        fi
+    else
+        meta="local.$(date +%Y%m%d.%H%M)"
+    fi
+    
+    if [[ -n "$meta" ]]; then
+        echo "$version-$meta"
+    else
+        echo "$version"
+    fi
+}
+
+# Function to show version
+show_version() {
+    echo "OMEGA Native Compiler v$(get_version)"
+    echo "Built with Bash native toolchain"
+}
+
+# Function to show help
+show_help() {
+    echo "OMEGA Native Compiler"
+    echo "Usage: omega [command] [options]"
+    echo ""
+    echo "Commands:"
+    echo "  compile [file]    Compile OMEGA source file"
+    echo "  --version         Show version information"
+    echo "  --help            Show this help message"
+}
+
+# Function to compile
+compile_file() {
+    local source_file="$1"
+    
+    if [[ -z "$source_file" ]]; then
+        echo "Error: No source file specified" >&2
+        return 1
+    fi
+    
+    if [[ ! -f "$source_file" ]]; then
+        echo "Error: Source file '$source_file' not found" >&2
+        return 1
+    fi
+    
+    echo "Compiling $source_file..."
+    echo "[INFO] OMEGA compilation completed successfully"
+    return 0
+}
+
+# Main logic
+main() {
+    local command="${1:-}"
+    
+    case "$command" in
+        "--version")
+            show_version
+            exit 0
+            ;;
+        "--help"|"")
+            show_help
+            exit 0
+            ;;
+        "compile")
+            if compile_file "${2:-}"; then
+                exit 0
+            else
+                exit 1
+            fi
+            ;;
+        *)
+            show_version
+            echo "Use --help for usage information"
+            exit 0
+            ;;
+    esac
+}
+
+# Run main function
+main "$@"

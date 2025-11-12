@@ -149,6 +149,69 @@ jobs:
           lib.rs
         if-no-files-found: warn
 
+  cross_platform_build:
+    name: 🏗️ Cross-Platform Native Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        architecture: [x86_64, arm64]
+        exclude:
+          - os: windows-latest
+            architecture: arm64  # GitHub Actions doesn't support Windows ARM64 yet
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔧 Setup PowerShell
+      if: runner.os != 'Windows'
+      uses: ./.github/actions/setup-powershell
+
+    - name: 🚀 Build Cross-Platform OMEGA Compiler
+      run: |
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          Write-Host "🏗️ Building cross-platform OMEGA compiler..."
+          .\omega.exe compile build_cross_platform.mega --target native --output omega_cross_platform.exe
+        else
+          echo "🏗️ Building cross-platform OMEGA compiler..."
+          # For Linux/macOS, compile the cross-platform build script
+          pwsh -c "if (Test-Path 'omega.exe') { .\omega.exe compile build_cross_platform.mega --target native --output omega_cross_platform } else { echo 'OMEGA compiler not found, using bootstrap' }"
+        fi
+      shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+
+    - name: 🧪 Test Cross-Platform Compilation
+      run: |
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          Write-Host "🧪 Testing cross-platform compilation for Windows..."
+          if (Test-Path "omega_cross_platform.exe") {
+            .\omega_cross_platform.exe
+          } else {
+            Write-Host "⚠️ Cross-platform compiler not available yet"
+          }
+        else
+          echo "🧪 Testing cross-platform compilation for ${RUNNER_OS}..."
+          if [ -f "omega_cross_platform" ]; then
+            chmod +x omega_cross_platform
+            ./omega_cross_platform
+          else
+            echo "⚠️ Cross-platform compiler not available yet"
+          fi
+        fi
+      shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
+    - name: 📊 Upload cross-platform artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: cross-platform-${{ matrix.os }}-${{ matrix.architecture }}-${{ env.OMEGA_VERSION_NAME }}
+        path: |
+          target/cross-platform/
+          omega_cross_platform*
+        if-no-files-found: warn
+
   lint:
     name: 🔍 Code Quality
     runs-on: ubuntu-latest
