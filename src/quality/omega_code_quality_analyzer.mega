@@ -1,0 +1,872 @@
+/**
+ * OMEGA Code Quality Analyzer
+ * Menganalisis dan memperbaiki code quality issues dalam kode OMEGA
+ */
+
+import "std/io";
+import "std/fs";
+import "std/string";
+import "std/collection";
+import "../error/error.mega";
+import "../parser/parser.mega";
+
+blockchain OmegaCodeQualityAnalyzer {
+    state {
+        CodeQualityRules rules;
+        QualityMetrics metrics;
+        CodeQualityConfig config;
+    }
+    
+    constructor() {
+        rules = initialize_quality_rules();
+        metrics = initialize_quality_metrics();
+        config = CodeQualityConfig({
+            strict_mode: true,
+            max_function_length: 50,
+            max_file_length: 500,
+            max_complexity: 10,
+            min_comment_ratio: 0.1,
+            max_line_length: 120,
+            enforce_naming_conventions: true,
+            require_documentation: true
+        });
+    }
+    
+    /**
+     * Analisis kualitas kode untuk file OMEGA
+     */
+    function analyze_file(string file_path) public returns (CodeQualityReport memory) {
+        string memory source_code = fs::read_file(file_path);
+        return analyze_code(source_code, file_path);
+    }
+    
+    /**
+     * Analisis kualitas kode dari string
+     */
+    function analyze_code(string source_code, string file_path) public returns (CodeQualityReport memory) {
+        CodeQualityReport memory report;
+        report.file_path = file_path;
+        report.timestamp = secure_timestamp::now();
+        
+        // Parse kode menjadi AST
+        ParseResult memory parse_result = parser::parse(source_code);
+        
+        if (!parse_result.success) {
+            report.parse_errors = parse_result.errors;
+            report.quality_score = 0;
+            return report;
+        }
+        
+        // Analisis berbagai aspek kualitas
+        report.complexity_issues = analyze_complexity(parse_result.ast);
+        report.length_issues = analyze_length(parse_result.ast, source_code);
+        report.naming_issues = analyze_naming_conventions(parse_result.ast);
+        report.documentation_issues = analyze_documentation(parse_result.ast, source_code);
+        report.style_issues = analyze_code_style(source_code);
+        report.security_issues = analyze_security_practices(parse_result.ast);
+        report.performance_issues = analyze_performance_issues(parse_result.ast);
+        report.maintainability_issues = analyze_maintainability(parse_result.ast);
+        
+        // Hitung total issues
+        report.total_issues = report.complexity_issues.length + report.length_issues.length + 
+                             report.naming_issues.length + report.documentation_issues.length + 
+                             report.style_issues.length + report.security_issues.length + 
+                             report.performance_issues.length + report.maintainability_issues.length;
+        
+        // Hitung quality score
+        report.quality_score = calculate_quality_score(report, source_code);
+        
+        // Generate rekomendasi
+        report.recommendations = generate_recommendations(report);
+        
+        return report;
+    }
+    
+    /**
+     * Analisis kompleksitas kode
+     */
+    function analyze_complexity(ASTNode memory ast) private returns (ComplexityIssue[] memory) {
+        ComplexityIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Traverse AST untuk mencari fungsi dengan kompleksitas tinggi
+        for (uint256 i = 0; i < ast.functions.length; i++) {
+            FunctionNode memory func = ast.functions[i];
+            uint256 complexity = calculate_cyclomatic_complexity(func);
+            
+            if (complexity > config.max_complexity) {
+                issues[issue_count] = ComplexityIssue({
+                    function_name: func.name,
+                    complexity_score: complexity,
+                    max_allowed: config.max_complexity,
+                    line_number: func.line_start,
+                    recommendation: format("Consider refactoring function '{}' to reduce complexity from {} to <= {}", 
+                                           func.name, complexity, config.max_complexity)
+                });
+                issue_count++;
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisis panjang kode
+     */
+    function analyze_length(ASTNode memory ast, string source_code) private returns (LengthIssue[] memory) {
+        LengthIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Hitung jumlah baris
+        string[] memory lines = string::split(source_code, "\n");
+        uint256 total_lines = lines.length;
+        
+        // Cek panjang file
+        if (total_lines > config.max_file_length) {
+            issues[issue_count] = LengthIssue({
+                issue_type: LengthIssueType.FileTooLong,
+                line_number: 0,
+                current_value: total_lines,
+                max_allowed: config.max_file_length,
+                description: format("File has {} lines, exceeds maximum of {} lines", total_lines, config.max_file_length),
+                recommendation: "Consider splitting this file into smaller modules"
+            });
+            issue_count++;
+        }
+        
+        // Cek panjang fungsi
+        for (uint256 i = 0; i < ast.functions.length; i++) {
+            FunctionNode memory func = ast.functions[i];
+            uint256 function_length = func.line_end - func.line_start;
+            
+            if (function_length > config.max_function_length) {
+                issues[issue_count] = LengthIssue({
+                    issue_type: LengthIssueType.FunctionTooLong,
+                    line_number: func.line_start,
+                    current_value: function_length,
+                    max_allowed: config.max_function_length,
+                    description: format("Function '{}' has {} lines, exceeds maximum of {} lines", 
+                                      func.name, function_length, config.max_function_length),
+                    recommendation: "Consider breaking this function into smaller functions"
+                });
+                issue_count++;
+            }
+        }
+        
+        // Cek panjang baris
+        for (uint256 i = 0; i < lines.length; i++) {
+            if (string::length(lines[i]) > config.max_line_length) {
+                issues[issue_count] = LengthIssue({
+                    issue_type: LengthIssueType.LineTooLong,
+                    line_number: i + 1,
+                    current_value: string::length(lines[i]),
+                    max_allowed: config.max_line_length,
+                    description: format("Line {} has {} characters, exceeds maximum of {} characters", 
+                                      i + 1, string::length(lines[i]), config.max_line_length),
+                    recommendation: "Consider breaking this line into multiple lines"
+                });
+                issue_count++;
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisis konvensi penamaan
+     */
+    function analyze_naming_conventions(ASTNode memory ast) private returns (NamingIssue[] memory) {
+        NamingIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Cek nama fungsi
+        for (uint256 i = 0; i < ast.functions.length; i++) {
+            FunctionNode memory func = ast.functions[i];
+            
+            if (!is_valid_function_name(func.name)) {
+                issues[issue_count] = NamingIssue({
+                    identifier_name: func.name,
+                    identifier_type: NamingType.Function,
+                    line_number: func.line_start,
+                    expected_pattern: "snake_case",
+                    actual_pattern: func.name,
+                    description: format("Function name '{}' should follow snake_case convention", func.name),
+                    recommendation: format("Rename to '{}'", convert_to_snake_case(func.name))
+                });
+                issue_count++;
+            }
+        }
+        
+        // Cek nama state variables
+        for (uint256 i = 0; i < ast.state_variables.length; i++) {
+            StateVariableNode memory var = ast.state_variables[i];
+            
+            if (!is_valid_variable_name(var.name)) {
+                issues[issue_count] = NamingIssue({
+                    identifier_name: var.name,
+                    identifier_type: NamingType.Variable,
+                    line_number: var.line_number,
+                    expected_pattern: "snake_case",
+                    actual_pattern: var.name,
+                    description: format("Variable name '{}' should follow snake_case convention", var.name),
+                    recommendation: format("Rename to '{}'", convert_to_snake_case(var.name))
+                });
+                issue_count++;
+            }
+        }
+        
+        // Cek nama contract
+        if (!is_valid_contract_name(ast.contract_name)) {
+            issues[issue_count] = NamingIssue({
+                identifier_name: ast.contract_name,
+                identifier_type: NamingType.Contract,
+                line_number: ast.contract_line,
+                expected_pattern: "PascalCase",
+                actual_pattern: ast.contract_name,
+                description: format("Contract name '{}' should follow PascalCase convention", ast.contract_name),
+                recommendation: format("Rename to '{}'", convert_to_pascal_case(ast.contract_name))
+            });
+            issue_count++;
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisis dokumentasi
+     */
+    function analyze_documentation(ASTNode memory ast, string source_code) private returns (DocumentationIssue[] memory) {
+        DocumentationIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Cek rasio komentar
+        uint256 comment_ratio = calculate_comment_ratio(source_code);
+        
+        if (comment_ratio < config.min_comment_ratio) {
+            issues[issue_count] = DocumentationIssue({
+                issue_type: DocumentationIssueType.InsufficientComments,
+                line_number: 0,
+                current_ratio: comment_ratio,
+                required_ratio: config.min_comment_ratio,
+                description: format("Comment ratio {:.1%} is below required {:.1%}", comment_ratio, config.min_comment_ratio),
+                recommendation: "Add more comments to explain complex logic"
+            });
+            issue_count++;
+        }
+        
+        // Cek dokumentasi fungsi
+        for (uint256 i = 0; i < ast.functions.length; i++) {
+            FunctionNode memory func = ast.functions[i];
+            
+            if (!has_function_documentation(func, source_code)) {
+                issues[issue_count] = DocumentationIssue({
+                    issue_type: DocumentationIssueType.MissingFunctionDocumentation,
+                    line_number: func.line_start,
+                    current_ratio: 0,
+                    required_ratio: 0,
+                    description: format("Function '{}' lacks documentation", func.name),
+                    recommendation: "Add function documentation with parameters and return values"
+                });
+                issue_count++;
+            }
+        }
+        
+        // Cek dokumentasi contract
+        if (!has_contract_documentation(ast, source_code)) {
+            issues[issue_count] = DocumentationIssue({
+                issue_type: DocumentationIssueType.MissingContractDocumentation,
+                line_number: ast.contract_line,
+                current_ratio: 0,
+                required_ratio: 0,
+                description: "Contract lacks documentation",
+                recommendation: "Add contract-level documentation explaining purpose and usage"
+            });
+            issue_count++;
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisis gaya kode
+     */
+    function analyze_code_style(string source_code) private returns (StyleIssue[] memory) {
+        StyleIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        string[] memory lines = string::split(source_code, "\n");
+        
+        for (uint256 i = 0; i < lines.length; i++) {
+            string memory line = lines[i];
+            
+            // Cek trailing whitespace
+            if (string::ends_with(line, " ") || string::ends_with(line, "\t")) {
+                issues[issue_count] = StyleIssue({
+                    issue_type: StyleIssueType.TrailingWhitespace,
+                    line_number: i + 1,
+                    description: "Line has trailing whitespace",
+                    recommendation: "Remove trailing whitespace",
+                    severity: StyleSeverity.Minor
+                });
+                issue_count++;
+            }
+            
+            // Cek mixed indentation
+            if (string::contains(line, " ") && string::contains(line, "\t")) {
+                issues[issue_count] = StyleIssue({
+                    issue_type: StyleIssueType.MixedIndentation,
+                    line_number: i + 1,
+                    description: "Line uses mixed spaces and tabs for indentation",
+                    recommendation: "Use consistent indentation (preferably spaces)",
+                    severity: StyleSeverity.Minor
+                });
+                issue_count++;
+            }
+            
+            // Cek missing spaces around operators
+            if (has_missing_spaces_around_operators(line)) {
+                issues[issue_count] = StyleIssue({
+                    issue_type: StyleIssueType.MissingSpaces,
+                    line_number: i + 1,
+                    description: "Missing spaces around operators",
+                    recommendation: "Add spaces around operators for better readability",
+                    severity: StyleSeverity.Minor
+                });
+                issue_count++;
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisis praktik keamanan
+     */
+    function analyze_security_practices(ASTNode memory ast) private returns (SecurityPracticeIssue[] memory) {
+        SecurityPracticeIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Cek use of tx.origin
+        for (uint256 i = 0; i < ast.functions.length; i++) {
+            FunctionNode memory func = ast.functions[i];
+            
+            if (contains_tx_origin(func)) {
+                issues[issue_count] = SecurityPracticeIssue({
+                    practice_type: SecurityPracticeType.TxOriginUsage,
+                    line_number: func.line_start,
+                    description: format("Function '{}' uses tx.origin which is unsafe", func.name),
+                    recommendation: "Use msg.sender instead of tx.origin for authentication",
+                    severity: SecuritySeverity.High
+                });
+                issue_count++;
+            }
+            
+            // Cek block.timestamp dependency
+            if (contains_block_timestamp(func)) {
+                issues[issue_count] = SecurityPracticeIssue({
+                    practice_type: SecurityPracticeType.BlockTimestampDependency,
+                    line_number: func.line_start,
+                    description: format("Function '{}' depends on block.timestamp", func.name),
+                    recommendation: "Be aware that block.timestamp can be manipulated by miners",
+                    severity: SecuritySeverity.Medium
+                });
+                issue_count++;
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisis masalah performa
+     */
+    function analyze_performance_issues(ASTNode memory ast) private returns (PerformanceIssue[] memory) {
+        PerformanceIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Cek loops dalam storage access
+        for (uint256 i = 0; i < ast.functions.length; i++) {
+            FunctionNode memory func = ast.functions[i];
+            
+            if (has_storage_loop(func)) {
+                issues[issue_count] = PerformanceIssue({
+                    issue_type: PerformanceIssueType.StorageInLoop,
+                    line_number: func.line_start,
+                    description: format("Function '{}' accesses storage in a loop", func.name),
+                    recommendation: "Consider using memory arrays or events instead of storage in loops",
+                    severity: PerformanceSeverity.Medium,
+                    estimated_gas_impact: 10000
+                });
+                issue_count++;
+            }
+            
+            // Cek repeated storage reads
+            if (has_repeated_storage_reads(func)) {
+                issues[issue_count] = PerformanceIssue({
+                    issue_type: PerformanceIssueType.RepeatedStorageReads,
+                    line_number: func.line_start,
+                    description: format("Function '{}' repeatedly reads the same storage slot", func.name),
+                    recommendation: "Cache storage values in memory variables",
+                    severity: PerformanceSeverity.Low,
+                    estimated_gas_impact: 2000
+                });
+                issue_count++;
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisis maintainability
+     */
+    function analyze_maintainability(ASTNode memory ast) private returns (MaintainabilityIssue[] memory) {
+        MaintainabilityIssue[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Cek magic numbers
+        for (uint256 i = 0; i < ast.functions.length; i++) {
+            FunctionNode memory func = ast.functions[i];
+            
+            uint256[] memory magic_numbers = find_magic_numbers(func);
+            for (uint256 j = 0; j < magic_numbers.length; j++) {
+                issues[issue_count] = MaintainabilityIssue({
+                    issue_type: MaintainabilityIssueType.MagicNumber,
+                    line_number: func.line_start,
+                    description: format("Function '{}' uses magic number {}", func.name, magic_numbers[j]),
+                    recommendation: "Define magic numbers as named constants",
+                    severity: MaintainabilitySeverity.Minor
+                });
+                issue_count++;
+            }
+        }
+        
+        // Cek duplicate code patterns
+        if (has_duplicate_patterns(ast)) {
+            issues[issue_count] = MaintainabilityIssue({
+                issue_type: MaintainabilityIssueType.DuplicateCode,
+                line_number: 0,
+                description: "Contract contains duplicate code patterns",
+                recommendation: "Consider extracting common code into helper functions",
+                severity: MaintainabilitySeverity.Medium
+            });
+            issue_count++;
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Helper functions untuk analisis
+     */
+    
+    function calculate_cyclomatic_complexity(FunctionNode memory func) private pure returns (uint256) {
+        uint256 complexity = 1; // Base complexity
+        
+        // Hitung decision points
+        complexity += count_string_occurrences(func.body, "if ");
+        complexity += count_string_occurrences(func.body, "else ");
+        complexity += count_string_occurrences(func.body, "for ");
+        complexity += count_string_occurrences(func.body, "while ");
+        complexity += count_string_occurrences(func.body, "case ");
+        complexity += count_string_occurrences(func.body, "catch ");
+        
+        return complexity;
+    }
+    
+    function calculate_comment_ratio(string source_code) private pure returns (uint256) {
+        string[] memory lines = string::split(source_code, "\n");
+        uint256 comment_lines = 0;
+        uint256 total_lines = 0;
+        
+        for (uint256 i = 0; i < lines.length; i++) {
+            string memory line = string::trim(lines[i]);
+            if (string::length(line) > 0) {
+                total_lines++;
+                if (string::starts_with(line, "//") || string::starts_with(line, "/*") || string::starts_with(line, "*")) {
+                    comment_lines++;
+                }
+            }
+        }
+        
+        return total_lines > 0 ? (comment_lines * 1000) / total_lines : 0; // Return as percentage * 10
+    }
+    
+    function is_valid_function_name(string name) private pure returns (bool) {
+        // Check snake_case pattern
+        return string::matches(name, "^[a-z][a-z0-9_]*$") && !string::contains(name, "__");
+    }
+    
+    function is_valid_variable_name(string name) private pure returns (bool) {
+        // Check snake_case pattern
+        return string::matches(name, "^[a-z][a-z0-9_]*$") && !string::contains(name, "__");
+    }
+    
+    function is_valid_contract_name(string name) private pure returns (bool) {
+        // Check PascalCase pattern
+        return string::matches(name, "^[A-Z][a-zA-Z0-9]*$") && !string::contains(name, "_");
+    }
+    
+    function has_function_documentation(FunctionNode memory func, string source_code) private pure returns (bool) {
+        // Check if function has documentation comment
+        string[] memory lines = string::split(source_code, "\n");
+        
+        if (func.line_start > 1) {
+            string memory prev_line = string::trim(lines[func.line_start - 2]);
+            return string::starts_with(prev_line, "///") || string::starts_with(prev_line, "/**");
+        }
+        
+        return false;
+    }
+    
+    function has_contract_documentation(ASTNode memory ast, string source_code) private pure returns (bool) {
+        // Check if contract has documentation comment
+        string[] memory lines = string::split(source_code, "\n");
+        
+        if (ast.contract_line > 1) {
+            string memory prev_line = string::trim(lines[ast.contract_line - 2]);
+            return string::starts_with(prev_line, "///") || string::starts_with(prev_line, "/**");
+        }
+        
+        return false;
+    }
+    
+    function has_missing_spaces_around_operators(string line) private pure returns (bool) {
+        // Simple check for missing spaces around common operators
+        string memory operators = "=+-*/<>!&|";
+        
+        for (uint256 i = 0; i < string::length(operators); i++) {
+            string memory op = string::substring(operators, i, i + 1);
+            if (string::contains(line, op) && !string::contains(line, " " + op + " ")) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    function contains_tx_origin(FunctionNode memory func) private pure returns (bool) {
+        return string::contains(func.body, "tx.origin");
+    }
+    
+    function contains_block_timestamp(FunctionNode memory func) private pure returns (bool) {
+        return string::contains(func.body, "block.timestamp");
+    }
+    
+    function has_storage_loop(FunctionNode memory func) private pure returns (bool) {
+        // Simple heuristic: check for loop with storage access patterns
+        return string::contains(func.body, "for") && string::contains(func.body, "mapping");
+    }
+    
+    function has_repeated_storage_reads(FunctionNode memory func) private pure returns (bool) {
+        // Simple heuristic: check for repeated access to same mapping
+        return count_string_occurrences(func.body, "balances[") > 2;
+    }
+    
+    function find_magic_numbers(FunctionNode memory func) private pure returns (uint256[] memory) {
+        uint256[] memory magic_numbers;
+        uint256 count = 0;
+        
+        // Simple pattern matching for numbers that aren't 0 or 1
+        string memory patterns = "2,3,4,5,6,7,8,9,10,100,1000";
+        string[] memory pattern_array = string::split(patterns, ",");
+        
+        for (uint256 i = 0; i < pattern_array.length; i++) {
+            if (string::contains(func.body, pattern_array[i])) {
+                magic_numbers[count] = string::parse_uint(pattern_array[i]);
+                count++;
+            }
+        }
+        
+        return magic_numbers;
+    }
+    
+    function has_duplicate_patterns(ASTNode memory ast) private pure returns (bool) {
+        // Simple heuristic: check for repeated code patterns
+        return ast.functions.length > 3; // Assume potential duplication if many functions
+    }
+    
+    function count_string_occurrences(string text, string pattern) private pure returns (uint256) {
+        uint256 count = 0;
+        uint256 pos = 0;
+        
+        while (pos < string::length(text)) {
+            uint256 found_pos = string::index_of(text, pattern, pos);
+            if (found_pos == type(uint256).max) break;
+            
+            count++;
+            pos = found_pos + string::length(pattern);
+        }
+        
+        return count;
+    }
+    
+    function calculate_quality_score(CodeQualityReport memory report, string source_code) private pure returns (uint256) {
+        uint256 base_score = 1000;
+        uint256 penalty = 0;
+        
+        // Penalty berdasarkan jumlah issues
+        penalty += report.total_issues * 10;
+        
+        // Penalty berat untuk issues kritis
+        penalty += report.complexity_issues.length * 50;
+        penalty += report.security_issues.length * 100;
+        
+        // Bonus untuk dokumentasi yang baik
+        uint256 comment_ratio = calculate_comment_ratio(source_code);
+        if (comment_ratio > 150) { // > 15% comments
+            base_score += 50;
+        }
+        
+        return base_score > penalty ? base_score - penalty : 0;
+    }
+    
+    function generate_recommendations(CodeQualityReport memory report) private pure returns (string[] memory) {
+        string[] memory recommendations;
+        uint256 rec_count = 0;
+        
+        if (report.complexity_issues.length > 0) {
+            recommendations[rec_count] = "Refactor complex functions to reduce cyclomatic complexity";
+            rec_count++;
+        }
+        
+        if (report.length_issues.length > 0) {
+            recommendations[rec_count] = "Break down long functions and files into smaller units";
+            rec_count++;
+        }
+        
+        if (report.naming_issues.length > 0) {
+            recommendations[rec_count] = "Follow consistent naming conventions (snake_case for functions/variables, PascalCase for contracts)";
+            rec_count++;
+        }
+        
+        if (report.documentation_issues.length > 0) {
+            recommendations[rec_count] = "Add comprehensive documentation for functions and contracts";
+            rec_count++;
+        }
+        
+        if (report.security_issues.length > 0) {
+            recommendations[rec_count] = "Address security practice issues, especially tx.origin usage";
+            rec_count++;
+        }
+        
+        return recommendations;
+    }
+    
+    function initialize_quality_rules() private pure returns (CodeQualityRules memory) {
+        // Initialize default quality rules
+        CodeQualityRules memory rules;
+        return rules;
+    }
+    
+    function initialize_quality_metrics() private pure returns (QualityMetrics memory) {
+        // Initialize default quality metrics
+        QualityMetrics memory metrics;
+        return metrics;
+    }
+    
+    // Helper functions untuk string manipulation
+    
+    function convert_to_snake_case(string name) private pure returns (string memory) {
+        // Simple conversion logic
+        return string::to_lower_case(name);
+    }
+    
+    function convert_to_pascal_case(string name) private pure returns (string memory) {
+        // Simple conversion logic
+        return string::capitalize(string::to_lower_case(name));
+    }
+}
+
+// Structs untuk code quality analysis
+
+struct CodeQualityReport {
+    string file_path;
+    uint256 timestamp;
+    uint256 quality_score;
+    uint256 total_issues;
+    
+    ComplexityIssue[] complexity_issues;
+    LengthIssue[] length_issues;
+    NamingIssue[] naming_issues;
+    DocumentationIssue[] documentation_issues;
+    StyleIssue[] style_issues;
+    SecurityPracticeIssue[] security_issues;
+    PerformanceIssue[] performance_issues;
+    MaintainabilityIssue[] maintainability_issues;
+    
+    ParseError[] parse_errors;
+    string[] recommendations;
+}
+
+struct CodeQualityConfig {
+    bool strict_mode;
+    uint256 max_function_length;
+    uint256 max_file_length;
+    uint256 max_complexity;
+    uint256 min_comment_ratio; // * 1000 untuk presisi
+    uint256 max_line_length;
+    bool enforce_naming_conventions;
+    bool require_documentation;
+}
+
+struct ComplexityIssue {
+    string function_name;
+    uint256 complexity_score;
+    uint256 max_allowed;
+    uint256 line_number;
+    string recommendation;
+}
+
+struct LengthIssue {
+    LengthIssueType issue_type;
+    uint256 line_number;
+    uint256 current_value;
+    uint256 max_allowed;
+    string description;
+    string recommendation;
+}
+
+struct NamingIssue {
+    string identifier_name;
+    NamingType identifier_type;
+    uint256 line_number;
+    string expected_pattern;
+    string actual_pattern;
+    string description;
+    string recommendation;
+}
+
+struct DocumentationIssue {
+    DocumentationIssueType issue_type;
+    uint256 line_number;
+    uint256 current_ratio;
+    uint256 required_ratio;
+    string description;
+    string recommendation;
+}
+
+struct StyleIssue {
+    StyleIssueType issue_type;
+    uint256 line_number;
+    string description;
+    string recommendation;
+    StyleSeverity severity;
+}
+
+struct SecurityPracticeIssue {
+    SecurityPracticeType practice_type;
+    uint256 line_number;
+    string description;
+    string recommendation;
+    SecuritySeverity severity;
+}
+
+struct PerformanceIssue {
+    PerformanceIssueType issue_type;
+    uint256 line_number;
+    string description;
+    string recommendation;
+    PerformanceSeverity severity;
+    uint256 estimated_gas_impact;
+}
+
+struct MaintainabilityIssue {
+    MaintainabilityIssueType issue_type;
+    uint256 line_number;
+    string description;
+    string recommendation;
+    MaintainabilitySeverity severity;
+}
+
+// Enums
+
+enum LengthIssueType {
+    FileTooLong,
+    FunctionTooLong,
+    LineTooLong
+}
+
+enum NamingType {
+    Function,
+    Variable,
+    Contract,
+    Event,
+    Modifier
+}
+
+enum DocumentationIssueType {
+    InsufficientComments,
+    MissingFunctionDocumentation,
+    MissingContractDocumentation,
+    MissingParameterDocumentation,
+    MissingReturnDocumentation
+}
+
+enum StyleIssueType {
+    TrailingWhitespace,
+    MixedIndentation,
+    MissingSpaces,
+    ExtraSpaces,
+    InconsistentBraces,
+    InconsistentQuotes
+}
+
+enum StyleSeverity {
+    Minor,
+    Major,
+    Critical
+}
+
+enum SecurityPracticeType {
+    TxOriginUsage,
+    BlockTimestampDependency,
+    BlockNumberDependency,
+    UnsafeDelegateCall,
+    MissingAccessControl
+}
+
+enum SecuritySeverity {
+    Low,
+    Medium,
+    High,
+    Critical
+}
+
+enum PerformanceIssueType {
+    StorageInLoop,
+    RepeatedStorageReads,
+    UnnecessaryStorageWrites,
+    ExpensiveOperationsInLoop,
+    RedundantCalculations
+}
+
+enum PerformanceSeverity {
+    Low,
+    Medium,
+    High,
+    Critical
+}
+
+enum MaintainabilityIssueType {
+    MagicNumber,
+    DuplicateCode,
+    LongParameterList,
+    GodObject,
+    FeatureEnvy,
+    InappropriateIntimacy
+}
+
+enum MaintainabilitySeverity {
+    Minor,
+    Major,
+    Critical
+}
+
+struct CodeQualityRules {
+    // Placeholder for quality rules
+}
+
+struct QualityMetrics {
+    // Placeholder for quality metrics
+}

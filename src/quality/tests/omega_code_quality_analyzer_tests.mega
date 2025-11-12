@@ -1,0 +1,969 @@
+/**
+ * OMEGA Code Quality Analyzer Tests
+ * Comprehensive test suite untuk code quality analysis
+ */
+
+import "std/testing";
+import "std/string";
+import "std/fs";
+import "../omega_code_quality_analyzer.mega";
+import "../omega_code_quality_cli.mega";
+
+blockchain OmegaCodeQualityAnalyzerTests {
+    state {
+        OmegaCodeQualityAnalyzer analyzer;
+        string test_files_dir;
+    }
+    
+    constructor() {
+        analyzer = new OmegaCodeQualityAnalyzer();
+        test_files_dir = "./test_files";
+        setup_test_files();
+    }
+    
+    /**
+     * Setup test files dengan berbagai quality issues
+     */
+    function setup_test_files() private {
+        // Create test directory
+        if (!fs::exists(test_files_dir)) {
+            fs::create_directory(test_files_dir);
+        }
+        
+        // Test file 1: Perfect quality code
+        string memory perfect_code = """
+/**
+ * Perfect Quality Contract
+ * Demonstrates excellent code quality practices
+ */
+blockchain PerfectContract {
+    state {
+        address owner;
+        uint256 total_supply;
+        mapping(address => uint256) balances;
+    }
+    
+    constructor() {
+        owner = msg.sender;
+        total_supply = 0;
+    }
+    
+    /// @notice Mint new tokens to specified address
+    /// @param to Address to receive tokens
+    /// @param amount Amount of tokens to mint
+    function mint(address to, uint256 amount) public {
+        require(msg.sender == owner, "Not authorized");
+        require(to != address(0), "Invalid address");
+        require(amount > 0, "Amount must be positive");
+        
+        balances[to] += amount;
+        total_supply += amount;
+        
+        emit TokensMinted(to, amount);
+    }
+    
+    /// @notice Get balance of specified address
+    /// @param account Address to check balance for
+    /// @return Balance of the address
+    function balance_of(address account) public view returns (uint256) {
+        return balances[account];
+    }
+    
+    /// @notice Get total token supply
+    /// @return Total supply of tokens
+    function get_total_supply() public view returns (uint256) {
+        return total_supply;
+    }
+    
+    event TokensMinted(address indexed to, uint256 amount);
+}
+""";
+        fs::write_file(test_files_dir + "/perfect_contract.mega", perfect_code);
+        
+        // Test file 2: Poor quality code with multiple issues
+        string memory poor_code = """
+blockchain badContract {
+    state {
+        address owner;
+        mapping(address => uint256) balances;
+        string very_long_variable_name_that_exceeds_recommended_length_limits_and_should_be_shortened;
+        uint256 totalSupply;
+        address[] userAddresses;
+        mapping(address => bool) authorizedUsers;
+    }
+    
+    constructor() {
+        owner = msg.sender;
+        totalSupply = 0;
+    }
+    
+    function veryLongFunctionNameThatDoesTooManyThingsAndHasPoorStructureAndExceedsRecommendedLength(uint256 amount, address recipient, string memory data, bool flag1, bool flag2, bool flag3, bool flag4, bool flag5) public returns (bool) {
+        if (amount > 0) {
+            if (recipient != address(0)) {
+                if (flag1) {
+                    if (flag2) {
+                        if (flag3) {
+                            if (flag4) {
+                                if (flag5) {
+                                    balances[recipient] = balances[recipient] + amount + 1000 + 2000 + 3000 + 4000 + 5000;
+                                    totalSupply = totalSupply + amount + 1000 + 2000 + 3000 + 4000 + 5000;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
+    function anotherPoorFunction() public {
+        uint256 a = 1;
+        uint256 b = 2;
+        uint256 c = 3;
+        uint256 d = 4;
+        uint256 e = 5;
+        uint256 f = 6;
+        uint256 g = 7;
+        uint256 h = 8;
+        uint256 i = 9;
+        uint256 j = 10;
+        
+        if (a > 0) {
+            if (b > 0) {
+                if (c > 0) {
+                    if (d > 0) {
+                        if (e > 0) {
+                            if (f > 0) {
+                                if (g > 0) {
+                                    if (h > 0) {
+                                        if (i > 0) {
+                                            if (j > 0) {
+                                                // This is getting ridiculous
+                                                a = a + b + c + d + e + f + g + h + i + j;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    function X() public {
+        uint256 x = 1;
+    }
+    
+    function Y() public {
+        uint256 y = 2;
+    }
+    
+    function Z() public {
+        uint256 z = 3;
+    }
+    
+    function veryLongFunctionNameThatDoesTooManyThingsAndHasPoorStructureAndExceedsRecommendedLengthEvenMore(uint256 amount, address recipient, string memory data, bool flag1, bool flag2, bool flag3, bool flag4, bool flag5, bool flag6, bool flag7, bool flag8, bool flag9, bool flag10) public returns (bool) {
+        if (amount > 0) {
+            if (recipient != address(0)) {
+                if (flag1) {
+                    if (flag2) {
+                        if (flag3) {
+                            if (flag4) {
+                                if (flag5) {
+                                    if (flag6) {
+                                        if (flag7) {
+                                            if (flag8) {
+                                                if (flag9) {
+                                                    if (flag10) {
+                                                        balances[recipient] = balances[recipient] + amount + 1000 + 2000 + 3000 + 4000 + 5000 + 6000 + 7000 + 8000 + 9000 + 10000;
+                                                        totalSupply = totalSupply + amount + 1000 + 2000 + 3000 + 4000 + 5000 + 6000 + 7000 + 8000 + 9000 + 10000;
+                                                        return true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+}
+""";
+        fs::write_file(test_files_dir + "/poor_contract.mega", poor_code);
+        
+        // Test file 3: Code with security issues
+        string memory security_issues_code = """
+blockchain SecurityIssuesContract {
+    state {
+        address owner;
+        mapping(address => uint256) balances;
+        mapping(address => uint256) allowances;
+        uint256 total_supply;
+    }
+    
+    constructor() {
+        owner = msg.sender;
+        total_supply = 1000000;
+        balances[msg.sender] = total_supply;
+    }
+    
+    function transfer(address to, uint256 amount) public {
+        // Missing require checks - security issue
+        balances[msg.sender] -= amount; // Potential underflow
+        balances[to] += amount; // Potential overflow
+    }
+    
+    function transferFrom(address from, address to, uint256 amount) public {
+        // No allowance check - security issue
+        balances[from] -= amount; // Potential underflow
+        balances[to] += amount; // Potential overflow
+        allowances[from][msg.sender] -= amount; // Potential underflow
+    }
+    
+    function withdraw(uint256 amount) public {
+        // No balance check - security issue
+        balances[msg.sender] -= amount; // Potential underflow
+        // Missing actual withdrawal logic
+    }
+    
+    function setOwner(address new_owner) public {
+        // No ownership check - security issue
+        owner = new_owner;
+    }
+    
+    function emergency_withdraw() public {
+        // Anyone can drain the contract - critical security issue
+        balances[msg.sender] = total_supply;
+    }
+}
+""";
+        fs::write_file(test_files_dir + "/security_issues.mega", security_issues_code);
+        
+        // Test file 4: Code with performance issues
+        string memory performance_issues_code = """
+blockchain PerformanceIssuesContract {
+    state {
+        address owner;
+        mapping(address => uint256) balances;
+        address[] all_users;
+        mapping(address => bool) user_exists;
+    }
+    
+    constructor() {
+        owner = msg.sender;
+    }
+    
+    function mint(address to, uint256 amount) public {
+        require(msg.sender == owner);
+        
+        // Inefficient: O(n) lookup in array
+        bool found = false;
+        for (uint256 i = 0; i < all_users.length; i++) {
+            if (all_users[i] == to) {
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            all_users.push(to);
+        }
+        
+        balances[to] += amount;
+    }
+    
+    function get_total_supply() public view returns (uint256) {
+        uint256 total = 0;
+        // Inefficient: O(n) loop to calculate total
+        for (uint256 i = 0; i < all_users.length; i++) {
+            total += balances[all_users[i]];
+        }
+        return total;
+    }
+    
+    function find_user_index(address user) public view returns (uint256) {
+        // Inefficient: Linear search
+        for (uint256 i = 0; i < all_users.length; i++) {
+            if (all_users[i] == user) {
+                return i;
+            }
+        }
+        return type(uint256).max;
+    }
+    
+    function process_all_users() public {
+        // Inefficient: Multiple nested loops
+        for (uint256 i = 0; i < all_users.length; i++) {
+            address user = all_users[i];
+            if (balances[user] > 0) {
+                for (uint256 j = 0; j < all_users.length; j++) {
+                    if (all_users[j] != user) {
+                        // Complex nested processing
+                        uint256 amount = balances[user] / 10;
+                        balances[all_users[j]] += amount;
+                        balances[user] -= amount;
+                    }
+                }
+            }
+        }
+    }
+}
+""";
+        fs::write_file(test_files_dir + "/performance_issues.mega", performance_issues_code);
+        
+        // Test file 5: Code with documentation issues
+        string memory documentation_issues_code = """
+blockchain DocumentationIssuesContract {
+    state {
+        address owner;
+        mapping(address => uint256) balances;
+    }
+    
+    constructor() {
+        owner = msg.sender;
+    }
+    
+    function mint(address to, uint256 amount) public {
+        balances[to] += amount;
+    }
+    
+    function burn(address from, uint256 amount) public {
+        balances[from] -= amount;
+    }
+    
+    function transfer(address to, uint256 amount) public {
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+    }
+    
+    function get_balance(address account) public view returns (uint256) {
+        return balances[account];
+    }
+}
+""";
+        fs::write_file(test_files_dir + "/documentation_issues.mega", documentation_issues_code);
+    }
+    
+    /**
+     * Test 1: Analyze perfect quality code
+     */
+    function test_perfect_quality_code() public {
+        io::println("\n🧪 Test 1: Perfect Quality Code Analysis");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/perfect_contract.mega");
+        
+        testing::assert_equals(report.total_issues, 0, "Perfect code should have 0 issues");
+        testing::assert_greater_than_or_equal(report.quality_score, 900, "Perfect code should score >= 900");
+        testing::assert_equals(report.complexity_issues.length, 0, "Perfect code should have no complexity issues");
+        testing::assert_equals(report.naming_issues.length, 0, "Perfect code should have no naming issues");
+        testing::assert_equals(report.documentation_issues.length, 0, "Perfect code should have no documentation issues");
+        testing::assert_equals(report.security_issues.length, 0, "Perfect code should have no security issues");
+        
+        io::println("✅ Perfect quality code test passed");
+    }
+    
+    /**
+     * Test 2: Analyze poor quality code
+     */
+    function test_poor_quality_code() public {
+        io::println("\n🧪 Test 2: Poor Quality Code Analysis");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        
+        testing::assert_greater_than(report.total_issues, 0, "Poor code should have issues");
+        testing::assert_less_than(report.quality_score, 700, "Poor code should score < 700");
+        testing::assert_greater_than(report.complexity_issues.length, 0, "Poor code should have complexity issues");
+        testing::assert_greater_than(report.naming_issues.length, 0, "Poor code should have naming issues");
+        testing::assert_greater_than(report.length_issues.length, 0, "Poor code should have length issues");
+        
+        io::println(format("Found {} issues in poor quality code", report.total_issues));
+        io::println("✅ Poor quality code test passed");
+    }
+    
+    /**
+     * Test 3: Analyze code with security issues
+     */
+    function test_security_issues_detection() public {
+        io::println("\n🧪 Test 3: Security Issues Detection");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/security_issues.mega");
+        
+        testing::assert_greater_than(report.security_issues.length, 0, "Should detect security issues");
+        testing::assert_less_than(report.quality_score, 600, "Code with security issues should score < 600");
+        
+        io::println(format("Detected {} security issues", report.security_issues.length));
+        
+        // Check specific security issues
+        bool found_underflow_issue = false;
+        bool found_ownership_issue = false;
+        
+        for (uint256 i = 0; i < report.security_issues.length; i++) {
+            SecurityIssue memory issue = report.security_issues[i];
+            if (string::contains(issue.description, "underflow")) {
+                found_underflow_issue = true;
+            }
+            if (string::contains(issue.description, "ownership")) {
+                found_ownership_issue = true;
+            }
+        }
+        
+        testing::assert_true(found_underflow_issue, "Should detect underflow issues");
+        testing::assert_true(found_ownership_issue, "Should detect ownership issues");
+        
+        io::println("✅ Security issues detection test passed");
+    }
+    
+    /**
+     * Test 4: Analyze code with performance issues
+     */
+    function test_performance_issues_detection() public {
+        io::println("\n🧪 Test 4: Performance Issues Detection");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/performance_issues.mega");
+        
+        testing::assert_greater_than(report.performance_issues.length, 0, "Should detect performance issues");
+        
+        io::println(format("Detected {} performance issues", report.performance_issues.length));
+        
+        // Check for specific performance issues
+        bool found_inefficient_loop = false;
+        bool found_linear_search = false;
+        
+        for (uint256 i = 0; i < report.performance_issues.length; i++) {
+            PerformanceIssue memory issue = report.performance_issues[i];
+            if (string::contains(issue.description, "inefficient") || string::contains(issue.description, "O(n)")) {
+                found_inefficient_loop = true;
+            }
+            if (string::contains(issue.description, "linear search")) {
+                found_linear_search = true;
+            }
+        }
+        
+        testing::assert_true(found_inefficient_loop, "Should detect inefficient loops");
+        testing::assert_true(found_linear_search, "Should detect linear search issues");
+        
+        io::println("✅ Performance issues detection test passed");
+    }
+    
+    /**
+     * Test 5: Analyze code with documentation issues
+     */
+    function test_documentation_issues_detection() public {
+        io::println("\n🧪 Test 5: Documentation Issues Detection");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/documentation_issues.mega");
+        
+        testing::assert_greater_than(report.documentation_issues.length, 0, "Should detect documentation issues");
+        
+        io::println(format("Detected {} documentation issues", report.documentation_issues.length));
+        
+        // Check for missing documentation
+        bool found_missing_docs = false;
+        
+        for (uint256 i = 0; i < report.documentation_issues.length; i++) {
+            DocumentationIssue memory issue = report.documentation_issues[i];
+            if (string::contains(issue.description, "missing") || string::contains(issue.description, "documentation")) {
+                found_missing_docs = true;
+            }
+        }
+        
+        testing::assert_true(found_missing_docs, "Should detect missing documentation");
+        
+        io::println("✅ Documentation issues detection test passed");
+    }
+    
+    /**
+     * Test 6: Complexity analysis
+     */
+    function test_complexity_analysis() public {
+        io::println("\n🧪 Test 6: Complexity Analysis");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        
+        testing::assert_greater_than(report.complexity_issues.length, 0, "Should detect complexity issues");
+        
+        // Check complexity scores
+        for (uint256 i = 0; i < report.complexity_issues.length; i++) {
+            ComplexityIssue memory issue = report.complexity_issues[i];
+            testing::assert_greater_than(issue.complexity_score, issue.max_allowed, 
+                                         "Complexity should exceed maximum allowed");
+            
+            io::println(format("Function '{}' has complexity score {} (max: {})", 
+                               issue.function_name, issue.complexity_score, issue.max_allowed));
+        }
+        
+        io::println("✅ Complexity analysis test passed");
+    }
+    
+    /**
+     * Test 7: Naming convention analysis
+     */
+    function test_naming_conventions() public {
+        io::println("\n🧪 Test 7: Naming Convention Analysis");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        
+        testing::assert_greater_than(report.naming_issues.length, 0, "Should detect naming issues");
+        
+        // Check for specific naming issues
+        bool found_contract_naming_issue = false;
+        bool found_function_naming_issue = false;
+        bool found_variable_naming_issue = false;
+        
+        for (uint256 i = 0; i < report.naming_issues.length; i++) {
+            NamingIssue memory issue = report.naming_issues[i];
+            
+            if (issue.identifier_type == NamingType.Contract) {
+                found_contract_naming_issue = true;
+            } else if (issue.identifier_type == NamingType.Function) {
+                found_function_naming_issue = true;
+            } else if (issue.identifier_type == NamingType.Variable) {
+                found_variable_naming_issue = true;
+            }
+            
+            io::println(format("Naming issue: {} '{}' should be '{}'", 
+                             naming_type_to_string(issue.identifier_type),
+                             issue.identifier_name, issue.recommendation));
+        }
+        
+        testing::assert_true(found_contract_naming_issue, "Should detect contract naming issues");
+        testing::assert_true(found_function_naming_issue, "Should detect function naming issues");
+        testing::assert_true(found_variable_naming_issue, "Should detect variable naming issues");
+        
+        io::println("✅ Naming convention analysis test passed");
+    }
+    
+    /**
+     * Test 8: Code length analysis
+     */
+    function test_code_length_analysis() public {
+        io::println("\n🧪 Test 8: Code Length Analysis");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        
+        testing::assert_greater_than(report.length_issues.length, 0, "Should detect length issues");
+        
+        // Check for specific length issues
+        bool found_long_function_name = false;
+        bool found_long_line = false;
+        
+        for (uint256 i = 0; i < report.length_issues.length; i++) {
+            LengthIssue memory issue = report.length_issues[i];
+            
+            if (issue.issue_type == LengthIssueType.FunctionNameTooLong) {
+                found_long_function_name = true;
+            } else if (issue.issue_type == LengthIssueType.LineTooLong) {
+                found_long_line = true;
+            }
+            
+            io::println(format("Length issue at line {}: {}", issue.line_number, issue.description));
+        }
+        
+        testing::assert_true(found_long_function_name, "Should detect long function names");
+        testing::assert_true(found_long_line, "Should detect long lines");
+        
+        io::println("✅ Code length analysis test passed");
+    }
+    
+    /**
+     * Test 9: Style analysis
+     */
+    function test_style_analysis() public {
+        io::println("\n🧪 Test 9: Style Analysis");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        
+        // Style issues might be detected in poor quality code
+        io::println(format("Found {} style issues", report.style_issues.length));
+        
+        io::println("✅ Style analysis test passed");
+    }
+    
+    /**
+     * Test 10: Maintainability analysis
+     */
+    function test_maintainability_analysis() public {
+        io::println("\n🧪 Test 10: Maintainability Analysis");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        
+        testing::assert_greater_than(report.maintainability_issues.length, 0, "Should detect maintainability issues");
+        
+        io::println(format("Found {} maintainability issues", report.maintainability_issues.length));
+        
+        // Check for specific maintainability issues
+        for (uint256 i = 0; i < report.maintainability_issues.length; i++) {
+            MaintainabilityIssue memory issue = report.maintainability_issues[i];
+            io::println(format("Maintainability issue: {}", issue.description));
+        }
+        
+        io::println("✅ Maintainability analysis test passed");
+    }
+    
+    /**
+     * Test 11: Quality score calculation
+     */
+    function test_quality_score_calculation() public {
+        io::println("\n🧪 Test 11: Quality Score Calculation");
+        
+        // Test perfect code
+        CodeQualityReport memory perfect_report = analyzer.analyze_file(test_files_dir + "/perfect_contract.mega");
+        testing::assert_greater_than_or_equal(perfect_report.quality_score, 900, "Perfect code should score >= 900");
+        
+        // Test poor code
+        CodeQualityReport memory poor_report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        testing::assert_less_than(poor_report.quality_score, 700, "Poor code should score < 700");
+        
+        // Test security issues code
+        CodeQualityReport memory security_report = analyzer.analyze_file(test_files_dir + "/security_issues.mega");
+        testing::assert_less_than(security_report.quality_score, 600, "Code with security issues should score < 600");
+        
+        io::println(format("Quality scores - Perfect: {}, Poor: {}, Security Issues: {}", 
+                          perfect_report.quality_score, poor_report.quality_score, security_report.quality_score));
+        
+        io::println("✅ Quality score calculation test passed");
+    }
+    
+    /**
+     * Test 12: Recommendations generation
+     */
+    function test_recommendations_generation() public {
+        io::println("\n🧪 Test 12: Recommendations Generation");
+        
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        
+        testing::assert_greater_than(report.recommendations.length, 0, "Should generate recommendations for poor code");
+        
+        io::println(format("Generated {} recommendations:", report.recommendations.length));
+        for (uint256 i = 0; i < report.recommendations.length; i++) {
+            io::println(format("  {}. {}", i + 1, report.recommendations[i]));
+        }
+        
+        io::println("✅ Recommendations generation test passed");
+    }
+    
+    /**
+     * Test 13: CLI integration
+     */
+    function test_cli_integration() public {
+        io::println("\n🧪 Test 13: CLI Integration");
+        
+        OmegaCodeQualityCLI memory cli = new OmegaCodeQualityCLI();
+        
+        // Test help command
+        string[] memory help_args = ["help"];
+        cli.main(help_args);
+        
+        // Test version command
+        string[] memory version_args = ["version"];
+        cli.main(version_args);
+        
+        // Test analyze command
+        string[] memory analyze_args = ["analyze", test_files_dir + "/perfect_contract.mega", "--verbose"];
+        cli.main(analyze_args);
+        
+        io::println("✅ CLI integration test passed");
+    }
+    
+    /**
+     * Test 14: Code analysis performance
+     */
+    function test_code_analysis_performance() public {
+        io::println("\n🧪 Test 14: Code Analysis Performance");
+        
+        uint256 start_time = secure_timestamp::now();
+        
+        // Analyze multiple files
+        for (uint256 i = 0; i < 10; i++) {
+            analyzer.analyze_file(test_files_dir + "/poor_contract.mega");
+        }
+        
+        uint256 end_time = secure_timestamp::now();
+        uint256 analysis_time = end_time - start_time;
+        
+        testing::assert_less_than(analysis_time, 5000, "Analysis should complete within 5 seconds");
+        
+        io::println(format("Analyzed 10 files in {} ms", analysis_time));
+        io::println("✅ Code analysis performance test passed");
+    }
+    
+    /**
+     * Test 15: Edge cases and error handling
+     */
+    function test_edge_cases() public {
+        io::println("\n🧪 Test 15: Edge Cases and Error Handling");
+        
+        // Test non-existent file
+        CodeQualityReport memory report = analyzer.analyze_file("non_existent_file.mega");
+        testing::assert_greater_than(report.parse_errors.length, 0, "Should handle non-existent files");
+        
+        // Test empty file
+        string memory empty_file = test_files_dir + "/empty.mega";
+        fs::write_file(empty_file, "");
+        CodeQualityReport memory empty_report = analyzer.analyze_file(empty_file);
+        
+        // Test malformed code
+        string memory malformed_code = """
+blockchain MalformedContract {
+    state {
+        address owner
+        uint256 balance
+    }
+    
+    constructor() {
+        owner = msg.sender
+        balance = 0
+    }
+    
+    function test() public {
+        // Missing closing braces and semicolons
+""";
+        string memory malformed_file = test_files_dir + "/malformed.mega";
+        fs::write_file(malformed_file, malformed_code);
+        CodeQualityReport memory malformed_report = analyzer.analyze_file(malformed_file);
+        
+        testing::assert_greater_than(malformed_report.parse_errors.length, 0, "Should detect parse errors");
+        
+        io::println("✅ Edge cases and error handling test passed");
+    }
+    
+    /**
+     * Test 16: Code quality benchmarks
+     */
+    function test_code_quality_benchmarks() public {
+        io::println("\n🧪 Test 16: Code Quality Benchmarks");
+        
+        OmegaCodeQualityCLI memory cli = new OmegaCodeQualityCLI();
+        
+        string[] memory benchmark_args = ["benchmark", "--verbose"];
+        cli.main(benchmark_args);
+        
+        io::println("✅ Code quality benchmarks test passed");
+    }
+    
+    /**
+     * Test 17: Fix functionality
+     */
+    function test_fix_functionality() public {
+        io::println("\n🧪 Test 17: Fix Functionality");
+        
+        OmegaCodeQualityCLI memory cli = new OmegaCodeQualityCLI();
+        
+        // Create a test file with fixable issues
+        string memory fixable_code = """
+blockchain FixableContract {
+    state {
+        address owner;
+        mapping(address => uint256) balances;
+    }
+    
+    constructor() {
+        owner = msg.sender;
+    }
+    
+    function mint(address to, uint256 amount) public {
+        balances[to] += amount;
+    }
+}
+""";
+        string memory fixable_file = test_files_dir + "/fixable.mega";
+        fs::write_file(fixable_file, fixable_code);
+        
+        // Test fix command
+        string[] memory fix_args = ["fix", fixable_file];
+        cli.main(fix_args);
+        
+        io::println("✅ Fix functionality test passed");
+    }
+    
+    /**
+     * Test 18: Report generation
+     */
+    function test_report_generation() public {
+        io::println("\n🧪 Test 18: Report Generation");
+        
+        OmegaCodeQualityCLI memory cli = new OmegaCodeQualityCLI();
+        
+        // Generate a quality report first
+        CodeQualityReport memory report = analyzer.analyze_file(test_files_dir + "/perfect_contract.mega");
+        string memory report_json = generate_quality_report_json(report);
+        string memory report_file = test_files_dir + "/quality_report.json";
+        fs::write_file(report_file, report_json);
+        
+        // Test report command
+        string[] memory report_args = ["report", report_file];
+        cli.main(report_args);
+        
+        io::println("✅ Report generation test passed");
+    }
+    
+    /**
+     * Test 19: Quality score thresholds
+     */
+    function test_quality_score_thresholds() public {
+        io::println("\n🧪 Test 19: Quality Score Thresholds");
+        
+        // Test excellent quality (900-1000)
+        CodeQualityReport memory excellent_report = analyzer.analyze_file(test_files_dir + "/perfect_contract.mega");
+        testing::assert_greater_than_or_equal(excellent_report.quality_score, 900, "Excellent code should score >= 900");
+        
+        // Test good quality (700-899)
+        // Create a file with minor issues
+        string memory good_code = """
+blockchain GoodContract {
+    state {
+        address owner;
+        uint256 balance;
+    }
+    
+    constructor() {
+        owner = msg.sender;
+    }
+    
+    function deposit(uint256 amount) public {
+        balance += amount;
+    }
+}
+""";
+        string memory good_file = test_files_dir + "/good.mega";
+        fs::write_file(good_file, good_code);
+        CodeQualityReport memory good_report = analyzer.analyze_file(good_file);
+        testing::assert_greater_than_or_equal(good_report.quality_score, 700, "Good code should score >= 700");
+        testing::assert_less_than(good_report.quality_score, 900, "Good code should score < 900");
+        
+        io::println(format("Quality thresholds - Excellent: {}, Good: {}", 
+                          excellent_report.quality_score, good_report.quality_score));
+        io::println("✅ Quality score thresholds test passed");
+    }
+    
+    /**
+     * Test 20: Comprehensive quality analysis
+     */
+    function test_comprehensive_quality_analysis() public {
+        io::println("\n🧪 Test 20: Comprehensive Quality Analysis");
+        
+        // Analyze all test files
+        string[] memory test_files = [
+            test_files_dir + "/perfect_contract.mega",
+            test_files_dir + "/poor_contract.mega",
+            test_files_dir + "/security_issues.mega",
+            test_files_dir + "/performance_issues.mega",
+            test_files_dir + "/documentation_issues.mega"
+        ];
+        
+        uint256 total_issues = 0;
+        uint256 total_score = 0;
+        
+        for (uint256 i = 0; i < test_files.length; i++) {
+            CodeQualityReport memory report = analyzer.analyze_file(test_files[i]);
+            total_issues += report.total_issues;
+            total_score += report.quality_score;
+            
+            io::println(format("{} - Score: {}, Issues: {}", 
+                              test_files[i], report.quality_score, report.total_issues));
+        }
+        
+        uint256 average_score = total_score / test_files.length;
+        
+        testing::assert_greater_than(total_issues, 0, "Should find issues in test suite");
+        testing::assert_greater_than(average_score, 400, "Average score should be reasonable");
+        
+        io::println(format("Comprehensive analysis - Total issues: {}, Average score: {}", 
+                          total_issues, average_score));
+        io::println("✅ Comprehensive quality analysis test passed");
+    }
+    
+    /**
+     * Helper functions
+     */
+    
+    function naming_type_to_string(NamingType naming_type) private pure returns (string memory) {
+        if (naming_type == NamingType.Function) return "Function";
+        if (naming_type == NamingType.Variable) return "Variable";
+        if (naming_type == NamingType.Contract) return "Contract";
+        if (naming_type == NamingType.Event) return "Event";
+        if (naming_type == NamingType.Modifier) return "Modifier";
+        return "Unknown";
+    }
+    
+    function generate_quality_report_json(CodeQualityReport memory report) private pure returns (string memory) {
+        return format("""
+{
+    "file_path": "{}",
+    "timestamp": {},
+    "quality_score": {},
+    "total_issues": {},
+    "complexity_issues": [],
+    "length_issues": [],
+    "naming_issues": [],
+    "documentation_issues": [],
+    "style_issues": [],
+    "security_issues": [],
+    "performance_issues": [],
+    "maintainability_issues": [],
+    "recommendations": []
+}
+""", report.file_path, report.timestamp, report.quality_score, report.total_issues);
+    }
+    
+    /**
+     * Run all tests
+     */
+    function run_all_tests() public {
+        io::println("🚀 Starting OMEGA Code Quality Analyzer Test Suite");
+        io::println("=".repeat(60));
+        
+        test_perfect_quality_code();
+        test_poor_quality_code();
+        test_security_issues_detection();
+        test_performance_issues_detection();
+        test_documentation_issues_detection();
+        test_complexity_analysis();
+        test_naming_conventions();
+        test_code_length_analysis();
+        test_style_analysis();
+        test_maintainability_analysis();
+        test_quality_score_calculation();
+        test_recommendations_generation();
+        test_cli_integration();
+        test_code_analysis_performance();
+        test_edge_cases();
+        test_code_quality_benchmarks();
+        test_fix_functionality();
+        test_report_generation();
+        test_quality_score_thresholds();
+        test_comprehensive_quality_analysis();
+        
+        io::println("\n" + "=".repeat(60));
+        io::println("✅ All OMEGA Code Quality Analyzer tests passed!");
+        io::println("🎉 Code quality analysis is working correctly");
+    }
+}
+
+// Main test runner
+blockchain TestRunner {
+    state {
+        OmegaCodeQualityAnalyzerTests test_suite;
+    }
+    
+    constructor() {
+        test_suite = new OmegaCodeQualityAnalyzerTests();
+    }
+    
+    function run_tests() public {
+        test_suite.run_all_tests();
+    }
+    
+    function main() public {
+        run_tests();
+    }
+}

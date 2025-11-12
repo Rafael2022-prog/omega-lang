@@ -1,0 +1,609 @@
+import std::io;
+import std::fs;
+import std::path;
+import std::collections;
+import "./ast_nodes.mega";
+import "./expression_parser.mega";
+import "./statement_parser.mega";
+import "./declaration_parser.mega";
+import "../lexer/lexer.mega" as Lexer;
+import "../error/error.mega";
+import "../utils/secure_timestamp.mega";
+
+/// Enhanced OMEGA Parser with Refactored Complex Functions
+blockchain OmegaParserRefactored {
+    state {
+        Token[] tokens;
+        uint256 current;
+        uint256 token_count;
+        
+        // Sub-parsers with enhanced capabilities
+        ExpressionParser expression_parser;
+        StatementParser statement_parser;
+        DeclarationParser declaration_parser;
+        
+        // Error handling and recovery
+        OmegaErrorHandler error_handler;
+        string current_file;
+        bool panic_mode;
+        uint256 error_count;
+        string[] error_messages;
+        
+        // Parser state tracking
+        uint256 loop_depth;
+        uint256 function_depth;
+        uint256 scope_depth;
+        bool in_blockchain_context;
+        bool in_self_hosting_mode;
+        
+        // Symbol table for semantic analysis
+        mapping(string => SymbolInfo) symbol_table;
+        string[] scope_stack;
+        
+        // Self-hosting specific state
+        bool parsing_compiler_code;
+        string target_platform;
+        uint256 language_version;
+        mapping(string => ASTNode) parsed_modules;
+        
+        // Performance tracking
+        uint256 parse_start_time;
+        uint256 nodes_created;
+        uint256 memory_usage;
+        
+        // Advanced features
+        bool enable_cross_chain;
+        bool enable_optimization_hints;
+        bool enable_formal_verification;
+        string[] enabled_extensions;
+    }
+    
+    constructor() {
+        current = 0;
+        token_count = 0;
+        panic_mode = false;
+        error_count = 0;
+        loop_depth = 0;
+        function_depth = 0;
+        scope_depth = 0;
+        in_blockchain_context = false;
+        in_self_hosting_mode = true;
+        parsing_compiler_code = false;
+        language_version = 130; // Version 1.3.0
+        nodes_created = 0;
+        
+        // Initialize enhanced sub-parsers
+        expression_parser = ExpressionParser::new();
+        statement_parser = StatementParser::new();
+        declaration_parser = DeclarationParser::new();
+        error_handler = OmegaErrorHandler::new();
+        
+        // Enable all self-hosting features
+        enable_cross_chain = true;
+        enable_optimization_hints = true;
+        enable_formal_verification = true;
+        enabled_extensions = [
+            "self_hosting",
+            "cross_chain",
+            "advanced_types",
+            "compiler_directives",
+            "optimization_hints",
+            "formal_verification"
+        ];
+        
+        io::println("🚀 OMEGA Self-Hosting Parser (Refactored) initialized");
+    }
+    
+    /// Enhanced main parsing function for self-hosting
+    function parse(Token[] memory input_tokens, string memory filename) public returns (Program memory) {
+        io::println("🔍 Parsing (Self-Hosting Refactored): " + filename);
+        // Use secure timestamp for parsing timing
+        SecureTimestamp secure_ts = SecureTimestamp::new();
+        parse_start_time = secure_ts.get_secure_timestamp();
+        
+        tokens = input_tokens;
+        token_count = tokens.length;
+        current = 0;
+        current_file = filename;
+        panic_mode = false;
+        error_count = 0;
+        
+        // Detect if parsing compiler source code
+        if (filename.contains("compiler") || filename.contains("lexer") || 
+            filename.contains("parser") || filename.contains("codegen")) {
+            parsing_compiler_code = true;
+            io::println("📦 Self-hosting mode: Parsing compiler source");
+        }
+        
+        // Initialize all sub-parsers with tokens
+        expression_parser.set_tokens(input_tokens, 0);
+        statement_parser.set_tokens(input_tokens, 0);
+        declaration_parser.set_tokens(input_tokens, 0);
+        
+        Program memory program = parse_program();
+        
+        // Performance metrics
+        uint256 parse_duration = secure_ts.get_secure_timestamp() - parse_start_time;
+        io::println("✅ Parsing completed in " + parse_duration.toString() + "ms");
+        io::println("📊 Nodes created: " + nodes_created.toString());
+        io::println("🧠 Memory usage: " + memory_usage.toString() + " bytes");
+        
+        return program;
+    }
+
+    /// Enhanced convenience: set tokens without filename
+    function set_tokens(Token[] memory input_tokens) public {
+        tokens = input_tokens;
+        token_count = input_tokens.length;
+        current = 0;
+        current_file = "";
+        panic_mode = false;
+        error_count = 0;
+        expression_parser.set_tokens(input_tokens, 0);
+        statement_parser.set_tokens(input_tokens, 0);
+        declaration_parser.set_tokens(input_tokens, 0);
+    }
+
+    /// Enhanced convenience: parse using previously set tokens
+    function parse() public returns (Program memory) {
+        // Ensure sub-parsers are synced with current tokens
+        expression_parser.set_tokens(tokens, current);
+        statement_parser.set_tokens(tokens, current);
+        declaration_parser.set_tokens(tokens, current);
+        return parse_program();
+    }
+
+    /// Enhanced convenience: parse with tokens only (no filename)
+    function parse(Token[] memory input_tokens) public returns (Program memory) {
+        return parse(input_tokens, "");
+    }
+    
+    /// Enhanced parse complete program with self-hosting support - REFACTORED
+    function parse_program() private returns (Program memory) {
+        Item[] memory items;
+        uint256 item_count = 0;
+        
+        io::println("🔄 Starting program parsing (refactored)...");
+        
+        while (!is_at_end()) {
+            try {
+                Item memory item = parse_item_refactored();
+                items[item_count] = item;
+                item_count++;
+                nodes_created++;
+                panic_mode = false;
+                
+                // Self-hosting progress tracking
+                if (item_count % 10 == 0) {
+                    io::println("📈 Parsed " + item_count.toString() + " items");
+                }
+                
+            } catch Error memory error {
+                error_count++;
+                error_messages.push(error.message);
+                
+                if (panic_mode) {
+                    synchronize();
+                } else {
+                    panic_mode = true;
+                    io::println("⚠️ Parse error: " + error.message);
+                }
+            }
+        }
+        
+        io::println("✅ Program parsing completed: " + item_count.toString() + " items");
+        
+        return Program({
+            items: items,
+            item_count: item_count,
+            source_file: current_file,
+            language_version: language_version,
+            is_self_hosting: in_self_hosting_mode,
+            compilation_target: target_platform,
+            enabled_features: enabled_extensions
+        });
+    }
+    
+    /// REFACTORED: Complex parse_item function broken into smaller functions
+    function parse_item_refactored() private returns (Item memory) {
+        // Parse annotations first
+        Annotation[] memory annotations = declaration_parser.parse_annotations();
+        sync_current_with_declaration_parser();
+        
+        // Handle compiler directives for self-hosting
+        if (check(TokenType.PRAGMA)) {
+            return parse_compiler_directive_item();
+        }
+        
+        if (check(TokenType.Import)) {
+            return parse_import_item();
+        }
+        
+        if (check(TokenType.Blockchain)) {
+            return parse_blockchain_item(annotations);
+        }
+        
+        if (check(TokenType.Struct)) {
+            return parse_struct_item(annotations);
+        }
+        
+        if (check(TokenType.Enum)) {
+            return parse_enum_item(annotations);
+        }
+        
+        if (check(TokenType.Function)) {
+            return parse_function_item(annotations);
+        }
+        
+        if (check(TokenType.Constant)) {
+            return parse_constant_item(annotations);
+        }
+        
+        revert("Unexpected token at top level");
+    }
+    
+    /// REFACTORED: Parse compiler directive item
+    function parse_compiler_directive_item() private returns (Item memory) {
+        CompilerDirective memory directive = parse_compiler_directive();
+        
+        return Item({
+            item_type: ItemType.CompilerDirectiveItem,
+            import_item: Import({}),
+            blockchain_item: Blockchain({}),
+            struct_item: Struct({}),
+            enum_item: Enum({}),
+            function_item: Function({}),
+            constant_item: Constant({}),
+            compiler_directive: directive
+        });
+    }
+    
+    /// REFACTORED: Parse import item
+    function parse_import_item() private returns (Item memory) {
+        Import memory import_item = declaration_parser.parse_import();
+        sync_current_with_declaration_parser();
+        
+        return Item({
+            item_type: ItemType.ImportItem,
+            import_item: import_item,
+            blockchain_item: Blockchain({}),
+            struct_item: Struct({}),
+            enum_item: Enum({}),
+            function_item: Function({}),
+            constant_item: Constant({}),
+            compiler_directive: CompilerDirective({})
+        });
+    }
+    
+    /// REFACTORED: Parse blockchain item
+    function parse_blockchain_item(Annotation[] memory annotations) private returns (Item memory) {
+        in_blockchain_context = true;
+        Blockchain memory blockchain_item = declaration_parser.parse_blockchain(annotations);
+        sync_current_with_declaration_parser();
+        in_blockchain_context = false;
+        
+        return Item({
+            item_type: ItemType.BlockchainItem,
+            import_item: Import({}),
+            blockchain_item: blockchain_item,
+            struct_item: Struct({}),
+            enum_item: Enum({}),
+            function_item: Function({}),
+            constant_item: Constant({}),
+            compiler_directive: CompilerDirective({})
+        });
+    }
+    
+    /// REFACTORED: Parse struct item
+    function parse_struct_item(Annotation[] memory annotations) private returns (Item memory) {
+        Struct memory struct_item = declaration_parser.parse_struct(annotations);
+        sync_current_with_declaration_parser();
+        
+        return Item({
+            item_type: ItemType.StructItem,
+            import_item: Import({}),
+            blockchain_item: Blockchain({}),
+            struct_item: struct_item,
+            enum_item: Enum({}),
+            function_item: Function({}),
+            constant_item: Constant({}),
+            compiler_directive: CompilerDirective({})
+        });
+    }
+    
+    /// REFACTORED: Parse enum item
+    function parse_enum_item(Annotation[] memory annotations) private returns (Item memory) {
+        Enum memory enum_item = declaration_parser.parse_enum(annotations);
+        sync_current_with_declaration_parser();
+        
+        return Item({
+            item_type: ItemType.EnumItem,
+            import_item: Import({}),
+            blockchain_item: Blockchain({}),
+            struct_item: Struct({}),
+            enum_item: enum_item,
+            function_item: Function({}),
+            constant_item: Constant({}),
+            compiler_directive: CompilerDirective({})
+        });
+    }
+    
+    /// REFACTORED: Parse function item
+    function parse_function_item(Annotation[] memory annotations) private returns (Item memory) {
+        function_depth++;
+        Function memory function_item = declaration_parser.parse_function(annotations);
+        sync_current_with_declaration_parser();
+        function_depth--;
+        
+        return Item({
+            item_type: ItemType.FunctionItem,
+            import_item: Import({}),
+            blockchain_item: Blockchain({}),
+            struct_item: Struct({}),
+            enum_item: Enum({}),
+            function_item: function_item,
+            constant_item: Constant({}),
+            compiler_directive: CompilerDirective({})
+        });
+    }
+    
+    /// REFACTORED: Parse constant item
+    function parse_constant_item(Annotation[] memory annotations) private returns (Item memory) {
+        Constant memory constant_item = declaration_parser.parse_constant(annotations);
+        sync_current_with_declaration_parser();
+        
+        return Item({
+            item_type: ItemType.ConstantItem,
+            import_item: Import({}),
+            blockchain_item: Blockchain({}),
+            struct_item: Struct({}),
+            enum_item: Enum({}),
+            function_item: Function({}),
+            constant_item: constant_item,
+            compiler_directive: CompilerDirective({})
+        });
+    }
+    
+    /// Synchronize current index with declaration parser
+    function sync_current_with_declaration_parser() private {
+        current = declaration_parser.get_current_index();
+        expression_parser.set_tokens(tokens, current);
+        statement_parser.set_tokens(tokens, current);
+    }
+    
+    /// Synchronize current index with expression parser
+    function sync_current_with_expression_parser() private {
+        current = expression_parser.get_current_index();
+        statement_parser.set_tokens(tokens, current);
+        declaration_parser.set_tokens(tokens, current);
+    }
+    
+    /// Synchronize current index with statement parser
+    function sync_current_with_statement_parser() private {
+        current = statement_parser.get_current_index();
+        expression_parser.set_tokens(tokens, current);
+        declaration_parser.set_tokens(tokens, current);
+    }
+    
+    /// Error recovery - synchronize to next statement
+    function synchronize() private {
+        panic_mode = false;
+        
+        advance();
+        
+        while (!is_at_end()) {
+            if (previous().token_type == TokenType.Semicolon) return;
+            
+            switch (peek().token_type) {
+                case TokenType.Blockchain:
+                case TokenType.Function:
+                case TokenType.Struct:
+                case TokenType.Enum:
+                case TokenType.Constant:
+                case TokenType.Import:
+                case TokenType.Pragma:
+                    return;
+            }
+            
+            advance();
+        }
+    }
+    
+    /// Enhanced parse compiler directive for self-hosting
+    function parse_compiler_directive() private returns (CompilerDirective memory) {
+        consume(TokenType.Pragma, "Expected 'pragma'");
+        
+        string memory directive_name = consume(TokenType.Identifier, "Expected directive name").literal;
+        
+        // Handle different directive types
+        if (directive_name == "version") {
+            return parse_version_directive();
+        } else if (directive_name == "target") {
+            return parse_target_directive();
+        } else if (directive_name == "optimization") {
+            return parse_optimization_directive();
+        } else if (directive_name == "cross_chain") {
+            return parse_cross_chain_directive();
+        } else if (directive_name == "formal_verification") {
+            return parse_formal_verification_directive();
+        } else if (directive_name == "extension") {
+            return parse_extension_directive();
+        } else {
+            revert("Unknown pragma directive: " + directive_name);
+        }
+    }
+    
+    /// Helper functions for parsing different directive types
+    function parse_version_directive() private returns (CompilerDirective memory) {
+        consume(TokenType.String, "Expected version string");
+        string memory version = previous().literal;
+        consume(TokenType.Semicolon, "Expected ';' after version pragma");
+        
+        return CompilerDirective({
+            directive_type: DirectiveType.Version,
+            name: "version",
+            value: version,
+            parameters: [],
+            enabled: true
+        });
+    }
+    
+    function parse_target_directive() private returns (CompilerDirective memory) {
+        consume(TokenType.String, "Expected target string");
+        string memory target = previous().literal;
+        target_platform = target;
+        consume(TokenType.Semicolon, "Expected ';' after target pragma");
+        
+        return CompilerDirective({
+            directive_type: DirectiveType.Target,
+            name: "target",
+            value: target,
+            parameters: [],
+            enabled: true
+        });
+    }
+    
+    function parse_optimization_directive() private returns (CompilerDirective memory) {
+        consume(TokenType.Identifier, "Expected optimization level");
+        string memory level = previous().literal;
+        consume(TokenType.Semicolon, "Expected ';' after optimization pragma");
+        
+        return CompilerDirective({
+            directive_type: DirectiveType.Optimization,
+            name: "optimization",
+            value: level,
+            parameters: [],
+            enabled: true
+        });
+    }
+    
+    function parse_cross_chain_directive() private returns (CompilerDirective memory) {
+        consume(TokenType.Identifier, "Expected cross-chain setting");
+        string memory setting = previous().literal;
+        enable_cross_chain = setting == "enable";
+        consume(TokenType.Semicolon, "Expected ';' after cross_chain pragma");
+        
+        return CompilerDirective({
+            directive_type: DirectiveType.CrossChain,
+            name: "cross_chain",
+            value: setting,
+            parameters: [],
+            enabled: enable_cross_chain
+        });
+    }
+    
+    function parse_formal_verification_directive() private returns (CompilerDirective memory) {
+        consume(TokenType.Identifier, "Expected formal verification setting");
+        string memory setting = previous().literal;
+        enable_formal_verification = setting == "enable";
+        consume(TokenType.Semicolon, "Expected ';' after formal_verification pragma");
+        
+        return CompilerDirective({
+            directive_type: DirectiveType.FormalVerification,
+            name: "formal_verification",
+            value: setting,
+            parameters: [],
+            enabled: enable_formal_verification
+        });
+    }
+    
+    function parse_extension_directive() private returns (CompilerDirective memory) {
+        consume(TokenType.Identifier, "Expected extension name");
+        string memory extension = previous().literal;
+        enabled_extensions.push(extension);
+        consume(TokenType.Semicolon, "Expected ';' after extension pragma");
+        
+        return CompilerDirective({
+            directive_type: DirectiveType.Extension,
+            name: "extension",
+            value: extension,
+            parameters: [],
+            enabled: true
+        });
+    }
+    
+    /// Helper functions for token manipulation
+    function check(TokenType token_type) private view returns (bool) {
+        if (is_at_end()) return false;
+        return peek().token_type == token_type;
+    }
+    
+    function advance() private returns (Token memory) {
+        if (!is_at_end()) current++;
+        return previous();
+    }
+    
+    function is_at_end() private view returns (bool) {
+        return peek().token_type == TokenType.Eof;
+    }
+    
+    function peek() private view returns (Token memory) {
+        return tokens[current];
+    }
+    
+    function previous() private view returns (Token memory) {
+        return tokens[current - 1];
+    }
+    
+    function consume(TokenType token_type, string memory message) private returns (Token memory) {
+        if (check(token_type)) return advance();
+        
+        revert(message);
+    }
+    
+    /// Error handling with enhanced context
+    function error(Token memory token, string memory message) private returns (Error memory) {
+        error_count++;
+        string memory full_message = string::format("[{}:{}] {}", current_file, token.line.toString(), message);
+        
+        if (parsing_compiler_code) {
+            full_message = string::concat("[Self-Hosting] ", full_message);
+        }
+        
+        error_messages.push(full_message);
+        return Error({
+            message: full_message,
+            line: token.line,
+            column: token.column,
+            token_type: token.token_type,
+            severity: ErrorSeverity.Error
+        });
+    }
+    
+    /// Synchronize parser state across all sub-parsers
+    function sync_all_parsers() private {
+        expression_parser.set_tokens(tokens, current);
+        statement_parser.set_tokens(tokens, current);
+        declaration_parser.set_tokens(tokens, current);
+    }
+    
+    /// Get current parsing statistics
+    function get_parsing_stats() public view returns (string memory) {
+        return string::format("Nodes: {}, Errors: {}, Memory: {} bytes", 
+                            nodes_created, error_count, memory_usage);
+    }
+    
+    /// Reset parser state for reuse
+    function reset() public {
+        current = 0;
+        token_count = 0;
+        panic_mode = false;
+        error_count = 0;
+        error_messages = [];
+        loop_depth = 0;
+        function_depth = 0;
+        scope_depth = 0;
+        in_blockchain_context = false;
+        nodes_created = 0;
+        memory_usage = 0;
+        
+        // Reset sub-parsers
+        expression_parser.reset();
+        statement_parser.reset();
+        declaration_parser.reset();
+        
+        sync_all_parsers();
+        
+        io::println("🔄 Parser state reset successfully");
+    }
+}

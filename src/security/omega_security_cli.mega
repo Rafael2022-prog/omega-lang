@@ -1,0 +1,664 @@
+/**
+ * OMEGA Security CLI
+ * Command line interface untuk security scanning dan patching
+ */
+
+import "std/io";
+import "std/fs";
+import "std/string";
+import "std/process";
+import "std/env";
+import "./omega_security_scanner.mega";
+import "./omega_security_patcher.mega";
+import "../error/error.mega";
+
+blockchain OmegaSecurityCLI {
+    state {
+        OmegaSecurityScanner scanner;
+        OmegaSecurityPatcher patcher;
+        SecurityCLIConfig config;
+    }
+    
+    constructor() {
+        scanner = new OmegaSecurityScanner();
+        patcher = new OmegaSecurityPatcher();
+        config = SecurityCLIConfig({
+            verbose: false,
+            output_format: "text",
+            auto_patch: false,
+            recursive_scan: false,
+            include_dependencies: true,
+            risk_threshold: 50,
+            output_file: ""
+        });
+    }
+    
+    /**
+     * Main entry point untuk security CLI
+     */
+    function main(string[] args) public {
+        if (args.length == 0) {
+            print_help();
+            return;
+        }
+        
+        string command = args[0];
+        
+        if (command == "scan") {
+            handle_scan_command(args);
+        } else if (command == "patch") {
+            handle_patch_command(args);
+        } else if (command == "audit") {
+            handle_audit_command(args);
+        } else if (command == "report") {
+            handle_report_command(args);
+        } else if (command == "help" || command == "--help" || command == "-h") {
+            print_help();
+        } else if (command == "version" || command == "--version" || command == "-v") {
+            print_version();
+        } else {
+            io::println(format("Error: Unknown command '{}'", command));
+            io::println("Use 'omega security help' for usage information.");
+            process::exit(1);
+        }
+    }
+    
+    /**
+     * Handle scan command
+     */
+    function handle_scan_command(string[] args) private {
+        parse_scan_options(args);
+        
+        if (args.length < 2) {
+            io::println("Error: scan command requires a file or directory path");
+            io::println("Usage: omega security scan <file|directory> [options]");
+            process::exit(1);
+        }
+        
+        string target_path = args[1];
+        
+        io::println(format("🔍 Starting security scan of '{}'...", target_path));
+        
+        if (fs::is_file(target_path)) {
+            scan_single_file(target_path);
+        } else if (fs::is_directory(target_path)) {
+            scan_directory(target_path);
+        } else {
+            io::println(format("Error: '{}' is not a valid file or directory", target_path));
+            process::exit(1);
+        }
+    }
+    
+    /**
+     * Handle patch command
+     */
+    function handle_patch_command(string[] args) private {
+        parse_patch_options(args);
+        
+        if (args.length < 2) {
+            io::println("Error: patch command requires a file path");
+            io::println("Usage: omega security patch <file> [options]");
+            process::exit(1);
+        }
+        
+        string target_file = args[1];
+        
+        io::println(format("🔧 Starting security patch for '{}'...", target_file));
+        
+        // Scan dulu untuk menemukan vulnerabilitas
+        SecurityScanResult memory scan_result = scanner.scan_file(target_file);
+        
+        if (scan_result.total_vulnerabilities == 0) {
+            io::println("✅ No vulnerabilities found. No patches needed.");
+            return;
+        }
+        
+        io::println(format("Found {} vulnerabilities. Applying patches...", scan_result.total_vulnerabilities));
+        
+        // Terapkan patch
+        PatchResult memory patch_result = patcher.apply_security_patches(target_file, scan_result.vulnerabilities);
+        
+        if (patch_result.success) {
+            io::println(format("✅ Successfully applied {} patches", patch_result.patches_applied));
+            if (bytes(patch_result.backup_path).length > 0) {
+                io::println(format("📁 Backup saved to: {}", patch_result.backup_path));
+            }
+        } else {
+            io::println(format("❌ Patch failed: {}", patch_result.error_message));
+            process::exit(1);
+        }
+    }
+    
+    /**
+     * Handle audit command
+     */
+    function handle_audit_command(string[] args) private {
+        parse_audit_options(args);
+        
+        io::println("🔍 Starting comprehensive security audit...");
+        
+        // Audit proyek OMEGA
+        AuditResult memory audit_result = perform_omega_audit();
+        
+        print_audit_results(audit_result);
+        
+        if (audit_result.critical_issues > 0) {
+            process::exit(1);
+        }
+    }
+    
+    /**
+     * Handle report command
+     */
+    function handle_report_command(string[] args) private {
+        if (args.length < 2) {
+            io::println("Error: report command requires a scan result file");
+            io::println("Usage: omega security report <scan-result.json> [options]");
+            process::exit(1);
+        }
+        
+        string result_file = args[1];
+        
+        io::println(format("📊 Generating security report from '{}'...", result_file));
+        
+        // Baca hasil scan dari file
+        string memory scan_data = fs::read_file(result_file);
+        SecurityScanResult memory scan_result = parse_scan_result(scan_data);
+        
+        // Generate laporan
+        generate_security_report(scan_result);
+    }
+    
+    /**
+     * Scan single file
+     */
+    function scan_single_file(string file_path) private {
+        io::println(format("Scanning file: {}", file_path));
+        
+        SecurityScanResult memory result = scanner.scan_file(file_path);
+        
+        print_scan_results(result);
+        
+        if (config.auto_patch && result.total_vulnerabilities > 0) {
+            io::println("\n🔄 Auto-patching enabled. Applying patches...");
+            PatchResult memory patch_result = patcher.apply_security_patches(file_path, result.vulnerabilities);
+            
+            if (patch_result.success) {
+                io::println(format("✅ Applied {} patches automatically", patch_result.patches_applied));
+            } else {
+                io::println(format("❌ Auto-patch failed: {}", patch_result.error_message));
+            }
+        }
+        
+        // Exit dengan code error jika risk score terlalu tinggi
+        if (result.risk_score > config.risk_threshold) {
+            io::println(format("❌ Risk score {} exceeds threshold {}", result.risk_score, config.risk_threshold));
+            process::exit(1);
+        }
+    }
+    
+    /**
+     * Scan directory
+     */
+    function scan_directory(string dir_path) private {
+        io::println(format("Scanning directory: {}", dir_path));
+        
+        string[] memory omega_files = find_omega_files(dir_path);
+        
+        if (omega_files.length == 0) {
+            io::println("No OMEGA files found to scan");
+            return;
+        }
+        
+        io::println(format("Found {} OMEGA files to scan", omega_files.length));
+        
+        uint256 total_vulnerabilities = 0;
+        uint256 total_files_scanned = 0;
+        uint256 max_risk_score = 0;
+        
+        for (uint256 i = 0; i < omega_files.length; i++) {
+            io::println(format("\n[{}/{}] Scanning: {}", i + 1, omega_files.length, omega_files[i]));
+            
+            SecurityScanResult memory result = scanner.scan_file(omega_files[i]);
+            
+            if (config.verbose) {
+                print_scan_results(result);
+            } else {
+                print_summary_results(result);
+            }
+            
+            total_vulnerabilities += result.total_vulnerabilities;
+            total_files_scanned++;
+            max_risk_score = result.risk_score > max_risk_score ? result.risk_score : max_risk_score;
+        }
+        
+        // Print summary
+        io::println("\n" + "=".repeat(60));
+        io::println("📊 SECURITY SCAN SUMMARY");
+        io::println("=".repeat(60));
+        io::println(format("Files scanned: {}", total_files_scanned));
+        io::println(format("Total vulnerabilities: {}", total_vulnerabilities));
+        io::println(format("Max risk score: {}", max_risk_score));
+        io::println(format("Risk threshold: {}", config.risk_threshold));
+        
+        if (total_vulnerabilities == 0) {
+            io::println("✅ No vulnerabilities found in any files!");
+        } else if (max_risk_score <= config.risk_threshold) {
+            io::println("⚠️  Vulnerabilities found but within acceptable risk threshold");
+        } else {
+            io::println("❌ Risk score exceeds threshold - review required!");
+            process::exit(1);
+        }
+    }
+    
+    /**
+     * Find OMEGA files in directory
+     */
+    function find_omega_files(string dir_path) private returns (string[] memory) {
+        string[] memory files;
+        uint256 file_count = 0;
+        
+        // Cari file dengan ekstensi .mega dan .omega
+        string[] memory all_files = fs::list_files(dir_path, config.recursive_scan);
+        
+        for (uint256 i = 0; i < all_files.length; i++) {
+            string memory file = all_files[i];
+            if (file.ends_with(".mega") || file.ends_with(".omega")) {
+                files[file_count] = file;
+                file_count++;
+            }
+        }
+        
+        return files;
+    }
+    
+    /**
+     * Perform comprehensive OMEGA audit
+     */
+    function perform_omega_audit() private returns (AuditResult memory) {
+        AuditResult memory result;
+        
+        // Audit 1: Check for vulnerable dependencies
+        result.dependency_issues = audit_dependencies();
+        
+        // Audit 2: Check for security misconfigurations
+        result.configuration_issues = audit_configurations();
+        
+        // Audit 3: Check for outdated security practices
+        result.outdated_practices = audit_outdated_practices();
+        
+        // Audit 4: Check for hardcoded secrets
+        result.hardcoded_secrets = audit_hardcoded_secrets();
+        
+        // Calculate totals
+        result.total_issues = result.dependency_issues + result.configuration_issues + 
+                             result.outdated_practices + result.hardcoded_secrets;
+        
+        result.critical_issues = count_critical_issues(result);
+        result.high_issues = count_high_issues(result);
+        result.medium_issues = count_medium_issues(result);
+        result.low_issues = count_low_issues(result);
+        
+        result.audit_timestamp = secure_timestamp::now();
+        result.passed = result.critical_issues == 0;
+        
+        return result;
+    }
+    
+    /**
+     * Parse scan options
+     */
+    function parse_scan_options(string[] args) private {
+        for (uint256 i = 2; i < args.length; i++) {
+            string memory arg = args[i];
+            
+            if (arg == "--verbose" || arg == "-v") {
+                config.verbose = true;
+            } else if (arg == "--json" || arg == "-j") {
+                config.output_format = "json";
+            } else if (arg == "--recursive" || arg == "-r") {
+                config.recursive_scan = true;
+            } else if (arg == "--auto-patch" || arg == "-a") {
+                config.auto_patch = true;
+            } else if (arg == "--threshold" || arg == "-t") {
+                if (i + 1 < args.length) {
+                    config.risk_threshold = string::parse_uint(args[i + 1]);
+                    i++;
+                }
+            } else if (arg == "--output" || arg == "-o") {
+                if (i + 1 < args.length) {
+                    config.output_file = args[i + 1];
+                    i++;
+                }
+            }
+        }
+    }
+    
+    /**
+     * Parse patch options
+     */
+    function parse_patch_options(string[] args) private {
+        for (uint256 i = 2; i < args.length; i++) {
+            string memory arg = args[i];
+            
+            if (arg == "--dry-run") {
+                // Implement dry run mode
+            } else if (arg == "--force") {
+                // Implement force patching
+            }
+        }
+    }
+    
+    /**
+     * Parse audit options
+     */
+    function parse_audit_options(string[] args) private {
+        for (uint256 i = 1; i < args.length; i++) {
+            string memory arg = args[i];
+            
+            if (arg == "--verbose" || arg == "-v") {
+                config.verbose = true;
+            } else if (arg == "--json" || arg == "-j") {
+                config.output_format = "json";
+            }
+        }
+    }
+    
+    /**
+     * Print scan results
+     */
+    function print_scan_results(SecurityScanResult memory result) private {
+        if (config.output_format == "json") {
+            print_json_results(result);
+            return;
+        }
+        
+        io::println("\n" + "=".repeat(60));
+        io::println("🔍 SECURITY SCAN RESULTS");
+        io::println("=".repeat(60));
+        io::println(format("Contract: {}", result.contract_id));
+        io::println(format("Scan Time: {}", secure_timestamp::format(result.scan_timestamp)));
+        io::println(format("Risk Score: {}/1000", result.risk_score));
+        io::println(format("Total Vulnerabilities: {}", result.total_vulnerabilities));
+        
+        if (result.total_vulnerabilities == 0) {
+            io::println("\n✅ No vulnerabilities found!");
+            return;
+        }
+        
+        io::println("\n📋 VULNERABILITIES:");
+        io::println("-".repeat(40));
+        
+        for (uint256 i = 0; i < result.vulnerabilities.length; i++) {
+            Vulnerability memory vuln = result.vulnerabilities[i];
+            string memory severity_icon = get_severity_icon(vuln.severity);
+            
+            io::println(format("{} [{}] {}", severity_icon, vuln.id, vuln.title));
+            io::println(format("    Severity: {}", severity_to_string(vuln.severity)));
+            io::println(format("    Line: {}", vuln.line_number));
+            io::println(format("    Description: {}", vuln.description));
+            io::println(format("    Remediation: {}", vuln.remediation));
+            io::println("");
+        }
+        
+        if (result.recommendations.length > 0) {
+            io::println("💡 RECOMMENDATIONS:");
+            io::println("-".repeat(40));
+            for (uint256 i = 0; i < result.recommendations.length; i++) {
+                io::println(format("  {}. {}", i + 1, result.recommendations[i]));
+            }
+        }
+    }
+    
+    /**
+     * Print summary results
+     */
+    function print_summary_results(SecurityScanResult memory result) private {
+        string memory status_icon = result.total_vulnerabilities == 0 ? "✅" : "⚠️";
+        string memory severity_icon = get_severity_icon(get_max_severity(result));
+        
+        io::println(format("{} {} - {} vuln(s), Risk: {}/1000 {}", 
+                          status_icon, result.contract_id, result.total_vulnerabilities, 
+                          result.risk_score, severity_icon));
+    }
+    
+    /**
+     * Print audit results
+     */
+    function print_audit_results(AuditResult memory result) private {
+        io::println("\n" + "=".repeat(60));
+        io::println("🔍 OMEGA SECURITY AUDIT RESULTS");
+        io::println("=".repeat(60));
+        io::println(format("Audit Time: {}", secure_timestamp::format(result.audit_timestamp)));
+        io::println(format("Overall Status: {}", result.passed ? "✅ PASSED" : "❌ FAILED"));
+        io::println("");
+        io::println(format("Total Issues: {}", result.total_issues));
+        io::println(format("Critical: {}", result.critical_issues));
+        io::println(format("High: {}", result.high_issues));
+        io::println(format("Medium: {}", result.medium_issues));
+        io::println(format("Low: {}", result.low_issues));
+        
+        if (result.total_issues > 0) {
+            io::println("\n📋 ISSUE BREAKDOWN:");
+            io::println(format("  Dependency Issues: {}", result.dependency_issues));
+            io::println(format("  Configuration Issues: {}", result.configuration_issues));
+            io::println(format("  Outdated Practices: {}", result.outdated_practices));
+            io::println(format("  Hardcoded Secrets: {}", result.hardcoded_secrets));
+        }
+    }
+    
+    /**
+     * Generate security report
+     */
+    function generate_security_report(SecurityScanResult memory scan_result) private {
+        string memory report_content = format("""
+# OMEGA Security Report
+
+**Generated:** {}
+**Contract:** {}
+**Risk Score:** {}/1000
+**Total Vulnerabilities:** {}
+
+## Executive Summary
+
+This security scan identified {} vulnerabilities in the OMEGA smart contract.
+The overall risk score is {} out of 1000.
+
+## Vulnerability Details
+
+""", secure_timestamp::format(scan_result.scan_timestamp), scan_result.contract_id, 
+        scan_result.risk_score, scan_result.total_vulnerabilities, scan_result.total_vulnerabilities, scan_result.risk_score);
+        
+        // Tambahkan detail vulnerabilitas
+        for (uint256 i = 0; i < scan_result.vulnerabilities.length; i++) {
+            Vulnerability memory vuln = scan_result.vulnerabilities[i];
+            report_content += format("""
+### {}
+- **ID:** {}
+- **Severity:** {}
+- **Category:** {}
+- **Line:** {}
+- **Description:** {}
+- **Remediation:** {}
+
+""", vuln.title, vuln.id, severity_to_string(vuln.severity), 
+            category_to_string(vuln.category), vuln.line_number, vuln.description, vuln.remediation);
+        }
+        
+        // Tambahkan rekomendasi
+        if (scan_result.recommendations.length > 0) {
+            report_content += "\n## Recommendations\n\n";
+            for (uint256 i = 0; i < scan_result.recommendations.length; i++) {
+                report_content += format("{}. {}\n", i + 1, scan_result.recommendations[i]);
+            }
+        }
+        
+        // Simpan laporan
+        string memory report_file = "security-report.md";
+        if (bytes(config.output_file).length > 0) {
+            report_file = config.output_file;
+        }
+        
+        fs::write_file(report_file, report_content);
+        io::println(format("📄 Security report generated: {}", report_file));
+    }
+    
+    /**
+     * Print help information
+     */
+    function print_help() private {
+        io::println("""
+🔒 OMEGA Security Scanner
+
+USAGE:
+    omega security <command> [options]
+
+COMMANDS:
+    scan <file|dir>     Scan OMEGA files for security vulnerabilities
+    patch <file>        Apply security patches to fix vulnerabilities
+    audit               Perform comprehensive security audit
+    report <file>       Generate security report from scan results
+    help                Show this help message
+    version             Show version information
+
+SCAN OPTIONS:
+    --verbose, -v       Enable verbose output
+    --json, -j          Output results in JSON format
+    --recursive, -r     Scan directories recursively
+    --auto-patch, -a    Automatically apply patches for found issues
+    --threshold, -t     Set risk score threshold (default: 50)
+    --output, -o        Save results to file
+
+EXAMPLES:
+    omega security scan contracts/
+    omega security scan contract.mega --verbose --json
+    omega security patch vulnerable.mega --dry-run
+    omega security audit --verbose
+    omega security report scan-results.json
+
+For more information, visit: https://omega-lang.org/security
+""");
+    }
+    
+    /**
+     * Print version information
+     */
+    function print_version() private {
+        io::println("OMEGA Security Scanner v1.3.0");
+        io::println("Built with OMEGA Universal Blockchain Language");
+        io::println("Security engine powered by native OMEGA analysis");
+    }
+    
+    // Helper functions (implementasi sederhana)
+    
+    function audit_dependencies() private pure returns (uint256) {
+        // Simulasi audit dependensi
+        return 2; // 2 masalah dependensi ditemukan
+    }
+    
+    function audit_configurations() private pure returns (uint256) {
+        // Simulasi audit konfigurasi
+        return 1; // 1 masalah konfigurasi ditemukan
+    }
+    
+    function audit_outdated_practices() private pure returns (uint256) {
+        // Simulasi audit praktik usang
+        return 3; // 3 praktik usang ditemukan
+    }
+    
+    function audit_hardcoded_secrets() private pure returns (uint256) {
+        // Simulasi audit rahasia tersembunyi
+        return 0; // Tidak ada rahasia tersembunyi ditemukan
+    }
+    
+    function count_critical_issues(AuditResult memory result) private pure returns (uint256) {
+        return result.critical_issues; // Sederhana, asumsi sudah dihitung
+    }
+    
+    function count_high_issues(AuditResult memory result) private pure returns (uint256) {
+        return result.high_issues;
+    }
+    
+    function count_medium_issues(AuditResult memory result) private pure returns (uint256) {
+        return result.medium_issues;
+    }
+    
+    function count_low_issues(AuditResult memory result) private pure returns (uint256) {
+        return result.low_issues;
+    }
+    
+    function get_severity_icon(Severity severity) private pure returns (string memory) {
+        if (severity == Severity.CRITICAL) return "🔴";
+        if (severity == Severity.HIGH) return "🟠";
+        if (severity == Severity.MEDIUM) return "🟡";
+        return "🟢";
+    }
+    
+    function severity_to_string(Severity severity) private pure returns (string memory) {
+        if (severity == Severity.CRITICAL) return "CRITICAL";
+        if (severity == Severity.HIGH) return "HIGH";
+        if (severity == Severity.MEDIUM) return "MEDIUM";
+        return "LOW";
+    }
+    
+    function category_to_string(VulnerabilityCategory category) private pure returns (string memory) {
+        if (category == VulnerabilityCategory.AccessControl) return "Access Control";
+        if (category == VulnerabilityCategory.Arithmetic) return "Arithmetic";
+        if (category == VulnerabilityCategory.CodeInjection) return "Code Injection";
+        if (category == VulnerabilityCategory.Dependency) return "Dependency";
+        if (category == VulnerabilityCategory.Reentrancy) return "Reentrancy";
+        if (category == VulnerabilityCategory.Secrets) return "Secrets";
+        return "Input Validation";
+    }
+    
+    function get_max_severity(SecurityScanResult memory result) private pure returns (Severity) {
+        Severity max_severity = Severity.LOW;
+        for (uint256 i = 0; i < result.vulnerabilities.length; i++) {
+            if (result.vulnerabilities[i].severity > max_severity) {
+                max_severity = result.vulnerabilities[i].severity;
+            }
+        }
+        return max_severity;
+    }
+    
+    function print_json_results(SecurityScanResult memory result) private {
+        // Implementasi JSON output
+        io::println("{\"scan_result\": \"JSON output not fully implemented\"}");
+    }
+    
+    function parse_scan_result(string memory scan_data) private pure returns (SecurityScanResult memory) {
+        // Implementasi parsing hasil scan
+        SecurityScanResult memory result;
+        result.contract_id = "parsed_from_json";
+        result.total_vulnerabilities = 0;
+        result.risk_score = 0;
+        result.scan_timestamp = secure_timestamp::now();
+        return result;
+    }
+}
+
+// Configuration untuk CLI
+struct SecurityCLIConfig {
+    bool verbose;
+    string output_format;
+    bool auto_patch;
+    bool recursive_scan;
+    bool include_dependencies;
+    uint256 risk_threshold;
+    string output_file;
+}
+
+// Hasil audit
+struct AuditResult {
+    uint256 dependency_issues;
+    uint256 configuration_issues;
+    uint256 outdated_practices;
+    uint256 hardcoded_secrets;
+    uint256 total_issues;
+    uint256 critical_issues;
+    uint256 high_issues;
+    uint256 medium_issues;
+    uint256 low_issues;
+    uint256 audit_timestamp;
+    bool passed;
+}

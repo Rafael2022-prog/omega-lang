@@ -1,30 +1,44 @@
 {
   "name": "omega-language-support",
-  "displayName": "OMEGA Language Support",
-  "description": "Language support for OMEGA blockchain programming language",
-  "version": "1.0.0",
+  "displayName": "OMEGA Language Support Enhanced",
+  "description": "Enhanced language support for OMEGA blockchain programming language with advanced features",
+  "version": "1.1.0",
   "publisher": "omega-lang",
   "repository": {
     "type": "git",
     "url": "https://github.com/omega-lang/omega"
   },
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.70.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters",
+    "Formatters",
+    "Debuggers"
   ],
   "keywords": [
     "omega",
     "blockchain",
-    "smart-contracts",
-    "programming-language"
+    "smart contracts",
+    "evm",
+    "solana",
+    "cross-chain",
+    "solidity",
+    "rust",
+    "language support",
+    "syntax highlighting",
+    "code completion"
   ],
-  "main": "./out/extension.js",
   "activationEvents": [
     "onLanguage:omega",
-    "onCommand:omega.compile"
+    "onCommand:omega.compile",
+    "onCommand:omega.format",
+    "onCommand:omega.runTests",
+    "workspaceContains:**/*.omega",
+    "workspaceContains:**/*.mega"
   ],
+  "main": "./out/enhanced_extension.js",
   "contributes": {
     "languages": [
       {
@@ -34,10 +48,14 @@
           "omega"
         ],
         "extensions": [
-          ".mega",
-          ".omega"
+          ".omega",
+          ".mega"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/omega-light.svg",
+          "dark": "./icons/omega-dark.svg"
+        }
       }
     ],
     "grammars": [
@@ -50,27 +68,217 @@
     "snippets": [
       {
         "language": "omega",
-        "path": "./snippets/omega.json"
+        "path": "./snippets/omega_enhanced.json"
       }
     ],
     "commands": [
       {
         "command": "omega.compile",
-        "title": "Compile OMEGA File",
-        "category": "OMEGA"
+        "title": "OMEGA: Compile Contract",
+        "category": "OMEGA",
+        "icon": "$(play)"
+      },
+      {
+        "command": "omega.compileDeploy",
+        "title": "OMEGA: Compile and Deploy",
+        "category": "OMEGA",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "omega.runTests",
+        "title": "OMEGA: Run Tests",
+        "category": "OMEGA",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "omega.format",
+        "title": "OMEGA: Format Document",
+        "category": "OMEGA",
+        "icon": "$(format)"
+      },
+      {
+        "command": "omega.securityScan",
+        "title": "OMEGA: Security Scan",
+        "category": "OMEGA",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "omega.qualityAnalysis",
+        "title": "OMEGA: Quality Analysis",
+        "category": "OMEGA",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "omega.benchmark",
+        "title": "OMEGA: Performance Benchmark",
+        "category": "OMEGA",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "omega.crossChainDeploy",
+        "title": "OMEGA: Cross-Chain Deploy",
+        "category": "OMEGA",
+        "icon": "$(link)"
+      },
+      {
+        "command": "omega.generateDocs",
+        "title": "OMEGA: Generate Documentation",
+        "category": "OMEGA",
+        "icon": "$(book)"
+      },
+      {
+        "command": "omega.optimize",
+        "title": "OMEGA: Optimize Contract",
+        "category": "OMEGA",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "omega.showCommands",
+        "title": "OMEGA: Show Commands",
+        "category": "OMEGA",
+        "icon": "$(omega-icon)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceExtname == .mega || resourceExtname == .omega",
+          "command": "omega.compile",
+          "group": "omega"
+        },
+        {
+          "when": "resourceExtname == .mega || resourceExtname == .omega",
+          "command": "omega.format",
+          "group": "omega"
+        },
+        {
+          "when": "resourceExtname == .mega || resourceExtname == .omega",
+          "command": "omega.securityScan",
+          "group": "omega"
+        }
+      ],
+      "editor/title": [
+        {
+          "when": "resourceExtname == .mega || resourceExtname == .omega",
+          "command": "omega.compile",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "omega.showCommands",
+          "when": "omegaActive",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "omega.compile",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus && (resourceExtname == .mega || resourceExtname == .omega)"
+      },
+      {
+        "command": "omega.format",
+        "key": "shift+alt+f",
+        "when": "editorTextFocus && (resourceExtname == .mega || resourceExtname == .omega)"
+      }
+    ],
+    "configuration": {
+      "title": "OMEGA Language Support",
+      "properties": {
+        "omega.executablePath": {
+          "type": "string",
+          "default": "omega",
+          "description": "Path to OMEGA executable"
+        },
+        "omega.autoCompile": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically compile on save"
+        },
+        "omega.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time diagnostics"
+        },
+        "omega.formatOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format document on save"
+        },
+        "omega.securityScanOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run security scan on save"
+        },
+        "omega.defaultDeploymentTarget": {
+          "type": "string",
+          "enum": [
+            "ethereum",
+            "polygon",
+            "bsc",
+            "solana",
+            "avalanche"
+          ],
+          "default": "ethereum",
+          "description": "Default blockchain deployment target"
+        }
+      }
+    },
+    "problemMatchers": [
+      {
+        "name": "omega-compiler",
+        "owner": "omega",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning|info):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
       }
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run compile && npm run lint",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "lint:fix": "eslint src --ext ts --fix",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "mocha 'out/test/unit/**/*.test.js'",
+    "test:integration": "mocha 'out/test/integration/**/*.test.js'",
     "package": "vsce package",
-    "publish": "vsce publish"
+    "publish": "vsce publish",
+    "clean": "rimraf out",
+    "dev": "npm run compile && npm run watch",
+    "build": "npm run clean && npm run compile && npm run lint",
+    "prepare": "npm run compile",
+    "postinstall": "npm run compile"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
+    "@types/chai": "^4.3.4",
+    "@types/glob": "^8.0.0",
+    "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "@vscode/test-electron": "^2.2.0",
+    "chai": "^4.3.7",
+    "eslint": "^8.28.0",
+    "eslint-plugin-security": "^1.5.0",
+    "glob": "^8.0.3",
+    "mocha": "^10.1.0",
+    "rimraf": "^3.0.2",
     "typescript": "^4.9.4",
     "vsce": "^2.15.0"
   },

@@ -1,0 +1,418 @@
+blockchain OmegaPerformanceMonitor {
+    state {
+        mapping(string => PerformanceMetric) metrics;
+        mapping(address => ContractPerformance) contract_performances;
+        mapping(string => BenchmarkResult) benchmarks;
+        mapping(address => PerformanceAlert) alerts;
+        mapping(string => uint256) thresholds;
+        address monitoring_team;
+        uint256 metric_counter;
+        bool monitoring_active;
+        uint256 last_cleanup;
+    }
+    
+    struct PerformanceMetric {
+        string metric_name;
+        uint256 value;
+        uint256 timestamp;
+        string unit;
+        string category;
+        address source_contract;
+        string metadata;
+    }
+    
+    struct ContractPerformance {
+        uint256 total_transactions;
+        uint256 average_gas_usage;
+        uint256 average_execution_time;
+        uint256 success_rate;
+        uint256 last_activity;
+        uint256 error_count;
+        uint256 warning_count;
+        string[] performance_issues;
+    }
+    
+    struct BenchmarkResult {
+        string benchmark_name;
+        uint256 baseline_value;
+        uint256 current_value;
+        uint256 improvement_percentage;
+        uint256 timestamp;
+        string[] recommendations;
+        bool performance_degraded;
+    }
+    
+    struct PerformanceAlert {
+        string alert_type;
+        uint256 severity;
+        string message;
+        uint256 timestamp;
+        string[] affected_metrics;
+        bool resolved;
+        uint256 resolved_timestamp;
+    }
+    
+    event MetricRecorded(string indexed metric_name, uint256 value, uint256 timestamp);
+    event PerformanceAlertTriggered(address indexed contract_address, string alert_type, uint256 severity);
+    event BenchmarkCompleted(string indexed benchmark_name, uint256 improvement_percentage);
+    event ThresholdExceeded(string indexed metric_name, uint256 value, uint256 threshold);
+    event PerformanceIssueDetected(address indexed contract_address, string issue_type);
+    
+    constructor(address _monitoring_team) {
+        monitoring_team = _monitoring_team;
+        monitoring_active = true;
+        metric_counter = 0;
+        last_cleanup = block.timestamp;
+        
+        // Initialize default thresholds
+        initialize_thresholds();
+    }
+    
+    function initialize_thresholds() private {
+        // Gas usage thresholds
+        thresholds["gas_usage_warning"] = 500000;      // 500k gas
+        thresholds["gas_usage_critical"] = 1000000;   // 1M gas
+        
+        // Execution time thresholds (in milliseconds)
+        thresholds["execution_time_warning"] = 5000;   // 5 seconds
+        thresholds["execution_time_critical"] = 10000;   // 10 seconds
+        
+        // Success rate thresholds
+        thresholds["success_rate_warning"] = 95;       // 95%
+        thresholds["success_rate_critical"] = 90;       // 90%
+        
+        // Transaction count thresholds
+        thresholds["transaction_count_warning"] = 1000; // 1000 transactions per hour
+        thresholds["transaction_count_critical"] = 5000;  // 5000 transactions per hour
+        
+        // Error rate thresholds
+        thresholds["error_rate_warning"] = 5;          // 5%
+        thresholds["error_rate_critical"] = 10;         // 10%
+    }
+    
+    function record_metric(string memory metric_name, uint256 value, string memory unit, string memory category, address source_contract, string memory metadata) public {
+        require(monitoring_active, "Monitoring is not active");
+        require(bytes(metric_name).length > 0, "Metric name cannot be empty");
+        
+        PerformanceMetric memory metric = PerformanceMetric(
+            metric_name,
+            value,
+            block.timestamp,
+            unit,
+            category,
+            source_contract,
+            metadata
+        );
+        
+        metrics[string::format("{}_{}", metric_name, metric_counter++)] = metric;
+        
+        emit MetricRecorded(metric_name, value, block.timestamp);
+        
+        // Check thresholds and trigger alerts if necessary
+        check_thresholds(metric_name, value, source_contract);
+        
+        // Update contract performance metrics
+        update_contract_performance(source_contract, metric_name, value);
+    }
+    
+    function check_thresholds(string memory metric_name, uint256 value, address source_contract) private {
+        string memory warning_threshold_key = string::format("{}_warning", metric_name);
+        string memory critical_threshold_key = string::format("{}_critical", metric_name);
+        
+        uint256 warning_threshold = thresholds[warning_threshold_key];
+        uint256 critical_threshold = thresholds[critical_threshold_key];
+        
+        if (critical_threshold > 0 && value >= critical_threshold) {
+            // Critical threshold exceeded
+            trigger_alert(source_contract, "critical", 10, string::format("Critical threshold exceeded for {}: {} >= {}", metric_name, value, critical_threshold));
+            emit ThresholdExceeded(metric_name, value, critical_threshold);
+            
+        } else if (warning_threshold > 0 && value >= warning_threshold) {
+            // Warning threshold exceeded
+            trigger_alert(source_contract, "warning", 5, string::format("Warning threshold exceeded for {}: {} >= {}", metric_name, value, warning_threshold));
+            emit ThresholdExceeded(metric_name, value, warning_threshold);
+        }
+    }
+    
+    function update_contract_performance(address contract_address, string memory metric_name, uint256 value) private {
+        ContractPerformance storage performance = contract_performances[contract_address];
+        
+        // Update metrics based on metric type
+        if (strings::equals(metric_name, "gas_usage")) {
+            performance.average_gas_usage = calculate_moving_average(performance.average_gas_usage, performance.total_transactions, value);
+            
+            if (value >= thresholds["gas_usage_critical"]) {
+                performance.performance_issues.push("High gas usage detected");
+                emit PerformanceIssueDetected(contract_address, "high_gas_usage");
+            }
+            
+        } else if (strings::equals(metric_name, "execution_time")) {
+            performance.average_execution_time = calculate_moving_average(performance.average_execution_time, performance.total_transactions, value);
+            
+            if (value >= thresholds["execution_time_critical"]) {
+                performance.performance_issues.push("Slow execution detected");
+                emit PerformanceIssueDetected(contract_address, "slow_execution");
+            }
+            
+        } else if (strings::equals(metric_name, "transaction_success")) {
+            performance.success_rate = calculate_success_rate(performance.success_rate, performance.total_transactions, value);
+            performance.total_transactions++;
+            
+            if (value == 0) { // Failed transaction
+                performance.error_count++;
+                
+                if (performance.error_count > 10) { // More than 10 errors
+                    trigger_alert(contract_address, "error_rate", 7, "High error rate detected");
+                }
+            }
+        }
+        
+        performance.last_activity = block.timestamp;
+    }
+    
+    function calculate_moving_average(uint256 current_avg, uint256 count, uint256 new_value) private pure returns (uint256) {
+        if (count == 0) {
+            return new_value;
+        }
+        return (current_avg * count + new_value) / (count + 1);
+    }
+    
+    function calculate_success_rate(uint256 current_rate, uint256 count, uint256 success_value) private pure returns (uint256) {
+        if (count == 0) {
+            return success_value == 1 ? 100 : 0;
+        }
+        uint256 total_successes = (current_rate * count) / 100;
+        if (success_value == 1) {
+            total_successes++;
+        }
+        return (total_successes * 100) / (count + 1);
+    }
+    
+    function trigger_alert(address contract_address, string memory alert_type, uint256 severity, string memory message) private {
+        PerformanceAlert memory alert = PerformanceAlert(
+            alert_type,
+            severity,
+            message,
+            block.timestamp,
+            ["performance_degradation"],
+            false,
+            0
+        );
+        
+        alerts[contract_address] = alert;
+        
+        emit PerformanceAlertTriggered(contract_address, alert_type, severity);
+    }
+    
+    function conduct_benchmark(string memory benchmark_name, address contract_address, uint256 current_value) public returns (BenchmarkResult memory) {
+        require(msg.sender == monitoring_team, "Only monitoring team can conduct benchmarks");
+        
+        uint256 baseline_value = get_baseline_value(benchmark_name, contract_address);
+        int256 improvement_percentage = 0;
+        bool performance_degraded = false;
+        
+        if (baseline_value > 0) {
+            if (current_value < baseline_value) {
+                improvement_percentage = int256(((baseline_value - current_value) * 100) / baseline_value);
+            } else {
+                improvement_percentage = -int256(((current_value - baseline_value) * 100) / baseline_value);
+                performance_degraded = true;
+            }
+        }
+        
+        BenchmarkResult memory result = BenchmarkResult(
+            benchmark_name,
+            baseline_value,
+            current_value,
+            improvement_percentage,
+            block.timestamp,
+            generate_benchmark_recommendations(benchmark_name, improvement_percentage, performance_degraded),
+            performance_degraded
+        );
+        
+        benchmarks[benchmark_name] = result;
+        
+        emit BenchmarkCompleted(benchmark_name, improvement_percentage);
+        
+        return result;
+    }
+    
+    function get_baseline_value(string memory benchmark_name, address contract_address) private view returns (uint256) {
+        // Return historical baseline value for the benchmark
+        // This is a simplified implementation
+        if (strings::equals(benchmark_name, "gas_usage")) {
+            return contract_performances[contract_address].average_gas_usage;
+        } else if (strings::equals(benchmark_name, "execution_time")) {
+            return contract_performances[contract_address].average_execution_time;
+        } else if (strings::equals(benchmark_name, "success_rate")) {
+            return contract_performances[contract_address].success_rate;
+        }
+        
+        return 0;
+    }
+    
+    function generate_benchmark_recommendations(string memory benchmark_name, int256 improvement_percentage, bool performance_degraded) private pure returns (string[] memory) {
+        string[] memory recommendations;
+        
+        if (performance_degraded) {
+            recommendations = new string[](3);
+            recommendations[0] = string::format("Performance degraded by {}% for {}", improvement_percentage, benchmark_name);
+            recommendations[1] = "Consider code optimization or refactoring";
+            recommendations[2] = "Review recent changes that may have caused degradation";
+        } else if (improvement_percentage > 0) {
+            recommendations = new string[](2);
+            recommendations[0] = string::format("Performance improved by {}% for {}", improvement_percentage, benchmark_name);
+            recommendations[1] = "Continue current optimization strategies";
+        } else {
+            recommendations = new string[](1);
+            recommendations[0] = "Performance remains stable";
+        }
+        
+        return recommendations;
+    }
+    
+    function update_threshold(string memory threshold_name, uint256 new_value) public {
+        require(msg.sender == monitoring_team, "Only monitoring team can update thresholds");
+        thresholds[threshold_name] = new_value;
+    }
+    
+    function get_contract_performance(address contract_address) public view returns (ContractPerformance memory) {
+        return contract_performances[contract_address];
+    }
+    
+    function get_performance_alert(address contract_address) public view returns (PerformanceAlert memory) {
+        return alerts[contract_address];
+    }
+    
+    function get_benchmark_result(string memory benchmark_name) public view returns (BenchmarkResult memory) {
+        return benchmarks[benchmark_name];
+    }
+    
+    function resolve_alert(address contract_address) public {
+        require(msg.sender == monitoring_team, "Only monitoring team can resolve alerts");
+        
+        PerformanceAlert storage alert = alerts[contract_address];
+        require(!alert.resolved, "Alert already resolved");
+        
+        alert.resolved = true;
+        alert.resolved_timestamp = block.timestamp;
+    }
+    
+    function get_performance_summary(address contract_address) public view returns (string memory) {
+        ContractPerformance memory performance = contract_performances[contract_address];
+        PerformanceAlert memory alert = alerts[contract_address];
+        
+        string memory summary = "PERFORMANCE SUMMARY\n";
+        summary = string::concat(summary, "==================\n");
+        summary = string::concat(summary, string::format("Contract: {}\n", contract_address));
+        summary = string::concat(summary, string::format("Total Transactions: {}\n", performance.total_transactions));
+        summary = string::concat(summary, string::format("Average Gas Usage: {}\n", performance.average_gas_usage));
+        summary = string::concat(summary, string::format("Average Execution Time: {}ms\n", performance.average_execution_time));
+        summary = string::concat(summary, string::format("Success Rate: {}%\n", performance.success_rate));
+        summary = string::concat(summary, string::format("Error Count: {}\n", performance.error_count));
+        summary = string::concat(summary, string::format("Last Activity: {}\n", performance.last_activity));
+        
+        if (performance.performance_issues.length > 0) {
+            summary = string::concat(summary, "\nPerformance Issues:\n");
+            for (uint256 i = 0; i < performance.performance_issues.length; i++) {
+                summary = string::concat(summary, string::format("- {}\n", performance.performance_issues[i]));
+            }
+        }
+        
+        if (bytes(alert.alert_type).length > 0 && !alert.resolved) {
+            summary = string::concat(summary, string::format("\nActive Alert: {} (Severity: {})\n", alert.message, alert.severity));
+        }
+        
+        return summary;
+    }
+    
+    function get_system_health_report() public view returns (string memory) {
+        uint256 total_contracts = 0;
+        uint256 healthy_contracts = 0;
+        uint256 contracts_with_issues = 0;
+        uint256 total_alerts = 0;
+        uint256 active_alerts = 0;
+        
+        // Count contracts and assess health
+        // This is a simplified implementation
+        for (uint256 i = 0; i < 100; i++) { // Check first 100 possible contracts
+            address contract_address = address(uint160(i + 1));
+            ContractPerformance memory performance = contract_performances[contract_address];
+            PerformanceAlert memory alert = alerts[contract_address];
+            
+            if (performance.total_transactions > 0) {
+                total_contracts++;
+                
+                if (performance.performance_issues.length == 0 && (bytes(alert.alert_type).length == 0 || alert.resolved)) {
+                    healthy_contracts++;
+                } else {
+                    contracts_with_issues++;
+                }
+                
+                if (bytes(alert.alert_type).length > 0) {
+                    total_alerts++;
+                    if (!alert.resolved) {
+                        active_alerts++;
+                    }
+                }
+            }
+        }
+        
+        string memory report = "SYSTEM HEALTH REPORT\n";
+        report = string::concat(report, "=====================\n");
+        report = string::concat(report, string::format("Total Monitored Contracts: {}\n", total_contracts));
+        report = string::concat(report, string::format("Healthy Contracts: {}\n", healthy_contracts));
+        report = string::concat(report, string::format("Contracts with Issues: {}\n", contracts_with_issues));
+        report = string::concat(report, string::format("Total Alerts Generated: {}\n", total_alerts));
+        report = string::concat(report, string::format("Active Alerts: {}\n", active_alerts));
+        
+        if (total_contracts > 0) {
+            uint256 health_percentage = (healthy_contracts * 100) / total_contracts;
+            report = string::concat(report, string::format("System Health: {}%\n", health_percentage));
+            
+            if (health_percentage >= 90) {
+                report = string::concat(report, "Status: EXCELLENT\n");
+            } else if (health_percentage >= 80) {
+                report = string::concat(report, "Status: GOOD\n");
+            } else if (health_percentage >= 70) {
+                report = string::concat(report, "Status: FAIR\n");
+            } else {
+                report = string::concat(report, "Status: NEEDS ATTENTION\n");
+            }
+        }
+        
+        return report;
+    }
+    
+    function cleanup_old_metrics(uint256 max_age) public {
+        require(msg.sender == monitoring_team, "Only monitoring team can cleanup metrics");
+        require(max_age > 0, "Max age must be positive");
+        
+        uint256 current_time = block.timestamp;
+        uint256 metrics_cleaned = 0;
+        
+        // Clean up old metrics
+        // This is a simplified implementation
+        for (uint256 i = 0; i < metric_counter; i++) {
+            string memory metric_key = string::format("{}_{}", "metric", i);
+            PerformanceMetric storage metric = metrics[metric_key];
+            
+            if (metric.timestamp > 0 && (current_time - metric.timestamp) > max_age) {
+                // Remove old metric
+                delete metrics[metric_key];
+                metrics_cleaned++;
+            }
+        }
+        
+        last_cleanup = current_time;
+    }
+    
+    function toggle_monitoring() public {
+        require(msg.sender == monitoring_team, "Only monitoring team can toggle monitoring");
+        monitoring_active = !monitoring_active;
+    }
+    
+    function is_monitoring_active() public view returns (bool) {
+        return monitoring_active;
+    }
+}

@@ -1,0 +1,632 @@
+/**
+ * OMEGA Security Scanner
+ * Native security scanner untuk bahasa pemrograman OMEGA
+ * Mengecek vulnerabilitas, dependensi berbahaya, dan best practices
+ */
+
+import "std/io";
+import "std/fs";
+import "std/string";
+import "std/collections";
+import "../parser/parser.mega";
+import "../error/error.mega";
+import "./secure_timestamp.mega";
+
+blockchain OmegaSecurityScanner {
+    state {
+        mapping(string => VulnerabilityInfo) vulnerability_database;
+        mapping(string => bool) trusted_sources;
+        mapping(string => string[]) malicious_patterns;
+        VulnerabilityStats scan_stats;
+    }
+    
+    constructor() {
+        initialize_vulnerability_database();
+        initialize_trusted_sources();
+        initialize_malicious_patterns();
+        scan_stats = VulnerabilityStats({
+            total_scans: 0,
+            vulnerabilities_found: 0,
+            critical_count: 0,
+            high_count: 0,
+            medium_count: 0,
+            low_count: 0
+        });
+    }
+    
+    /**
+     * Scan file OMEGA untuk vulnerabilitas
+     */
+    function scan_file(string filepath) public returns (SecurityScanResult memory) {
+        require(fs::exists(filepath), "File tidak ditemukan");
+        
+        string source_code = fs::read_file(filepath);
+        return scan_source_code(source_code, filepath);
+    }
+    
+    /**
+     * Scan source code OMEGA
+     */
+    function scan_source_code(string source_code, string contract_id) public returns (SecurityScanResult memory) {
+        scan_stats.total_scans++;
+        
+        Vulnerability[] memory vulnerabilities;
+        uint256 vuln_count = 0;
+        
+        // 1. Scan import statements
+        Vulnerability[] memory import_vulns = scan_imports(source_code, contract_id);
+        for (uint256 i = 0; i < import_vulns.length; i++) {
+            vulnerabilities[vuln_count] = import_vulns[i];
+            vuln_count++;
+        }
+        
+        // 2. Scan untuk pola berbahaya
+        Vulnerability[] memory pattern_vulns = scan_malicious_patterns(source_code, contract_id);
+        for (uint256 i = 0; i < pattern_vulns.length; i++) {
+            vulnerabilities[vuln_count] = pattern_vulns[i];
+            vuln_count++;
+        }
+        
+        // 3. Scan untuk vulnerabilitas umum
+        Vulnerability[] memory common_vulns = scan_common_vulnerabilities(source_code, contract_id);
+        for (uint256 i = 0; i < common_vulns.length; i++) {
+            vulnerabilities[vuln_count] = common_vulns[i];
+            vuln_count++;
+        }
+        
+        // 4. Analisa dependensi
+        Vulnerability[] memory dep_vulns = scan_dependencies(source_code, contract_id);
+        for (uint256 i = 0; i < dep_vulns.length; i++) {
+            vulnerabilities[vuln_count] = dep_vulns[i];
+            vuln_count++;
+        }
+        
+        // Update statistik
+        update_vulnerability_stats(vulnerabilities);
+        
+        SecurityScanResult memory result = SecurityScanResult({
+            contract_id: contract_id,
+            vulnerabilities: vulnerabilities,
+            total_vulnerabilities: vuln_count,
+            scan_timestamp: secure_timestamp::now(),
+            risk_score: calculate_risk_score(vulnerabilities),
+            recommendations: generate_recommendations(vulnerabilities)
+        });
+        
+        emit SecurityScanCompleted(contract_id, vuln_count, result.risk_score);
+        return result;
+    }
+    
+    /**
+     * Scan import statements untuk sumber berbahaya
+     */
+    function scan_imports(string source_code, string contract_id) private view returns (Vulnerability[] memory) {
+        Vulnerability[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Parse import statements
+        string[] memory import_lines = extract_import_lines(source_code);
+        
+        for (uint256 i = 0; i < import_lines.length; i++) {
+            string memory import_path = extract_import_path(import_lines[i]);
+            
+            // Cek apakah import dari sumber tidak tepercaya
+            if (!is_trusted_source(import_path)) {
+                issues[issue_count] = Vulnerability({
+                    id: format("OMEGA-IMPORT-001-{}-{}", contract_id, i),
+                    title: "Import dari sumber tidak tepercaya",
+                    description: format("Import path '{}' berasal dari sumber yang tidak tepercaya", import_path),
+                    severity: Severity.HIGH,
+                    category: VulnerabilityCategory.Dependency,
+                    line_number: get_line_number(source_code, import_lines[i]),
+                    column: 0,
+                    confidence: Confidence.HIGH,
+                    remediation: "Gunakan hanya import dari sumber tepercaya atau std library",
+                    references: ["https://omega-lang.org/security/import-best-practices"]
+                });
+                issue_count++;
+            }
+            
+            // Cek untuk import path yang mencurigakan
+            if (contains_suspicious_path(import_path)) {
+                issues[issue_count] = Vulnerability({
+                    id: format("OMEGA-IMPORT-002-{}-{}", contract_id, i),
+                    title: "Import path mencurigakan",
+                    description: format("Import path '{}' mengandung pola yang mencurigakan", import_path),
+                    severity: Severity.CRITICAL,
+                    category: VulnerabilityCategory.CodeInjection,
+                    line_number: get_line_number(source_code, import_lines[i]),
+                    column: 0,
+                    confidence: Confidence.MEDIUM,
+                    remediation: "Validasi import path dan hindari path traversal",
+                    references: ["https://omega-lang.org/security/path-validation"]
+                });
+                issue_count++;
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Scan untuk pola kode berbahaya
+     */
+    function scan_malicious_patterns(string source_code, string contract_id) private view returns (Vulnerability[] memory) {
+        Vulnerability[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Cek setiap pola berbahaya
+        for (uint256 i = 0; i < get_malicious_pattern_keys().length; i++) {
+            string memory pattern_key = get_malicious_pattern_keys()[i];
+            string[] memory patterns = malicious_patterns[pattern_key];
+            
+            for (uint256 j = 0; j < patterns.length; j++) {
+                if (string::contains(source_code, patterns[j])) {
+                    VulnerabilityInfo memory vuln_info = vulnerability_database[pattern_key];
+                    
+                    issues[issue_count] = Vulnerability({
+                        id: format("OMEGA-PATTERN-{}-{}-{}", pattern_key, contract_id, issue_count),
+                        title: vuln_info.title,
+                        description: format("{} Pola terdeteksi: {}", vuln_info.description, patterns[j]),
+                        severity: vuln_info.severity,
+                        category: vuln_info.category,
+                        line_number: find_line_with_pattern(source_code, patterns[j]),
+                        column: 0,
+                        confidence: Confidence.HIGH,
+                        remediation: vuln_info.remediation,
+                        references: vuln_info.references
+                    });
+                    issue_count++;
+                }
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Scan untuk vulnerabilitas umum
+     */
+    function scan_common_vulnerabilities(string source_code, string contract_id) private pure returns (Vulnerability[] memory) {
+        Vulnerability[] memory issues;
+        uint256 issue_count = 0;
+        
+        // Cek untuk reentrancy patterns
+        if (has_reentrancy_pattern(source_code)) {
+            issues[issue_count] = Vulnerability({
+                id: format("OMEGA-REENTRANCY-001-{}", contract_id),
+                title: "Potensi kerentanan Reentrancy",
+                description: "Kode mengandung pola yang rentan terhadap serangan reentrancy",
+                severity: Severity.CRITICAL,
+                category: VulnerabilityCategory.Reentrancy,
+                line_number: find_reentrancy_line(source_code),
+                column: 0,
+                confidence: Confidence.MEDIUM,
+                remediation: "Gunakan checks-effects-interactions pattern atau reentrancy guard",
+                references: ["https://omega-lang.org/security/reentrancy"]
+            });
+            issue_count++;
+        }
+        
+        // Cek untuk integer overflow/underflow
+        if (has_arithmetic_vulnerabilities(source_code)) {
+            issues[issue_count] = Vulnerability({
+                id: format("OMEGA-ARITHMETIC-001-{}", contract_id),
+                title: "Potensi Integer Overflow/Underflow",
+                description: "Operasi aritmatika tanpa proteksi overflow/underflow",
+                severity: Severity.HIGH,
+                category: VulnerabilityCategory.Arithmetic,
+                line_number: find_arithmetic_line(source_code),
+                column: 0,
+                confidence: Confidence.MEDIUM,
+                remediation: "Gunakan safe math library atau overflow checks",
+                references: ["https://omega-lang.org/security/arithmetic"]
+            });
+            issue_count++;
+        }
+        
+        // Cek untuk access control issues
+        if (has_access_control_issues(source_code)) {
+            issues[issue_count] = Vulnerability({
+                id: format("OMEGA-ACCESS-001-{}", contract_id),
+                title: "Masalah Access Control",
+                description: "Fungsi kritis tanpa proteksi access control yang tepat",
+                severity: Severity.CRITICAL,
+                category: VulnerabilityCategory.AccessControl,
+                line_number: find_access_control_line(source_code),
+                column: 0,
+                confidence: Confidence.MEDIUM,
+                remediation: "Implementasikan modifier access control yang sesuai",
+                references: ["https://omega-lang.org/security/access-control"]
+            });  
+            issue_count++;
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Analisa dependensi untuk vulnerabilitas
+     */
+    function scan_dependencies(string source_code, string contract_id) private view returns (Vulnerability[] memory) {
+        Vulnerability[] memory issues;
+        uint256 issue_count = 0;
+        
+        string[] memory dependencies = extract_dependencies(source_code);
+        
+        for (uint256 i = 0; i < dependencies.length; i++) {
+            if (is_vulnerable_dependency(dependencies[i])) {
+                issues[issue_count] = Vulnerability({
+                    id: format("OMEGA-DEP-001-{}-{}", contract_id, i),
+                    title: "Dependensi dengan vulnerabilitas diketahui",
+                    description: format("Dependensi '{}' memiliki vulnerabilitas yang diketahui", dependencies[i]),
+                    severity: Severity.HIGH,
+                    category: VulnerabilityCategory.Dependency,
+                    line_number: find_dependency_line(source_code, dependencies[i]),
+                    column: 0,
+                    confidence: Confidence.HIGH,
+                    remediation: "Perbarui dependensi ke versi yang aman atau gunakan alternatif",
+                    references: ["https://omega-lang.org/security/dependency-updates"]
+                });
+                issue_count++;
+            }
+        }
+        
+        return issues;
+    }
+    
+    /**
+     * Helper functions
+     */
+    
+    function initialize_vulnerability_database() private {
+        // Database vulnerabilitas OMEGA
+        vulnerability_database["UNSAFE_MATH"] = VulnerabilityInfo({
+            title: "Operasi Matematika Tidak Aman",
+            description: "Menggunakan operasi matematika tanpa proteksi overflow/underflow",
+            severity: Severity.HIGH,
+            category: VulnerabilityCategory.Arithmetic,
+            remediation: "Gunakan safe math library atau built-in overflow checks",
+            references: ["https://omega-lang.org/security/safe-math"]
+        });
+        
+        vulnerability_database["HARDCODED_KEYS"] = VulnerabilityInfo({
+            title: "Kunci Pribadi Hardcoded",
+            description: "Kunci pribadi atau password hardcoded dalam kode",
+            severity: Severity.CRITICAL,
+            category: VulnerabilityCategory.Secrets,
+            remediation: "Gunakan environment variables atau secure key management",
+            references: ["https://omega-lang.org/security/key-management"]
+        });
+        
+        vulnerability_database["REENTRANCY"] = VulnerabilityInfo({
+            title: "Kerentanan Reentrancy",
+            description: "Kode rentan terhadap serangan reentrancy",
+            severity: Severity.CRITICAL,
+            category: VulnerabilityCategory.Reentrancy,
+            remediation: "Gunakan checks-effects-interactions pattern",
+            references: ["https://omega-lang.org/security/reentrancy-protection"]
+        });
+    }
+    
+    function initialize_trusted_sources() private {
+        trusted_sources["std/"] = true;
+        trusted_sources["omega/"] = true;
+        trusted_sources["@omega-lang/"] = true;
+        trusted_sources["https://omega-lang.org/packages/"] = true;
+    }
+    
+    function initialize_malicious_patterns() private {
+        malicious_patterns["CODE_INJECTION"] = [
+            "eval(",
+            "exec(",
+            "system(",
+            "Runtime.getRuntime().exec",
+            "ProcessBuilder"
+        ];
+        
+        malicious_patterns["HARDCODED_SECRETS"] = [
+            "password = \"",
+            "private_key = \"",
+            "api_key = \"",
+            "secret = \"",
+            "token = \""
+        ];
+        
+        malicious_patterns["UNSAFE_DESERIALIZATION"] = [
+            "deserialize(",
+            "unmarshal(",
+            "JSON.parse",
+            "yaml.load"
+        ];
+    }
+    
+    function is_trusted_source(string memory import_path) private view returns (bool) {
+        for (uint256 i = 0; i < get_trusted_source_keys().length; i++) {
+            string memory trusted = get_trusted_source_keys()[i];
+            if (string::starts_with(import_path, trusted)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    function contains_suspicious_path(string memory import_path) private pure returns (bool) {
+        return string::contains(import_path, "..") || 
+               string::contains(import_path, "./") ||
+               string::contains(import_path, "~");
+    }
+    
+    function extract_import_lines(string memory source_code) private pure returns (string[] memory) {
+        string[] memory lines = string::split(source_code, "\n");
+        string[] memory import_lines;
+        uint256 import_count = 0;
+        
+        for (uint256 i = 0; i < lines.length; i++) {
+            if (string::trim(lines[i]).starts_with("import ")) {
+                import_lines[import_count] = lines[i];
+                import_count++;
+            }
+        }
+        
+        return import_lines;
+    }
+    
+    function extract_import_path(string memory import_line) private pure returns (string memory) {
+        // Parse import "path" atau import path
+        if (string::contains(import_line, "\"")) {
+            uint256 start = string::index_of(import_line, "\"") + 1;
+            uint256 end = string::last_index_of(import_line, "\"");
+            return string::substring(import_line, start, end - start);
+        }
+        
+        // Parse import tanpa quotes
+        string[] memory parts = string::split(import_line, " ");
+        if (parts.length >= 2) {
+            return parts[1];
+        }
+        
+        return "";
+    }
+    
+    function get_malicious_pattern_keys() private view returns (string[] memory) {
+        return ["CODE_INJECTION", "HARDCODED_SECRETS", "UNSAFE_DESERIALIZATION"];
+    }
+    
+    function get_trusted_source_keys() private view returns (string[] memory) {
+        string[] memory keys;
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < 100; i++) { // Asumsi max 100 trusted sources
+            string memory key = format("trusted_{}", i);
+            if (trusted_sources[key]) {
+                keys[count] = key;
+                count++;
+            }
+        }
+        
+        return keys;
+    }
+    
+    function has_reentrancy_pattern(string memory source_code) private pure returns (bool) {
+        // Sederhana: cek untuk external call sebelum state update
+        return string::contains(source_code, "call(") && 
+               string::contains(source_code, "balance[") &&
+               !string::contains(source_code, "reentrancy_guard");
+    }
+    
+    function has_arithmetic_vulnerabilities(string memory source_code) private pure returns (bool) {
+        // Cek untuk operasi aritmatika tanpa proteksi
+        return (string::contains(source_code, "+=") || 
+                string::contains(source_code, "-=") ||
+                string::contains(source_code, "*=") ||
+                string::contains(source_code, "/=")) &&
+               !string::contains(source_code, "safe_math");
+    }
+    
+    function has_access_control_issues(string memory source_code) private pure returns (bool) {
+        // Cek untuk fungsi kritis tanpa modifier
+        return string::contains(source_code, "function transfer") &&
+               !string::contains(source_code, "onlyOwner") &&
+               !string::contains(source_code, "access_control");
+    }
+    
+    function extract_dependencies(string memory source_code) private pure returns (string[] memory) {
+        // Ekstrak dependensi dari import statements
+        string[] memory import_lines = extract_import_lines(source_code);
+        string[] memory dependencies;
+        uint256 dep_count = 0;
+        
+        for (uint256 i = 0; i < import_lines.length; i++) {
+            string memory import_path = extract_import_path(import_lines[i]);
+            if (bytes(import_path).length > 0) {
+                dependencies[dep_count] = import_path;
+                dep_count++;
+            }
+        }
+        
+        return dependencies;
+    }
+    
+    function is_vulnerable_dependency(string memory dependency) private pure returns (bool) {
+        // Daftar dependensi dengan vulnerabilitas diketahui
+        string[] memory vulnerable_deps = [
+            "std/crypto/deprecated",
+            "std/net/unsafe_http", 
+            "omega/experimental/",
+            "third_party/old_crypto"
+        ];
+        
+        for (uint256 i = 0; i < vulnerable_deps.length; i++) {
+            if (string::contains(dependency, vulnerable_deps[i])) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    function update_vulnerability_stats(Vulnerability[] memory vulnerabilities) private {
+        for (uint256 i = 0; i < vulnerabilities.length; i++) {
+            scan_stats.vulnerabilities_found++;
+            
+            if (vulnerabilities[i].severity == Severity.CRITICAL) {
+                scan_stats.critical_count++;
+            } else if (vulnerabilities[i].severity == Severity.HIGH) {
+                scan_stats.high_count++;
+            } else if (vulnerabilities[i].severity == Severity.MEDIUM) {
+                scan_stats.medium_count++;
+            } else {
+                scan_stats.low_count++;
+            }
+        }
+    }
+    
+    function calculate_risk_score(Vulnerability[] memory vulnerabilities) private pure returns (uint256) {
+        uint256 total_score = 0;
+        
+        for (uint256 i = 0; i < vulnerabilities.length; i++) {
+            if (vulnerabilities[i].severity == Severity.CRITICAL) {
+                total_score += 100;
+            } else if (vulnerabilities[i].severity == Severity.HIGH) {
+                total_score += 50;
+            } else if (vulnerabilities[i].severity == Severity.MEDIUM) {
+                total_score += 25;
+            } else {
+                total_score += 10;
+            }
+        }
+        
+        return total_score > 1000 ? 1000 : total_score; // Max score 1000
+    }
+    
+    function generate_recommendations(Vulnerability[] memory vulnerabilities) private pure returns (string[] memory) {
+        string[] memory recommendations;
+        uint256 rec_count = 0;
+        
+        for (uint256 i = 0; i < vulnerabilities.length; i++) {
+            recommendations[rec_count] = vulnerabilities[i].remediation;
+            rec_count++;
+        }
+        
+        return recommendations;
+    }
+    
+    // Helper functions untuk line numbers (implementasi sederhana)
+    function get_line_number(string memory source_code, string memory target_line) private pure returns (uint256) {
+        string[] memory lines = string::split(source_code, "\n");
+        for (uint256 i = 0; i < lines.length; i++) {
+            if (string::contains(lines[i], string::trim(target_line))) {
+                return i + 1;
+            }
+        }
+        return 0;
+    }
+    
+    function find_line_with_pattern(string memory source_code, string memory pattern) private pure returns (uint256) {
+        string[] memory lines = string::split(source_code, "\n");
+        for (uint256 i = 0; i < lines.length; i++) {
+            if (string::contains(lines[i], pattern)) {
+                return i + 1;
+            }
+        }
+        return 0;
+    }
+    
+    function find_reentrancy_line(string memory source_code) private pure returns (uint256) {
+        return find_line_with_pattern(source_code, "call(");
+    }
+    
+    function find_arithmetic_line(string memory source_code) private pure returns (uint256) {
+        return find_line_with_pattern(source_code, "+=");
+    }
+    
+    function find_access_control_line(string memory source_code) private pure returns (uint256) {
+        return find_line_with_pattern(source_code, "function transfer");
+    }
+    
+    function find_dependency_line(string memory source_code, string memory dependency) private pure returns (uint256) {
+        return find_line_with_pattern(source_code, dependency);
+    }
+    
+    // Events
+    event SecurityScanCompleted(string contract_id, uint256 vulnerability_count, uint256 risk_score);
+    event VulnerabilityDetected(string vulnerability_id, Severity severity, string description);
+    event DependencyScanned(string dependency, bool is_vulnerable);
+}
+
+// Struct untuk hasil scan
+struct SecurityScanResult {
+    string contract_id;
+    Vulnerability[] vulnerabilities;
+    uint256 total_vulnerabilities;
+    uint256 scan_timestamp;
+    uint256 risk_score;
+    string[] recommendations;
+}
+
+// Struct untuk vulnerabilitas
+struct Vulnerability {
+    string id;
+    string title;
+    string description;
+    Severity severity;
+    VulnerabilityCategory category;
+    uint256 line_number;
+    uint256 column;
+    Confidence confidence;
+    string remediation;
+    string[] references;
+}
+
+// Informasi vulnerabilitas dari database
+struct VulnerabilityInfo {
+    string title;
+    string description;
+    Severity severity;
+    VulnerabilityCategory category;
+    string remediation;
+    string[] references;
+}
+
+// Statistik scan
+struct VulnerabilityStats {
+    uint256 total_scans;
+    uint256 vulnerabilities_found;
+    uint256 critical_count;
+    uint256 high_count;
+    uint256 medium_count;
+    uint256 low_count;
+}
+
+// Enum untuk severity
+enum Severity {
+    LOW,
+    MEDIUM, 
+    HIGH,
+    CRITICAL
+}
+
+// Enum untuk kategori vulnerabilitas
+enum VulnerabilityCategory {
+    AccessControl,
+    Arithmetic,
+    CodeInjection,
+    Dependency,
+    Reentrancy,
+    Secrets,
+    InputValidation
+}
+
+// Enum untuk confidence level
+enum Confidence {
+    LOW,
+    MEDIUM,
+    HIGH
+}
+
+// Enum untuk dependency graph
+struct DependencyGraph {
+    string[] dependency_edges;
+    uint256 dependency_score;
+}
