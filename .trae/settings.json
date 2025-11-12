@@ -4,10 +4,10 @@
   },
   "trae.fileIcons": {
     "mega": {
-      "iconPath": "./omega-vscode-extension/images/omega-file-icon-mega.svg",
+      "iconPath": "omega-vscode-extension/images/omega-icon.png",
       "theme": {
-        "light": "./omega-vscode-extension/images/omega-file-icon-light.svg",
-        "dark": "./omega-vscode-extension/images/omega-file-icon-dark.svg"
+        "light": "omega-vscode-extension/images/omega-icon.png",
+        "dark": "omega-vscode-extension/images/omega-icon.png"
       }
     }
   },

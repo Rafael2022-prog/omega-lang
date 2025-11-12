@@ -17,8 +17,8 @@
       "extensions": [".mega", ".omega"],
       "configuration": "./.trae/language-configuration.json",
       "icon": {
-        "light": "./omega-vscode-extension/images/omega-file-icon-light.svg",
-        "dark": "./omega-vscode-extension/images/omega-file-icon-dark.svg"
+        "light": "omega-vscode-extension/images/omega-icon.png",
+        "dark": "omega-vscode-extension/images/omega-icon.png"
       }
     }
   ],
