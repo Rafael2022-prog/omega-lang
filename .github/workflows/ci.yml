@@ -163,22 +163,31 @@ jobs:
         node-version: '18.x'
         cache: 'npm'
 
-    - name: 📦 Install dependencies
+    - name: 📦 Install dependencies (VS Code Extension)
       run: |
-        cd lsp-server && npm ci && cd ..
-        cd omega-vscode-extension && npm ci && cd ..
-
-    - name: 🔍 Run ESLint (LSP Server)
-      run: |
-        cd lsp-server
-        npx eslint . --ext .js,.ts --format json --output-file ../eslint-results.json || true
-        cd ..
+        cd ide/vscode-extension
+        npm ci
+        cd ../..
 
     - name: 🔍 Run ESLint (VS Code Extension)
       run: |
-        cd omega-vscode-extension
-        npx eslint . --ext .js,.ts --format json --output-file ../eslint-extension-results.json || true
-        cd ..
+        cd ide/vscode-extension
+        npm run lint -- --format json --output-file ../../eslint-extension-results.json || true
+        cd ../..
+
+    - name: 🔧 Setup PowerShell
+      uses: ./.github/actions/setup-powershell
+ 
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
+    - name: 📊 Upload lint results
+      uses: actions/upload-artifact@v4
+      with:
+        name: lint-results-${{ env.OMEGA_VERSION_NAME }}
+        path: |
+          eslint-extension-results.json
+        if-no-files-found: warn
 
     - name: 🔧 Setup PowerShell
       uses: ./.github/actions/setup-powershell
@@ -193,6 +202,48 @@ jobs:
         path: |
           eslint-results.json
           eslint-extension-results.json
+        if-no-files-found: warn
+
+  vscode-extension-test:
+    name: 🧪 VS Code Extension Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd ide/vscode-extension
+        npm ci
+        cd ../..
+
+    - name: 🧪 Run VS Code extension tests
+      run: |
+        cd ide/vscode-extension
+        npm test
+        cd ../..
+
+    - name: 🔎 Compute version for artifact naming
+      uses: ./.github/actions/compute-version
+
+    - name: 📊 Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: vscode-extension-test-results-${{ matrix.os }}-${{ env.OMEGA_VERSION_NAME }}
+        path: |
+          ide/vscode-extension/test-reports/
+          ide/vscode-extension/*.log
         if-no-files-found: warn
 
   security:
@@ -211,20 +262,15 @@ jobs:
 
     - name: 📦 Install dependencies
       run: |
-        cd lsp-server && npm ci && cd ..
-        cd omega-vscode-extension && npm ci && cd ..
-
-    - name: 🔒 Run npm audit (LSP Server)
-      run: |
-        cd lsp-server
-        npm audit --audit-level moderate --json > ../audit-lsp.json || true
-        cd ..
+        cd ide/vscode-extension
+        npm ci
+        cd ../..
 
     - name: 🔒 Run npm audit (VS Code Extension)
       run: |
-        cd omega-vscode-extension
+        cd ide/vscode-extension
         npm audit --audit-level moderate --json > ../audit-extension.json || true
-        cd ..
+        cd ../..
 
     - name: 🔧 Setup PowerShell
       uses: ./.github/actions/setup-powershell
@@ -237,7 +283,6 @@ jobs:
       with:
         name: security-results-${{ env.OMEGA_VERSION_NAME }}
         path: |
-          audit-lsp.json
           audit-extension.json
         if-no-files-found: warn
 
@@ -260,20 +305,21 @@ jobs:
 
     - name: 📦 Install dependencies
       run: |
-        cd lsp-server && npm ci && cd ..
-        cd omega-vscode-extension && npm ci && cd ..
+        cd ide/vscode-extension
+        npm ci
+        cd ../..
 
     - name: 🏗️ Build VS Code extension
       run: |
-        cd omega-vscode-extension
+        cd ide/vscode-extension
         npm run compile
-        cd ..
+        cd ../..
 
     - name: 📦 Package VS Code extension
       run: |
-        cd omega-vscode-extension
+        cd ide/vscode-extension
         npx vsce package
-        cd ..
+        cd ../..
 
     - name: 🔧 Setup PowerShell
       uses: ./.github/actions/setup-powershell
@@ -286,7 +332,7 @@ jobs:
       with:
         name: build-artifacts-${{ matrix.os }}-${{ env.OMEGA_VERSION_NAME }}
         path: |
-          omega-vscode-extension/*.vsix
+          ide/vscode-extension/*.vsix
         if-no-files-found: warn
 
   performance:
@@ -342,24 +388,26 @@ jobs:
 
     - name: 📦 Install dependencies
       run: |
-        cd lsp-server && npm ci && cd ..
-        cd omega-vscode-extension && npm ci && cd ..
+        cd ide/vscode-extension
+        npm ci
+        cd ../..
 
     - name: 🔧 Setup PowerShell
       uses: ./.github/actions/setup-powershell
 
-    - name: 📊 Generate coverage report
-      shell: pwsh
+    - name: 📊 Generate coverage report (VS Code Extension)
       run: |
-        ./scripts/simple_test.ps1
+        cd ide/vscode-extension
+        npm run test:coverage || npm test
+        cd ../..
 
     - name: 📤 Upload coverage to Codecov
-      if: ${{ hashFiles('coverage/lcov.info') != '' }}
+      if: ${{ hashFiles('ide/vscode-extension/coverage/lcov.info') != '' }}
       uses: codecov/codecov-action@v3
       with:
-        file: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
+        file: ./ide/vscode-extension/coverage/lcov.info
+        flags: vscode-extension
+        name: codecov-vscode-extension
 
     - name: 🔎 Compute version for artifact naming
       uses: ./.github/actions/compute-version

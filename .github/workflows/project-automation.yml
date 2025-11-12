@@ -1,0 +1,89 @@
+name: 🔄 Project Automation
+
+on:
+  issues:
+    types: [opened, closed, reopened, assigned, unassigned]
+  pull_request:
+    types: [opened, closed, reopened, ready_for_review, review_requested]
+
+jobs:
+  automate-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏷️ Add new issues to project board
+        if: github.event_name == 'issues' && github.event.action == 'opened'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(label => label.name);
+            
+            // Determine column based on labels
+            let column = '📋 To Do';
+            if (labels.includes('bug')) {
+              column = '🐛 Bug Queue';
+            } else if (labels.includes('enhancement')) {
+              column = '⭐ Features';
+            } else if (labels.includes('documentation')) {
+              column = '📚 Documentation';
+            }
+            
+            console.log(`Adding issue #${issue.number} to ${column}`);
+            
+      - name: ✅ Move closed issues to Done
+        if: github.event_name == 'issues' && github.event.action == 'closed'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue = context.payload.issue;
+            console.log(`Moving issue #${issue.number} to ✅ Done`);
+            
+      - name: 🔄 Update PR status
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const action = context.payload.action;
+            
+            if (action === 'opened' || action === 'reopened') {
+              console.log(`PR #${pr.number} needs review`);
+            } else if (action === 'ready_for_review') {
+              console.log(`PR #${pr.number} ready for review`);
+            } else if (action === 'closed') {
+              if (pr.merged) {
+                console.log(`PR #${pr.number} merged! ✅`);
+              } else {
+                console.log(`PR #${pr.number} closed without merge`);
+              }
+            }
+
+  auto-assign:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    steps:
+      - name: 🎯 Auto-assign based on labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(label => label.name);
+            
+            const assignees = {
+              'bug': ['@emylton-leunufna'],
+              'enhancement': ['@emylton-leunufna'],
+              'documentation': ['@emylton-leunufna'],
+              'security': ['@emylton-leunufna']
+            };
+            
+            for (const label of labels) {
+              if (assignees[label]) {
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  assignees: assignees[label]
+                });
+                break;
+              }
+            }
