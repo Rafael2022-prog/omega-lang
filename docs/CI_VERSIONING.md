@@ -3,7 +3,7 @@
 This document describes how the CI pipeline computes a dynamic version string and applies it consistently to artifact names. The goal is traceability across runs and environments, with zero duplication of logic in YAML.
 
 ## Overview
-- Base version is read from the repository `VERSION` file. If empty or missing, the fallback base is `1.2.1`.
+- Base version is read from the repository `VERSION` file. If empty or missing, the fallback base is `1.3.0`.
 - CI metadata is appended to the base version to produce a unique version per run:
   - In GitHub Actions: `ci.<GITHUB_RUN_NUMBER>.<SHA7>`
   - In local/non-CI runs: `local.<YYYYMMDD>.<HHMM>`
@@ -24,7 +24,7 @@ Example (simplified):
 ```powershell
 # scripts/compute_ci_version.ps1
 $base = (Get-Content -TotalCount 1 -Path 'VERSION').Trim()
-if (-not $base) { $base = '1.2.1' }
+if (-not $base) { $base = '1.3.0' }
 $sha7 = $env:GITHUB_SHA ? $env:GITHUB_SHA.Substring(0,7) : ''
 $meta = if ($env:GITHUB_RUN_NUMBER -and $sha7) { "ci.$($env:GITHUB_RUN_NUMBER).$sha7" } else { "local.$(Get-Date -Format 'yyyyMMdd.HHmm')" }
 $full = "$base-$meta"
@@ -95,5 +95,5 @@ This ensures locally produced artifacts are uniquely identified and distinguisha
 
 ## Troubleshooting
 - Missing PowerShell on Ubuntu/macOS: ensure the setup step runs before any `shell: pwsh` steps.
-- Empty `VERSION`: the script falls back to `1.2.1`.
+- Empty `VERSION`: the script falls back to `1.3.0`.
 - Step outputs not found: include an `id:` on the compute step and reference `${{ steps.<id>.outputs.version }}`.

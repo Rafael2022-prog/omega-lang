@@ -1,7 +1,7 @@
 # OMEGA - Universal Blockchain Programming Language
 
 ![OMEGA Logo](https://img.shields.io/badge/OMEGA-Blockchain%20Language-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-1.2.1-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.3.0-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 
 > Catatan kompatibilitas (Windows native-only, compile-only)

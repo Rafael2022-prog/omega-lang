@@ -1,4 +1,4 @@
-# OMEGA Programming Language Specification v1.1.0
+# OMEGA Programming Language Specification v1.3.0
 ## Universal Blockchain Development Language - Enhanced Performance & Security Edition
 
 > Catatan kompatibilitas (Windows native-only, compile-only)

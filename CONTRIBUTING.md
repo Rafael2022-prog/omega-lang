@@ -1,4 +1,4 @@
-# 🤝 Contributing to OMEGA
+# Contributing to OMEGA Language v1.3.0
 
 > Note (Windows Native-Only, Compile-Only)
 > - This guide describes the full ecosystem and contribution workflow. The current active CI is Windows-only, with a CLI wrapper that supports single-file compilation (compile-only) and the Native Runner.
@@ -296,7 +296,7 @@ test(parser): add edge case tests
 
 ### Milestones
 
-- **v1.1.0** - Next minor release
+- **v1.3.0** - Next minor release
 - **v2.0.0** - Next major release
 - **Future** - Long-term goals
 

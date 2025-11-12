@@ -10,7 +10,7 @@ if (-not (Test-Path $execDir)) {
 }
 
 # Compute version from central VERSION file with CI/local metadata
-$versionBase = "1.2.1"
+$versionBase = "1.3.0"
 try {
     $verFile = "R:\OMEGA\VERSION"
     if (Test-Path $verFile) { $versionBase = (Get-Content $verFile -ErrorAction SilentlyContinue | Select-Object -First 1).Trim() }

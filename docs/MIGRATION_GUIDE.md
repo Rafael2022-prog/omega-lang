@@ -1,4 +1,4 @@
-# OMEGA Migration Guide
+# OMEGA Language Migration Guide v1.3.0
 
 ![Migration](https://img.shields.io/badge/Migration-v1.0.0-orange?style=for-the-badge)
 

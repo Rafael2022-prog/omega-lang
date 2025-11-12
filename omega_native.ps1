@@ -8,7 +8,7 @@ param(
     [switch]$Debug
 )
 
-Write-Host "🚀 OMEGA Native Compiler v1.1.0" -ForegroundColor Cyan
+Write-Host "🚀 OMEGA Native Compiler v1.3.0" -ForegroundColor Cyan
 Write-Host "📦 100% Native - No Rust Dependencies" -ForegroundColor Green
 Write-Host ""
 
@@ -55,7 +55,7 @@ switch ($Command.ToLower()) {
     }
     
     "version" {
-        Write-Host "OMEGA Compiler v1.1.0" -ForegroundColor Cyan
+        Write-Host "OMEGA Compiler v1.3.0" -ForegroundColor Cyan
         Write-Host "Build System: 100% Native OMEGA" -ForegroundColor Green
         Write-Host "Blockchain Targets: EVM ✅, Solana ✅" -ForegroundColor Green
         Write-Host "Dependencies: None (Self-contained)" -ForegroundColor Green

@@ -3,7 +3,7 @@
 
 [package]
 name = "omega"
-version = "1.1.0"
+version = "1.3.0"
 edition = "2025"
 authors = ["Emylton Leunufna <emylton@omega-lang.org>"]
 description = "OMEGA - Universal Blockchain Programming Language (100% Native Self-Hosting)"
@@ -37,20 +37,20 @@ available = [
 
 [dependencies]
 # Core OMEGA standard library modules
-omega-std = { version = "1.1.0", path = "src/std" }
-omega-lexer = { version = "1.1.0", path = "src/lexer" }
-omega-parser = { version = "1.1.0", path = "src/parser" }
-omega-semantic = { version = "1.1.0", path = "src/semantic" }
-omega-ir = { version = "1.1.0", path = "src/ir" }
-omega-codegen = { version = "1.1.0", path = "src/codegen" }
-omega-error = { version = "1.1.0", path = "src/error" }
-omega-optimization = { version = "1.1.0", path = "src/optimization" }
-omega-security = { version = "1.1.0", path = "src/security" }
-omega-testing = { version = "1.1.0", path = "src/testing" }
+omega-std = { version = "1.3.0", path = "src/std" }
+omega-lexer = { version = "1.3.0", path = "src/lexer" }
+omega-parser = { version = "1.3.0", path = "src/parser" }
+omega-semantic = { version = "1.3.0", path = "src/semantic" }
+omega-ir = { version = "1.3.0", path = "src/ir" }
+omega-codegen = { version = "1.3.0", path = "src/codegen" }
+omega-error = { version = "1.3.0", path = "src/error" }
+omega-optimization = { version = "1.3.0", path = "src/optimization" }
+omega-security = { version = "1.3.0", path = "src/security" }
+omega-testing = { version = "1.3.0", path = "src/testing" }
 
 [dev-dependencies]
-omega-test = { version = "1.1.0", path = "src/testing" }
-omega-benchmark = { version = "1.1.0", path = "src/testing" }
+omega-test = { version = "1.3.0", path = "src/testing" }
+omega-benchmark = { version = "1.3.0", path = "src/testing" }
 
 [features]
 default = ["evm", "solana", "cosmos", "cross-chain"]

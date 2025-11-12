@@ -506,7 +506,7 @@ jobs:
       run: |
         echo "✅ All checks passed! Self-hosting compiler validated successfully."
         BASE_VERSION="$(head -n 1 VERSION | tr -d '\r')"
-        [ -z "$BASE_VERSION" ] && BASE_VERSION="1.2.1"
+        [ -z "$BASE_VERSION" ] && BASE_VERSION="1.3.0"
         META="ci.${GITHUB_RUN_NUMBER}.${GITHUB_SHA::7}"
         FULL_VERSION="${BASE_VERSION}-${META}"
         echo "🚀 OMEGA ${FULL_VERSION} Self-Hosting Milestone achieved!"

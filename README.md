@@ -1,7 +1,7 @@
 # OMEGA - Universal Blockchain Programming Language
 
 ![OMEGA Logo](https://img.shields.io/badge/OMEGA-Blockchain%20Language-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-1.2.1-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.3.0-green?style=flat-square)
 ![Self-Hosting](https://img.shields.io/badge/self--hosting-enabled-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Performance](https://img.shields.io/badge/performance-+25%25%20faster-brightgreen?style=flat-square)
@@ -92,17 +92,17 @@ choco install omega-lang
 ```
 
 ### Versioning
-- Sumber versi utama ada di file `VERSION` di root repo (contoh: 1.2.1).
+- Sumber versi utama ada di file `VERSION` di root repo (contoh: 1.3.0).
 - CLI (`omega.exe`/`omega.ps1`) dan runner HTTP membaca versi ini lalu menambahkan metadata build:
-  - CI: `v1.2.1-ci.<run>.<sha7>`
-  - Lokal: `v1.2.1-local.YYYYMMDD.HHMM`
+  - CI: `v1.3.0-ci.<run>.<sha7>`
+  - Lokal: `v1.3.0-local.YYYYMMDD.HHMM`
 - Banner versi kini dicetak oleh `scripts/compile_smoke.ps1` di awal setiap run CI untuk visibilitas.
 - Kebijakan bump versi:
   - Naikkan minor/patch saat ada perubahan pada bahasa OMEGA yang memengaruhi surface API/semantik.
   - Perubahan internal yang tidak mengubah surface API ditandai melalui metadata build (tanpa bump base).
 - Cara melihat versi:
-  - CLI: `omega --version` → menampilkan `OMEGA Compiler v1.2.1-...`
-  - Runner HTTP: `GET /version` → `{"compiler_version":"1.2.1-..."}`
+  - CLI: `omega --version` → menampilkan `OMEGA Compiler v1.3.0-...`
+- Runner HTTP: `GET /version` → `{"compiler_version":"1.3.0-..."}`
   - Detail skema versi CI dan penamaan artefak: lihat [docs/CI_VERSIONING.md](./docs/CI_VERSIONING.md)
 
 ## 🏗️ Quick Start
@@ -469,7 +469,7 @@ Catatan:
 - Perintah `omega run` kini menjalankan runner native sementara berbasis PowerShell/.NET HttpListener. Ini belum merupakan runtime OMEGA penuh, tetapi cukup untuk menjalankan server API contoh secara persisten.
 - Endpoint yang tersedia:
   - `GET /health` → `{"status":"ok","server":"omega-native-runner"}`
-  - `GET /version` → `{"compiler_version":"1.2.1-local.YYYYMMDD.HHMM"}` (CI builds will show `1.2.1-ci.<run>.<sha7>`)
+  - `GET /version` → `{"compiler_version":"1.3.0-local.YYYYMMDD.HHMM"}` (CI builds will show `1.3.0-ci.<run>.<sha7>`)
   - `GET /info` → menampilkan versi, jumlah permintaan yang ditangani, waktu mulai, alamat, dan port
   - `POST /compile` (Content-Type: text/plain) → mengembalikan statistik tokenisasi dan jumlah `import`.
 

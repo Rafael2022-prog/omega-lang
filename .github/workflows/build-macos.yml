@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 1.2.2)'
+        description: 'Release version (e.g., 1.3.0)'
         required: true
       create_release:
         description: 'Create GitHub release if not exists'

@@ -68,20 +68,20 @@ solana_version = "1.14"
 
 [dependencies]
 # OMEGA compiler modules (langsung dari src)
-omega-lexer = { version = "1.1.0", path = "src/lexer" }
-omega-parser = { version = "1.1.0", path = "src/parser" }
-omega-semantic = { version = "1.1.0", path = "src/semantic" }
-omega-ir = { version = "1.1.0", path = "src/ir" }
-omega-codegen = { version = "1.1.0", path = "src/codegen" }
-omega-error = { version = "1.1.0", path = "src/error" }
-omega-optimization = { version = "1.1.0", path = "src/optimization" }
-omega-security = { version = "1.1.0", path = "src/security" }
-omega-std = { version = "1.1.0", path = "src/std" }
-omega-testing = { version = "1.1.0", path = "src/testing" }
+omega-lexer = { version = "1.3.0", path = "src/lexer" }
+omega-parser = { version = "1.3.0", path = "src/parser" }
+omega-semantic = { version = "1.3.0", path = "src/semantic" }
+omega-ir = { version = "1.3.0", path = "src/ir" }
+omega-codegen = { version = "1.3.0", path = "src/codegen" }
+omega-error = { version = "1.3.0", path = "src/error" }
+omega-optimization = { version = "1.3.0", path = "src/optimization" }
+omega-security = { version = "1.3.0", path = "src/security" }
+omega-std = { version = "1.3.0", path = "src/std" }
+omega-testing = { version = "1.3.0", path = "src/testing" }
 
 [dev-dependencies]
 # Testing framework
-omega-testing = { version = "1.1.0", path = "src/testing" }
+omega-testing = { version = "1.3.0", path = "src/testing" }
 
 [features]
 # Default features

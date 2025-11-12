@@ -1,7 +1,7 @@
 # OMEGA - Universal Blockchain Programming Language
 
 ![OMEGA Logo](https://img.shields.io/badge/OMEGA-Blockchain%20Language-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/version-1.2.1-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.3.0-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 
 ## 🌟 Visi Proyek
@@ -177,7 +177,7 @@ omega deploy --target solana --network devnet
 omega deploy --target cosmos --network testnet
 ```
 
-### 6. Self-Hosting Verification (New in v1.2.0!)
+### 6. Self-Hosting Verification (New in v1.2.0+!)
 ```bash
 # Test self-hosting capability
 omega compile src/self_hosting_compiler.mega --target native

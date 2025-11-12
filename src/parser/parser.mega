@@ -72,7 +72,7 @@ blockchain OmegaParser {
         in_blockchain_context = false;
         in_self_hosting_mode = true;
         parsing_compiler_code = false;
-        language_version = 110; // Version 1.1.0
+        language_version = 130; // Version 1.3.0
         nodes_created = 0;
         
         // Initialize enhanced sub-parsers

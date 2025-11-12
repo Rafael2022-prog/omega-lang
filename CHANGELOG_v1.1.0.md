@@ -1,6 +1,6 @@
-# OMEGA Compiler v1.1.0 - Release Notes
+# OMEGA Language Changelog v1.3.0
 
-![Release](https://img.shields.io/badge/Release-v1.1.0-brightgreen?style=for-the-badge)
+![Release](https://img.shields.io/badge/Release-v1.3.0-brightgreen?style=for-the-badge)
 ![Performance](https://img.shields.io/badge/Performance-+25%25%20Faster-blue?style=for-the-badge)
 ![Security](https://img.shields.io/badge/Security-Enhanced-orange?style=for-the-badge)
 

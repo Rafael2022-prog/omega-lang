@@ -2,7 +2,7 @@
 param([string]$Command, [string[]]$Arguments)
 
 function Show-Version {
-    $baseVersion = "1.2.1"
+    $baseVersion = "1.3.0"
     try {
         $verFile = Join-Path $PSScriptRoot "VERSION"
         if (Test-Path $verFile) { $baseVersion = (Get-Content $verFile -ErrorAction SilentlyContinue | Select-Object -First 1).Trim() }

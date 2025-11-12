@@ -1,4 +1,4 @@
-# OMEGA API Documentation
+# OMEGA Language API Documentation v1.3.0
 
 > Catatan (Windows Native-Only, Compile-Only)
 > - Dokumentasi API ini mencakup interface penuh. Pada CI Windows-only saat ini, fokus alur kerja adalah kompilasi file tunggal (compile-only) melalui wrapper CLI dan Native Runner.
@@ -654,13 +654,13 @@ Server dibangun di atas `std/net/http/server` yang sekarang menjalankan loop per
   ```
 - `GET /version` → Mengembalikan versi compiler yang digunakan oleh runner:
   ```json
-  {"compiler_version":"1.1.0"}
+  {"compiler_version":"1.3.0"}
   ```
 - `GET /info` → Informasi status runtime server:
   ```json
   {
     "server": "omega-native-runner",
-    "version": "1.1.0",
+    "version": "1.3.0",
     "requests_handled": 12,
     "started_at_ms": 1730512345678,
     "address": "127.0.0.1",

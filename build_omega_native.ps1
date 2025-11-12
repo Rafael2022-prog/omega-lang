@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# OMEGA Native Build System v1.1.0
+# OMEGA Native Build System v1.3.0
 # Enhanced Performance | Improved Security | Better Error Handling
 # PowerShell-based build automation with advanced features
 # Author: Emylton Leunufna
@@ -36,7 +36,7 @@ function Write-BuildLog {
 }
 
 function Build-OmegaNative {
-    Write-BuildLog "Starting OMEGA Native build process v1.1.0..." "SUCCESS"
+    Write-BuildLog "Starting OMEGA Native build process v1.3.0..." "SUCCESS"
     Write-BuildLog "Enhanced with performance optimizations and security improvements" "INFO"
     
     if ((Test-Path "omega.exe") -and (-not $Clean)) {
@@ -96,7 +96,7 @@ function Build-OmegaNative {
 param([string]$Command, [string[]]$Arguments)
 
 function Show-Version {
-    Write-Host "OMEGA Native Compiler v1.0.0"
+    Write-Host "OMEGA Native Compiler v1.3.0"
     Write-Host "Built with PowerShell native toolchain"
 }
 
@@ -138,7 +138,7 @@ if ($Command -eq "--version") {
     $exitCode = Invoke-Compile -SourceFile $Arguments[0]
     exit $exitCode
 } else {
-    Write-Host "OMEGA Native Compiler v1.0.0"
+    Write-Host "OMEGA Native Compiler v1.3.0"
     Write-Host "Use --help for usage information"
     exit 0
 }
@@ -171,7 +171,7 @@ powershell -ExecutionPolicy Bypass -File "%~dp0omega.ps1" %*
     }
     
     if ((Test-Path "omega.exe") -or (Test-Path "omega.cmd") -or (Test-Path "omega")) {
-        Write-BuildLog "OMEGA Native Compiler v1.1.0" "SUCCESS"
+        Write-BuildLog "OMEGA Native Compiler v1.3.0" "SUCCESS"
         Write-BuildLog "Built with enhanced PowerShell native toolchain" "SUCCESS"
         Write-BuildLog "OMEGA native binary built successfully!" "SUCCESS"
         return $true
@@ -215,7 +215,7 @@ function Test-Build {
 }
 
 # Main execution
-Write-Host "🔨 OMEGA Native Build System v1.1.0" -ForegroundColor Blue
+Write-Host "🔨 OMEGA Native Build System v1.3.0" -ForegroundColor Blue
 Write-Host "Enhanced Performance | Improved Security | Better Error Handling" -ForegroundColor Cyan
 Write-Host "===============================================================" -ForegroundColor Blue
 
@@ -246,7 +246,7 @@ try {
             }
             
             Write-Host ""
-            Write-Host "✅ OMEGA Native v1.1.0 is ready for use!" -ForegroundColor Green
+            Write-Host "✅ OMEGA Native v1.3.0 is ready for use!" -ForegroundColor Green
             exit 0
         } else {
             Write-BuildLog "Build tests failed" "ERROR"

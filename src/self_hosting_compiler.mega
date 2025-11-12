@@ -620,7 +620,7 @@ struct TargetConfig {
 
 // Main self-hosting entry point
 function main() {
-    io::println("🚀 OMEGA Self-Hosting Compiler v1.1.0");
+    io::println("🚀 OMEGA Self-Hosting Compiler v1.3.0");
     io::println("📦 Compiling OMEGA using OMEGA itself");
     
     // Parse command line arguments

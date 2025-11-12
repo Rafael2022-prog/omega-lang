@@ -1,8 +1,8 @@
-# 🚀 OMEGA v1.1.0 - Enhanced Performance & Security Edition
+# 🚀 OMEGA v1.3.0 - Enhanced Performance & Security Edition
 
 ## 📋 Release Overview
 
-OMEGA v1.1.0 adalah rilis major yang menghadirkan peningkatan signifikan dalam performa, keamanan, dan pengalaman pengguna. Rilis ini menandai evolusi OMEGA menjadi platform blockchain development yang lebih matang dan production-ready.
+OMEGA v1.3.0 adalah rilis major yang menghadirkan peningkatan signifikan dalam performa, keamanan, dan pengalaman pengguna. Rilis ini menandai evolusi OMEGA menjadi platform blockchain development yang lebih matang dan production-ready.
 
 ## ✨ Highlights
 

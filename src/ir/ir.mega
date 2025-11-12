@@ -274,14 +274,14 @@ blockchain OmegaIR {
     function create_empty_ir_module() private pure returns (IRModule memory) {
         IRModule memory empty_module;
         empty_module.name = "";
-        empty_module.version = "1.0.0";
+        empty_module.version = "1.3.0";
         return empty_module;
     }
     
     function create_ir_module(string memory name) private returns (IRModule memory) {
         IRModule memory module;
         module.name = name;
-        module.version = "1.0.0";
+        module.version = "1.3.0";
         module.target_platform = target_platform;
         module.optimization_level = optimization_level;
         module.debug_info = debug_mode;
@@ -362,7 +362,7 @@ blockchain OmegaIR {
     
     function create_default_metadata() private returns (IRMetadata memory) {
         IRMetadata memory metadata;
-        metadata.version = "1.0.0";
+        metadata.version = "1.3.0";
         
         // Use secure timestamp for creation time
         SecureTimestamp secure_ts = SecureTimestamp::new();

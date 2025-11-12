@@ -58,7 +58,7 @@ blockchain OmegaCodeGenerator {
         error_handler = new ErrorHandler();
         utils = new CodeGenUtils();
         validator = new CodeGenValidator();
-        compiler_version = "1.0.0";
+        compiler_version = "1.3.0";
     }
     
     /// Initialize all code generators

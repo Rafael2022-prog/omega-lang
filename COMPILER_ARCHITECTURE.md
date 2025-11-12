@@ -1,4 +1,4 @@
-# OMEGA Compiler Architecture v1.1.0
+# OMEGA Compiler Architecture v1.3.0
 ## Multi-Target Blockchain Compiler Design - Enhanced Performance & Security Edition
 
 > Catatan Penting (Windows Native-Only, Compile-Only)
@@ -7,7 +7,7 @@
 > - Perintah `omega build/test/deploy` bersifat forward-looking pada wrapper; gunakan `omega compile <file.mega>` dan Native Runner (`POST /compile`) untuk verifikasi dasar.
 
 ### Overview
-OMEGA compiler v1.1.0 adalah multi-stage, multi-target compiler yang dapat menghasilkan kode untuk berbagai blockchain platforms dari satu source code OMEGA. Versi 1.1.0 menambahkan optimasi kinerja 25% lebih cepat, fitur keamanan yang ditingkatkan, dan pengalaman pengguna yang lebih baik.
+OMEGA compiler v1.3.0 adalah multi-stage, multi-target compiler yang dapat menghasilkan kode untuk berbagai blockchain platforms dari satu source code OMEGA. Versi 1.3.0 menambahkan IDE integration, package manager, cross-chain features, dan peningkatan keamanan dengan performa yang dioptimalkan.
 
 ## Compiler Pipeline
 

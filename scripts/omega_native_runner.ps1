@@ -19,7 +19,7 @@ $ProjectRoot = Split-Path -Parent $ScriptDir
 # Determine compiler version from centralized VERSION with CI/local metadata
 function Get-CompilerVersion {
     param([string]$Root)
-    $base = "1.2.1"
+    $base = "1.3.0"
     try {
         $verFile = Join-Path $Root "VERSION"
         if (Test-Path $verFile) {

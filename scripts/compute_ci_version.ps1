@@ -1,5 +1,5 @@
 param(
-    [string]$DefaultBase = "1.2.1"
+    [string]$DefaultBase = "1.3.0"
 )
 
 $ErrorActionPreference = 'Stop'
