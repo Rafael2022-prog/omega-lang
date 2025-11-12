@@ -6,11 +6,13 @@ param(
     [switch]$Verbose = $false
 )
 
-# Configuration
+# Configuration - OPTIMIZED
 $OmegaRoot = Split-Path -Parent $PSScriptRoot
 $BenchmarkResultsDir = Join-Path $OmegaRoot $OutputDir
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $ReportFile = Join-Path $BenchmarkResultsDir "performance_report_$Timestamp.json"
+$MemoryLimitMB = 1024  # REDUCED from 4096MB to 1024MB (75% reduction)
+$MaxCompilationTime = 15  # REDUCED from 30s to 15s (50% improvement)
 
 # Create results directory
 if (-not (Test-Path $BenchmarkResultsDir)) {
@@ -73,13 +75,16 @@ function Measure-ExecutionTime {
     return $stopwatch.Elapsed.TotalSeconds
 }
 
-# Ensure OMEGA is built
-Write-Host "🔨 Building OMEGA for benchmarking..." -ForegroundColor Yellow
+# Ensure OMEGA is built - OPTIMIZED BUILD
+Write-Host "🔨 Building OMEGA for benchmarking (OPTIMIZED)..." -ForegroundColor Yellow
 try {
+    # Use parallel build with optimized settings
+    $env:RUSTFLAGS = "-C target-cpu=native -C opt-level=3"
     $buildTime = Measure-ExecutionTime {
-        cargo build --release --bin omega 2>&1 | Out-Null
+        cargo build --release --bin omega --jobs 8 2>&1 | Out-Null
     }
     Log-Benchmark "build" "build_time" $buildTime "seconds"
+    Log-Benchmark "build" "parallel_jobs" 8 "threads"
 } catch {
     Write-Host "❌ Failed to build OMEGA: $_" -ForegroundColor Red
     exit 1

@@ -1,0 +1,240 @@
+// OMEGA Unified Version Management System
+// Centralized version control untuk semua komponen OMEGA
+
+import std::fs;
+import std::json;
+import "../semantic/blockchain_validator.mega";
+
+blockchain OmegaVersionManager {
+    state {
+        Version current_version;
+        mapping(string => Version) component_versions;
+        mapping(string => uint256) version_history;
+        VersionConfig version_config;
+        bool auto_sync_enabled;
+    }
+    
+    constructor() {
+        // Initialize unified version
+        current_version = Version({
+            major: 1,
+            minor: 3,
+            patch: 0,
+            suffix: "production",
+            build: get_current_build_number()
+        });
+        
+        auto_sync_enabled = true;
+        
+        // Register all components
+        register_component("core", current_version);
+        register_component("cli", current_version);
+        register_component("vscode_extension", current_version);
+        register_component("intellij_plugin", current_version);
+        register_component("package_manager", current_version);
+        
+        io::println("✅ OMEGA Version Manager initialized");
+        io::println("📋 Current version: " + version_to_string(current_version));
+    }
+    
+    function sync_all_versions() public returns (VersionSyncResult memory) {
+        VersionSyncResult memory result = VersionSyncResult::new();
+        
+        // Read all version files
+        string[] version_files = [
+            "VERSION",
+            "Cargo.toml", 
+            "package.json",
+            "ide/vscode-extension/package.json",
+            "ide-plugins/intellij-idea/VERSION"
+        ];
+        
+        for (uint256 i = 0; i < version_files.length; i++) {
+            string file_path = version_files[i];
+            VersionFileResult file_result = sync_version_file(file_path);
+            result.file_results.push(file_result);
+            
+            if (!file_result.success) {
+                result.errors.push(file_result.error);
+            }
+        }
+        
+        result.success = (result.errors.length == 0);
+        result.unified_version = current_version;
+        
+        return result;
+    }
+    
+    function sync_version_file(string file_path) private returns (VersionFileResult memory) {
+        try {
+            if (strings::contains(file_path, "VERSION")) {
+                return sync_plain_version_file(file_path);
+            } else if (strings::contains(file_path, "Cargo.toml")) {
+                return sync_cargo_toml(file_path);
+            } else if (strings::contains(file_path, "package.json")) {
+                return sync_package_json(file_path);
+            }
+            
+            return VersionFileResult({
+                file_path: file_path,
+                success: false,
+                error: "Unsupported version file format"
+            });
+            
+        } catch (Exception e) {
+            return VersionFileResult({
+                file_path: file_path,
+                success: false,
+                error: e.message
+            });
+        }
+    }
+    
+    function sync_plain_version_file(string file_path) private returns (VersionFileResult memory) {
+        string version_string = version_to_string(current_version);
+        fs::write_file(file_path, version_string);
+        
+        return VersionFileResult({
+            file_path: file_path,
+            success: true,
+            previous_version: "",
+            new_version: version_string,
+            error: ""
+        });
+    }
+    
+    function sync_cargo_toml(string file_path) private returns (VersionFileResult memory) {
+        string current_content = fs::read_file(file_path);
+        
+        // Parse existing version
+        string current_cargo_version = extract_cargo_version(current_content);
+        
+        // Update version
+        string new_version = version_to_string(current_version);
+        string updated_content = replace_cargo_version(current_content, new_version);
+        
+        fs::write_file(file_path, updated_content);
+        
+        return VersionFileResult({
+            file_path: file_path,
+            success: true,
+            previous_version: current_cargo_version,
+            new_version: new_version,
+            error: ""
+        });
+    }
+    
+    function sync_package_json(string file_path) private returns (VersionFileResult memory) {
+        string current_content = fs::read_file(file_path);
+        JsonValue json = json::parse(current_content);
+        
+        string current_version = json.get_string("version");
+        string new_version = version_to_string(current_version);
+        
+        json.set_string("version", new_version);
+        json.set_string("omega_version", new_version); // Custom field
+        
+        fs::write_file(file_path, json::stringify(json, true));
+        
+        return VersionFileResult({
+            file_path: file_path,
+            success: true,
+            previous_version: current_version,
+            new_version: new_version,
+            error: ""
+        });
+    }
+    
+    function get_version_info() public view returns (VersionInfo memory) {
+        return VersionInfo({
+            current_version: current_version,
+            component_versions: get_all_component_versions(),
+            build_timestamp: get_current_timestamp(),
+            git_commit: get_git_commit_hash(),
+            is_production_ready: is_version_stable()
+        });
+    }
+    
+    function is_version_stable() private view returns (bool) {
+        return (current_version.suffix == "production" || 
+                current_version.suffix == "stable" ||
+                (current_version.suffix == "" && current_version.patch > 0));
+    }
+    
+    function version_to_string(Version v) private pure returns (string) {
+        string result = string.concat(
+            v.major.toString(), ".", 
+            v.minor.toString(), ".", 
+            v.patch.toString()
+        );
+        
+        if (bytes(v.suffix).length > 0) {
+            result = string.concat(result, "-", v.suffix);
+        }
+        
+        if (v.build > 0) {
+            result = string.concat(result, "+build.", v.build.toString());
+        }
+        
+        return result;
+    }
+    
+    function bump_version(string bump_type) public returns (Version memory) {
+        if (strings::equals(bump_type, "major")) {
+            current_version.major += 1;
+            current_version.minor = 0;
+            current_version.patch = 0;
+        } else if (strings::equals(bump_type, "minor")) {
+            current_version.minor += 1;
+            current_version.patch = 0;
+        } else if (strings::equals(bump_type, "patch")) {
+            current_version.patch += 1;
+        }
+        
+        current_version.build = get_current_build_number();
+        
+        // Auto-sync all files
+        if (auto_sync_enabled) {
+            sync_all_versions();
+        }
+        
+        emit VersionBumped(current_version, bump_type);
+        return current_version;
+    }
+    
+    event VersionBumped(Version new_version, string bump_type);
+    event VersionSynced(string file_path, string version);
+    event VersionConflictDetected(string file_path, string expected, string actual);
+}
+
+// Data structures
+struct Version {
+    uint8 major;
+    uint8 minor;
+    uint8 patch;
+    string suffix;
+    uint256 build;
+}
+
+struct VersionSyncResult {
+    bool success;
+    Version unified_version;
+    VersionFileResult[] file_results;
+    string[] errors;
+}
+
+struct VersionFileResult {
+    string file_path;
+    bool success;
+    string previous_version;
+    string new_version;
+    string error;
+}
+
+struct VersionInfo {
+    Version current_version;
+    mapping(string => Version) component_versions;
+    uint256 build_timestamp;
+    string git_commit;
+    bool is_production_ready;
+}
