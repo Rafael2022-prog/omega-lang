@@ -1,0 +1,287 @@
+// OMEGA Type Checker Implementation - Complete
+// Semantic analysis and type inference engine for OMEGA native compiler
+// Performs type checking, type inference, and operator validation
+
+import "../error/error.mega";
+import "../utils/secure_timestamp.mega";
+
+/// Type information for type checking
+struct TypeInfo {
+    string name;                     // Type name
+    string category;                 // primitive, struct, array, mapping, etc.
+    bool is_mutable;                 // Can values of this type be modified
+    bool is_reference;               // Is reference type
+    uint256 size_bytes;              // Size in bytes for storage
+}
+
+/// Main Type Checker blockchain for semantic analysis
+blockchain TypeChecker {
+    state {
+        mapping(string => TypeInfo) type_registry;     // All known types
+        uint256 type_errors;                           // Error count
+        uint256 type_warnings;                         // Warning count
+        OmegaErrorHandler error_handler;               // Error handler
+        string[] error_messages;                       // Collected error messages
+    }
+
+    constructor() {
+        error_handler = new OmegaErrorHandler();
+        type_errors = 0;
+        type_warnings = 0;
+        register_builtin_types();
+    }
+
+    /// Register all built-in types
+    function register_builtin_types() private {
+        // Primitive types
+        register_type("bool", "primitive", false, false, 1);
+        
+        // Unsigned integers
+        register_type("uint8", "primitive", true, false, 1);
+        register_type("uint16", "primitive", true, false, 2);
+        register_type("uint32", "primitive", true, false, 4);
+        register_type("uint64", "primitive", true, false, 8);
+        register_type("uint128", "primitive", true, false, 16);
+        register_type("uint256", "primitive", true, false, 32);
+        register_type("uint", "primitive", true, false, 32);
+        
+        // Signed integers
+        register_type("int8", "primitive", true, false, 1);
+        register_type("int16", "primitive", true, false, 2);
+        register_type("int32", "primitive", true, false, 4);
+        register_type("int64", "primitive", true, false, 8);
+        register_type("int128", "primitive", true, false, 16);
+        register_type("int256", "primitive", true, false, 32);
+        register_type("int", "primitive", true, false, 32);
+        
+        // Other primitives
+        register_type("address", "primitive", true, false, 20);
+        register_type("string", "primitive", true, true, 0);  // dynamic
+        register_type("bytes", "primitive", true, true, 0);   // dynamic
+        register_type("bytes1", "primitive", true, false, 1);
+        register_type("bytes32", "primitive", true, false, 32);
+    }
+
+    /// Register a type in the type registry
+    function register_type(
+        string memory name,
+        string memory category,
+        bool is_mutable,
+        bool is_reference,
+        uint256 size_bytes
+    ) private {
+        TypeInfo memory info;
+        info.name = name;
+        info.category = category;
+        info.is_mutable = is_mutable;
+        info.is_reference = is_reference;
+        info.size_bytes = size_bytes;
+        
+        type_registry[name] = info;
+    }
+
+    /// Check if type exists in registry
+    function type_exists(string memory type_name) public view returns (bool) {
+        TypeInfo memory info = type_registry[type_name];
+        return bytes(info.name).length > 0;
+    }
+
+    /// Get type information
+    function get_type_info(string memory type_name) public view returns (TypeInfo memory) {
+        return type_registry[type_name];
+    }
+
+    /// Check if two types are compatible for assignment
+    function is_assignable(string memory from_type, string memory to_type) public view returns (bool) {
+        // Exact match
+        if (string_equal(from_type, to_type)) {
+            return true;
+        }
+        
+        // Implicit conversions (uint8 -> uint256, etc.)
+        // Integer widening is allowed
+        if (is_integer_type(from_type) && is_integer_type(to_type)) {
+            return get_type_width(to_type) >= get_type_width(from_type);
+        }
+        
+        return false;
+    }
+
+    /// Check if type is an integer type
+    function is_integer_type(string memory type_name) private pure returns (bool) {
+        return string_contains(type_name, "uint") || string_contains(type_name, "int");
+    }
+
+    /// Get integer type width in bits
+    function get_type_width(string memory type_name) private pure returns (uint256) {
+        if (string_equal(type_name, "uint") || string_equal(type_name, "int")) {
+            return 256;
+        }
+        if (string_equal(type_name, "uint8") || string_equal(type_name, "int8")) {
+            return 8;
+        }
+        if (string_equal(type_name, "uint16") || string_equal(type_name, "int16")) {
+            return 16;
+        }
+        if (string_equal(type_name, "uint32") || string_equal(type_name, "int32")) {
+            return 32;
+        }
+        if (string_equal(type_name, "uint64") || string_equal(type_name, "int64")) {
+            return 64;
+        }
+        if (string_equal(type_name, "uint128") || string_equal(type_name, "int128")) {
+            return 128;
+        }
+        if (string_equal(type_name, "uint256") || string_equal(type_name, "int256")) {
+            return 256;
+        }
+        return 0;
+    }
+
+    /// Check operator type compatibility
+    function check_operator_compatibility(
+        string memory op,
+        string memory left_type,
+        string memory right_type
+    ) public view returns (string memory result_type) {
+        // Arithmetic operators: both operands must be numeric
+        if (string_equal(op, "+") || string_equal(op, "-") || 
+            string_equal(op, "*") || string_equal(op, "/") || 
+            string_equal(op, "%")) {
+            if (is_numeric_type(left_type) && is_numeric_type(right_type)) {
+                return wider_type(left_type, right_type);
+            }
+        }
+        
+        // Comparison operators: return bool
+        if (string_equal(op, "<") || string_equal(op, ">") || 
+            string_equal(op, "<=") || string_equal(op, ">=")) {
+            if (is_numeric_type(left_type) && is_numeric_type(right_type)) {
+                return "bool";
+            }
+        }
+        
+        // Equality operators: any compatible types
+        if (string_equal(op, "==") || string_equal(op, "!=")) {
+            return "bool";
+        }
+        
+        // Logical operators: must be bool
+        if (string_equal(op, "&&") || string_equal(op, "||")) {
+            if (string_equal(left_type, "bool") && string_equal(right_type, "bool")) {
+                return "bool";
+            }
+        }
+        
+        return "";  // Type error
+    }
+
+    /// Check if type is numeric
+    function is_numeric_type(string memory type_name) private pure returns (bool) {
+        return is_integer_type(type_name);
+    }
+
+    /// Get the wider of two numeric types
+    function wider_type(string memory t1, string memory t2) private pure returns (string memory) {
+        uint256 w1 = get_type_width(t1);
+        uint256 w2 = get_type_width(t2);
+        
+        if (w1 >= w2) {
+            return t1;
+        } else {
+            return t2;
+        }
+    }
+
+    /// String utility: equality check
+    function string_equal(string memory a, string memory b) private pure returns (bool) {
+        return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+    }
+
+    /// String utility: contains substring
+    function string_contains(string memory haystack, string memory needle) private pure returns (bool) {
+        bytes memory h = bytes(haystack);
+        bytes memory n = bytes(needle);
+        
+        if (n.length > h.length) return false;
+        if (n.length == 0) return true;
+        
+        uint256 offset = 0;
+        for (uint i = 0; i <= h.length - n.length; i++) {
+            bool match = true;
+            for (uint j = 0; j < n.length; j++) {
+                if (h[i + j] != n[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return true;
+        }
+        
+        return false;
+    }
+
+    /// Get error count
+    function get_error_count() public view returns (uint256) {
+        return type_errors;
+    }
+
+    /// Get warning count
+    function get_warning_count() public view returns (uint256) {
+        return type_warnings;
+    }
+}
+
+/// Expression type information
+struct ExpressionType {
+    string type_name;           // The actual type
+    bool is_constant;           // Is compile-time constant
+    bool is_mutable;            // Can be modified
+    string inferred_from;       // How type was inferred
+}
+
+/// Enhanced type inference engine
+blockchain TypeInferenceEngine {
+    state {
+        TypeChecker type_checker;
+        mapping(string => ExpressionType) inferred_types;  // Cache inferred types
+        uint256 total_inferences;
+    }
+
+    constructor() {
+        type_checker = new TypeChecker();
+        total_inferences = 0;
+    }
+
+    /// Infer type of numeric literal
+    function infer_number_literal(string memory value) public returns (string memory) {
+        // Parse number and determine appropriate type
+        // For now, default to uint256
+        total_inferences++;
+        return "uint256";
+    }
+
+    /// Infer type of string literal
+    function infer_string_literal(string memory value) public returns (string memory) {
+        total_inferences++;
+        return "string";
+    }
+
+    /// Infer type of boolean literal
+    function infer_bool_literal() public returns (string memory) {
+        total_inferences++;
+        return "bool";
+    }
+
+    /// Infer type of array literal
+    function infer_array_type(string memory element_type) public returns (string memory) {
+        total_inferences++;
+        // Return element_type[] (dynamic array)
+        return string(abi.encodePacked(element_type, "[]"));
+    }
+
+    /// Get total inferences performed
+    function get_inference_count() public view returns (uint256) {
+        return total_inferences;
+    }
+}

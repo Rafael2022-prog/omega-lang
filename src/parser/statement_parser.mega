@@ -55,6 +55,12 @@ blockchain StatementParser {
             return parse_assert_statement();
         } else if (token_type == TokenType.Revert) {
             return parse_revert_statement();
+        } else if (token_type == TokenType.Break) {
+            return parse_break_statement();
+        } else if (token_type == TokenType.Continue) {
+            return parse_continue_statement();
+        } else if (token_type == TokenType.Try) {
+            return parse_try_statement();
         } else if (token_type == TokenType.LeftBrace) {
             return parse_block_statement();
         } else if (is_type_keyword(token_type) || token_type == TokenType.Var) {
@@ -281,6 +287,132 @@ blockchain StatementParser {
             statement_type: StatementType.Revert,
             revert_stmt: RevertStatement({
                 message: message
+            })
+        });
+    }
+    
+    /// Parse break statement
+    function parse_break_statement() private returns (Statement memory) {
+        consume(TokenType.Break, "Expected 'break'");
+        consume(TokenType.Semicolon, "Expected ';' after break statement");
+        
+        return Statement({
+            statement_type: StatementType.Break,
+            break_stmt: BreakStatement({})
+        });
+    }
+    
+    /// Parse continue statement
+    function parse_continue_statement() private returns (Statement memory) {
+        consume(TokenType.Continue, "Expected 'continue'");
+        consume(TokenType.Semicolon, "Expected ';' after continue statement");
+        
+        return Statement({
+            statement_type: StatementType.Continue,
+            continue_stmt: ContinueStatement({})
+        });
+    }
+    
+    /// Parse try/catch statement
+    function parse_try_statement() private returns (Statement memory) {
+        consume(TokenType.Try, "Expected 'try'");
+        consume(TokenType.LeftBrace, "Expected '{' after 'try'");
+        
+        Statement[] memory try_stmts;
+        uint256 try_count = 0;
+        
+        while (!check(TokenType.RightBrace) && !is_at_end()) {
+            try_stmts[try_count] = parse_statement();
+            try_count++;
+        }
+        
+        consume(TokenType.RightBrace, "Expected '}' after try block");
+        
+        CatchClause[] memory catch_clauses;
+        uint256 catch_count = 0;
+        
+        // Parse catch clauses
+        while (match(TokenType.Catch)) {
+            string memory exception_type = "";
+            string memory exception_var = "";
+            
+            // catch (ExceptionType e) or just catch
+            if (match(TokenType.LeftParen)) {
+                if (!check(TokenType.RightParen)) {
+                    Token memory exc_type = consume(TokenType.Identifier, "Expected exception type");
+                    exception_type = exc_type.lexeme;
+                    
+                    if (match(TokenType.Identifier)) {
+                        exception_var = previous().lexeme;
+                    }
+                }
+                consume(TokenType.RightParen, "Expected ')' after catch clause");
+            }
+            
+            consume(TokenType.LeftBrace, "Expected '{' after catch clause");
+            
+            Statement[] memory catch_body;
+            uint256 body_count = 0;
+            
+            while (!check(TokenType.RightBrace) && !is_at_end()) {
+                catch_body[body_count] = parse_statement();
+                body_count++;
+            }
+            
+            consume(TokenType.RightBrace, "Expected '}' after catch body");
+            
+            catch_clauses[catch_count] = CatchClause({
+                exception_type: exception_type,
+                exception_var: exception_var,
+                body: Statement({
+                    statement_type: StatementType.Block,
+                    block_stmt: Block({
+                        statements: catch_body
+                    })
+                })
+            });
+            
+            catch_count++;
+        }
+        
+        // Parse optional finally clause
+        Statement memory finally_block;
+        bool has_finally = false;
+        
+        if (match(TokenType.Finally)) {
+            has_finally = true;
+            consume(TokenType.LeftBrace, "Expected '{' after 'finally'");
+            
+            Statement[] memory finally_stmts;
+            uint256 finally_count = 0;
+            
+            while (!check(TokenType.RightBrace) && !is_at_end()) {
+                finally_stmts[finally_count] = parse_statement();
+                finally_count++;
+            }
+            
+            consume(TokenType.RightBrace, "Expected '}' after finally block");
+            
+            finally_block = Statement({
+                statement_type: StatementType.Block,
+                block_stmt: Block({
+                    statements: finally_stmts
+                })
+            });
+        }
+        
+        return Statement({
+            statement_type: StatementType.Try,
+            try_stmt: TryStatement({
+                try_block: Statement({
+                    statement_type: StatementType.Block,
+                    block_stmt: Block({
+                        statements: try_stmts
+                    })
+                }),
+                catch_clauses: catch_clauses,
+                finally_block: finally_block,
+                has_finally: has_finally
             })
         });
     }

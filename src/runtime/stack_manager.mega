@@ -1,0 +1,401 @@
+// OMEGA Compiler - Stack Management
+// Call frames, local variables, parameter handling, return values
+
+use std::collections::HashMap;
+
+// ========== Call Frame ==========
+
+pub struct CallFrame {
+    pub function_name: String,
+    pub function_id: usize,
+    pub return_address: usize,
+    pub local_variables: HashMap<String, StackValue>,
+    pub parameters: Vec<StackValue>,
+    pub frame_size: usize,
+    pub frame_pointer: usize,
+}
+
+impl CallFrame {
+    pub fn new(function_name: String, function_id: usize, return_address: usize) -> Self {
+        CallFrame {
+            function_name,
+            function_id,
+            return_address,
+            local_variables: HashMap::new(),
+            parameters: Vec::new(),
+            frame_size: 0,
+            frame_pointer: 0,
+        }
+    }
+
+    // Add local variable
+    pub fn add_local_variable(&mut self, name: String, value: StackValue) {
+        self.local_variables.insert(name, value);
+        self.frame_size += 8; // Assume 8 bytes per variable
+    }
+
+    // Get local variable
+    pub fn get_local_variable(&self, name: &str) -> Option<&StackValue> {
+        self.local_variables.get(name)
+    }
+
+    // Set local variable
+    pub fn set_local_variable(&mut self, name: String, value: StackValue) -> Result<(), String> {
+        if self.local_variables.contains_key(&name) {
+            self.local_variables.insert(name, value);
+            Ok(())
+        } else {
+            Err(format!("Local variable '{}' not found", name))
+        }
+    }
+
+    // Add parameter
+    pub fn add_parameter(&mut self, value: StackValue) {
+        self.parameters.push(value);
+    }
+
+    // Get parameter by index
+    pub fn get_parameter(&self, index: usize) -> Option<&StackValue> {
+        self.parameters.get(index)
+    }
+
+    // Get parameter count
+    pub fn parameter_count(&self) -> usize {
+        self.parameters.len()
+    }
+}
+
+// ========== Stack Value ==========
+
+#[derive(Clone, Debug)]
+pub enum StackValue {
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Reference(usize),
+    Null,
+}
+
+impl StackValue {
+    pub fn to_integer(&self) -> Result<i64, String> {
+        match self {
+            StackValue::Integer(i) => Ok(*i),
+            StackValue::Float(f) => Ok(*f as i64),
+            StackValue::Boolean(b) => Ok(if *b { 1 } else { 0 }),
+            _ => Err("Cannot convert to integer".to_string()),
+        }
+    }
+
+    pub fn to_float(&self) -> Result<f64, String> {
+        match self {
+            StackValue::Integer(i) => Ok(*i as f64),
+            StackValue::Float(f) => Ok(*f),
+            _ => Err("Cannot convert to float".to_string()),
+        }
+    }
+
+    pub fn to_boolean(&self) -> Result<bool, String> {
+        match self {
+            StackValue::Boolean(b) => Ok(*b),
+            StackValue::Integer(i) => Ok(*i != 0),
+            StackValue::Float(f) => Ok(*f != 0.0),
+            _ => Err("Cannot convert to boolean".to_string()),
+        }
+    }
+
+    pub fn type_name(&self) -> &str {
+        match self {
+            StackValue::Integer(_) => "integer",
+            StackValue::Float(_) => "float",
+            StackValue::Boolean(_) => "boolean",
+            StackValue::String(_) => "string",
+            StackValue::Reference(_) => "reference",
+            StackValue::Null => "null",
+        }
+    }
+}
+
+// ========== Call Stack ==========
+
+pub struct CallStack {
+    frames: Vec<CallFrame>,
+    max_depth: usize,
+}
+
+impl CallStack {
+    pub fn new(max_depth: usize) -> Self {
+        CallStack {
+            frames: Vec::new(),
+            max_depth,
+        }
+    }
+
+    // Push a new call frame
+    pub fn push_frame(&mut self, frame: CallFrame) -> Result<(), String> {
+        if self.frames.len() >= self.max_depth {
+            return Err("Stack overflow: maximum call depth exceeded".to_string());
+        }
+        self.frames.push(frame);
+        Ok(())
+    }
+
+    // Pop the current frame
+    pub fn pop_frame(&mut self) -> Result<CallFrame, String> {
+        if self.frames.is_empty() {
+            Err("Stack underflow: no frames to pop".to_string())
+        } else {
+            Ok(self.frames.pop().unwrap())
+        }
+    }
+
+    // Get current frame (mutable)
+    pub fn current_frame_mut(&mut self) -> Option<&mut CallFrame> {
+        self.frames.last_mut()
+    }
+
+    // Get current frame (immutable)
+    pub fn current_frame(&self) -> Option<&CallFrame> {
+        self.frames.last()
+    }
+
+    // Get frame by index
+    pub fn get_frame(&self, index: usize) -> Option<&CallFrame> {
+        if index < self.frames.len() {
+            Some(&self.frames[index])
+        } else {
+            None
+        }
+    }
+
+    // Get depth
+    pub fn depth(&self) -> usize {
+        self.frames.len()
+    }
+
+    // Check if empty
+    pub fn is_empty(&self) -> bool {
+        self.frames.is_empty()
+    }
+
+    // Clear all frames
+    pub fn clear(&mut self) {
+        self.frames.clear();
+    }
+}
+
+// ========== Stack Manager ==========
+
+pub struct StackManager {
+    call_stack: CallStack,
+    function_info: HashMap<usize, FunctionInfo>,
+    return_value: Option<StackValue>,
+    exception_pending: bool,
+}
+
+impl StackManager {
+    pub fn new(max_depth: usize) -> Self {
+        StackManager {
+            call_stack: CallStack::new(max_depth),
+            function_info: HashMap::new(),
+            return_value: None,
+            exception_pending: false,
+        }
+    }
+
+    // Register function information
+    pub fn register_function(&mut self, id: usize, name: String, param_count: usize) {
+        self.function_info.insert(id, FunctionInfo {
+            id,
+            name,
+            param_count,
+            call_count: 0,
+            total_time_ms: 0.0,
+        });
+    }
+
+    // Enter function call
+    pub fn enter_function(&mut self, function_id: usize, return_address: usize) -> Result<(), String> {
+        if let Some(info) = self.function_info.get(&function_id) {
+            let frame = CallFrame::new(info.name.clone(), function_id, return_address);
+            self.call_stack.push_frame(frame)?;
+
+            if let Some(info) = self.function_info.get_mut(&function_id) {
+                info.call_count += 1;
+            }
+
+            Ok(())
+        } else {
+            Err(format!("Unknown function ID: {}", function_id))
+        }
+    }
+
+    // Exit function call
+    pub fn exit_function(&mut self) -> Result<Option<StackValue>, String> {
+        let frame = self.call_stack.pop_frame()?;
+        
+        if let Some(info) = self.function_info.get_mut(&frame.function_id) {
+            info.total_time_ms += 0.1; // Simplified timing
+        }
+
+        Ok(self.return_value.take())
+    }
+
+    // Set return value
+    pub fn set_return_value(&mut self, value: StackValue) {
+        self.return_value = Some(value);
+    }
+
+    // Get return value
+    pub fn get_return_value(&self) -> Option<&StackValue> {
+        self.return_value.as_ref()
+    }
+
+    // Add local variable to current frame
+    pub fn add_local(&mut self, name: String, value: StackValue) -> Result<(), String> {
+        if let Some(frame) = self.call_stack.current_frame_mut() {
+            frame.add_local_variable(name, value);
+            Ok(())
+        } else {
+            Err("No active function frame".to_string())
+        }
+    }
+
+    // Get local variable from current frame
+    pub fn get_local(&self, name: &str) -> Result<StackValue, String> {
+        if let Some(frame) = self.call_stack.current_frame() {
+            frame.get_local_variable(name)
+                .cloned()
+                .ok_or_else(|| format!("Local variable '{}' not found", name))
+        } else {
+            Err("No active function frame".to_string())
+        }
+    }
+
+    // Set local variable in current frame
+    pub fn set_local(&mut self, name: String, value: StackValue) -> Result<(), String> {
+        if let Some(frame) = self.call_stack.current_frame_mut() {
+            frame.set_local_variable(name, value)
+        } else {
+            Err("No active function frame".to_string())
+        }
+    }
+
+    // Add parameter to current frame
+    pub fn add_parameter(&mut self, value: StackValue) -> Result<(), String> {
+        if let Some(frame) = self.call_stack.current_frame_mut() {
+            frame.add_parameter(value);
+            Ok(())
+        } else {
+            Err("No active function frame".to_string())
+        }
+    }
+
+    // Get parameter from current frame
+    pub fn get_parameter(&self, index: usize) -> Result<StackValue, String> {
+        if let Some(frame) = self.call_stack.current_frame() {
+            frame.get_parameter(index)
+                .cloned()
+                .ok_or_else(|| format!("Parameter {} not found", index))
+        } else {
+            Err("No active function frame".to_string())
+        }
+    }
+
+    // Set exception state
+    pub fn set_exception(&mut self, pending: bool) {
+        self.exception_pending = pending;
+    }
+
+    // Get exception state
+    pub fn has_exception(&self) -> bool {
+        self.exception_pending
+    }
+
+    // Get call stack depth
+    pub fn depth(&self) -> usize {
+        self.call_stack.depth()
+    }
+
+    // Get statistics
+    pub fn get_stats(&self) -> StackStats {
+        StackStats {
+            current_depth: self.call_stack.depth(),
+            total_functions: self.function_info.len(),
+            total_calls: self.function_info.values().map(|f| f.call_count).sum(),
+            total_time_ms: self.function_info.values().map(|f| f.total_time_ms).sum(),
+            exception_pending: self.exception_pending,
+        }
+    }
+}
+
+// ========== Function Information ==========
+
+pub struct FunctionInfo {
+    pub id: usize,
+    pub name: String,
+    pub param_count: usize,
+    pub call_count: usize,
+    pub total_time_ms: f64,
+}
+
+// ========== Statistics ==========
+
+pub struct StackStats {
+    pub current_depth: usize,
+    pub total_functions: usize,
+    pub total_calls: usize,
+    pub total_time_ms: f64,
+    pub exception_pending: bool,
+}
+
+#[cfg(test)]
+mod stack_tests {
+    use super::*;
+
+    #[test]
+    fn test_call_frame_creation() {
+        let frame = CallFrame::new("test".to_string(), 0, 100);
+        assert_eq!(frame.function_name, "test");
+        assert_eq!(frame.return_address, 100);
+    }
+
+    #[test]
+    fn test_local_variables() {
+        let mut frame = CallFrame::new("test".to_string(), 0, 0);
+        frame.add_local_variable("x".to_string(), StackValue::Integer(42));
+        assert_eq!(frame.get_local_variable("x").unwrap().to_integer().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_call_stack() {
+        let mut stack = CallStack::new(10);
+        let frame = CallFrame::new("test".to_string(), 0, 0);
+        assert!(stack.push_frame(frame).is_ok());
+        assert_eq!(stack.depth(), 1);
+    }
+
+    #[test]
+    fn test_stack_overflow() {
+        let mut stack = CallStack::new(2);
+        stack.push_frame(CallFrame::new("f1".to_string(), 0, 0)).unwrap();
+        stack.push_frame(CallFrame::new("f2".to_string(), 1, 0)).unwrap();
+        let result = stack.push_frame(CallFrame::new("f3".to_string(), 2, 0));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_stack_manager() {
+        let mut manager = StackManager::new(10);
+        manager.register_function(0, "main".to_string(), 0);
+        assert!(manager.enter_function(0, 0).is_ok());
+        assert_eq!(manager.depth(), 1);
+    }
+
+    #[test]
+    fn test_return_value() {
+        let mut manager = StackManager::new(10);
+        manager.set_return_value(StackValue::Integer(123));
+        assert_eq!(manager.get_return_value().unwrap().to_integer().unwrap(), 123);
+    }
+}

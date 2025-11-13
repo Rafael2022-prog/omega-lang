@@ -1,0 +1,135 @@
+// OMEGA Compiler - Strength Reduction Optimizer
+// Replaces expensive operations with cheaper equivalents
+// Optimizations: multiplication -> shift, division -> shift, etc.
+
+import "../ir/ir_nodes.mega";
+
+pub struct StrengthReducer {
+    optimizations_count: i64,
+}
+
+impl StrengthReducer {
+    pub fn new() -> Self {
+        StrengthReducer {
+            optimizations_count: 0,
+        }
+    }
+
+    // Reduce strength of operations in a function
+    pub fn reduce(&mut self, func: &mut IRFunction) -> Result<i64, string> {
+        self.optimizations_count = 0;
+
+        for block in &mut func.basic_blocks {
+            self.reduce_block(block)?;
+        }
+
+        Ok(self.optimizations_count)
+    }
+
+    // Reduce strength in a basic block
+    fn reduce_block(&mut self, block: &mut BasicBlock) -> Result<(), string> {
+        for instr in &mut block.instructions {
+            self.reduce_instruction(instr)?;
+        }
+        Ok(())
+    }
+
+    // Reduce strength of a single instruction
+    fn reduce_instruction(&mut self, instr: &mut IRInstruction) -> Result<(), string> {
+        match &instr.op {
+            IROperation::BinaryOp(op, left, right) => {
+                match (op.as_str(), left, right) {
+                    // Multiplication by power of 2 -> shift
+                    ("*", _, IROperand::Constant(ConstantValue::Integer(n))) if self.is_power_of_2(*n) => {
+                        if let Some(shift_amount) = self.log2(*n) {
+                            instr.op = IROperation::BinaryOp(
+                                "<<".to_string(),
+                                left.clone(),
+                                Box::new(IROperand::Constant(ConstantValue::Integer(shift_amount)))
+                            );
+                            self.optimizations_count += 1;
+                        }
+                    },
+                    
+                    // Left multiplication by power of 2 -> shift
+                    ("*", IROperand::Constant(ConstantValue::Integer(n)), _) if self.is_power_of_2(*n) => {
+                        if let Some(shift_amount) = self.log2(*n) {
+                            instr.op = IROperation::BinaryOp(
+                                "<<".to_string(),
+                                right.clone(),
+                                Box::new(IROperand::Constant(ConstantValue::Integer(shift_amount)))
+                            );
+                            self.optimizations_count += 1;
+                        }
+                    },
+
+                    // Division by power of 2 -> shift (unsigned)
+                    ("/", _, IROperand::Constant(ConstantValue::Integer(n))) if self.is_power_of_2(*n) => {
+                        if let Some(shift_amount) = self.log2(*n) {
+                            instr.op = IROperation::BinaryOp(
+                                ">>".to_string(),
+                                left.clone(),
+                                Box::new(IROperand::Constant(ConstantValue::Integer(shift_amount)))
+                            );
+                            self.optimizations_count += 1;
+                        }
+                    },
+
+                    // Modulo power of 2 -> bitwise AND
+                    ("%", _, IROperand::Constant(ConstantValue::Integer(n))) if self.is_power_of_2(*n) => {
+                        let mask = n - 1;
+                        instr.op = IROperation::BinaryOp(
+                            "&".to_string(),
+                            left.clone(),
+                            Box::new(IROperand::Constant(ConstantValue::Integer(mask)))
+                        );
+                        self.optimizations_count += 1;
+                    },
+
+                    // Addition by power of 2 optimization (for address calculation)
+                    ("+", _, IROperand::Constant(ConstantValue::Integer(n))) if *n > 0 => {
+                        // Could be optimized depending on architecture
+                        // For now, just count as potential optimization
+                    },
+
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    // Check if number is power of 2
+    fn is_power_of_2(&self, n: i64) -> bool {
+        n > 0 && (n & (n - 1)) == 0
+    }
+
+    // Get log2 of a power of 2
+    fn log2(&self, n: i64) -> Option<i64> {
+        if !self.is_power_of_2(n) {
+            return None;
+        }
+
+        let mut result = 0i64;
+        let mut x = n;
+
+        while x > 1 {
+            x >>= 1;
+            result += 1;
+        }
+
+        Some(result)
+    }
+}
+
+// Constant value representation
+#[derive(Clone, Debug)]
+pub enum ConstantValue {
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Null,
+}

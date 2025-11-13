@@ -1,0 +1,380 @@
+// OMEGA Compiler - Lazy Analysis Framework
+// Defer expensive analysis passes until needed
+// On-demand symbol resolution, type checking, optimization
+
+use std::collections::HashMap;
+
+pub struct LazyAnalyzer {
+    pending_analyses: HashMap<String, AnalysisTask>,
+    completed_analyses: HashMap<String, AnalysisResult>,
+    dependencies: HashMap<String, Vec<String>>,
+    required_analyses: Vec<AnalysisType>,
+}
+
+pub enum AnalysisType {
+    SymbolResolution,
+    TypeChecking,
+    ConstantPropagation,
+    DeadCodeAnalysis,
+    ReachabilityAnalysis,
+    DataflowAnalysis,
+    ControlFlowAnalysis,
+}
+
+pub struct AnalysisTask {
+    pub task_id: String,
+    pub task_type: AnalysisType,
+    pub module_name: String,
+    pub priority: i32,
+    pub is_completed: bool,
+}
+
+pub struct AnalysisResult {
+    pub task_id: String,
+    pub task_type: AnalysisType,
+    pub result_data: String,
+    pub analysis_time_ms: f64,
+    pub is_valid: bool,
+}
+
+impl LazyAnalyzer {
+    pub fn new() -> Self {
+        LazyAnalyzer {
+            pending_analyses: HashMap::new(),
+            completed_analyses: HashMap::new(),
+            dependencies: HashMap::new(),
+            required_analyses: vec![],
+        }
+    }
+
+    // Schedule analysis but don't execute yet
+    pub fn schedule_analysis(&mut self, task_id: String, task_type: AnalysisType, module_name: String) {
+        let task = AnalysisTask {
+            task_id: task_id.clone(),
+            task_type,
+            module_name,
+            priority: 0,
+            is_completed: false,
+        };
+        self.pending_analyses.insert(task_id, task);
+    }
+
+    // Request analysis result (triggers execution if needed)
+    pub fn request_analysis(&mut self, task_id: &str) -> Option<&AnalysisResult> {
+        // If already completed, return immediately
+        if self.completed_analyses.contains_key(task_id) {
+            return self.completed_analyses.get(task_id);
+        }
+
+        // If pending, execute now
+        if let Some(task) = self.pending_analyses.remove(task_id) {
+            let result = self.execute_analysis(&task);
+            self.completed_analyses.insert(task_id.to_string(), result);
+            return self.completed_analyses.get(task_id);
+        }
+
+        None
+    }
+
+    // Execute analysis on demand
+    fn execute_analysis(&self, task: &AnalysisTask) -> AnalysisResult {
+        let start_time = std::time::Instant::now();
+
+        let result_data = match &task.task_type {
+            AnalysisType::SymbolResolution => self.perform_symbol_resolution(&task.module_name),
+            AnalysisType::TypeChecking => self.perform_type_checking(&task.module_name),
+            AnalysisType::ConstantPropagation => self.perform_constant_propagation(&task.module_name),
+            AnalysisType::DeadCodeAnalysis => self.perform_dead_code_analysis(&task.module_name),
+            AnalysisType::ReachabilityAnalysis => self.perform_reachability_analysis(&task.module_name),
+            AnalysisType::DataflowAnalysis => self.perform_dataflow_analysis(&task.module_name),
+            AnalysisType::ControlFlowAnalysis => self.perform_control_flow_analysis(&task.module_name),
+        };
+
+        let elapsed = start_time.elapsed().as_secs_f64() * 1000.0;
+
+        AnalysisResult {
+            task_id: task.task_id.clone(),
+            task_type: AnalysisType::SymbolResolution, // Placeholder
+            result_data,
+            analysis_time_ms: elapsed,
+            is_valid: true,
+        }
+    }
+
+    // Actual analysis implementations (placeholders in framework)
+    fn perform_symbol_resolution(&self, module_name: &str) -> String {
+        format!("Symbol resolution for {}", module_name)
+    }
+
+    fn perform_type_checking(&self, module_name: &str) -> String {
+        format!("Type checking for {}", module_name)
+    }
+
+    fn perform_constant_propagation(&self, module_name: &str) -> String {
+        format!("Constant propagation for {}", module_name)
+    }
+
+    fn perform_dead_code_analysis(&self, module_name: &str) -> String {
+        format!("Dead code analysis for {}", module_name)
+    }
+
+    fn perform_reachability_analysis(&self, module_name: &str) -> String {
+        format!("Reachability analysis for {}", module_name)
+    }
+
+    fn perform_dataflow_analysis(&self, module_name: &str) -> String {
+        format!("Dataflow analysis for {}", module_name)
+    }
+
+    fn perform_control_flow_analysis(&self, module_name: &str) -> String {
+        format!("Control flow analysis for {}", module_name)
+    }
+
+    // Add analysis dependency
+    pub fn add_dependency(&mut self, analysis: String, depends_on: String) {
+        self.dependencies.entry(analysis).or_insert_with(Vec::new).push(depends_on);
+    }
+
+    // Get pending analysis count
+    pub fn pending_count(&self) -> usize {
+        self.pending_analyses.len()
+    }
+
+    // Get completed analysis count
+    pub fn completed_count(&self) -> usize {
+        self.completed_analyses.len()
+    }
+
+    // Invalidate analysis result
+    pub fn invalidate_analysis(&mut self, task_id: &str) {
+        if let Some(result) = self.completed_analyses.get_mut(task_id) {
+            result.is_valid = false;
+        }
+    }
+
+    // Get analyses that are ready to execute
+    pub fn get_ready_analyses(&self) -> Vec<String> {
+        let mut ready = Vec::new();
+
+        for (task_id, task) in self.pending_analyses.iter() {
+            let deps_check = self.dependencies.get(task_id).map(|deps| deps.iter().all(|dep| self.completed_analyses.contains_key(dep))).unwrap_or(true);
+
+            if deps_check {
+                ready.push(task_id.clone());
+            }
+        }
+
+        ready
+    }
+
+    // Execute all ready analyses
+    pub fn execute_ready_analyses(&mut self) -> usize {
+        let ready_ids = self.get_ready_analyses();
+        let count = ready_ids.len();
+
+        for task_id in ready_ids {
+            if let Some(task) = self.pending_analyses.remove(&task_id) {
+                let result = self.execute_analysis(&task);
+                self.completed_analyses.insert(task_id, result);
+            }
+        }
+
+        count
+    }
+
+    // Generate lazy analysis report
+    pub fn generate_report(&self) -> String {
+        let mut report = String::new();
+        report.push_str("=== Lazy Analysis Report ===\n");
+        report.push_str(&format!("Pending Analyses: {}\n", self.pending_count()));
+        report.push_str(&format!("Completed Analyses: {}\n", self.completed_count()));
+        report.push_str("\nCompleted Analysis Details:\n");
+
+        for (task_id, result) in self.completed_analyses.iter() {
+            report.push_str(&format!("  {}: {:.2} ms\n", task_id, result.analysis_time_ms));
+        }
+
+        report
+    }
+}
+
+pub struct AnalysisCache {
+    cache: HashMap<String, CachedAnalysis>,
+    max_cache_size: usize,
+}
+
+pub struct CachedAnalysis {
+    pub result: AnalysisResult,
+    pub last_accessed: u64,
+    pub access_count: u64,
+}
+
+impl AnalysisCache {
+    pub fn new(max_size: usize) -> Self {
+        AnalysisCache {
+            cache: HashMap::new(),
+            max_cache_size: max_size,
+        }
+    }
+
+    // Store analysis result in cache
+    pub fn cache_result(&mut self, task_id: String, result: AnalysisResult) {
+        if self.cache.len() >= self.max_cache_size {
+            // Evict least recently used entry
+            if let Some((key_to_remove, _)) = self.cache.iter()
+                .min_by_key(|(_, cached)| cached.last_accessed) {
+                let key = key_to_remove.clone();
+                self.cache.remove(&key);
+            }
+        }
+
+        let cached = CachedAnalysis {
+            result,
+            last_accessed: get_current_timestamp(),
+            access_count: 1,
+        };
+
+        self.cache.insert(task_id, cached);
+    }
+
+    // Retrieve cached result
+    pub fn get_cached(&mut self, task_id: &str) -> Option<&AnalysisResult> {
+        if let Some(cached) = self.cache.get_mut(task_id) {
+            cached.last_accessed = get_current_timestamp();
+            cached.access_count += 1;
+            return Some(&cached.result);
+        }
+        None
+    }
+
+    // Cache hit rate
+    pub fn cache_hit_rate(&self) -> f64 {
+        if self.cache.is_empty() {
+            return 0.0;
+        }
+        let total_accesses: u64 = self.cache.values().map(|c| c.access_count).sum();
+        if total_accesses == 0 {
+            return 0.0;
+        }
+        (total_accesses as f64 - self.cache.len() as f64) / total_accesses as f64 * 100.0
+    }
+}
+
+pub struct OnDemandOptimizer {
+    optimization_queue: Vec<OptimizationTask>,
+    completed_optimizations: HashMap<String, OptimizationResult>,
+}
+
+pub struct OptimizationTask {
+    pub task_id: String,
+    pub module_name: String,
+    pub optimization_level: i32,
+}
+
+pub struct OptimizationResult {
+    pub task_id: String,
+    pub optimized_code: String,
+    pub optimization_time_ms: f64,
+    pub size_reduction_percent: f64,
+}
+
+impl OnDemandOptimizer {
+    pub fn new() -> Self {
+        OnDemandOptimizer {
+            optimization_queue: Vec::new(),
+            completed_optimizations: HashMap::new(),
+        }
+    }
+
+    // Schedule optimization for later
+    pub fn schedule_optimization(&mut self, task_id: String, module_name: String, level: i32) {
+        let task = OptimizationTask {
+            task_id,
+            module_name,
+            optimization_level: level,
+        };
+        self.optimization_queue.push(task);
+    }
+
+    // Execute optimization on demand
+    pub fn execute_optimization(&mut self, task_id: &str) -> Option<&OptimizationResult> {
+        // If already completed, return immediately
+        if self.completed_optimizations.contains_key(task_id) {
+            return self.completed_optimizations.get(task_id);
+        }
+
+        // Find and execute the task
+        if let Some(pos) = self.optimization_queue.iter().position(|t| t.task_id == task_id) {
+            let task = self.optimization_queue.remove(pos);
+            let start = std::time::Instant::now();
+
+            let result = OptimizationResult {
+                task_id: task.task_id.clone(),
+                optimized_code: String::new(),
+                optimization_time_ms: start.elapsed().as_secs_f64() * 1000.0,
+                size_reduction_percent: 0.0,
+            };
+
+            self.completed_optimizations.insert(task.task_id.clone(), result);
+            return self.completed_optimizations.get(task_id);
+        }
+
+        None
+    }
+}
+
+fn get_current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+#[cfg(test)]
+mod lazy_analysis_tests {
+    use super::*;
+
+    #[test]
+    fn test_lazy_analyzer_creation() {
+        let analyzer = LazyAnalyzer::new();
+        assert_eq!(analyzer.pending_count(), 0);
+    }
+
+    #[test]
+    fn test_schedule_analysis() {
+        let mut analyzer = LazyAnalyzer::new();
+        analyzer.schedule_analysis("task1".to_string(), AnalysisType::SymbolResolution, "module1".to_string());
+        assert_eq!(analyzer.pending_count(), 1);
+    }
+
+    #[test]
+    fn test_request_analysis() {
+        let mut analyzer = LazyAnalyzer::new();
+        analyzer.schedule_analysis("task1".to_string(), AnalysisType::SymbolResolution, "module1".to_string());
+        let result = analyzer.request_analysis("task1");
+        assert!(result.is_some());
+        assert_eq!(analyzer.completed_count(), 1);
+    }
+
+    #[test]
+    fn test_analysis_cache() {
+        let mut cache = AnalysisCache::new(10);
+        let result = AnalysisResult {
+            task_id: "task1".to_string(),
+            task_type: AnalysisType::SymbolResolution,
+            result_data: "data".to_string(),
+            analysis_time_ms: 10.0,
+            is_valid: true,
+        };
+
+        cache.cache_result("task1".to_string(), result);
+        assert!(cache.get_cached("task1").is_some());
+    }
+
+    #[test]
+    fn test_on_demand_optimizer() {
+        let mut optimizer = OnDemandOptimizer::new();
+        optimizer.schedule_optimization("opt1".to_string(), "module1".to_string(), 2);
+        assert_eq!(optimizer.optimization_queue.len(), 1);
+    }
+}

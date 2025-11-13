@@ -1,0 +1,314 @@
+// OMEGA Compiler - Solana Runtime
+// Solana program execution, instruction processing, account handling
+
+use std::collections::HashMap;
+
+// ========== Solana Account ==========
+
+pub struct SolanaAccount {
+    pub pubkey: String,
+    pub lamports: u64,
+    pub data: Vec<u8>,
+    pub owner: String,
+    pub executable: bool,
+    pub rent_epoch: u64,
+}
+
+impl SolanaAccount {
+    pub fn new(pubkey: String, owner: String) -> Self {
+        SolanaAccount {
+            pubkey,
+            lamports: 0,
+            data: Vec::new(),
+            owner,
+            executable: false,
+            rent_epoch: 0,
+        }
+    }
+
+    pub fn with_lamports(mut self, lamports: u64) -> Self {
+        self.lamports = lamports;
+        self
+    }
+
+    pub fn with_data(mut self, data: Vec<u8>) -> Self {
+        self.data = data;
+        self
+    }
+
+    pub fn transfer_lamports(&mut self, amount: u64) -> Result<(), String> {
+        if self.lamports >= amount {
+            self.lamports -= amount;
+            Ok(())
+        } else {
+            Err("Insufficient lamports".to_string())
+        }
+    }
+
+    pub fn deposit_lamports(&mut self, amount: u64) {
+        self.lamports = self.lamports.saturating_add(amount);
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn calculate_rent(&self) -> u64 {
+        (self.data.len() as u64) * 10 + 2640
+    }
+}
+
+// ========== Solana Instruction ==========
+
+#[derive(Clone)]
+pub struct SolanaInstruction {
+    pub program_id: String,
+    pub accounts: Vec<String>,
+    pub data: Vec<u8>,
+    pub signatures_required: usize,
+}
+
+impl SolanaInstruction {
+    pub fn new(program_id: String) -> Self {
+        SolanaInstruction {
+            program_id,
+            accounts: Vec::new(),
+            data: Vec::new(),
+            signatures_required: 0,
+        }
+    }
+
+    pub fn add_account(mut self, account: String) -> Self {
+        self.accounts.push(account);
+        self
+    }
+
+    pub fn add_accounts(mut self, accounts: Vec<String>) -> Self {
+        self.accounts.extend(accounts);
+        self
+    }
+
+    pub fn with_data(mut self, data: Vec<u8>) -> Self {
+        self.data = data;
+        self
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.data.len() + (self.accounts.len() * 32)
+    }
+}
+
+// ========== Transaction Fee ==========
+
+pub struct TransactionFee {
+    pub base_fee: u64,
+    pub account_creation_fee: u64,
+    pub data_byte_fee: u64,
+}
+
+impl TransactionFee {
+    pub fn new() -> Self {
+        TransactionFee {
+            base_fee: 5000,
+            account_creation_fee: 2640,
+            data_byte_fee: 1,
+        }
+    }
+
+    pub fn calculate_fee(&self, tx_size: usize, new_accounts: usize) -> u64 {
+        let data_fee = (tx_size as u64) * self.data_byte_fee;
+        let creation_fee = (new_accounts as u64) * self.account_creation_fee;
+        self.base_fee + data_fee + creation_fee
+    }
+
+    pub fn calculate_program_fee(&self, instruction_count: usize) -> u64 {
+        1000 * (instruction_count as u64)
+    }
+}
+
+// ========== Solana Execution Context ==========
+
+pub struct SolanaExecutionContext {
+    pub accounts: HashMap<String, SolanaAccount>,
+    pub current_program: String,
+    pub transaction_hash: String,
+    pub block_height: u64,
+    pub slot: u64,
+}
+
+impl SolanaExecutionContext {
+    pub fn new(current_program: String) -> Self {
+        SolanaExecutionContext {
+            accounts: HashMap::new(),
+            current_program,
+            transaction_hash: "".to_string(),
+            block_height: 0,
+            slot: 0,
+        }
+    }
+
+    pub fn add_account(&mut self, account: SolanaAccount) {
+        self.accounts.insert(account.pubkey.clone(), account);
+    }
+
+    pub fn get_account(&self, pubkey: &str) -> Option<&SolanaAccount> {
+        self.accounts.get(pubkey)
+    }
+
+    pub fn get_account_mut(&mut self, pubkey: &str) -> Option<&mut SolanaAccount> {
+        self.accounts.get_mut(pubkey)
+    }
+
+    pub fn get_accounts_for_instruction(&self, instruction: &SolanaInstruction) -> Vec<&SolanaAccount> {
+        instruction.accounts.iter()
+            .filter_map(|key| self.accounts.get(key))
+            .collect()
+    }
+
+    pub fn account_count(&self) -> usize {
+        self.accounts.len()
+    }
+
+    pub fn total_lamports(&self) -> u64 {
+        self.accounts.values().map(|acc| acc.lamports).sum()
+    }
+}
+
+// ========== Solana Runtime ==========
+
+pub struct SolanaRuntime {
+    pub context: SolanaExecutionContext,
+    pub fee_calculator: TransactionFee,
+    pub instructions_executed: usize,
+    pub logs: Vec<String>,
+}
+
+impl SolanaRuntime {
+    pub fn new(program_id: String) -> Self {
+        SolanaRuntime {
+            context: SolanaExecutionContext::new(program_id),
+            fee_calculator: TransactionFee::new(),
+            instructions_executed: 0,
+            logs: Vec::new(),
+        }
+    }
+
+    pub fn process_instruction(&mut self, instruction: SolanaInstruction) -> Result<(), String> {
+        // Log instruction
+        self.log(format!("Processing instruction for program: {}", instruction.program_id));
+
+        // Validate program
+        if instruction.program_id != self.context.current_program {
+            return Err("Invalid program ID".to_string());
+        }
+
+        // Validate accounts
+        for account_key in &instruction.accounts {
+            if !self.context.accounts.contains_key(account_key) {
+                return Err(format!("Account not found: {}", account_key));
+            }
+        }
+
+        self.instructions_executed += 1;
+        Ok(())
+    }
+
+    pub fn transfer(&mut self, from: &str, to: &str, lamports: u64) -> Result<(), String> {
+        if let Some(from_acc) = self.context.get_account_mut(from) {
+            from_acc.transfer_lamports(lamports)?;
+        } else {
+            return Err(format!("Account not found: {}", from));
+        }
+
+        if let Some(to_acc) = self.context.get_account_mut(to) {
+            to_acc.deposit_lamports(lamports);
+        } else {
+            return Err(format!("Account not found: {}", to));
+        }
+
+        self.log(format!("Transferred {} lamports from {} to {}", lamports, from, to));
+        Ok(())
+    }
+
+    pub fn create_account(&mut self, owner: String, lamports: u64, account_size: usize) -> String {
+        let pubkey = format!("account_{}", self.context.account_count());
+        let mut account = SolanaAccount::new(pubkey.clone(), owner);
+        account.lamports = lamports;
+        account.data = vec![0; account_size];
+        
+        self.context.add_account(account);
+        self.log(format!("Created account: {}", pubkey));
+        pubkey
+    }
+
+    pub fn calculate_transaction_fee(&self, instruction_count: usize, tx_size: usize) -> u64 {
+        let base_fee = self.fee_calculator.calculate_fee(tx_size, 0);
+        let program_fee = self.fee_calculator.calculate_program_fee(instruction_count);
+        base_fee + program_fee
+    }
+
+    pub fn log(&mut self, message: String) {
+        self.logs.push(message);
+    }
+
+    pub fn get_execution_summary(&self) -> ExecutionSummary {
+        ExecutionSummary {
+            instructions_executed: self.instructions_executed,
+            accounts_used: self.context.account_count(),
+            total_lamports: self.context.total_lamports(),
+            success: true,
+            logs: self.logs.clone(),
+        }
+    }
+}
+
+// ========== Execution Summary ==========
+
+pub struct ExecutionSummary {
+    pub instructions_executed: usize,
+    pub accounts_used: usize,
+    pub total_lamports: u64,
+    pub success: bool,
+    pub logs: Vec<String>,
+}
+
+#[cfg(test)]
+mod solana_tests {
+    use super::*;
+
+    #[test]
+    fn test_solana_account() {
+        let mut account: SolanaAccount = SolanaAccount::new("keypair1".to_string(), "program1".to_string());
+        account.deposit_lamports(1000);
+        assert_eq!(account.lamports, 1000);
+    }
+
+    #[test]
+    fn test_transfer_lamports() {
+        let mut account: SolanaAccount = SolanaAccount::new("keypair1".to_string(), "program1".to_string());
+        account.deposit_lamports(1000);
+        assert!(account.transfer_lamports(500).is_ok());
+        assert_eq!(account.lamports, 500);
+    }
+
+    #[test]
+    fn test_solana_instruction() {
+        let instruction: SolanaInstruction = SolanaInstruction::new("program1".to_string()).add_account("account1".to_string()).with_data(vec![1, 2, 3]);
+        assert_eq!(instruction.accounts.len(), 1);
+    }
+
+    #[test]
+    fn test_transaction_fee() {
+        let fee_calc: TransactionFee = TransactionFee::new();
+        let fee: u64 = fee_calc.calculate_fee(100, 0);
+        assert!(fee > 0);
+    }
+
+    #[test]
+    fn test_solana_runtime() {
+        let mut runtime: SolanaRuntime = SolanaRuntime::new("program1".to_string());
+        let account1: SolanaAccount = SolanaAccount::new("account1".to_string(), "program1".to_string());
+        runtime.context.add_account(account1);
+        assert_eq!(runtime.context.account_count(), 1);
+    }
+}

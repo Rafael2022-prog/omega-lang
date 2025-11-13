@@ -1,0 +1,534 @@
+// OMEGA Compiler - Virtual Machine Core
+// Stack-based VM for executing optimized IR code
+// Instruction execution, value management, function calls
+
+use std::collections::HashMap;
+
+// ========== Virtual Machine Instructions ==========
+
+pub enum VMInstruction {
+    // Arithmetic Operations
+    Add { dest: usize, left: usize, right: usize },
+    Sub { dest: usize, left: usize, right: usize },
+    Mul { dest: usize, left: usize, right: usize },
+    Div { dest: usize, left: usize, right: usize },
+    Mod { dest: usize, left: usize, right: usize },
+    
+    // Comparison Operations
+    Eq { dest: usize, left: usize, right: usize },
+    Ne { dest: usize, left: usize, right: usize },
+    Lt { dest: usize, left: usize, right: usize },
+    Le { dest: usize, left: usize, right: usize },
+    Gt { dest: usize, left: usize, right: usize },
+    Ge { dest: usize, left: usize, right: usize },
+    
+    // Logical Operations
+    And { dest: usize, left: usize, right: usize },
+    Or { dest: usize, left: usize, right: usize },
+    Not { dest: usize, operand: usize },
+    
+    // Bitwise Operations
+    BitAnd { dest: usize, left: usize, right: usize },
+    BitOr { dest: usize, left: usize, right: usize },
+    BitXor { dest: usize, left: usize, right: usize },
+    BitNot { dest: usize, operand: usize },
+    
+    // Memory Operations
+    Load { dest: usize, address: usize },
+    Store { address: usize, value: usize },
+    
+    // Stack Operations
+    Push { value: RuntimeValue },
+    Pop { dest: usize },
+    
+    // Control Flow
+    Jump { target: usize },
+    ConditionalJump { condition: usize, target: usize },
+    Call { function_id: usize },
+    Return { value: Option<usize> },
+    
+    // Type Casting
+    Cast { dest: usize, source: usize, target_type: String },
+    
+    // I/O Operations
+    Print { value: usize },
+    Input { dest: usize },
+    
+    // Constants
+    LoadConstant { dest: usize, value: RuntimeValue },
+}
+
+// ========== Runtime Values ==========
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum RuntimeValue {
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Null,
+    Reference(usize), // Heap reference
+    Array(Vec<RuntimeValue>),
+}
+
+impl RuntimeValue {
+    pub fn type_name(&self) -> String {
+        match self {
+            RuntimeValue::Integer(_) => "integer".to_string(),
+            RuntimeValue::Float(_) => "float".to_string(),
+            RuntimeValue::Boolean(_) => "boolean".to_string(),
+            RuntimeValue::String(_) => "string".to_string(),
+            RuntimeValue::Null => "null".to_string(),
+            RuntimeValue::Reference(_) => "reference".to_string(),
+            RuntimeValue::Array(_) => "array".to_string(),
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            RuntimeValue::Integer(n) => n.to_string(),
+            RuntimeValue::Float(f) => f.to_string(),
+            RuntimeValue::Boolean(b) => b.to_string(),
+            RuntimeValue::String(s) => s.clone(),
+            RuntimeValue::Null => "null".to_string(),
+            RuntimeValue::Reference(addr) => format!("ref({})", addr),
+            RuntimeValue::Array(items) => {
+                let item_strs: Vec<String> = items.iter().map(|v| v.to_string()).collect();
+                format!("[{}]", item_strs.join(", "))
+            }
+        }
+    }
+
+    pub fn to_integer(&self) -> Result<i64, String> {
+        match self {
+            RuntimeValue::Integer(n) => Ok(*n),
+            RuntimeValue::Boolean(b) => Ok(if *b { 1 } else { 0 }),
+            _ => Err(format!("Cannot convert {} to integer", self.type_name())),
+        }
+    }
+
+    pub fn to_float(&self) -> Result<f64, String> {
+        match self {
+            RuntimeValue::Float(f) => Ok(*f),
+            RuntimeValue::Integer(n) => Ok(*n as f64),
+            _ => Err(format!("Cannot convert {} to float", self.type_name())),
+        }
+    }
+
+    pub fn to_boolean(&self) -> Result<bool, String> {
+        match self {
+            RuntimeValue::Boolean(b) => Ok(*b),
+            RuntimeValue::Integer(n) => Ok(*n != 0),
+            RuntimeValue::Float(f) => Ok(*f != 0.0),
+            _ => Err(format!("Cannot convert {} to boolean", self.type_name())),
+        }
+    }
+}
+
+// ========== VM Registers ==========
+
+pub struct VMRegisters {
+    registers: Vec<RuntimeValue>,
+}
+
+impl VMRegisters {
+    pub fn new(count: usize) -> Self {
+        VMRegisters {
+            registers: vec![RuntimeValue::Null; count],
+        }
+    }
+
+    pub fn get(&self, index: usize) -> Result<RuntimeValue, String> {
+        if index < self.registers.len() {
+            Ok(self.registers[index].clone())
+        } else {
+            Err(format!("Register {} out of bounds", index))
+        }
+    }
+
+    pub fn set(&mut self, index: usize, value: RuntimeValue) -> Result<(), String> {
+        if index < self.registers.len() {
+            self.registers[index] = value;
+            Ok(())
+        } else {
+            Err(format!("Register {} out of bounds", index))
+        }
+    }
+
+    pub fn clear(&mut self) {
+        for reg in self.registers.iter_mut() {
+            *reg = RuntimeValue::Null;
+        }
+    }
+}
+
+// ========== VM Stack ==========
+
+pub struct VMStack {
+    stack: Vec<RuntimeValue>,
+    max_depth: usize,
+}
+
+impl VMStack {
+    pub fn new(max_depth: usize) -> Self {
+        VMStack {
+            stack: Vec::with_capacity(max_depth),
+            max_depth,
+        }
+    }
+
+    pub fn push(&mut self, value: RuntimeValue) -> Result<(), String> {
+        if self.stack.len() >= self.max_depth {
+            return Err("Stack overflow".to_string());
+        }
+        self.stack.push(value);
+        Ok(())
+    }
+
+    pub fn pop(&mut self) -> Result<RuntimeValue, String> {
+        self.stack.pop().ok_or("Stack underflow".to_string())
+    }
+
+    pub fn peek(&self) -> Result<RuntimeValue, String> {
+        self.stack.last().cloned().ok_or("Stack is empty".to_string())
+    }
+
+    pub fn depth(&self) -> usize {
+        self.stack.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.stack.is_empty()
+    }
+}
+
+// ========== VM State ==========
+
+pub struct VMState {
+    pub registers: VMRegisters,
+    pub stack: VMStack,
+    pub instruction_pointer: usize,
+    pub call_stack: Vec<usize>,
+    pub heap: HashMap<usize, RuntimeValue>,
+    pub next_heap_address: usize,
+}
+
+impl VMState {
+    pub fn new(register_count: usize, stack_depth: usize) -> Self {
+        VMState {
+            registers: VMRegisters::new(register_count),
+            stack: VMStack::new(stack_depth),
+            instruction_pointer: 0,
+            call_stack: Vec::new(),
+            heap: HashMap::new(),
+            next_heap_address: 1000,
+        }
+    }
+
+    pub fn allocate_heap(&mut self, value: RuntimeValue) -> usize {
+        let address = self.next_heap_address;
+        self.heap.insert(address, value);
+        self.next_heap_address += 1;
+        address
+    }
+
+    pub fn get_heap(&self, address: usize) -> Result<RuntimeValue, String> {
+        self.heap.get(&address).cloned().ok_or(format!("Invalid heap address: {}", address))
+    }
+
+    pub fn set_heap(&mut self, address: usize, value: RuntimeValue) -> Result<(), String> {
+        if self.heap.contains_key(&address) {
+            self.heap.insert(address, value);
+            Ok(())
+        } else {
+            Err(format!("Invalid heap address: {}", address))
+        }
+    }
+}
+
+// ========== Virtual Machine ==========
+
+pub struct VirtualMachine {
+    state: VMState,
+    instructions: Vec<VMInstruction>,
+    functions: HashMap<usize, Vec<VMInstruction>>,
+    global_vars: HashMap<String, RuntimeValue>,
+}
+
+impl VirtualMachine {
+    pub fn new(register_count: usize, stack_depth: usize) -> Self {
+        VirtualMachine {
+            state: VMState::new(register_count, stack_depth),
+            instructions: Vec::new(),
+            functions: HashMap::new(),
+            global_vars: HashMap::new(),
+        }
+    }
+
+    // Load program instructions
+    pub fn load_program(&mut self, instructions: Vec<VMInstruction>) {
+        self.instructions = instructions;
+    }
+
+    // Register a function
+    pub fn register_function(&mut self, function_id: usize, instructions: Vec<VMInstruction>) {
+        self.functions.insert(function_id, instructions);
+    }
+
+    // Execute a single instruction
+    pub fn execute_instruction(&mut self, instr: &VMInstruction) -> Result<(), String> {
+        match instr {
+            VMInstruction::Add { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                let result = match (&left_val, &right_val) {
+                    (RuntimeValue::Integer(l), RuntimeValue::Integer(r)) => RuntimeValue::Integer(l + r),
+                    (RuntimeValue::Float(l), RuntimeValue::Float(r)) => RuntimeValue::Float(l + r),
+                    (RuntimeValue::Integer(l), RuntimeValue::Float(r)) => RuntimeValue::Float(*l as f64 + r),
+                    (RuntimeValue::Float(l), RuntimeValue::Integer(r)) => RuntimeValue::Float(l + *r as f64),
+                    _ => return Err("Type mismatch in addition".to_string()),
+                };
+                self.state.registers.set(*dest, result)?;
+                Ok(())
+            }
+
+            VMInstruction::Sub { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                let result = match (&left_val, &right_val) {
+                    (RuntimeValue::Integer(l), RuntimeValue::Integer(r)) => RuntimeValue::Integer(l - r),
+                    (RuntimeValue::Float(l), RuntimeValue::Float(r)) => RuntimeValue::Float(l - r),
+                    (RuntimeValue::Integer(l), RuntimeValue::Float(r)) => RuntimeValue::Float(*l as f64 - r),
+                    (RuntimeValue::Float(l), RuntimeValue::Integer(r)) => RuntimeValue::Float(l - *r as f64),
+                    _ => return Err("Type mismatch in subtraction".to_string()),
+                };
+                self.state.registers.set(*dest, result)?;
+                Ok(())
+            }
+
+            VMInstruction::Mul { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                let result = match (&left_val, &right_val) {
+                    (RuntimeValue::Integer(l), RuntimeValue::Integer(r)) => RuntimeValue::Integer(l * r),
+                    (RuntimeValue::Float(l), RuntimeValue::Float(r)) => RuntimeValue::Float(l * r),
+                    (RuntimeValue::Integer(l), RuntimeValue::Float(r)) => RuntimeValue::Float(*l as f64 * r),
+                    (RuntimeValue::Float(l), RuntimeValue::Integer(r)) => RuntimeValue::Float(l * *r as f64),
+                    _ => return Err("Type mismatch in multiplication".to_string()),
+                };
+                self.state.registers.set(*dest, result)?;
+                Ok(())
+            }
+
+            VMInstruction::Div { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                match (&left_val, &right_val) {
+                    (RuntimeValue::Integer(l), RuntimeValue::Integer(r)) => {
+                        if *r == 0 {
+                            return Err("Division by zero".to_string());
+                        }
+                        self.state.registers.set(*dest, RuntimeValue::Integer(l / r))?;
+                    }
+                    (RuntimeValue::Float(l), RuntimeValue::Float(r)) => {
+                        if *r == 0.0 {
+                            return Err("Division by zero".to_string());
+                        }
+                        self.state.registers.set(*dest, RuntimeValue::Float(l / r))?;
+                    }
+                    _ => return Err("Type mismatch in division".to_string()),
+                }
+                Ok(())
+            }
+
+            VMInstruction::Mod { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                match (&left_val, &right_val) {
+                    (RuntimeValue::Integer(l), RuntimeValue::Integer(r)) => {
+                        if *r == 0 {
+                            return Err("Modulo by zero".to_string());
+                        }
+                        self.state.registers.set(*dest, RuntimeValue::Integer(l % r))?;
+                    }
+                    _ => return Err("Modulo requires integers".to_string()),
+                }
+                Ok(())
+            }
+
+            VMInstruction::Eq { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                let result = left_val == right_val;
+                self.state.registers.set(*dest, RuntimeValue::Boolean(result))?;
+                Ok(())
+            }
+
+            VMInstruction::Lt { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                let result = match (&left_val, &right_val) {
+                    (RuntimeValue::Integer(l), RuntimeValue::Integer(r)) => l < r,
+                    (RuntimeValue::Float(l), RuntimeValue::Float(r)) => l < r,
+                    _ => return Err("Type mismatch in comparison".to_string()),
+                };
+                self.state.registers.set(*dest, RuntimeValue::Boolean(result))?;
+                Ok(())
+            }
+
+            VMInstruction::And { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                let left_bool = left_val.to_boolean()?;
+                let right_bool = right_val.to_boolean()?;
+                self.state.registers.set(*dest, RuntimeValue::Boolean(left_bool && right_bool))?;
+                Ok(())
+            }
+
+            VMInstruction::Or { dest, left, right } => {
+                let left_val = self.state.registers.get(*left)?;
+                let right_val = self.state.registers.get(*right)?;
+                let left_bool = left_val.to_boolean()?;
+                let right_bool = right_val.to_boolean()?;
+                self.state.registers.set(*dest, RuntimeValue::Boolean(left_bool || right_bool))?;
+                Ok(())
+            }
+
+            VMInstruction::Not { dest, operand } => {
+                let val = self.state.registers.get(*operand)?;
+                let bool_val = val.to_boolean()?;
+                self.state.registers.set(*dest, RuntimeValue::Boolean(!bool_val))?;
+                Ok(())
+            }
+
+            VMInstruction::LoadConstant { dest, value } => {
+                self.state.registers.set(*dest, value.clone())?;
+                Ok(())
+            }
+
+            VMInstruction::Print { value } => {
+                let val = self.state.registers.get(*value)?;
+                println!("{}", val.to_string());
+                Ok(())
+            }
+
+            VMInstruction::Return { value } => {
+                if let Some(val_index) = value {
+                    let _return_val = self.state.registers.get(*val_index)?;
+                }
+                Ok(())
+            }
+
+            _ => Err("Unsupported instruction".to_string()),
+        }
+    }
+
+    // Execute the entire program
+    pub fn run(&mut self) -> Result<RuntimeValue, String> {
+        while self.state.instruction_pointer < self.instructions.len() {
+            let instr = self.instructions[self.state.instruction_pointer].clone();
+            self.execute_instruction(&instr)?;
+            self.state.instruction_pointer += 1;
+        }
+        Ok(RuntimeValue::Null)
+    }
+
+    // Get register value
+    pub fn get_register(&self, index: usize) -> Result<RuntimeValue, String> {
+        self.state.registers.get(index)
+    }
+
+    // Set register value
+    pub fn set_register(&mut self, index: usize, value: RuntimeValue) -> Result<(), String> {
+        self.state.registers.set(index, value)
+    }
+
+    // Get global variable
+    pub fn get_global(&self, name: &str) -> Option<RuntimeValue> {
+        self.global_vars.get(name).cloned()
+    }
+
+    // Set global variable
+    pub fn set_global(&mut self, name: String, value: RuntimeValue) {
+        self.global_vars.insert(name, value);
+    }
+
+    // Get VM statistics
+    pub fn get_stats(&self) -> VMStatistics {
+        VMStatistics {
+            instruction_count: self.instructions.len(),
+            register_count: self.state.registers.registers.len(),
+            stack_depth: self.state.stack.depth(),
+            heap_size: self.state.heap.len(),
+            global_count: self.global_vars.len(),
+        }
+    }
+}
+
+// ========== VM Statistics ==========
+
+pub struct VMStatistics {
+    pub instruction_count: usize,
+    pub register_count: usize,
+    pub stack_depth: usize,
+    pub heap_size: usize,
+    pub global_count: usize,
+}
+
+#[cfg(test)]
+mod vm_tests {
+    use super::*;
+
+    #[test]
+    fn test_vm_creation() {
+        let vm = VirtualMachine::new(16, 1024);
+        let stats = vm.get_stats();
+        assert_eq!(stats.register_count, 16);
+    }
+
+    #[test]
+    fn test_register_operations() {
+        let mut vm = VirtualMachine::new(4, 1024);
+        vm.set_register(0, RuntimeValue::Integer(42)).unwrap();
+        let val = vm.get_register(0).unwrap();
+        assert_eq!(val, RuntimeValue::Integer(42));
+    }
+
+    #[test]
+    fn test_arithmetic_addition() {
+        let mut vm = VirtualMachine::new(4, 1024);
+        vm.set_register(0, RuntimeValue::Integer(10)).unwrap();
+        vm.set_register(1, RuntimeValue::Integer(20)).unwrap();
+
+        let instr = VMInstruction::Add { dest: 2, left: 0, right: 1 };
+        vm.execute_instruction(&instr).unwrap();
+
+        let result = vm.get_register(2).unwrap();
+        assert_eq!(result, RuntimeValue::Integer(30));
+    }
+
+    #[test]
+    fn test_division_by_zero() {
+        let mut vm = VirtualMachine::new(4, 1024);
+        vm.set_register(0, RuntimeValue::Integer(10)).unwrap();
+        vm.set_register(1, RuntimeValue::Integer(0)).unwrap();
+
+        let instr = VMInstruction::Div { dest: 2, left: 0, right: 1 };
+        let result = vm.execute_instruction(&instr);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_type_conversion() {
+        let val = RuntimeValue::Integer(42);
+        assert_eq!(val.to_float().unwrap(), 42.0);
+        assert_eq!(val.to_boolean().unwrap(), true);
+    }
+
+    #[test]
+    fn test_global_variables() {
+        let mut vm = VirtualMachine::new(4, 1024);
+        vm.set_global("x".to_string(), RuntimeValue::Integer(100));
+        assert_eq!(vm.get_global("x").unwrap(), RuntimeValue::Integer(100));
+    }
+}

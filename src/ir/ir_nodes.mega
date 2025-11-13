@@ -1,0 +1,461 @@
+// OMEGA Intermediate Representation (IR) - Data Structures and Types
+// Phase 4: Code Generation
+
+import std::io;
+import "../src/parser/ast_nodes.mega" as AST;
+
+/// IR Value - represents a value in the intermediate representation
+struct IRValue {
+    id: uint256;                  // Unique identifier (e.g., %0, %1, %2)
+    value_type: Type;             // Type of this value
+    kind: IRValueKind;            // What kind of value
+    constant_value: string;       // If constant, the value
+    register_name: string;        // Virtual register name
+}
+
+/// Kinds of IR values
+enum IRValueKind {
+    Constant,                     // Literal constant
+    Virtual,                      // Virtual register (%0, %1, etc)
+    Parameter,                    // Function parameter
+    GlobalVariable,               // Global state variable
+    LocalVariable                 // Local variable
+}
+
+/// IR Operand - operand to an IR instruction
+struct IROperand {
+    value: IRValue;
+    source_location: SourceLocation;
+}
+
+/// IR Operation types - all possible IR operations
+enum IROperation {
+    // Literals
+    ConstantInt,
+    ConstantBool,
+    ConstantString,
+    ConstantAddress,
+    ConstantNull,
+    ArrayLiteral,
+    StructLiteral,
+    
+    // Arithmetic
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Neg,
+    
+    // Bitwise
+    And,
+    Or,
+    Xor,
+    Not,
+    Shl,
+    Shr,
+    
+    // Comparison
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    
+    // Memory
+    Load,
+    Store,
+    LoadField,
+    StoreField,
+    LoadElem,
+    StoreElem,
+    AddrOf,
+    Alloca,
+    
+    // Type operations
+    Cast,
+    TypeOf,
+    ArrayLen,
+    ArrayAlloc,
+    StructCreate,
+    StructField,
+    
+    // Control flow
+    Jump,
+    Branch,
+    Return,
+    Throw,
+    
+    // Function calls
+    Call,
+    CallMethod,
+    CallBuiltin,
+    
+    // Phi nodes
+    Phi,
+    
+    // Other
+    Nop
+}
+
+/// IR Instruction - single IR instruction
+struct IRInstruction {
+    id: uint256;                     // Unique instruction ID
+    operation: IROperation;          // What operation to perform
+    result: IRValue;                 // Where result goes
+    operands: IROperand[];           // Operands to operation
+    source_location: SourceLocation; // Original source location
+    metadata: string;                // Additional metadata (optional)
+}
+
+/// Basic Block - sequence of instructions with single exit
+struct BasicBlock {
+    label: string;                   // Block label (e.g., "block_0", "loop_header")
+    instructions: IRInstruction[];   // All instructions in this block
+    terminator: IRInstruction;       // Last instruction (jump/branch/return)
+    predecessors: string[];          // Labels of predecessor blocks
+    successors: string[];            // Labels of successor blocks
+    phi_functions: IRInstruction[]; // Phi nodes at block entry
+}
+
+/// Function parameter
+struct FunctionParam {
+    name: string;
+    param_type: Type;
+    register: IRValue;
+}
+
+/// IR Function - represents a function in IR form
+blockchain IRFunction {
+    state {
+        name: string;
+        return_type: Type;
+        parameters: FunctionParam[];
+        basic_blocks: Mapping(string => BasicBlock);  // label -> block
+        block_order: string[];                        // Ordered block labels
+        local_variables: Mapping(string => IRValue); // var name -> value
+        current_block_label: string;
+        next_register_id: uint256;
+        next_instruction_id: uint256;
+        entry_block_label: string;
+        exit_block_label: string;
+        source_location: SourceLocation;
+    }
+    
+    /// Create new IR function
+    constructor(
+        name: string,
+        return_type: Type,
+        params: FunctionParam[],
+        location: SourceLocation
+    ) {
+        this.name = name;
+        this.return_type = return_type;
+        this.parameters = params;
+        this.source_location = location;
+        this.next_register_id = 0;
+        this.next_instruction_id = 0;
+        this.entry_block_label = "entry";
+        this.exit_block_label = "exit";
+        
+        // Create entry block
+        create_block("entry");
+        this.current_block_label = "entry";
+    }
+    
+    /// Create new basic block
+    function create_block(label: string) public {
+        BasicBlock memory block = BasicBlock({
+            label: label,
+            instructions: new IRInstruction[],
+            terminator: null,
+            predecessors: new string[],
+            successors: new string[],
+            phi_functions: new IRInstruction[]
+        });
+        this.basic_blocks[label] = block;
+        this.block_order.push(label);
+    }
+    
+    /// Get next virtual register
+    function next_register() public -> IRValue {
+        uint256 id = this.next_register_id;
+        this.next_register_id++;
+        
+        IRValue memory reg = IRValue({
+            id: id,
+            value_type: Type({ base_type: BaseType.Void }),
+            kind: IRValueKind.Virtual,
+            constant_value: "",
+            register_name: "%" + id.toString()
+        });
+        
+        return reg;
+    }
+    
+    /// Create constant IR value
+    function make_constant(
+        value: string,
+        value_type: Type,
+        kind: IRValueKind
+    ) public -> IRValue {
+        IRValue memory constant_val = IRValue({
+            id: 0,
+            value_type: value_type,
+            kind: kind,
+            constant_value: value,
+            register_name: ""
+        });
+        
+        return constant_val;
+    }
+    
+    /// Add instruction to current block
+    function add_instruction(
+        operation: IROperation,
+        operands: IROperand[],
+        result_type: Type,
+        location: SourceLocation
+    ) public -> IRValue {
+        uint256 inst_id = this.next_instruction_id;
+        this.next_instruction_id++;
+        
+        IRValue memory result = next_register();
+        result.value_type = result_type;
+        
+        IRInstruction memory inst = IRInstruction({
+            id: inst_id,
+            operation: operation,
+            result: result,
+            operands: operands,
+            source_location: location,
+            metadata: ""
+        });
+        
+        BasicBlock storage current = this.basic_blocks[this.current_block_label];
+        current.instructions.push(inst);
+        
+        return result;
+    }
+    
+    /// Get all instructions in order
+    function get_all_instructions() public -> IRInstruction[] {
+        IRInstruction[] memory all_insts;
+        
+        for (uint256 i = 0; i < this.block_order.length; i++) {
+            BasicBlock storage block = this.basic_blocks[this.block_order[i]];
+            for (uint256 j = 0; j < block.instructions.length; j++) {
+                all_insts.push(block.instructions[j]);
+            }
+        }
+        
+        return all_insts;
+    }
+    
+    /// Print IR in human-readable form
+    function print_ir() public {
+        io::println("@function " + this.name + " {");
+        
+        for (uint256 i = 0; i < this.block_order.length; i++) {
+            string memory label = this.block_order[i];
+            BasicBlock storage block = this.basic_blocks[label];
+            
+            io::println("  " + label + ":");
+            
+            for (uint256 j = 0; j < block.instructions.length; j++) {
+                IRInstruction storage inst = block.instructions[j];
+                io::println("    " + format_instruction(inst));
+            }
+            
+            if (block.terminator != null) {
+                io::println("    " + format_instruction(block.terminator));
+            }
+        }
+        
+        io::println("}");
+    }
+    
+    /// Format single instruction for printing
+    function format_instruction(inst: IRInstruction) public -> string {
+        string memory result = inst.result.register_name + " = ";
+        result += operation_to_string(inst.operation);
+        
+        if (inst.operands.length > 0) {
+            result += " ";
+            for (uint256 i = 0; i < inst.operands.length; i++) {
+                if (i > 0) result += ", ";
+                result += inst.operands[i].value.register_name;
+            }
+        }
+        
+        return result;
+    }
+    
+    /// Convert operation enum to string
+    function operation_to_string(op: IROperation) public -> string {
+        if (op == IROperation.Add) return "add";
+        if (op == IROperation.Sub) return "sub";
+        if (op == IROperation.Mul) return "mul";
+        if (op == IROperation.Div) return "div";
+        if (op == IROperation.Load) return "load";
+        if (op == IROperation.Store) return "store";
+        if (op == IROperation.Call) return "call";
+        if (op == IROperation.Return) return "return";
+        if (op == IROperation.Jump) return "jump";
+        if (op == IROperation.Branch) return "branch";
+        
+        return "unknown";
+    }
+}
+
+/// IR Module - entire program in IR form
+blockchain IRModule {
+    state {
+        name: string;
+        functions: Mapping(string => IRFunction);  // func name -> IRFunction
+        function_list: string[];                   // Ordered function names
+        global_variables: Mapping(string => IRValue);  // var name -> value
+        global_var_list: string[];                 // Ordered var names
+        types: Mapping(string => Type);           // type name -> type
+        constants: Mapping(string => IRValue);    // const name -> value
+    }
+    
+    /// Create new IR module
+    constructor(name: string) {
+        this.name = name;
+    }
+    
+    /// Add function to module
+    function add_function(func: IRFunction) public {
+        this.functions[func.name] = func;
+        this.function_list.push(func.name);
+    }
+    
+    /// Add global variable
+    function add_global_variable(name: string, value: IRValue) public {
+        this.global_variables[name] = value;
+        this.global_var_list.push(name);
+    }
+    
+    /// Register custom type
+    function register_type(name: string, type_info: Type) public {
+        this.types[name] = type_info;
+    }
+    
+    /// Print entire module
+    function print_module() public {
+        io::println("module " + this.name + " {");
+        io::println("");
+        
+        // Print globals
+        if (this.global_var_list.length > 0) {
+            io::println("  // Global variables");
+            for (uint256 i = 0; i < this.global_var_list.length; i++) {
+                IRValue storage var_val = this.global_variables[this.global_var_list[i]];
+                io::println("    @" + this.global_var_list[i] + " : <type>");
+            }
+            io::println("");
+        }
+        
+        // Print functions
+        if (this.function_list.length > 0) {
+            io::println("  // Functions");
+            for (uint256 i = 0; i < this.function_list.length; i++) {
+                IRFunction storage func = this.functions[this.function_list[i]];
+                func.print_ir();
+                io::println("");
+            }
+        }
+        
+        io::println("}");
+    }
+}
+
+/// IR Builder - utility for building IR
+blockchain IRBuilder {
+    state {
+        current_function: IRFunction;
+        current_module: IRModule;
+    }
+    
+    /// Set current function
+    function set_function(func: IRFunction) public {
+        this.current_function = func;
+    }
+    
+    /// Set current module
+    function set_module(module: IRModule) public {
+        this.current_module = module;
+    }
+    
+    /// Create constant instruction
+    function create_constant(
+        value: string,
+        value_type: Type,
+        location: SourceLocation
+    ) public -> IRValue {
+        IROperand[] memory operands;
+        return this.current_function.add_instruction(
+            IROperation.ConstantInt,
+            operands,
+            value_type,
+            location
+        );
+    }
+    
+    /// Create addition instruction
+    function create_add(
+        left: IRValue,
+        right: IRValue,
+        result_type: Type,
+        location: SourceLocation
+    ) public -> IRValue {
+        IROperand[] memory operands = new IROperand[2];
+        operands[0] = IROperand({ value: left, source_location: location });
+        operands[1] = IROperand({ value: right, source_location: location });
+        
+        return this.current_function.add_instruction(
+            IROperation.Add,
+            operands,
+            result_type,
+            location
+        );
+    }
+    
+    /// Create function call instruction
+    function create_call(
+        func_name: string,
+        args: IRValue[],
+        return_type: Type,
+        location: SourceLocation
+    ) public -> IRValue {
+        IROperand[] memory operands = new IROperand[args.length];
+        for (uint256 i = 0; i < args.length; i++) {
+            operands[i] = IROperand({ value: args[i], source_location: location });
+        }
+        
+        return this.current_function.add_instruction(
+            IROperation.Call,
+            operands,
+            return_type,
+            location
+        );
+    }
+    
+    /// Create return instruction
+    function create_return(
+        value: IRValue,
+        location: SourceLocation
+    ) public {
+        IROperand[] memory operands = new IROperand[1];
+        operands[0] = IROperand({ value: value, source_location: location });
+        
+        this.current_function.add_instruction(
+            IROperation.Return,
+            operands,
+            Type({ base_type: BaseType.Void }),
+            location
+        );
+    }
+}

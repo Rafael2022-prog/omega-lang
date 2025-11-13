@@ -1,0 +1,157 @@
+// OMEGA Compiler - Common Subexpression Elimination Optimizer
+// Eliminates redundant computations using value numbering
+// Finds identical subexpressions and reuses results
+
+import "../ir/ir_nodes.mega";
+
+pub struct CSEOptimizer {
+    optimizations_count: i64;
+    value_numbers: map<string, i64>;
+    expressions: map<i64, string>;
+    next_value_number: i64,
+}
+
+impl CSEOptimizer {
+    pub fn new() -> Self {
+        CSEOptimizer {
+            optimizations_count: 0,
+            value_numbers: map::new(),
+            expressions: map::new(),
+            next_value_number: 0,
+        }
+    }
+
+    // Optimize a function using CSE
+    pub fn optimize(&mut self, func: &mut IRFunction) -> Result<i64, string> {
+        // Clear state for new function
+        self.value_numbers.clear();
+        self.expressions.clear();
+        self.next_value_number = 0;
+
+        for block in &mut func.basic_blocks {
+            self.optimize_block(block)?;
+        }
+
+        Ok(self.optimizations_count)
+    }
+
+    // Optimize a single basic block
+    fn optimize_block(&mut self, block: &mut BasicBlock) -> Result<(), string> {
+        let mut i = 0;
+        while i < block.instructions.len() {
+            self.optimize_instruction(&mut block.instructions[i], block)?;
+            i += 1;
+        }
+        Ok(())
+    }
+
+    // Optimize a single instruction
+    fn optimize_instruction(
+        &mut self,
+        instr: &mut IRInstruction,
+        block: &BasicBlock
+    ) -> Result<(), string> {
+        match &instr.op {
+            IROperation::BinaryOp(op, left, right) => {
+                // Normalize and hash the expression
+                let expr_hash = self.hash_binary_expr(op, left, right);
+                let left_str = self.operand_to_string(left);
+                let right_str = self.operand_to_string(right);
+                let expr_str = format!("{} {} {}", left_str, op, right_str);
+
+                // Check if we've seen this expression before
+                if let Some(prev_value_num) = self.value_numbers.get(&expr_str) {
+                    // Found a common subexpression!
+                    // Look for where it was computed
+                    if let Some(prev_result) = self.find_computed_value(block, *prev_value_num) {
+                        // Replace with previous result
+                        instr.op = IROperation::Assign(
+                            "temp".to_string(), // Placeholder
+                            Box::new(IROperand::Variable(prev_result))
+                        );
+                        self.optimizations_count += 1;
+                    }
+                } else {
+                    // New expression, assign value number
+                    let value_num = self.next_value_number;
+                    self.value_numbers.insert(expr_str.clone(), value_num);
+                    self.expressions.insert(value_num, expr_str);
+                    self.next_value_number += 1;
+                }
+            },
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    // Hash binary expression for quick lookup
+    fn hash_binary_expr(&self, op: &str, left: &IROperand, right: &IROperand) -> i64 {
+        // Simple hash combining operator and operands
+        let left_hash = self.hash_operand(left);
+        let right_hash = self.hash_operand(right);
+        let op_hash = op.chars().fold(0i64, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i64));
+
+        left_hash.wrapping_mul(31).wrapping_mul(31)
+            .wrapping_add(right_hash.wrapping_mul(31))
+            .wrapping_add(op_hash)
+    }
+
+    // Hash operand
+    fn hash_operand(&self, operand: &IROperand) -> i64 {
+        match operand {
+            IROperand::Constant(val) => {
+                match val {
+                    ConstantValue::Integer(i) => i.wrapping_mul(31),
+                    ConstantValue::Float(f) => (f as i64).wrapping_mul(31),
+                    ConstantValue::Boolean(b) => if *b { 1 } else { 0 }.wrapping_mul(31),
+                    ConstantValue::String(s) => s.chars().fold(0i64, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i64)),
+                    ConstantValue::Null => 0,
+                }
+            },
+            IROperand::Variable(name) => {
+                name.chars().fold(0i64, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i64))
+            },
+            IROperand::Literal(lit) => {
+                lit.chars().fold(0i64, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i64))
+            },
+            _ => 0,
+        }
+    }
+
+    // Convert operand to string representation
+    fn operand_to_string(&self, operand: &IROperand) -> string {
+        match operand {
+            IROperand::Constant(val) => format!("{:?}", val),
+            IROperand::Variable(name) => name.clone(),
+            IROperand::Literal(lit) => lit.clone(),
+            IROperand::Address(addr) => format!("&{}", addr),
+        }
+    }
+
+    // Find where an expression with given value number was computed
+    fn find_computed_value(&self, block: &BasicBlock, value_num: i64) -> Option<string> {
+        // Look backwards through instructions
+        for instr in &block.instructions {
+            match &instr.op {
+                IROperation::Assign(dest, _) => {
+                    // Check if this instruction matches our value number
+                    // This is a simplified check
+                    return Some(dest.clone());
+                },
+                _ => {}
+            }
+        }
+        None
+    }
+}
+
+// Constant value representation (shared with constant_folder)
+#[derive(Clone, Debug)]
+pub enum ConstantValue {
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Null,
+}

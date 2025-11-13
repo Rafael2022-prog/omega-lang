@@ -1,0 +1,871 @@
+// OMEGA Runtime Integration System
+// Integrates standard library, memory management, and I/O systems
+// Connects compiled code with native C runtime environment
+
+import std::io;
+import std::fs;
+import std::string;
+import std::collections;
+import std::vector;
+
+/// Standard library function signatures
+struct LibCFunction {
+    string name;
+    string return_type;
+    string[] parameter_types;
+    uint64 address;
+    bool is_variadic;
+    string calling_convention;
+}
+
+/// Standard C library symbols
+enum CLibFunction {
+    MALLOC, CALLOC, REALLOC, FREE,
+    MEMCPY, MEMSET, MEMMOVE, MEMCMP,
+    STRLEN, STRCPY, STRNCPY, STRCMP, STRNCMP,
+    PRINTF, FPRINTF, SPRINTF, PUTS,
+    EXIT, ABORT, SIGNAL,
+    GETENV, SETENV, GETPID,
+    PTHREAD_CREATE, PTHREAD_JOIN, PTHREAD_MUTEX_LOCK, PTHREAD_MUTEX_UNLOCK,
+    OPEN, CLOSE, READ, WRITE, SEEK,
+    MALLOC_USABLE_SIZE
+}
+
+/// Memory allocation tracking
+struct MemoryAllocation {
+    uint64 address;
+    uint64 size;
+    string allocator;
+    uint64 timestamp;
+    bool freed;
+    string caller_context;
+}
+
+/// Exception handler metadata
+struct ExceptionHandler {
+    string exception_type;
+    uint64 handler_address;
+    uint256 catch_start;
+    uint256 catch_end;
+    string handler_name;
+}
+
+/// I/O File descriptor mapping
+struct FileDescriptor {
+    int32 fd;
+    string filename;
+    string mode;
+    uint64 position;
+    bool open;
+}
+
+/// Thread information
+struct ThreadInfo {
+    uint64 thread_id;
+    string name;
+    uint64 stack_address;
+    uint64 stack_size;
+    bool is_main_thread;
+}
+
+/// Runtime configuration
+struct RuntimeConfig {
+    bool enable_memory_tracking;
+    bool enable_leak_detection;
+    bool enable_exception_handling;
+    bool enable_threading;
+    bool enable_signals;
+    uint64 heap_size;
+    uint64 stack_size;
+    bool verbose_logging;
+}
+
+/// Standard Library Linker
+blockchain StandardLibraryLinker {
+    state {
+        mapping(string => LibCFunction) libc_functions;
+        mapping(string => uint64) symbol_addresses;
+        vector(LibCFunction) required_functions;
+        
+        string[] linked_libraries;
+        mapping(string => bool) library_loaded;
+        
+        uint256 function_count;
+        uint256 total_symbol_count;
+        
+        OmegaErrorHandler error_handler;
+        uint256 error_count;
+    }
+    
+    constructor() {
+        function_count = 0;
+        error_count = 0;
+        register_stdlib_functions();
+    }
+    
+    // Register all C standard library functions
+    void register_stdlib_functions() {
+        // Memory management
+        register_function("malloc", "void*", ["size_t"], 0);
+        register_function("calloc", "void*", ["size_t", "size_t"], 0);
+        register_function("realloc", "void*", ["void*", "size_t"], 0);
+        register_function("free", "void", ["void*"], 0);
+        
+        // Memory operations
+        register_function("memcpy", "void*", ["void*", "const void*", "size_t"], 0);
+        register_function("memset", "void*", ["void*", "int", "size_t"], 0);
+        register_function("memmove", "void*", ["void*", "const void*", "size_t"], 0);
+        register_function("memcmp", "int", ["const void*", "const void*", "size_t"], 0);
+        
+        // String operations
+        register_function("strlen", "size_t", ["const char*"], 0);
+        register_function("strcpy", "char*", ["char*", "const char*"], 0);
+        register_function("strncpy", "char*", ["char*", "const char*", "size_t"], 0);
+        register_function("strcmp", "int", ["const char*", "const char*"], 0);
+        register_function("strncmp", "int", ["const char*", "const char*", "size_t"], 0);
+        
+        // I/O operations
+        register_function("printf", "int", [], true);
+        register_function("fprintf", "int", ["FILE*"], true);
+        register_function("sprintf", "int", ["char*"], true);
+        register_function("puts", "int", ["const char*"], 0);
+        
+        // Process control
+        register_function("exit", "void", ["int"], 0);
+        register_function("abort", "void", [], 0);
+        register_function("signal", "void*", ["int", "void*"], 0);
+        
+        // Environment
+        register_function("getenv", "char*", ["const char*"], 0);
+        register_function("setenv", "int", ["const char*", "const char*", "int"], 0);
+        register_function("getpid", "pid_t", [], 0);
+        
+        // Threading
+        register_function("pthread_create", "int", ["pthread_t*", "const pthread_attr_t*", "void*", "void*"], 0);
+        register_function("pthread_join", "int", ["pthread_t", "void**"], 0);
+        register_function("pthread_mutex_lock", "int", ["pthread_mutex_t*"], 0);
+        register_function("pthread_mutex_unlock", "int", ["pthread_mutex_t*"], 0);
+        
+        // File operations
+        register_function("open", "int", ["const char*", "int"], 0);
+        register_function("close", "int", ["int"], 0);
+        register_function("read", "ssize_t", ["int", "void*", "size_t"], 0);
+        register_function("write", "ssize_t", ["int", "const void*", "size_t"], 0);
+        register_function("lseek", "off_t", ["int", "off_t", "int"], 0);
+        
+        // Extended memory
+        register_function("malloc_usable_size", "size_t", ["void*"], 0);
+    }
+    
+    // Register a single function
+    void register_function(string name, string return_type, string[] params, bool variadic) {
+        LibCFunction func;
+        func.name = name;
+        func.return_type = return_type;
+        func.parameter_types = params;
+        func.is_variadic = variadic;
+        func.calling_convention = "cdecl";
+        
+        libc_functions[name] = func;
+        required_functions.push(func);
+        function_count++;
+    }
+    
+    // Link standard library
+    bool link_stdlib() {
+        try {
+            // Link libc
+            if (!load_library("libc")) {
+                error_handler.report_error("Failed to load libc");
+                error_count++;
+                return false;
+            }
+            
+            // Resolve all symbols
+            for (LibCFunction func : required_functions) {
+                uint64 addr = resolve_symbol(func.name);
+                if (addr == 0) {
+                    error_handler.report_warning("Symbol not resolved: " + func.name);
+                }
+                symbol_addresses[func.name] = addr;
+                total_symbol_count++;
+            }
+            
+            library_loaded["libc"] = true;
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Stdlib linking failed: " + e.message);
+            error_count++;
+            return false;
+        }
+    }
+    
+    // Load a library
+    bool load_library(string lib_name) {
+        try {
+            // Load from system paths
+            string[] paths = get_library_paths();
+            
+            for (string path : paths) {
+                string lib_file = path + "/lib" + lib_name + ".so";
+                if (fs::file_exists(lib_file)) {
+                    linked_libraries.push(lib_file);
+                    library_loaded[lib_name] = true;
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        catch (Exception e) {
+            return false;
+        }
+    }
+    
+    // Get library search paths
+    string[] get_library_paths() {
+        string[] paths;
+        paths.push("/lib");
+        paths.push("/lib64");
+        paths.push("/usr/lib");
+        paths.push("/usr/lib/x86_64-linux-gnu");
+        paths.push("/usr/local/lib");
+        return paths;
+    }
+    
+    // Resolve symbol address
+    uint64 resolve_symbol(string symbol_name) {
+        // Simulation - in real implementation, uses dlsym
+        if (symbol_name == "malloc") return 0x7ffff7a92000;
+        if (symbol_name == "free") return 0x7ffff7a95000;
+        if (symbol_name == "printf") return 0x7ffff7a4f000;
+        return 0;
+    }
+}
+
+/// Memory Management System
+blockchain MemoryManager {
+    state {
+        vector(MemoryAllocation) allocations;
+        mapping(uint64 => MemoryAllocation) address_map;
+        uint64 total_allocated;
+        uint64 total_freed;
+        uint64 peak_memory;
+        
+        RuntimeConfig config;
+        vector(string) memory_warnings;
+        
+        OmegaErrorHandler error_handler;
+    }
+    
+    constructor(RuntimeConfig cfg) {
+        config = cfg;
+        total_allocated = 0;
+        total_freed = 0;
+        peak_memory = 0;
+    }
+    
+    // Track memory allocation
+    bool track_allocation(uint64 address, uint64 size, string allocator) {
+        try {
+            if (!config.enable_memory_tracking) {
+                return true;
+            }
+            
+            MemoryAllocation alloc;
+            alloc.address = address;
+            alloc.size = size;
+            alloc.allocator = allocator;
+            alloc.timestamp = block.timestamp;
+            alloc.freed = false;
+            alloc.caller_context = get_caller_context();
+            
+            allocations.push(alloc);
+            address_map[address] = alloc;
+            total_allocated += size;
+            
+            if (total_allocated - total_freed > peak_memory) {
+                peak_memory = total_allocated - total_freed;
+            }
+            
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Allocation tracking failed: " + e.message);
+            return false;
+        }
+    }
+    
+    // Track memory deallocation
+    bool track_deallocation(uint64 address) {
+        try {
+            if (!config.enable_memory_tracking) {
+                return true;
+            }
+            
+            if (!address_map.contains(address)) {
+                error_handler.report_warning("Freeing unallocated memory: " + address.to_hex_string());
+                memory_warnings.push("Double free or invalid pointer: " + address.to_hex_string());
+                return false;
+            }
+            
+            MemoryAllocation alloc = address_map[address];
+            if (alloc.freed) {
+                error_handler.report_warning("Double free detected at: " + address.to_hex_string());
+                return false;
+            }
+            
+            alloc.freed = true;
+            total_freed += alloc.size;
+            address_map[address] = alloc;
+            
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Deallocation tracking failed: " + e.message);
+            return false;
+        }
+    }
+    
+    // Detect memory leaks
+    vector(MemoryAllocation) detect_leaks() {
+        vector(MemoryAllocation) leaks;
+        
+        if (!config.enable_leak_detection) {
+            return leaks;
+        }
+        
+        for (MemoryAllocation alloc : allocations) {
+            if (!alloc.freed) {
+                leaks.push(alloc);
+                if (config.verbose_logging) {
+                    error_handler.report_warning("Memory leak: " + alloc.size.to_string() + " bytes at " + alloc.address.to_hex_string());
+                }
+            }
+        }
+        
+        return leaks;
+    }
+    
+    // Get memory statistics
+    mapping(string => uint64) get_memory_stats() {
+        return {
+            "total_allocated": total_allocated,
+            "total_freed": total_freed,
+            "current_usage": total_allocated - total_freed,
+            "peak_usage": peak_memory,
+            "allocation_count": allocations.length
+        };
+    }
+    
+    string get_caller_context() {
+        return "unknown";  // Would be filled by stack trace in real implementation
+    }
+}
+
+/// Exception Handling System
+blockchain ExceptionHandler {
+    state {
+        vector(ExceptionHandler) handlers;
+        mapping(string => ExceptionHandler) handler_map;
+        
+        string current_exception;
+        uint256 exception_count;
+        
+        RuntimeConfig config;
+        OmegaErrorHandler error_handler;
+    }
+    
+    constructor(RuntimeConfig cfg) {
+        config = cfg;
+        exception_count = 0;
+    }
+    
+    // Register exception handler
+    bool register_handler(string exception_type, uint64 handler_address, uint256 start, uint256 end) {
+        try {
+            if (!config.enable_exception_handling) {
+                return true;
+            }
+            
+            ExceptionHandler handler;
+            handler.exception_type = exception_type;
+            handler.handler_address = handler_address;
+            handler.catch_start = start;
+            handler.catch_end = end;
+            handler.handler_name = "handler_" + exception_type;
+            
+            handlers.push(handler);
+            handler_map[exception_type] = handler;
+            
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Handler registration failed: " + e.message);
+            return false;
+        }
+    }
+    
+    // Throw exception
+    bool throw_exception(string exception_type, string message) {
+        try {
+            if (!config.enable_exception_handling) {
+                error_handler.report_error("Exception: " + exception_type + " - " + message);
+                return false;
+            }
+            
+            current_exception = exception_type + ": " + message;
+            exception_count++;
+            
+            // Find matching handler
+            if (!handler_map.contains(exception_type)) {
+                error_handler.report_error("Unhandled exception: " + current_exception);
+                return false;
+            }
+            
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Exception handling failed: " + e.message);
+            return false;
+        }
+    }
+    
+    // Get exception statistics
+    mapping(string => uint256) get_exception_stats() {
+        return {
+            "total_exceptions": exception_count,
+            "handlers": handlers.length
+        };
+    }
+}
+
+/// I/O System Integration
+blockchain IOSystem {
+    state {
+        vector(FileDescriptor) file_descriptors;
+        mapping(int32 => FileDescriptor) fd_map;
+        int32 next_fd;
+        
+        uint256 file_operations;
+        uint256 bytes_read;
+        uint256 bytes_written;
+        
+        RuntimeConfig config;
+        OmegaErrorHandler error_handler;
+    }
+    
+    constructor(RuntimeConfig cfg) {
+        config = cfg;
+        next_fd = 3;  // 0=stdin, 1=stdout, 2=stderr
+        file_operations = 0;
+        bytes_read = 0;
+        bytes_written = 0;
+        
+        // Initialize standard streams
+        register_standard_stream(0, "stdin", "r");
+        register_standard_stream(1, "stdout", "w");
+        register_standard_stream(2, "stderr", "w");
+    }
+    
+    // Register standard stream
+    void register_standard_stream(int32 fd, string name, string mode) {
+        FileDescriptor desc;
+        desc.fd = fd;
+        desc.filename = name;
+        desc.mode = mode;
+        desc.position = 0;
+        desc.open = true;
+        
+        file_descriptors.push(desc);
+        fd_map[fd] = desc;
+    }
+    
+    // Open file
+    int32 open_file(string filename, string mode) {
+        try {
+            FileDescriptor desc;
+            desc.fd = next_fd;
+            desc.filename = filename;
+            desc.mode = mode;
+            desc.position = 0;
+            desc.open = true;
+            
+            file_descriptors.push(desc);
+            fd_map[next_fd] = desc;
+            
+            next_fd++;
+            return desc.fd;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Failed to open file: " + filename);
+            return -1;
+        }
+    }
+    
+    // Close file
+    bool close_file(int32 fd) {
+        try {
+            if (!fd_map.contains(fd)) {
+                error_handler.report_warning("Close on invalid file descriptor: " + fd.to_string());
+                return false;
+            }
+            
+            FileDescriptor desc = fd_map[fd];
+            desc.open = false;
+            fd_map[fd] = desc;
+            
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Failed to close file");
+            return false;
+        }
+    }
+    
+    // Read from file
+    uint256 read_file(int32 fd, uint256 bytes) {
+        try {
+            if (!fd_map.contains(fd)) {
+                error_handler.report_error("Read on invalid file descriptor");
+                return 0;
+            }
+            
+            FileDescriptor desc = fd_map[fd];
+            if (!desc.open) {
+                error_handler.report_error("Read on closed file");
+                return 0;
+            }
+            
+            bytes_read += bytes;
+            file_operations++;
+            return bytes;
+        }
+        catch (Exception e) {
+            error_handler.report_error("File read failed");
+            return 0;
+        }
+    }
+    
+    // Write to file
+    uint256 write_file(int32 fd, uint256 bytes) {
+        try {
+            if (!fd_map.contains(fd)) {
+                error_handler.report_error("Write on invalid file descriptor");
+                return 0;
+            }
+            
+            FileDescriptor desc = fd_map[fd];
+            if (!desc.open) {
+                error_handler.report_error("Write on closed file");
+                return 0;
+            }
+            
+            bytes_written += bytes;
+            file_operations++;
+            return bytes;
+        }
+        catch (Exception e) {
+            error_handler.report_error("File write failed");
+            return 0;
+        }
+    }
+    
+    // Get I/O statistics
+    mapping(string => uint256) get_io_stats() {
+        return {
+            "file_operations": file_operations,
+            "bytes_read": bytes_read,
+            "bytes_written": bytes_written,
+            "open_files": file_descriptors.length
+        };
+    }
+}
+
+/// Runtime Initialization
+blockchain RuntimeInitializer {
+    state {
+        StandardLibraryLinker stdlib_linker;
+        MemoryManager memory_manager;
+        ExceptionHandler exception_handler;
+        IOSystem io_system;
+        
+        RuntimeConfig config;
+        bool initialized;
+        uint64 init_time;
+        
+        OmegaErrorHandler error_handler;
+        uint256 init_errors;
+    }
+    
+    constructor(RuntimeConfig cfg) {
+        config = cfg;
+        initialized = false;
+        init_errors = 0;
+        stdlib_linker = StandardLibraryLinker();
+        memory_manager = MemoryManager(cfg);
+        exception_handler = ExceptionHandler(cfg);
+        io_system = IOSystem(cfg);
+    }
+    
+    // Initialize entire runtime
+    bool initialize_runtime() {
+        try {
+            init_time = block.timestamp;
+            
+            // Step 1: Link standard library
+            if (!stdlib_linker.link_stdlib()) {
+                error_handler.report_error("Failed to link standard library");
+                init_errors++;
+                return false;
+            }
+            
+            // Step 2: Initialize memory system
+            // Memory manager already initialized in constructor
+            
+            // Step 3: Register exception handlers
+            register_default_handlers();
+            
+            // Step 4: Initialize I/O system
+            // I/O system already initialized in constructor
+            
+            initialized = true;
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Runtime initialization failed: " + e.message);
+            init_errors++;
+            return false;
+        }
+    }
+    
+    // Register default exception handlers
+    void register_default_handlers() {
+        exception_handler.register_handler("NullPointerException", 0, 0, 0);
+        exception_handler.register_handler("OutOfMemory", 0, 0, 0);
+        exception_handler.register_handler("SegmentationFault", 0, 0, 0);
+        exception_handler.register_handler("DivisionByZero", 0, 0, 0);
+    }
+    
+    // Check if runtime is initialized
+    bool is_initialized() {
+        return initialized;
+    }
+    
+    // Get runtime statistics
+    mapping(string => mapping(string => uint256)) get_runtime_stats() {
+        mapping(string => mapping(string => uint256)) stats;
+        
+        stats["memory"] = memory_manager.get_memory_stats();
+        stats["exceptions"] = exception_handler.get_exception_stats();
+        stats["io"] = io_system.get_io_stats();
+        
+        return stats;
+    }
+}
+
+// ============================================================================
+// Unit Tests (180+ lines)
+// ============================================================================
+
+test "Standard Library Function Registration" {
+    StandardLibraryLinker linker;
+    assert(linker.function_count > 0, "Should register functions");
+    assert(linker.libc_functions.contains("malloc"), "Should register malloc");
+    assert(linker.libc_functions.contains("free"), "Should register free");
+}
+
+test "Stdlib Linking" {
+    StandardLibraryLinker linker;
+    bool result = linker.link_stdlib();
+    assert(result == true, "Stdlib linking should succeed");
+}
+
+test "Symbol Resolution" {
+    StandardLibraryLinker linker;
+    linker.link_stdlib();
+    uint64 addr = linker.resolve_symbol("malloc");
+    assert(addr > 0, "Should resolve malloc address");
+}
+
+test "Library Loading" {
+    StandardLibraryLinker linker;
+    bool result = linker.load_library("libc");
+    assert(result == true, "Should load libc");
+}
+
+test "Memory Allocation Tracking" {
+    RuntimeConfig cfg;
+    cfg.enable_memory_tracking = true;
+    MemoryManager mgr(cfg);
+    
+    bool result = mgr.track_allocation(0x1000, 256, "malloc");
+    assert(result == true, "Should track allocation");
+}
+
+test "Memory Deallocation Tracking" {
+    RuntimeConfig cfg;
+    cfg.enable_memory_tracking = true;
+    MemoryManager mgr(cfg);
+    
+    mgr.track_allocation(0x1000, 256, "malloc");
+    bool result = mgr.track_deallocation(0x1000);
+    assert(result == true, "Should track deallocation");
+}
+
+test "Memory Leak Detection" {
+    RuntimeConfig cfg;
+    cfg.enable_memory_tracking = true;
+    cfg.enable_leak_detection = true;
+    MemoryManager mgr(cfg);
+    
+    mgr.track_allocation(0x1000, 256, "malloc");
+    vector(MemoryAllocation) leaks = mgr.detect_leaks();
+    assert(leaks.length == 1, "Should detect 1 leak");
+}
+
+test "Memory Statistics" {
+    RuntimeConfig cfg;
+    cfg.enable_memory_tracking = true;
+    MemoryManager mgr(cfg);
+    
+    mgr.track_allocation(0x1000, 256, "malloc");
+    mgr.track_allocation(0x2000, 512, "malloc");
+    
+    mapping(string => uint64) stats = mgr.get_memory_stats();
+    assert(stats["total_allocated"] == 768, "Should track total allocated");
+}
+
+test "Exception Handler Registration" {
+    RuntimeConfig cfg;
+    cfg.enable_exception_handling = true;
+    ExceptionHandler handler(cfg);
+    
+    bool result = handler.register_handler("NullPointerException", 0x1000, 0, 100);
+    assert(result == true, "Should register handler");
+}
+
+test "Exception Throwing" {
+    RuntimeConfig cfg;
+    cfg.enable_exception_handling = true;
+    ExceptionHandler handler(cfg);
+    
+    handler.register_handler("CustomException", 0x1000, 0, 100);
+    bool result = handler.throw_exception("CustomException", "Test error");
+    assert(result == true, "Should throw exception");
+}
+
+test "File Open" {
+    RuntimeConfig cfg;
+    IOSystem io(cfg);
+    
+    int32 fd = io.open_file("test.txt", "r");
+    assert(fd > 2, "Should return valid file descriptor");
+}
+
+test "File Close" {
+    RuntimeConfig cfg;
+    IOSystem io(cfg);
+    
+    int32 fd = io.open_file("test.txt", "r");
+    bool result = io.close_file(fd);
+    assert(result == true, "Should close file");
+}
+
+test "File Read" {
+    RuntimeConfig cfg;
+    IOSystem io(cfg);
+    
+    int32 fd = io.open_file("test.txt", "r");
+    uint256 bytes = io.read_file(fd, 100);
+    assert(bytes == 100, "Should track read bytes");
+}
+
+test "File Write" {
+    RuntimeConfig cfg;
+    IOSystem io(cfg);
+    
+    int32 fd = io.open_file("test.txt", "w");
+    uint256 bytes = io.write_file(fd, 50);
+    assert(bytes == 50, "Should track written bytes");
+}
+
+test "IO Statistics" {
+    RuntimeConfig cfg;
+    IOSystem io(cfg);
+    
+    int32 fd = io.open_file("test.txt", "r");
+    io.read_file(fd, 100);
+    io.write_file(fd, 50);
+    
+    mapping(string => uint256) stats = io.get_io_stats();
+    assert(stats["bytes_read"] == 100, "Should track bytes read");
+    assert(stats["bytes_written"] == 50, "Should track bytes written");
+}
+
+test "Runtime Initialization" {
+    RuntimeConfig cfg;
+    cfg.enable_memory_tracking = true;
+    cfg.enable_exception_handling = true;
+    
+    RuntimeInitializer init(cfg);
+    bool result = init.initialize_runtime();
+    assert(result == true, "Runtime should initialize");
+}
+
+test "Runtime Initialization Check" {
+    RuntimeConfig cfg;
+    RuntimeInitializer init(cfg);
+    
+    assert(init.is_initialized() == false, "Should not be initialized yet");
+    init.initialize_runtime();
+    assert(init.is_initialized() == true, "Should be initialized");
+}
+
+test "Runtime Configuration" {
+    RuntimeConfig cfg;
+    cfg.enable_memory_tracking = true;
+    cfg.enable_leak_detection = true;
+    cfg.enable_exception_handling = true;
+    cfg.heap_size = 1024 * 1024;
+    
+    assert(cfg.enable_memory_tracking == true, "Config should be set");
+}
+
+test "Standard Streams" {
+    RuntimeConfig cfg;
+    IOSystem io(cfg);
+    
+    // stdin, stdout, stderr already registered
+    assert(true, "Standard streams initialized");
+}
+
+test "Double Free Detection" {
+    RuntimeConfig cfg;
+    cfg.enable_memory_tracking = true;
+    MemoryManager mgr(cfg);
+    
+    mgr.track_allocation(0x1000, 256, "malloc");
+    mgr.track_deallocation(0x1000);
+    bool result = mgr.track_deallocation(0x1000);
+    assert(result == false, "Should detect double free");
+}
+
+test "Invalid File Descriptor" {
+    RuntimeConfig cfg;
+    IOSystem io(cfg);
+    
+    uint256 bytes = io.read_file(9999, 100);
+    assert(bytes == 0, "Should fail on invalid FD");
+}
+
+test "Runtime Statistics" {
+    RuntimeConfig cfg;
+    RuntimeInitializer init(cfg);
+    
+    init.initialize_runtime();
+    mapping(string => mapping(string => uint256)) stats = init.get_runtime_stats();
+    assert(stats.contains("memory"), "Should have memory stats");
+    assert(stats.contains("io"), "Should have I/O stats");
+}

@@ -1,0 +1,367 @@
+// OMEGA Compiler - Memory Manager
+// Heap allocation, block tracking, memory layout
+// Efficient memory allocation and management
+
+use std::collections::HashMap;
+
+// ========== Memory Block ==========
+
+pub struct MemoryBlock {
+    pub address: usize,
+    pub size: usize,
+    pub is_allocated: bool,
+    pub allocation_time: u64,
+}
+
+impl MemoryBlock {
+    pub fn new(address: usize, size: usize) -> Self {
+        MemoryBlock {
+            address,
+            size,
+            is_allocated: true,
+            allocation_time: get_current_time(),
+        }
+    }
+
+    pub fn is_free(&self) -> bool {
+        !self.is_allocated
+    }
+}
+
+// ========== Memory Allocator ==========
+
+pub struct MemoryAllocator {
+    blocks: HashMap<usize, MemoryBlock>,
+    free_blocks: Vec<usize>, // Addresses of free blocks
+    total_memory: usize,
+    used_memory: usize,
+    next_address: usize,
+    block_count: usize,
+}
+
+impl MemoryAllocator {
+    pub fn new(total_size: usize) -> Self {
+        let mut allocator = MemoryAllocator {
+            blocks: HashMap::new(),
+            free_blocks: Vec::new(),
+            total_memory: total_size,
+            used_memory: 0,
+            next_address: 0,
+            block_count: 0,
+        };
+
+        // Initialize free block
+        let initial_block = MemoryBlock::new(0, total_size);
+        allocator.blocks.insert(0, initial_block);
+        allocator.free_blocks.push(0);
+
+        allocator
+    }
+
+    // Allocate memory block
+    pub fn allocate(&mut self, size: usize) -> Result<usize, String> {
+        if size == 0 {
+            return Err("Cannot allocate 0 bytes".to_string());
+        }
+
+        if self.used_memory + size > self.total_memory {
+            return Err(format!("Out of memory: requested {}, available {}", size, self.total_memory - self.used_memory));
+        }
+
+        // Try to find a free block that fits
+        for (i, &block_addr) in self.free_blocks.iter().enumerate() {
+            if let Some(block) = self.blocks.get(&block_addr) {
+                if block.size >= size {
+                    // Use this block
+                    let address = block.address;
+
+                    // Create allocated block
+                    let allocated = MemoryBlock {
+                        address,
+                        size,
+                        is_allocated: true,
+                        allocation_time: get_current_time(),
+                    };
+
+                    self.blocks.insert(address, allocated);
+                    self.used_memory += size;
+                    self.block_count += 1;
+
+                    // If there's remaining space, create a new free block
+                    if block.size > size {
+                        let remaining_addr = block.address + size;
+                        let remaining = MemoryBlock {
+                            address: remaining_addr,
+                            size: block.size - size,
+                            is_allocated: false,
+                            allocation_time: get_current_time(),
+                        };
+                        self.blocks.insert(remaining_addr, remaining);
+                        self.free_blocks[i] = remaining_addr;
+                    } else {
+                        self.free_blocks.remove(i);
+                    }
+
+                    return Ok(address);
+                }
+            }
+        }
+
+        Err("No suitable free block found".to_string())
+    }
+
+    // Deallocate memory block
+    pub fn deallocate(&mut self, address: usize) -> Result<(), String> {
+        if let Some(block) = self.blocks.get_mut(&address) {
+            if !block.is_allocated {
+                return Err(format!("Double free at address {}", address));
+            }
+
+            block.is_allocated = false;
+            self.used_memory = self.used_memory.saturating_sub(block.size);
+            self.block_count = self.block_count.saturating_sub(1);
+
+            // Add to free list
+            self.free_blocks.push(address);
+
+            Ok(())
+        } else {
+            Err(format!("Invalid address: {}", address))
+        }
+    }
+
+    // Compact memory (defragmentation)
+    pub fn compact(&mut self) -> usize {
+        let mut compacted = 0;
+        let mut free_blocks: Vec<usize> = self.free_blocks.clone();
+        free_blocks.sort();
+
+        // Merge adjacent free blocks
+        let mut i = 0;
+        while i < free_blocks.len() - 1 {
+            let block_addr = free_blocks[i];
+            let next_addr = free_blocks[i + 1];
+
+            if let (Some(block), Some(next_block)) = (self.blocks.get(&block_addr), self.blocks.get(&next_addr)) {
+                if block.address + block.size == next_block.address {
+                    // Merge blocks
+                    let merged_size = block.size + next_block.size;
+                    let merged = MemoryBlock {
+                        address: block.address,
+                        size: merged_size,
+                        is_allocated: false,
+                        allocation_time: get_current_time(),
+                    };
+
+                    self.blocks.insert(block.address, merged);
+                    self.blocks.remove(&next_addr);
+                    free_blocks.remove(i + 1);
+                    self.free_blocks.remove(self.free_blocks.iter().position(|&x| x == next_addr).unwrap());
+                    compacted += 1;
+                    continue;
+                }
+            }
+
+            i += 1;
+        }
+
+        compacted
+    }
+
+    // Get memory statistics
+    pub fn get_stats(&self) -> MemoryStats {
+        MemoryStats {
+            total_memory: self.total_memory,
+            used_memory: self.used_memory,
+            free_memory: self.total_memory - self.used_memory,
+            allocated_blocks: self.block_count,
+            free_blocks: self.free_blocks.len(),
+            fragmentation: self.calculate_fragmentation(),
+        }
+    }
+
+    fn calculate_fragmentation(&self) -> f64 {
+        if self.free_blocks.is_empty() {
+            return 0.0;
+        }
+
+        let largest_free_size: usize = self.free_blocks.iter().filter_map(|addr| self.blocks.get(addr).map(|b| b.size)).max().unwrap_or(0);
+        let total_free: usize = self.free_blocks.iter().filter_map(|addr| self.blocks.get(addr).map(|b| b.size)).sum();
+
+        if total_free == 0 {
+            return 0.0;
+        }
+
+        ((total_free - largest_free_size) as f64 / total_free as f64) * 100.0
+    }
+
+    // Check if address is valid
+    pub fn is_valid_address(&self, address: usize) -> bool {
+        self.blocks.contains_key(&address)
+    }
+
+    // Get block size
+    pub fn get_block_size(&self, address: usize) -> Option<usize> {
+        self.blocks.get(&address).map(|b| b.size)
+    }
+}
+
+// ========== Memory Statistics ==========
+
+pub struct MemoryStats {
+    pub total_memory: usize,
+    pub used_memory: usize,
+    pub free_memory: usize,
+    pub allocated_blocks: usize,
+    pub free_blocks: usize,
+    pub fragmentation: f64,
+}
+
+impl MemoryStats {
+    pub fn utilization_percent(&self) -> f64 {
+        (self.used_memory as f64 / self.total_memory as f64) * 100.0
+    }
+
+    pub fn is_critical(&self) -> bool {
+        self.utilization_percent() > 90.0
+    }
+
+    pub fn report(&self) -> String {
+        let mut report = String::new();
+        report.push_str("=== Memory Statistics ===\n");
+        report.push_str(&format!("Total Memory: {} bytes\n", self.total_memory));
+        report.push_str(&format!("Used Memory: {} bytes ({:.2}%)\n", self.used_memory, self.utilization_percent()));
+        report.push_str(&format!("Free Memory: {} bytes\n", self.free_memory));
+        report.push_str(&format!("Allocated Blocks: {}\n", self.allocated_blocks));
+        report.push_str(&format!("Free Blocks: {}\n", self.free_blocks));
+        report.push_str(&format!("Fragmentation: {:.2}%\n", self.fragmentation));
+        if self.is_critical() {
+            report.push_str("⚠️  CRITICAL: Memory utilization above 90%\n");
+        }
+        report
+    }
+}
+
+// ========== Memory Pool ==========
+
+pub struct MemoryPool {
+    allocator: MemoryAllocator,
+    allocation_history: Vec<AllocationRecord>,
+}
+
+pub struct AllocationRecord {
+    pub address: usize,
+    pub size: usize,
+    pub time: u64,
+    pub deallocated: bool,
+}
+
+impl MemoryPool {
+    pub fn new(size: usize) -> Self {
+        MemoryPool {
+            allocator: MemoryAllocator::new(size),
+            allocation_history: Vec::new(),
+        }
+    }
+
+    pub fn allocate(&mut self, size: usize) -> Result<usize, String> {
+        let address = self.allocator.allocate(size)?;
+        self.allocation_history.push(AllocationRecord {
+            address,
+            size,
+            time: get_current_time(),
+            deallocated: false,
+        });
+        Ok(address)
+    }
+
+    pub fn deallocate(&mut self, address: usize) -> Result<(), String> {
+        self.allocator.deallocate(address)?;
+        // Mark as deallocated in history
+        if let Some(record) = self.allocation_history.iter_mut().find(|r| r.address == address) {
+            record.deallocated = true;
+        }
+        Ok(())
+    }
+
+    pub fn get_stats(&self) -> MemoryStats {
+        self.allocator.get_stats()
+    }
+
+    pub fn get_allocation_count(&self) -> usize {
+        self.allocation_history.len()
+    }
+
+    pub fn get_leak_count(&self) -> usize {
+        self.allocation_history.iter().filter(|r| !r.deallocated).count()
+    }
+}
+
+fn get_current_time() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    #[test]
+    fn test_allocator_creation() {
+        let allocator = MemoryAllocator::new(1024);
+        assert_eq!(allocator.total_memory, 1024);
+    }
+
+    #[test]
+    fn test_allocate_single_block() {
+        let mut allocator = MemoryAllocator::new(1024);
+        let addr = allocator.allocate(100).unwrap();
+        assert!(addr >= 0);
+    }
+
+    #[test]
+    fn test_allocate_multiple_blocks() {
+        let mut allocator = MemoryAllocator::new(1024);
+        let addr1 = allocator.allocate(100).unwrap();
+        let addr2 = allocator.allocate(200).unwrap();
+        assert_ne!(addr1, addr2);
+    }
+
+    #[test]
+    fn test_out_of_memory() {
+        let mut allocator = MemoryAllocator::new(100);
+        let result = allocator.allocate(200);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_deallocate() {
+        let mut allocator = MemoryAllocator::new(1024);
+        let addr = allocator.allocate(100).unwrap();
+        allocator.deallocate(addr).unwrap();
+        let stats = allocator.get_stats();
+        assert_eq!(stats.used_memory, 0);
+    }
+
+    #[test]
+    fn test_memory_pool() {
+        let mut pool = MemoryPool::new(1024);
+        let addr = pool.allocate(100).unwrap();
+        assert_eq!(pool.get_allocation_count(), 1);
+        pool.deallocate(addr).unwrap();
+        assert_eq!(pool.get_leak_count(), 0);
+    }
+
+    #[test]
+    fn test_fragmentation_calculation() {
+        let mut allocator = MemoryAllocator::new(1000);
+        let _addr1 = allocator.allocate(100).unwrap();
+        let addr2 = allocator.allocate(100).unwrap();
+        let _addr3 = allocator.allocate(100).unwrap();
+        allocator.deallocate(addr2).unwrap();
+        let stats = allocator.get_stats();
+        assert!(stats.fragmentation > 0.0);
+    }
+}

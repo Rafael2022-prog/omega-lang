@@ -1,0 +1,322 @@
+// OMEGA Compiler - EVM Runtime
+// Ethereum Virtual Machine execution, contract deployment, gas tracking
+
+use std::collections::HashMap;
+
+// ========== EVM Contract State ==========
+
+pub struct ContractState {
+    pub address: String,
+    pub balance: u128,
+    pub nonce: u64,
+    pub code: Vec<u8>,
+    pub storage: HashMap<String, String>,
+    pub created_at: u64,
+}
+
+impl ContractState {
+    pub fn new(address: String) -> Self {
+        ContractState {
+            address,
+            balance: 0,
+            nonce: 0,
+            code: Vec::new(),
+            storage: HashMap::new(),
+            created_at: get_timestamp(),
+        }
+    }
+
+    pub fn set_code(&mut self, code: Vec<u8>) {
+        self.code = code;
+    }
+
+    pub fn set_storage(&mut self, key: String, value: String) {
+        self.storage.insert(key, value);
+    }
+
+    pub fn get_storage(&self, key: &str) -> Option<&String> {
+        self.storage.get(key)
+    }
+
+    pub fn add_balance(&mut self, amount: u128) {
+        self.balance = self.balance.saturating_add(amount);
+    }
+
+    pub fn subtract_balance(&mut self, amount: u128) -> Result<(), String> {
+        if self.balance >= amount {
+            self.balance -= amount;
+            Ok(())
+        } else {
+            Err("Insufficient balance".to_string())
+        }
+    }
+
+    pub fn increment_nonce(&mut self) {
+        self.nonce = self.nonce.saturating_add(1);
+    }
+}
+
+// ========== EVM Execution Context ==========
+
+pub struct EVMContext {
+    pub accounts: HashMap<String, ContractState>,
+    pub call_stack: Vec<String>,
+    pub memory: Vec<u8>,
+    pub storage_changes: HashMap<String, HashMap<String, String>>,
+}
+
+impl EVMContext {
+    pub fn new() -> Self {
+        EVMContext {
+            accounts: HashMap::new(),
+            call_stack: Vec::new(),
+            memory: vec![0; 32 * 1024], // 32KB memory
+            storage_changes: HashMap::new(),
+        }
+    }
+
+    pub fn create_account(&mut self, address: String) {
+        self.accounts.insert(address, ContractState::new(address.clone()));
+    }
+
+    pub fn get_account(&self, address: &str) -> Option<&ContractState> {
+        self.accounts.get(address)
+    }
+
+    pub fn get_account_mut(&mut self, address: &str) -> Option<&mut ContractState> {
+        self.accounts.get_mut(address)
+    }
+
+    pub fn push_call(&mut self, address: String) {
+        self.call_stack.push(address);
+    }
+
+    pub fn pop_call(&mut self) -> Option<String> {
+        self.call_stack.pop()
+    }
+
+    pub fn current_address(&self) -> Option<&String> {
+        self.call_stack.last()
+    }
+}
+
+// ========== Gas Tracking ==========
+
+pub struct GasTracker {
+    pub gas_limit: u64,
+    pub gas_used: u64,
+    pub gas_price: u128,
+    pub refunds: u64,
+}
+
+impl GasTracker {
+    pub fn new(gas_limit: u64, gas_price: u128) -> Self {
+        GasTracker {
+            gas_limit,
+            gas_used: 0,
+            gas_price,
+            refunds: 0,
+        }
+    }
+
+    pub fn use_gas(&mut self, amount: u64) -> Result<(), String> {
+        if self.gas_used + amount <= self.gas_limit {
+            self.gas_used += amount;
+            Ok(())
+        } else {
+            Err("Out of gas".to_string())
+        }
+    }
+
+    pub fn remaining_gas(&self) -> u64 {
+        self.gas_limit.saturating_sub(self.gas_used)
+    }
+
+    pub fn add_refund(&mut self, amount: u64) {
+        self.refunds = self.refunds.saturating_add(amount);
+    }
+
+    pub fn total_cost(&self) -> u128 {
+        (self.gas_used as u128) * self.gas_price
+    }
+
+    pub fn is_out_of_gas(&self) -> bool {
+        self.gas_used >= self.gas_limit
+    }
+}
+
+// ========== EVM Instruction Costs ==========
+
+pub struct InstructionCosts;
+
+impl InstructionCosts {
+    pub fn get_cost(opcode: u8) -> u64 {
+        match opcode {
+            // Arithmetic
+            0x01 | 0x02 | 0x03 | 0x04 | 0x05 => 3,    // ADD, MUL, SUB, DIV, SDIV
+            0x06 | 0x07 => 5,                           // MOD, SMOD
+            0x08 => 10,                                 // ADDMOD
+            0x09 => 10,                                 // MULMOD
+            
+            // Comparison
+            0x10 | 0x11 | 0x12 | 0x13 | 0x14 => 3,     // LT, GT, SLT, SGT, EQ
+            
+            // Memory
+            0x51 => 3,                                  // MLOAD
+            0x52 => 3,                                  // MSTORE
+            0x53 => 3,                                  // MSTORE8
+            
+            // Storage
+            0x54 => 200,                                // SLOAD
+            0x55 => 20000,                              // SSTORE
+            
+            // Control flow
+            0x56 => 8,                                  // JUMP
+            0x57 => 10,                                 // JUMPI
+            
+            // Stack
+            0x50 => 2,                                  // MSIZE
+            
+            // Crypto
+            0x20 => 30,                                 // SHA3
+            
+            // Other
+            _ => 1,
+        }
+    }
+
+    pub fn get_transaction_cost(data_size: usize) -> u64 {
+        21000 + (data_size as u64 * 16)
+    }
+}
+
+// ========== EVM Runtime ==========
+
+pub struct EVMRuntime {
+    pub context: EVMContext,
+    pub gas_tracker: GasTracker,
+    pub execution_complete: bool,
+}
+
+impl EVMRuntime {
+    pub fn new(gas_limit: u64, gas_price: u128) -> Self {
+        EVMRuntime {
+            context: EVMContext::new(),
+            gas_tracker: GasTracker::new(gas_limit, gas_price),
+            execution_complete: false,
+        }
+    }
+
+    pub fn deploy_contract(&mut self, address: String, code: Vec<u8>) -> Result<(), String> {
+        let tx_cost = InstructionCosts::get_transaction_cost(code.len());
+        self.gas_tracker.use_gas(tx_cost)?;
+
+        self.context.create_account(address.clone());
+        if let Some(account) = self.context.get_account_mut(&address) {
+            account.set_code(code);
+        }
+
+        Ok(())
+    }
+
+    pub fn call_contract(&mut self, to: String, value: u128, input: Vec<u8>) -> Result<Vec<u8>, String> {
+        self.gas_tracker.use_gas(21000)?;
+
+        if let Some(account) = self.context.get_account_mut(&to) {
+            account.add_balance(value);
+        }
+
+        Ok(vec![])
+    }
+
+    pub fn store_data(&mut self, key: String, value: String) -> Result<(), String> {
+        self.gas_tracker.use_gas(20000)?;
+
+        if let Some(address) = self.context.current_address() {
+            let addr = address.clone();
+            if let Some(account) = self.context.get_account_mut(&addr) {
+                account.set_storage(key, value);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn load_data(&mut self, key: &str) -> Result<Option<String>, String> {
+        self.gas_tracker.use_gas(200)?;
+
+        if let Some(address) = self.context.current_address() {
+            if let Some(account) = self.context.get_account(address) {
+                return Ok(account.get_storage(key).cloned());
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub fn get_execution_report(&self) -> ExecutionReport {
+        ExecutionReport {
+            total_cost: self.gas_tracker.total_cost(),
+            gas_used: self.gas_tracker.gas_used,
+            gas_remaining: self.gas_tracker.remaining_gas(),
+            accounts_modified: self.context.accounts.len(),
+            success: !self.gas_tracker.is_out_of_gas(),
+        }
+    }
+}
+
+// ========== Execution Report ==========
+
+pub struct ExecutionReport {
+    pub total_cost: u128,
+    pub gas_used: u64,
+    pub gas_remaining: u64,
+    pub accounts_modified: usize,
+    pub success: bool,
+}
+
+fn get_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+#[cfg(test)]
+mod evm_tests {
+    use super::*;
+
+    #[test]
+    fn test_contract_state() {
+        let mut contract = ContractState::new("0x123".to_string());
+        contract.add_balance(1000);
+        assert_eq!(contract.balance, 1000);
+    }
+
+    #[test]
+    fn test_gas_tracking() {
+        let mut tracker = GasTracker::new(100000, 1);
+        assert!(tracker.use_gas(50000).is_ok());
+        assert_eq!(tracker.gas_used, 50000);
+    }
+
+    #[test]
+    fn test_out_of_gas() {
+        let mut tracker = GasTracker::new(100, 1);
+        assert!(tracker.use_gas(50).is_ok());
+        assert!(tracker.use_gas(60).is_err());
+    }
+
+    #[test]
+    fn test_evm_runtime() {
+        let mut runtime: EVMRuntime = EVMRuntime::new(1000000, 1);
+        let code: Vec<u8> = vec![0x60, 0x01];
+        assert!(runtime.deploy_contract("0xabc".to_string(), code).is_ok());
+    }
+
+    #[test]
+    fn test_instruction_costs() {
+        assert_eq!(InstructionCosts::get_cost(0x01), 3); // ADD
+        assert_eq!(InstructionCosts::get_cost(0x54), 200); // SLOAD
+    }
+}

@@ -98,13 +98,20 @@ struct Parameter {
 /// Struct untuk type information
 struct Type {
     TypeKind kind;
+    BaseType base_type;
     string name;
+    string custom_type_name;
     Type[] generic_args;
     uint256 array_size;
     bool is_array;
     bool is_mapping;
     Type key_type;
     Type value_type;
+}
+
+/// Enum untuk base types primitif
+enum BaseType {
+    Uint, Uint256, Int, Int256, Bool, Address, String, Bytes, Void, Custom
 }
 
 /// Enum untuk type kinds
@@ -137,7 +144,10 @@ enum StatementType {
     Require,
     Assert,
     Revert,
-    Block
+    Block,
+    Break,
+    Continue,
+    Try
 }
 
 /// Struct untuk statements
@@ -154,6 +164,9 @@ struct Statement {
     AssertStatement assert_stmt;
     RevertStatement revert_stmt;
     Block block_stmt;
+    TryStatement try_stmt;
+    BreakStatement break_stmt;
+    ContinueStatement continue_stmt;
 }
 
 /// Struct untuk if statement
@@ -205,6 +218,31 @@ struct RevertStatement {
     string message;
 }
 
+/// Struct untuk try/catch statement
+struct TryStatement {
+    Statement try_block;
+    CatchClause[] catch_clauses;
+    Statement finally_block;
+    bool has_finally;
+}
+
+/// Struct untuk catch clause
+struct CatchClause {
+    string exception_type;
+    string exception_var;
+    Statement body;
+}
+
+/// Struct untuk break statement
+struct BreakStatement {
+    // No additional data needed
+}
+
+/// Struct untuk continue statement
+struct ContinueStatement {
+    // No additional data needed
+}
+
 /// Struct untuk variable declaration
 struct VariableDeclaration {
     string name;
@@ -224,7 +262,11 @@ enum ExpressionType {
     Identifier,
     Assignment,
     ArrayAccess,
-    MemberAccess
+    MemberAccess,
+    Ternary,
+    TypeCast,
+    StructLiteral,
+    ArrayLiteral
 }
 
 /// Struct untuk expressions
@@ -238,6 +280,10 @@ struct Expression {
     AssignmentExpression assignment;
     ArrayAccessExpression array_access;
     MemberAccessExpression member_access;
+    TernaryExpression ternary;
+    TypeCastExpression type_cast;
+    StructLiteralExpression struct_literal;
+    ArrayLiteralExpression array_literal;
 }
 
 /// Struct untuk binary expressions
@@ -302,7 +348,8 @@ enum LiteralType {
     String,
     Boolean,
     Address,
-    Bytes
+    Bytes,
+    None
 }
 
 /// Struct untuk literals
@@ -313,6 +360,38 @@ struct Literal {
     bool boolean_value;
     address address_value;
     bytes bytes_value;
+    bool none_value;
+}
+
+/// Struct untuk ternary expressions (condition ? then_expr : else_expr)
+struct TernaryExpression {
+    Expression condition;
+    Expression then_expr;
+    Expression else_expr;
+}
+
+/// Struct untuk type cast expressions
+struct TypeCastExpression {
+    Type target_type;
+    Expression operand;
+}
+
+/// Struct untuk struct literal field
+struct StructLiteralField {
+    string name;
+    Expression value;
+}
+
+/// Struct untuk struct literal expressions
+struct StructLiteralExpression {
+    string struct_name;
+    StructLiteralField[] fields;
+}
+
+/// Struct untuk array literal expressions
+struct ArrayLiteralExpression {
+    Expression[] elements;
+    uint256 element_count;
 }
 
 /// Struct untuk annotations

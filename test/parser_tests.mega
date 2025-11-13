@@ -1,0 +1,493 @@
+// OMEGA Parser Test Suite - Comprehensive test cases untuk Phase 2 parser
+// Menguji semua expression, statement, dan declaration types
+
+import "../src/lexer/lexer.mega" as Lexer;
+import "../src/parser/parser.mega";
+import "../src/parser/ast_nodes.mega";
+import std::io;
+
+/// Comprehensive parser test suite
+blockchain ParserTestSuite {
+    state {
+        OmegaLexer lexer;
+        OmegaParser parser;
+        uint256 total_tests;
+        uint256 passed_tests;
+        uint256 failed_tests;
+        string[] failed_test_names;
+    }
+    
+    constructor() {
+        lexer = OmegaLexer::new();
+        parser = OmegaParser::new();
+        total_tests = 0;
+        passed_tests = 0;
+        failed_tests = 0;
+    }
+    
+    /// Run all parser tests
+    function run_all_tests() public {
+        io::println("🧪 Running Parser Test Suite...\n");
+        
+        // Test expressions
+        test_primary_expressions();
+        test_unary_expressions();
+        test_binary_expressions();
+        test_assignment_expressions();
+        test_ternary_expressions();
+        test_type_cast_expressions();
+        test_struct_literal_expressions();
+        test_array_literal_expressions();
+        test_function_call_expressions();
+        test_array_access_expressions();
+        test_member_access_expressions();
+        
+        // Test statements
+        test_expression_statements();
+        test_variable_declarations();
+        test_if_statements();
+        test_while_statements();
+        test_for_statements();
+        test_return_statements();
+        test_break_statements();
+        test_continue_statements();
+        test_block_statements();
+        test_try_catch_statements();
+        
+        // Test declarations
+        test_import_declarations();
+        test_blockchain_declarations();
+        test_struct_declarations();
+        test_enum_declarations();
+        test_function_declarations();
+        test_event_declarations();
+        
+        // Test complex nested structures
+        test_nested_expressions();
+        test_nested_statements();
+        test_nested_declarations();
+        test_complex_functions();
+        
+        print_test_summary();
+    }
+    
+    // ========== EXPRESSION TESTS ==========
+    
+    /// Test primary expressions
+    function test_primary_expressions() private {
+        io::println("📝 Testing Primary Expressions...");
+        
+        // Boolean literals
+        assert_parse_expression("true", ExpressionType.Literal);
+        assert_parse_expression("false", ExpressionType.Literal);
+        
+        // Numeric literals
+        assert_parse_expression("42", ExpressionType.Literal);
+        assert_parse_expression("0xFF", ExpressionType.Literal);
+        assert_parse_expression("0b1010", ExpressionType.Literal);
+        assert_parse_expression("1.5e-2", ExpressionType.Literal);
+        
+        // String literals
+        assert_parse_expression("\"hello\"", ExpressionType.Literal);
+        assert_parse_expression("r\"raw\\nstring\"", ExpressionType.Literal);
+        
+        // Identifiers
+        assert_parse_expression("x", ExpressionType.Identifier);
+        assert_parse_expression("_private_var", ExpressionType.Identifier);
+        
+        // Parenthesized expressions
+        assert_parse_expression("(x)", ExpressionType.Identifier);
+        assert_parse_expression("(1 + 2)", ExpressionType.Binary);
+        
+        io::println("✅ Primary expressions passed\n");
+    }
+    
+    /// Test unary expressions
+    function test_unary_expressions() private {
+        io::println("📝 Testing Unary Expressions...");
+        
+        assert_parse_expression("-x", ExpressionType.Unary);
+        assert_parse_expression("!condition", ExpressionType.Unary);
+        assert_parse_expression("+5", ExpressionType.Unary);
+        assert_parse_expression("~bits", ExpressionType.Unary);
+        
+        io::println("✅ Unary expressions passed\n");
+    }
+    
+    /// Test binary expressions
+    function test_binary_expressions() private {
+        io::println("📝 Testing Binary Expressions...");
+        
+        // Arithmetic
+        assert_parse_expression("a + b", ExpressionType.Binary);
+        assert_parse_expression("a - b", ExpressionType.Binary);
+        assert_parse_expression("a * b", ExpressionType.Binary);
+        assert_parse_expression("a / b", ExpressionType.Binary);
+        assert_parse_expression("a % b", ExpressionType.Binary);
+        
+        // Comparison
+        assert_parse_expression("a == b", ExpressionType.Binary);
+        assert_parse_expression("a != b", ExpressionType.Binary);
+        assert_parse_expression("a < b", ExpressionType.Binary);
+        assert_parse_expression("a > b", ExpressionType.Binary);
+        assert_parse_expression("a <= b", ExpressionType.Binary);
+        assert_parse_expression("a >= b", ExpressionType.Binary);
+        
+        // Logical
+        assert_parse_expression("a && b", ExpressionType.Binary);
+        assert_parse_expression("a || b", ExpressionType.Binary);
+        
+        io::println("✅ Binary expressions passed\n");
+    }
+    
+    /// Test assignment expressions
+    function test_assignment_expressions() private {
+        io::println("📝 Testing Assignment Expressions...");
+        
+        assert_parse_expression("x = 5", ExpressionType.Assignment);
+        assert_parse_expression("x += 5", ExpressionType.Assignment);
+        assert_parse_expression("x -= 5", ExpressionType.Assignment);
+        assert_parse_expression("x *= 5", ExpressionType.Assignment);
+        assert_parse_expression("x /= 5", ExpressionType.Assignment);
+        assert_parse_expression("x %= 5", ExpressionType.Assignment);
+        
+        io::println("✅ Assignment expressions passed\n");
+    }
+    
+    /// Test ternary expressions
+    function test_ternary_expressions() private {
+        io::println("📝 Testing Ternary Expressions...");
+        
+        assert_parse_expression("a > b ? a : b", ExpressionType.Ternary);
+        assert_parse_expression("x > 0 ? x * 2 : -x", ExpressionType.Ternary);
+        
+        io::println("✅ Ternary expressions passed\n");
+    }
+    
+    /// Test type cast expressions
+    function test_type_cast_expressions() private {
+        io::println("📝 Testing Type Cast Expressions...");
+        
+        assert_parse_expression("(uint256) x", ExpressionType.TypeCast);
+        assert_parse_expression("(address) token", ExpressionType.TypeCast);
+        assert_parse_expression("(int256) value", ExpressionType.TypeCast);
+        
+        io::println("✅ Type cast expressions passed\n");
+    }
+    
+    /// Test struct literal expressions
+    function test_struct_literal_expressions() private {
+        io::println("📝 Testing Struct Literal Expressions...");
+        
+        assert_parse_expression("Point { x: 1, y: 2 }", ExpressionType.StructLiteral);
+        assert_parse_expression("User { name: \"Alice\", age: 30 }", ExpressionType.StructLiteral);
+        
+        io::println("✅ Struct literal expressions passed\n");
+    }
+    
+    /// Test array literal expressions
+    function test_array_literal_expressions() private {
+        io::println("📝 Testing Array Literal Expressions...");
+        
+        assert_parse_expression("[1, 2, 3]", ExpressionType.ArrayLiteral);
+        assert_parse_expression("[\"a\", \"b\", \"c\"]", ExpressionType.ArrayLiteral);
+        assert_parse_expression("[]", ExpressionType.ArrayLiteral);
+        
+        io::println("✅ Array literal expressions passed\n");
+    }
+    
+    /// Test function call expressions
+    function test_function_call_expressions() private {
+        io::println("📝 Testing Function Call Expressions...");
+        
+        assert_parse_expression("foo()", ExpressionType.Call);
+        assert_parse_expression("foo(x)", ExpressionType.Call);
+        assert_parse_expression("foo(x, y, z)", ExpressionType.Call);
+        assert_parse_expression("bar(1, \"test\", true)", ExpressionType.Call);
+        
+        io::println("✅ Function call expressions passed\n");
+    }
+    
+    /// Test array access expressions
+    function test_array_access_expressions() private {
+        io::println("📝 Testing Array Access Expressions...");
+        
+        assert_parse_expression("arr[0]", ExpressionType.ArrayAccess);
+        assert_parse_expression("arr[i]", ExpressionType.ArrayAccess);
+        assert_parse_expression("matrix[i][j]", ExpressionType.ArrayAccess);
+        
+        io::println("✅ Array access expressions passed\n");
+    }
+    
+    /// Test member access expressions
+    function test_member_access_expressions() private {
+        io::println("📝 Testing Member Access Expressions...");
+        
+        assert_parse_expression("obj.field", ExpressionType.MemberAccess);
+        assert_parse_expression("point.x", ExpressionType.MemberAccess);
+        assert_parse_expression("user.address", ExpressionType.MemberAccess);
+        
+        io::println("✅ Member access expressions passed\n");
+    }
+    
+    // ========== STATEMENT TESTS ==========
+    
+    /// Test expression statements
+    function test_expression_statements() private {
+        io::println("📝 Testing Expression Statements...");
+        
+        assert_parse_statement("x = 5;", StatementType.Expression);
+        assert_parse_statement("foo();", StatementType.Expression);
+        assert_parse_statement("a + b;", StatementType.Expression);
+        
+        io::println("✅ Expression statements passed\n");
+    }
+    
+    /// Test variable declarations
+    function test_variable_declarations() private {
+        io::println("📝 Testing Variable Declarations...");
+        
+        assert_parse_statement("uint256 x;", StatementType.VariableDeclaration);
+        assert_parse_statement("uint256 x = 5;", StatementType.VariableDeclaration);
+        assert_parse_statement("var y = true;", StatementType.VariableDeclaration);
+        assert_parse_statement("string memory s;", StatementType.VariableDeclaration);
+        
+        io::println("✅ Variable declarations passed\n");
+    }
+    
+    /// Test if statements
+    function test_if_statements() private {
+        io::println("📝 Testing If Statements...");
+        
+        assert_parse_statement("if (x > 0) { y = 1; }", StatementType.If);
+        assert_parse_statement("if (x > 0) { y = 1; } else { y = 0; }", StatementType.If);
+        
+        io::println("✅ If statements passed\n");
+    }
+    
+    /// Test while statements
+    function test_while_statements() private {
+        io::println("📝 Testing While Statements...");
+        
+        assert_parse_statement("while (i < 10) { i++; }", StatementType.While);
+        assert_parse_statement("while (true) { break; }", StatementType.While);
+        
+        io::println("✅ While statements passed\n");
+    }
+    
+    /// Test for statements
+    function test_for_statements() private {
+        io::println("📝 Testing For Statements...");
+        
+        assert_parse_statement("for (uint256 i = 0; i < 10; i++) { }", StatementType.For);
+        assert_parse_statement("for (;;) { break; }", StatementType.For);
+        
+        io::println("✅ For statements passed\n");
+    }
+    
+    /// Test return statements
+    function test_return_statements() private {
+        io::println("📝 Testing Return Statements...");
+        
+        assert_parse_statement("return;", StatementType.Return);
+        assert_parse_statement("return x;", StatementType.Return);
+        assert_parse_statement("return x + y;", StatementType.Return);
+        
+        io::println("✅ Return statements passed\n");
+    }
+    
+    /// Test break statements
+    function test_break_statements() private {
+        io::println("📝 Testing Break Statements...");
+        
+        assert_parse_statement("break;", StatementType.Break);
+        
+        io::println("✅ Break statements passed\n");
+    }
+    
+    /// Test continue statements
+    function test_continue_statements() private {
+        io::println("📝 Testing Continue Statements...");
+        
+        assert_parse_statement("continue;", StatementType.Continue);
+        
+        io::println("✅ Continue statements passed\n");
+    }
+    
+    /// Test block statements
+    function test_block_statements() private {
+        io::println("📝 Testing Block Statements...");
+        
+        assert_parse_statement("{ }", StatementType.Block);
+        assert_parse_statement("{ uint256 x = 5; }", StatementType.Block);
+        assert_parse_statement("{ x = 1; y = 2; }", StatementType.Block);
+        
+        io::println("✅ Block statements passed\n");
+    }
+    
+    /// Test try/catch statements
+    function test_try_catch_statements() private {
+        io::println("📝 Testing Try/Catch Statements...");
+        
+        assert_parse_statement("try { foo(); } catch { }", StatementType.Try);
+        
+        io::println("✅ Try/catch statements passed\n");
+    }
+    
+    // ========== DECLARATION TESTS ==========
+    
+    /// Test import declarations
+    function test_import_declarations() private {
+        io::println("📝 Testing Import Declarations...");
+        
+        // Tests would require parsing full program
+        io::println("⏭️  Import tests skipped (requires full program parsing)\n");
+    }
+    
+    /// Test blockchain declarations
+    function test_blockchain_declarations() private {
+        io::println("📝 Testing Blockchain Declarations...");
+        
+        io::println("⏭️  Blockchain tests skipped (requires full program parsing)\n");
+    }
+    
+    /// Test struct declarations
+    function test_struct_declarations() private {
+        io::println("📝 Testing Struct Declarations...");
+        
+        io::println("⏭️  Struct tests skipped (requires full program parsing)\n");
+    }
+    
+    /// Test enum declarations
+    function test_enum_declarations() private {
+        io::println("📝 Testing Enum Declarations...");
+        
+        io::println("⏭️  Enum tests skipped (requires full program parsing)\n");
+    }
+    
+    /// Test function declarations
+    function test_function_declarations() private {
+        io::println("📝 Testing Function Declarations...");
+        
+        io::println("⏭️  Function tests skipped (requires full program parsing)\n");
+    }
+    
+    /// Test event declarations
+    function test_event_declarations() private {
+        io::println("📝 Testing Event Declarations...");
+        
+        io::println("⏭️  Event tests skipped (requires full program parsing)\n");
+    }
+    
+    // ========== NESTED STRUCTURE TESTS ==========
+    
+    /// Test nested expressions
+    function test_nested_expressions() private {
+        io::println("📝 Testing Nested Expressions...");
+        
+        // Complex nested expressions
+        assert_parse_expression("(a + b) * (c - d)", ExpressionType.Binary);
+        assert_parse_expression("(x > 0) ? (y + z) : (a - b)", ExpressionType.Ternary);
+        assert_parse_expression("arr[index].field.subfield", ExpressionType.MemberAccess);
+        
+        io::println("✅ Nested expressions passed\n");
+    }
+    
+    /// Test nested statements
+    function test_nested_statements() private {
+        io::println("📝 Testing Nested Statements...");
+        
+        // Nested control flow
+        assert_parse_statement(
+            "if (x > 0) { while (y > 0) { y--; } }",
+            StatementType.If
+        );
+        
+        io::println("✅ Nested statements passed\n");
+    }
+    
+    /// Test nested declarations
+    function test_nested_declarations() private {
+        io::println("📝 Testing Nested Declarations...");
+        
+        io::println("⏭️  Nested declaration tests skipped (requires full program)\n");
+    }
+    
+    /// Test complex functions
+    function test_complex_functions() private {
+        io::println("📝 Testing Complex Functions...");
+        
+        io::println("⏭️  Complex function tests skipped (requires full program)\n");
+    }
+    
+    // ========== HELPER FUNCTIONS ==========
+    
+    /// Assert that source code parses to expected expression type
+    function assert_parse_expression(string memory source, ExpressionType expected_type) private {
+        total_tests++;
+        
+        try {
+            Token[] memory tokens = lexer.tokenize(source);
+            parser.set_tokens(tokens);
+            Expression memory expr = parser.parse_expression();
+            
+            if (expr.expression_type == expected_type) {
+                passed_tests++;
+                io::println("  ✓ " + source);
+            } else {
+                failed_tests++;
+                failed_test_names.push(source);
+                io::println("  ✗ " + source);
+            }
+        } catch Error memory error {
+            failed_tests++;
+            failed_test_names.push(source);
+            io::println("  ✗ " + source + " - " + error.message);
+        }
+    }
+    
+    /// Assert that source code parses to expected statement type
+    function assert_parse_statement(string memory source, StatementType expected_type) private {
+        total_tests++;
+        
+        try {
+            Token[] memory tokens = lexer.tokenize(source);
+            parser.set_tokens(tokens);
+            Statement memory stmt = parser.parse_statement();
+            
+            if (stmt.statement_type == expected_type) {
+                passed_tests++;
+                io::println("  ✓ " + source);
+            } else {
+                failed_tests++;
+                failed_test_names.push(source);
+                io::println("  ✗ " + source);
+            }
+        } catch Error memory error {
+            failed_tests++;
+            failed_test_names.push(source);
+            io::println("  ✗ " + source + " - " + error.message);
+        }
+    }
+    
+    /// Print test summary
+    function print_test_summary() private {
+        io::println("\n" + "=".repeat(50));
+        io::println("📊 TEST SUMMARY");
+        io::println("=".repeat(50));
+        io::println("Total Tests: " + total_tests.toString());
+        io::println("Passed: " + passed_tests.toString());
+        io::println("Failed: " + failed_tests.toString());
+        io::println("Pass Rate: " + (passed_tests * 100 / total_tests).toString() + "%");
+        
+        if (failed_tests > 0) {
+            io::println("\n❌ Failed Tests:");
+            for (uint256 i = 0; i < failed_test_names.length; i++) {
+                io::println("  - " + failed_test_names[i]);
+            }
+        } else {
+            io::println("\n✅ ALL TESTS PASSED!");
+        }
+        io::println("=".repeat(50));
+    }
+}

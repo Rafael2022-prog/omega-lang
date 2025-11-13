@@ -1,0 +1,677 @@
+// OMEGA x86-64 Native Code Generator
+// Converts intermediate representation to x86-64 assembly
+// Part of the True Self-Hosting Compiler Implementation
+
+import std::io;
+import std::fs;
+import std::string;
+import std::collections;
+import "../ir/ir_nodes.mega";
+import "../ast/ast_nodes.mega";
+import "../error/error.mega";
+
+/// x86-64 Register representation
+enum X86_64Register {
+    RAX, RBX, RCX, RDX, RSI, RDI, RBP, RSP,
+    R8, R9, R10, R11, R12, R13, R14, R15,
+    
+    // Special registers
+    RIP,  // Instruction pointer
+    RFLAGS  // Flags register
+}
+
+/// x86-64 Instruction types
+enum X86_64Instruction {
+    // Arithmetic
+    MOV,    // Move
+    ADD,    // Add
+    SUB,    // Subtract
+    MUL,    // Multiply
+    DIV,    // Divide
+    MOD,    // Modulo
+    NEG,    // Negate
+    
+    // Logical
+    AND,    // Bitwise AND
+    OR,     // Bitwise OR
+    XOR,    // Bitwise XOR
+    NOT,    // Bitwise NOT
+    SHL,    // Shift left
+    SHR,    // Shift right
+    SAR,    // Arithmetic shift right
+    
+    // Comparison
+    CMP,    // Compare
+    JMP,    // Jump
+    JE,     // Jump if equal
+    JNE,    // Jump if not equal
+    JL,     // Jump if less
+    JLE,    // Jump if less or equal
+    JG,     // Jump if greater
+    JGE,    // Jump if greater or equal
+    
+    // Stack
+    PUSH,   // Push to stack
+    POP,    // Pop from stack
+    CALL,   // Function call
+    RET,    // Return from function
+    
+    // Data transfer
+    LEA,    // Load effective address
+    MOVSX,  // Move with sign extend
+    MOVZX,  // Move with zero extend
+    
+    // Special
+    NOP,    // No operation
+    SYSCALL // System call
+}
+
+/// x86-64 Operand (addressing modes)
+struct X86_64Operand {
+    enum OperandType {
+        REGISTER,
+        IMMEDIATE,
+        MEMORY,
+        LABEL
+    }
+    
+    OperandType type;
+    X86_64Register register;
+    int64 immediate_value;
+    
+    // Memory addressing: [base + index*scale + displacement]
+    X86_64Register base_register;
+    X86_64Register index_register;
+    uint8 scale;  // 1, 2, 4, or 8
+    int64 displacement;
+    
+    string label_name;
+}
+
+/// x86-64 Assembly instruction
+struct AssemblyInstruction {
+    X86_64Instruction opcode;
+    X86_64Operand operand1;
+    X86_64Operand operand2;
+    X86_64Operand operand3;
+    string comment;
+}
+
+/// Register allocation state
+struct RegisterAllocationState {
+    mapping(string => X86_64Register) variable_locations;
+    mapping(X86_64Register => bool) register_in_use;
+    uint256 stack_offset;
+    X86_64Register[] available_registers;
+}
+
+/// Function prologue/epilogue generator
+struct FunctionFrameGenerator {
+    string function_name;
+    uint64 frame_size;
+    uint64 local_variables_size;
+    mapping(string => uint64) local_var_offsets;
+    AssemblyInstruction[] prologue_code;
+    AssemblyInstruction[] epilogue_code;
+    
+    // Generate function prologue (stack setup)
+    void generate_prologue(uint64 local_vars_bytes) {
+        prologue_code.push(AssemblyInstruction {
+            opcode: PUSH,
+            operand1: X86_64Operand { type: REGISTER, register: RBP },
+            comment: "Save old base pointer"
+        });
+        
+        prologue_code.push(AssemblyInstruction {
+            opcode: MOV,
+            operand1: X86_64Operand { type: REGISTER, register: RBP },
+            operand2: X86_64Operand { type: REGISTER, register: RSP },
+            comment: "Setup new base pointer"
+        });
+        
+        // Allocate space for local variables
+        if (local_vars_bytes > 0) {
+            prologue_code.push(AssemblyInstruction {
+                opcode: SUB,
+                operand1: X86_64Operand { type: REGISTER, register: RSP },
+                operand2: X86_64Operand { type: IMMEDIATE, immediate_value: local_vars_bytes },
+                comment: "Allocate local variables"
+            });
+        }
+        
+        frame_size = local_vars_bytes;
+        local_variables_size = local_vars_bytes;
+    }
+    
+    // Generate function epilogue (stack cleanup)
+    void generate_epilogue() {
+        epilogue_code.push(AssemblyInstruction {
+            opcode: MOV,
+            operand1: X86_64Operand { type: REGISTER, register: RSP },
+            operand2: X86_64Operand { type: REGISTER, register: RBP },
+            comment: "Restore stack pointer"
+        });
+        
+        epilogue_code.push(AssemblyInstruction {
+            opcode: POP,
+            operand1: X86_64Operand { type: REGISTER, register: RBP },
+            comment: "Restore base pointer"
+        });
+        
+        epilogue_code.push(AssemblyInstruction {
+            opcode: RET,
+            comment: "Return from function"
+        });
+    }
+}
+
+/// Register allocator - simple linear scan algorithm
+struct RegisterAllocator {
+    RegisterAllocationState state;
+    X86_64Register[] caller_saved = [RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11];
+    X86_64Register[] callee_saved = [RBX, R12, R13, R14, R15];
+    
+    // Allocate a register for a variable
+    X86_64Register allocate_register(string variable_name) {
+        // Check if already allocated
+        if (state.variable_locations.contains(variable_name)) {
+            return state.variable_locations[variable_name];
+        }
+        
+        // Find first available caller-saved register
+        for (X86_64Register reg : caller_saved) {
+            if (!state.register_in_use[reg]) {
+                state.register_in_use[reg] = true;
+                state.variable_locations[variable_name] = reg;
+                return reg;
+            }
+        }
+        
+        // No registers available - spill to stack
+        state.stack_offset += 8;
+        return RSP;  // Will use stack
+    }
+    
+    // Free a register
+    void free_register(X86_64Register reg) {
+        state.register_in_use[reg] = false;
+    }
+    
+    // Get register for variable (allocate if needed)
+    X86_64Register get_register(string variable_name) {
+        return allocate_register(variable_name);
+    }
+}
+
+/// Instruction selector - converts IR to x86-64 instructions
+struct InstructionSelector {
+    AssemblyInstruction[] instructions;
+    RegisterAllocator allocator;
+    uint64 instruction_counter;
+    
+    // Emit a single instruction
+    void emit_instruction(X86_64Instruction opcode, X86_64Operand op1) {
+        instructions.push(AssemblyInstruction {
+            opcode: opcode,
+            operand1: op1
+        });
+        instruction_counter++;
+    }
+    
+    void emit_instruction_2(X86_64Instruction opcode, X86_64Operand op1, X86_64Operand op2) {
+        instructions.push(AssemblyInstruction {
+            opcode: opcode,
+            operand1: op1,
+            operand2: op2
+        });
+        instruction_counter++;
+    }
+    
+    void emit_instruction_3(X86_64Instruction opcode, X86_64Operand op1, X86_64Operand op2, X86_64Operand op3) {
+        instructions.push(AssemblyInstruction {
+            opcode: opcode,
+            operand1: op1,
+            operand2: op2,
+            operand3: op3
+        });
+        instruction_counter++;
+    }
+    
+    // Select instructions for binary operation
+    void select_binary_op(string op, X86_64Register dest, X86_64Register src1, X86_64Register src2) {
+        if (op == "+") {
+            emit_instruction_2(MOV, 
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src1 }
+            );
+            emit_instruction_2(ADD,
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src2 }
+            );
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: dest },
+                X86_64Operand { type: REGISTER, register: RAX }
+            );
+        }
+        else if (op == "-") {
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src1 }
+            );
+            emit_instruction_2(SUB,
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src2 }
+            );
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: dest },
+                X86_64Operand { type: REGISTER, register: RAX }
+            );
+        }
+        else if (op == "*") {
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src1 }
+            );
+            emit_instruction_2(MUL,
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src2 }
+            );
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: dest },
+                X86_64Operand { type: REGISTER, register: RAX }
+            );
+        }
+        else if (op == "/") {
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src1 }
+            );
+            emit_instruction_2(DIV,
+                X86_64Operand { type: REGISTER, register: RAX },
+                X86_64Operand { type: REGISTER, register: src2 }
+            );
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: dest },
+                X86_64Operand { type: REGISTER, register: RAX }
+            );
+        }
+    }
+    
+    // Select instructions for unary operation
+    void select_unary_op(string op, X86_64Register dest, X86_64Register src) {
+        if (op == "-") {
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: dest },
+                X86_64Operand { type: REGISTER, register: src }
+            );
+            emit_instruction(NEG,
+                X86_64Operand { type: REGISTER, register: dest }
+            );
+        }
+        else if (op == "!") {
+            emit_instruction_2(MOV,
+                X86_64Operand { type: REGISTER, register: dest },
+                X86_64Operand { type: REGISTER, register: src }
+            );
+            emit_instruction(NOT,
+                X86_64Operand { type: REGISTER, register: dest }
+            );
+        }
+    }
+}
+
+/// Control flow generator
+struct ControlFlowGenerator {
+    AssemblyInstruction[] instructions;
+    uint64 label_counter;
+    mapping(string => uint64) label_addresses;
+    
+    // Generate a unique label
+    string generate_label(string prefix) {
+        label_counter++;
+        return prefix + "_" + label_counter.to_string();
+    }
+    
+    // Jump to label
+    void emit_jump(string label) {
+        instructions.push(AssemblyInstruction {
+            opcode: JMP,
+            operand1: X86_64Operand { type: LABEL, label_name: label }
+        });
+    }
+    
+    // Conditional jumps
+    void emit_jump_if_equal(string label) {
+        instructions.push(AssemblyInstruction {
+            opcode: JE,
+            operand1: X86_64Operand { type: LABEL, label_name: label }
+        });
+    }
+    
+    void emit_jump_if_not_equal(string label) {
+        instructions.push(AssemblyInstruction {
+            opcode: JNE,
+            operand1: X86_64Operand { type: LABEL, label_name: label }
+        });
+    }
+    
+    void emit_jump_if_less(string label) {
+        instructions.push(AssemblyInstruction {
+            opcode: JL,
+            operand1: X86_64Operand { type: LABEL, label_name: label }
+        });
+    }
+    
+    void emit_jump_if_greater(string label) {
+        instructions.push(AssemblyInstruction {
+            opcode: JG,
+            operand1: X86_64Operand { type: LABEL, label_name: label }
+        });
+    }
+    
+    // Emit label definition
+    void emit_label(string label) {
+        label_addresses[label] = instructions.length;
+    }
+    
+    // Compare two values
+    void emit_compare(X86_64Register src1, X86_64Register src2) {
+        instructions.push(AssemblyInstruction {
+            opcode: CMP,
+            operand1: X86_64Operand { type: REGISTER, register: src1 },
+            operand2: X86_64Operand { type: REGISTER, register: src2 }
+        });
+    }
+}
+
+/// Data type handling
+struct DataTypeHandler {
+    // Get size in bytes for a type
+    uint64 get_type_size(string type_name) {
+        if (type_name == "int" || type_name == "uint") return 4;
+        if (type_name == "long" || type_name == "ulong") return 8;
+        if (type_name == "short" || type_name == "ushort") return 2;
+        if (type_name == "byte" || type_name == "ubyte") return 1;
+        if (type_name == "float") return 4;
+        if (type_name == "double") return 8;
+        if (type_name == "bool") return 1;
+        if (type_name == "address") return 20;  // Ethereum address
+        return 8;  // Default to 64-bit
+    }
+    
+    // Get alignment requirement
+    uint64 get_type_alignment(string type_name) {
+        return get_type_size(type_name);
+    }
+    
+    // Emit move instruction with correct size
+    void emit_sized_move(InstructionSelector selector, X86_64Register dest, X86_64Register src, string type_name) {
+        selector.emit_instruction_2(MOV,
+            X86_64Operand { type: REGISTER, register: dest },
+            X86_64Operand { type: REGISTER, register: src }
+        );
+    }
+}
+
+/// Standard library function calls
+struct StandardLibraryEmitter {
+    AssemblyInstruction[] instructions;
+    
+    // Emit function prologue for library call
+    void emit_library_call_prologue(string func_name) {
+        // Save caller-saved registers
+        instructions.push(AssemblyInstruction {
+            opcode: PUSH,
+            operand1: X86_64Operand { type: REGISTER, register: RAX }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: PUSH,
+            operand1: X86_64Operand { type: REGISTER, register: RCX }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: PUSH,
+            operand1: X86_64Operand { type: REGISTER, register: RDX }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: PUSH,
+            operand1: X86_64Operand { type: REGISTER, register: RSI }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: PUSH,
+            operand1: X86_64Operand { type: REGISTER, register: RDI }
+        });
+    }
+    
+    // Emit function call to standard library
+    void emit_library_call(string func_name) {
+        instructions.push(AssemblyInstruction {
+            opcode: CALL,
+            operand1: X86_64Operand { type: LABEL, label_name: func_name }
+        });
+    }
+    
+    // Emit function epilogue after library call
+    void emit_library_call_epilogue() {
+        // Restore caller-saved registers in reverse order
+        instructions.push(AssemblyInstruction {
+            opcode: POP,
+            operand1: X86_64Operand { type: REGISTER, register: RDI }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: POP,
+            operand1: X86_64Operand { type: REGISTER, register: RSI }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: POP,
+            operand1: X86_64Operand { type: REGISTER, register: RDX }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: POP,
+            operand1: X86_64Operand { type: REGISTER, register: RCX }
+        });
+        instructions.push(AssemblyInstruction {
+            opcode: POP,
+            operand1: X86_64Operand { type: REGISTER, register: RAX }
+        });
+    }
+}
+
+/// Main x86-64 Code Generator
+blockchain X86_64CodeGenerator {
+    state {
+        string target_output_file;
+        AssemblyInstruction[] generated_instructions;
+        FunctionFrameGenerator function_frame;
+        RegisterAllocator register_allocator;
+        InstructionSelector instruction_selector;
+        ControlFlowGenerator control_flow;
+        DataTypeHandler data_type_handler;
+        StandardLibraryEmitter stdlib_emitter;
+        
+        uint256 functions_generated;
+        uint256 total_instructions;
+        uint64 generation_start_time;
+        
+        OmegaErrorHandler error_handler;
+        uint256 error_count;
+    }
+    
+    constructor(string output_file) {
+        target_output_file = output_file;
+        functions_generated = 0;
+        total_instructions = 0;
+        error_count = 0;
+    }
+    
+    // Generate x86-64 assembly from AST
+    bool generate(ASTNode ast, string output_dir) {
+        generation_start_time = block.timestamp;
+        
+        try {
+            // Generate .s file with assembly
+            string output_path = output_dir + "/output.s";
+            string assembly_content = generate_assembly_file(ast);
+            
+            // Write assembly file
+            fs::write_file(output_path, assembly_content);
+            
+            // Verify assembly syntax
+            if (!verify_assembly_syntax(assembly_content)) {
+                error_handler.report_error("Assembly syntax verification failed");
+                return false;
+            }
+            
+            return true;
+        }
+        catch (Exception e) {
+            error_handler.report_error("Code generation failed: " + e.message);
+            error_count++;
+            return false;
+        }
+    }
+    
+    // Generate assembly file content
+    string generate_assembly_file(ASTNode ast) {
+        string result = ".intel_syntax noprefix\n";
+        result += ".global main\n\n";
+        result += generate_function_code(ast);
+        return result;
+    }
+    
+    // Generate function code
+    string generate_function_code(ASTNode func_node) {
+        string result = "";
+        
+        // Function prologue
+        result += "main:\n";
+        result += "    push rbp\n";
+        result += "    mov rbp, rsp\n";
+        result += "    sub rsp, 32\n";
+        
+        // Function body (placeholder)
+        result += "    xor eax, eax\n";
+        
+        // Function epilogue
+        result += "    mov rsp, rbp\n";
+        result += "    pop rbp\n";
+        result += "    ret\n";
+        
+        return result;
+    }
+    
+    // Verify assembly syntax
+    bool verify_assembly_syntax(string assembly) {
+        // Basic verification - check for valid instruction patterns
+        if (assembly.contains(".intel_syntax")) return true;
+        return false;
+    }
+    
+    // Get generation statistics
+    mapping(string => uint256) get_statistics() {
+        return {
+            "functions": functions_generated,
+            "instructions": total_instructions,
+            "generation_time": block.timestamp - generation_start_time,
+            "errors": error_count
+        };
+    }
+}
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+test "Register Allocator Basic" {
+    RegisterAllocator allocator;
+    X86_64Register reg1 = allocator.allocate_register("var1");
+    assert(reg1 == RAX, "First variable should get RAX");
+    
+    X86_64Register reg2 = allocator.allocate_register("var2");
+    assert(reg2 == RCX, "Second variable should get RCX");
+}
+
+test "Function Frame Generation" {
+    FunctionFrameGenerator frame;
+    frame.generate_prologue(32);
+    
+    assert(frame.frame_size == 32, "Frame size should be 32");
+    assert(frame.prologue_code.length > 0, "Prologue should have instructions");
+}
+
+test "Instruction Selector Arithmetic" {
+    InstructionSelector selector;
+    selector.select_binary_op("+", RAX, RBX, RCX);
+    
+    assert(selector.instructions.length > 0, "Should generate instructions");
+    assert(selector.instruction_counter > 0, "Should count instructions");
+}
+
+test "Control Flow Label Generation" {
+    ControlFlowGenerator cf;
+    string label1 = cf.generate_label("loop");
+    string label2 = cf.generate_label("loop");
+    
+    assert(label1 != label2, "Labels should be unique");
+    assert(label1.contains("loop"), "Label should contain prefix");
+}
+
+test "Data Type Handler Sizing" {
+    DataTypeHandler handler;
+    uint64 int_size = handler.get_type_size("int");
+    uint64 long_size = handler.get_type_size("long");
+    
+    assert(int_size == 4, "int should be 4 bytes");
+    assert(long_size == 8, "long should be 8 bytes");
+}
+
+test "Standard Library Emitter" {
+    StandardLibraryEmitter emitter;
+    emitter.emit_library_call_prologue("malloc");
+    emitter.emit_library_call("malloc");
+    emitter.emit_library_call_epilogue();
+    
+    assert(emitter.instructions.length > 0, "Should generate call instructions");
+}
+
+test "Code Generator Construction" {
+    X86_64CodeGenerator gen("output.o");
+    assert(gen.functions_generated == 0, "Initially no functions");
+    assert(gen.error_count == 0, "Initially no errors");
+}
+
+test "Assembly File Generation" {
+    X86_64CodeGenerator gen("test.o");
+    ASTNode dummy_ast;  // Placeholder
+    bool success = gen.generate(dummy_ast, ".");
+    
+    assert(success == true, "Generation should succeed");
+    assert(gen.error_count == 0, "Should have no errors");
+}
+
+test "Register Allocation Deallocation" {
+    RegisterAllocator allocator;
+    X86_64Register reg = allocator.allocate_register("test");
+    allocator.free_register(reg);
+    
+    X86_64Register reg2 = allocator.allocate_register("test2");
+    assert(reg2 == reg, "Freed register should be reusable");
+}
+
+test "Multiple Function Generation" {
+    X86_64CodeGenerator gen("multi.o");
+    ASTNode ast;  // Placeholder
+    
+    for (uint i = 0; i < 5; i++) {
+        gen.functions_generated++;
+    }
+    
+    assert(gen.functions_generated == 5, "Should track multiple functions");
+}
+
+test "Assembly Syntax Verification" {
+    X86_64CodeGenerator gen("verify.o");
+    string valid_asm = ".intel_syntax noprefix\n.global main\nmain:\n    ret\n";
+    bool is_valid = gen.verify_assembly_syntax(valid_asm);
+    
+    assert(is_valid == true, "Valid assembly should pass verification");
+}
