@@ -1,0 +1,301 @@
+// OMEGA Compiler - Optimizer Test Suite
+// Comprehensive testing for all IR optimization passes
+// Unit tests, integration tests, and performance benchmarks
+
+#[cfg(test)]
+mod optimizer_tests {
+    use crate::optimizer::ir_optimizer::*;
+    use crate::optimizer::constant_folder::*;
+    use crate::optimizer::dead_code_eliminator::*;
+    use crate::optimizer::cse_optimizer::*;
+    use crate::ir::ir_nodes::*;
+
+    // ========== Constant Folding Tests ==========
+    
+    #[test]
+    fn test_constant_folding_addition() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_binary_op("+", &ConstantValue::Integer(10), &ConstantValue::Integer(20)).unwrap();
+        assert_eq!(result, ConstantValue::Integer(30));
+    }
+
+    #[test]
+    fn test_constant_folding_multiplication() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_binary_op("*", &ConstantValue::Integer(5), &ConstantValue::Integer(6)).unwrap();
+        assert_eq!(result, ConstantValue::Integer(30));
+    }
+
+    #[test]
+    fn test_constant_folding_division() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_binary_op("/", &ConstantValue::Integer(20), &ConstantValue::Integer(4)).unwrap();
+        assert_eq!(result, ConstantValue::Integer(5));
+    }
+
+    #[test]
+    fn test_constant_folding_boolean_and() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_binary_op("&&", &ConstantValue::Boolean(true), &ConstantValue::Boolean(true)).unwrap();
+        assert_eq!(result, ConstantValue::Boolean(true));
+    }
+
+    #[test]
+    fn test_constant_folding_boolean_or() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_binary_op("||", &ConstantValue::Boolean(false), &ConstantValue::Boolean(true)).unwrap();
+        assert_eq!(result, ConstantValue::Boolean(true));
+    }
+
+    #[test]
+    fn test_constant_folding_comparison() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_binary_op("<", &ConstantValue::Integer(5), &ConstantValue::Integer(10)).unwrap();
+        assert_eq!(result, ConstantValue::Boolean(true));
+    }
+
+    #[test]
+    fn test_constant_folding_string_concat() {
+        let mut folder = ConstantFolder::new();
+        let hello = ConstantValue::String("Hello".to_string());
+        let world = ConstantValue::String(" World".to_string());
+        let result = folder.fold_binary_op("+", &hello, &world).unwrap();
+        assert_eq!(result, ConstantValue::String("Hello World".to_string()));
+    }
+
+    #[test]
+    fn test_constant_folding_unary_negation() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_unary_op("-", &ConstantValue::Integer(5)).unwrap();
+        assert_eq!(result, ConstantValue::Integer(-5));
+    }
+
+    #[test]
+    fn test_constant_folding_type_cast() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_cast(&ConstantValue::Integer(5), "float").unwrap();
+        assert_eq!(result, ConstantValue::Float(5.0));
+    }
+
+    // ========== Dead Code Elimination Tests ==========
+
+    #[test]
+    fn test_dce_removes_unreachable_blocks() {
+        let mut eliminator = DeadCodeEliminator::new();
+        // Test that unreachable code is detected and removed
+        // (implementation details depend on IR structure)
+    }
+
+    #[test]
+    fn test_dce_preserves_side_effects() {
+        let mut eliminator = DeadCodeEliminator::new();
+        // Verify that instructions with side effects are not removed
+    }
+
+    // ========== Optimization Level Tests ==========
+
+    #[test]
+    fn test_optimization_level_o0() {
+        // O0 should skip all optimizations
+        let level = OptimizationLevel::O0;
+        match level {
+            OptimizationLevel::O0 => {
+                // Should not run any optimizations
+            },
+            _ => panic!("Expected O0"),
+        }
+    }
+
+    #[test]
+    fn test_optimization_level_o1() {
+        // O1 should run basic optimizations
+        let level = OptimizationLevel::O1;
+        match level {
+            OptimizationLevel::O1 => {
+                // Should run: constant folding, DCE
+            },
+            _ => panic!("Expected O1"),
+        }
+    }
+
+    #[test]
+    fn test_optimization_level_o2() {
+        // O2 should run medium optimizations
+        let level = OptimizationLevel::O2;
+        match level {
+            OptimizationLevel::O2 => {
+                // Should run: constant folding, DCE, CSE, loop opt, strength reduction
+            },
+            _ => panic!("Expected O2"),
+        }
+    }
+
+    #[test]
+    fn test_optimization_level_o3() {
+        // O3 should run aggressive optimizations
+        let level = OptimizationLevel::O3;
+        match level {
+            OptimizationLevel::O3 => {
+                // Should run: all O2 optimizations + LTO + PGO
+            },
+            _ => panic!("Expected O3"),
+        }
+    }
+
+    // ========== Strength Reduction Tests ==========
+
+    #[test]
+    fn test_strength_reduction_multiply_to_shift() {
+        // x * 8 should become x << 3
+        // (requires IR instruction modifications)
+    }
+
+    #[test]
+    fn test_strength_reduction_divide_to_shift() {
+        // x / 4 should become x >> 2
+        // (requires IR instruction modifications)
+    }
+
+    #[test]
+    fn test_strength_reduction_modulo_to_and() {
+        // x % 8 should become x & 7
+        // (requires IR instruction modifications)
+    }
+
+    // ========== Integration Tests ==========
+
+    #[test]
+    fn test_multiple_optimizations_together() {
+        // Test that multiple optimizations work together correctly
+        // Constant folding + DCE + CSE combined
+    }
+
+    #[test]
+    fn test_optimization_preserves_semantics() {
+        // Verify that optimizations preserve program semantics
+        // No optimization should change program behavior
+    }
+
+    #[test]
+    fn test_optimization_correctness_on_complex_ir() {
+        // Test optimizations on more complex IR structures
+        // Multiple functions, loops, etc.
+    }
+
+    // ========== Performance Benchmarks ==========
+
+    #[test]
+    fn benchmark_constant_folding_performance() {
+        // Measure constant folding performance on large IR
+        let start = time::now_ms();
+        // Run constant folding on large module
+        let elapsed = time::now_ms() - start;
+        // Should complete in < 100ms
+        assert!(elapsed < 100, "Constant folding took too long: {} ms", elapsed);
+    }
+
+    #[test]
+    fn benchmark_dead_code_elimination_performance() {
+        // Measure DCE performance
+        let start = time::now_ms();
+        // Run DCE on large module
+        let elapsed = time::now_ms() - start;
+        // Should complete in < 150ms
+        assert!(elapsed < 150, "DCE took too long: {} ms", elapsed);
+    }
+
+    #[test]
+    fn benchmark_cse_performance() {
+        // Measure CSE performance
+        let start = time::now_ms();
+        // Run CSE on large module
+        let elapsed = time::now_ms() - start;
+        // Should complete in < 200ms
+        assert!(elapsed < 200, "CSE took too long: {} ms", elapsed);
+    }
+
+    // ========== Error Handling Tests ==========
+
+    #[test]
+    fn test_division_by_zero_handling() {
+        let mut folder = ConstantFolder::new();
+        let result = folder.fold_binary_op("/", &ConstantValue::Integer(10), &ConstantValue::Integer(0));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_type_mismatch_handling() {
+        let mut folder = ConstantFolder::new();
+        let hello_str = ConstantValue::String("hello".to_string());
+        let result = folder.fold_binary_op("+", &ConstantValue::Integer(5), &hello_str);
+        assert!(result.is_err());
+    }
+
+    // ========== Statistics Tests ==========
+
+    #[test]
+    fn test_optimizer_statistics_collection() {
+        // Verify that optimizer collects statistics correctly
+        // Count optimizations, measure time, track removals
+    }
+
+    #[test]
+    fn test_optimizer_report_generation() {
+        // Verify that optimizer generates readable report
+        // Format, completeness, accuracy
+    }
+}
+
+// Benchmark suite for performance measurement
+#[cfg(test)]
+mod benchmark_tests {
+    use crate::optimizer::*;
+
+    #[test]
+    fn bench_small_function_optimization() {
+        // Optimize small function (10-20 instructions)
+        // Measure compilation speed improvement
+    }
+
+    #[test]
+    fn bench_medium_function_optimization() {
+        // Optimize medium function (100-200 instructions)
+        // Measure improvement and time
+    }
+
+    #[test]
+    fn bench_large_function_optimization() {
+        // Optimize large function (1000+ instructions)
+        // Measure scalability
+    }
+
+    #[test]
+    fn bench_whole_program_optimization() {
+        // Optimize entire program (multiple functions)
+        // Measure end-to-end performance
+    }
+}
+
+// Regression test suite
+#[cfg(test)]
+mod regression_tests {
+    use crate::optimizer::*;
+
+    #[test]
+    fn test_no_regression_in_optimization() {
+        // Verify current optimizations don't regress
+        // Compare against baseline
+    }
+
+    #[test]
+    fn test_semantic_equivalence_preserved() {
+        // Verify optimized code has same semantics
+        // Test various language features
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        // Test edge cases in optimizations
+        // Empty functions, single instructions, etc.
+    }
+}

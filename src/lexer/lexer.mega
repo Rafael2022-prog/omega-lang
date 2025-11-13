@@ -280,31 +280,65 @@ blockchain OmegaLexer {
         if (c == '/') {
             if (match('=')) return make_token(TokenType.SlashEqual); // /= operator
             
-            // Handle line comments (// comment)
+            // Handle line comments (// comment) dan line doc comments (/// comment)
             if (match('/')) {
+                // Check untuk line doc comment (///)
+                bool is_doc_comment = false;
+                if (peek() == '/') {
+                    advance(); // consume extra '/'
+                    is_doc_comment = true;
+                }
+                
                 // Consume characters until end of line atau end of file
                 while (peek() != '\n' && !is_at_end()) advance();
+                
+                // Return appropriate comment token type
+                // Note: Both regular and doc comments use Comment token for now
                 return make_token(TokenType.Comment);
             }
             
-            // Handle block comments (/* comment */)
+            // Handle block comments (/* comment */) dan nested block comments
             if (match('*')) {
+                // Check untuk doc block comment (/**)
+                bool is_doc_comment = (peek() == '*');
+                if (is_doc_comment) advance(); // consume extra '*'
+                
+                // Track nesting level untuk nested block comments
+                uint256 nesting_level = 1;
+                
                 // Consume characters until closing */ atau end of file
-                while (!is_at_end()) {
-                    if (peek() == '*' && peek_next() == '/') {
+                while (nesting_level > 0 && !is_at_end()) {
+                    bytes1 current = peek();
+                    bytes1 next = peek_next();
+                    
+                    // Check untuk nested comment start (/*) 
+                    if (current == '/' && next == '*') {
+                        advance(); // consume '/'
+                        advance(); // consume '*'
+                        nesting_level++;
+                    }
+                    // Check untuk comment end (*/)
+                    else if (current == '*' && next == '/') {
                         advance(); // consume '*'
                         advance(); // consume '/'
-                        break;
+                        nesting_level--;
                     }
-                    // Track line numbers dalam block comments
-                    if (peek() == '\n') line++;
-                    advance();
+                    else {
+                        // Track line numbers dalam block comments
+                        if (current == '\n') line++;
+                        advance();
+                    }
                 }
+                
+                // Check untuk unterminated comment
+                if (nesting_level > 0) {
+                    return make_error_token("Unterminated block comment");
+                }
+                
                 return make_token(TokenType.Comment);
             }
             
             return make_token(TokenType.Slash);                      // / operator
-        }
         
         // Handle modulo operator dan compound assignment
         if (c == '%') {
@@ -383,10 +417,29 @@ blockchain OmegaLexer {
         // Handle character literals dengan single quotes
         if (c == '\'') return scan_char();
         
-        // Handle hexadecimal number literals (0x prefix)
-        if (c == '0' && (peek() == 'x' || peek() == 'X')) {
-            advance(); // consume 'x' atau 'X'
-            return scan_hex_number();
+        // Handle numeric literals dengan 0 prefix (hex, binary, octal, decimal)
+        if (c == '0') {
+            bytes1 next = peek();
+            
+            // Handle hexadecimal number literals (0x prefix)
+            if (next == 'x' || next == 'X') {
+                advance(); // consume 'x' atau 'X'
+                return scan_hex_number();
+            }
+            // Handle binary number literals (0b prefix)
+            else if (next == 'b' || next == 'B') {
+                advance(); // consume 'b' atau 'B'
+                return scan_binary_number();
+            }
+            // Handle octal number literals (0o prefix)
+            else if (next == 'o' || next == 'O') {
+                advance(); // consume 'o' atau 'O'
+                return scan_octal_number();
+            }
+            // Otherwise, treat as decimal number
+            else {
+                return scan_number();
+            }
         }
         
         // Handle decimal number literals
@@ -453,6 +506,19 @@ blockchain OmegaLexer {
         if (peek() == '.' && is_digit(peek_next())) {
             advance(); // consume '.'
             while (is_digit(peek())) advance(); // consume fractional digits
+            
+            // Check for scientific notation exponent after decimal
+            if (peek() == 'e' || peek() == 'E') {
+                advance(); // consume 'e' atau 'E'
+                // Optional sign untuk exponent
+                if (peek() == '+' || peek() == '-') advance();
+                // Require at least one digit dalam exponent
+                if (!is_digit(peek())) {
+                    return make_error_token("Invalid scientific notation: expected digit after exponent marker");
+                }
+                // Consume exponent digits
+                while (is_digit(peek())) advance();
+            }
             return make_token(TokenType.FloatLiteral);
         }
         
@@ -461,6 +527,10 @@ blockchain OmegaLexer {
             advance(); // consume 'e' atau 'E'
             // Optional sign untuk exponent
             if (peek() == '+' || peek() == '-') advance();
+            // Require at least one digit dalam exponent
+            if (!is_digit(peek())) {
+                return make_error_token("Invalid scientific notation: expected digit after exponent marker");
+            }
             // Consume exponent digits
             while (is_digit(peek())) advance();
             return make_token(TokenType.FloatLiteral);
@@ -471,23 +541,140 @@ blockchain OmegaLexer {
     }
 
     /// Scan hexadecimal number literal (setelah 0x prefix)
-    /// Mengkonsumsi semua valid hex digits
-    /// @return Token untuk hexadecimal literal
+    /// Mendukung optional underscores untuk readability (0x_DEAD_BEEF)
+    /// @return Token untuk hexadecimal literal atau error jika invalid
     function scan_hex_number() private returns (Token memory) {
-        // Consume semua hex digits yang valid
-        while (is_hex_digit(peek())) advance();
+        uint256 hex_start = position; // Track position awal untuk error checking;
+        bool has_hex_digit = false;
+        
+        // Consume hex digits dan underscores
+        while (!is_at_end()) {
+            bytes1 c = peek();
+            
+            // Check for hex digit
+            if (is_hex_digit(c)) {
+                advance();
+                has_hex_digit = true;
+            }
+            // Check for underscore (allowed between digits for readability)
+            else if (c == '_') {
+                advance();
+                // Underscore must be followed by another hex digit
+                if (!is_hex_digit(peek())) {
+                    return make_error_token("Invalid hex literal: underscore must be followed by hex digit");
+                }
+            }
+            else {
+                break; // Stop pada character yang bukan hex digit atau underscore
+            }
+        }
+        
+        // Validate that we found at least one hex digit
+        if (!has_hex_digit) {
+            return make_error_token("Invalid hex literal: expected at least one hex digit after 0x");
+        }
+        
         return make_token(TokenType.HexLiteral);
+    }
+    
+    /// Scan binary number literal (setelah 0b prefix)
+    /// Mendukung optional underscores untuk readability (0b_1101_0011)
+    /// @return Token untuk binary literal atau error jika invalid
+    function scan_binary_number() private returns (Token memory) {
+        bool has_binary_digit = false;
+        
+        // Consume binary digits (0 dan 1) dan underscores
+        while (!is_at_end()) {
+            bytes1 c = peek();
+            
+            // Check for binary digit (0 atau 1)
+            if (c == '0' || c == '1') {
+                advance();
+                has_binary_digit = true;
+            }
+            // Check for underscore (allowed between digits for readability)
+            else if (c == '_') {
+                advance();
+                // Underscore must be followed by another binary digit
+                if (peek() != '0' && peek() != '1') {
+                    return make_error_token("Invalid binary literal: underscore must be followed by 0 or 1");
+                }
+            }
+            else {
+                break; // Stop pada character yang bukan binary digit atau underscore
+            }
+        }
+        
+        // Validate that we found at least one binary digit
+        if (!has_binary_digit) {
+            return make_error_token("Invalid binary literal: expected at least one binary digit (0 or 1) after 0b");
+        }
+        
+        return make_token(TokenType.BinaryLiteral);
+    }
+    
+    /// Scan octal number literal (setelah 0o prefix)
+    /// Mendukung optional underscores untuk readability (0o_755)
+    /// @return Token untuk octal literal atau error jika invalid
+    function scan_octal_number() private returns (Token memory) {
+        bool has_octal_digit = false;
+        
+        // Consume octal digits (0-7) dan underscores
+        while (!is_at_end()) {
+            bytes1 c = peek();
+            
+            // Check for octal digit (0-7)
+            if (c >= '0' && c <= '7') {
+                advance();
+                has_octal_digit = true;
+            }
+            // Check for underscore (allowed between digits for readability)
+            else if (c == '_') {
+                advance();
+                // Underscore must be followed by another octal digit
+                if (peek() < '0' || peek() > '7') {
+                    return make_error_token("Invalid octal literal: underscore must be followed by octal digit (0-7)");
+                }
+            }
+            else if (c == '8' || c == '9') {
+                // Invalid octal digit
+                return make_error_token("Invalid octal digit: octal literals only support digits 0-7");
+            }
+            else {
+                break; // Stop pada character yang bukan octal digit atau underscore
+            }
+        }
+        
+        // Validate that we found at least one octal digit
+        if (!has_octal_digit) {
+            return make_error_token("Invalid octal literal: expected at least one octal digit (0-7) after 0o");
+        }
+        
+        return make_token(TokenType.OctalLiteral);
     }
     
     /// Scan identifier atau keyword
     /// Dimulai dengan letter/underscore, diikuti alphanumeric characters
-    /// @return Token untuk identifier atau keyword yang sesuai
+    /// Juga menangani raw strings (r"...") dan template strings (t"...")
+    /// @return Token untuk identifier atau keyword yang sesuai, atau string literal
     function scan_identifier() private returns (Token memory) {
         // Consume alphanumeric characters untuk identifier
         while (is_alphanumeric(peek())) advance();
         
         // Get text dari identifier yang di-scan
         string memory text = get_current_lexeme();
+        
+        // Check untuk raw string prefix (r"...")
+        if (bytes(text).length == 1 && bytes(text)[0] == 'r' && peek() == '"') {
+            advance(); // consume opening '"'
+            return scan_raw_string();
+        }
+        
+        // Check untuk template string prefix (t"...")
+        if (bytes(text).length == 1 && bytes(text)[0] == 't' && peek() == '"') {
+            advance(); // consume opening '"'
+            return scan_template_string();
+        }
         
         // Check apakah text adalah keyword yang dikenal
         TokenType token_type = keywords[text];
@@ -498,6 +685,67 @@ blockchain OmegaLexer {
         }
         
         return make_token(token_type);
+    }
+    
+    /// Scan raw string literal (r"no escape sequences")
+    /// Raw strings don't process escape sequences, all characters are literal
+    /// @return Token untuk raw string literal atau error jika unterminated
+    function scan_raw_string() private returns (Token memory) {
+        // Consume characters until closing quote atau end of file
+        while (peek() != '"' && !is_at_end()) {
+            // Track line numbers untuk multi-line raw strings
+            if (peek() == '\n') line++;
+            advance();
+        }
+        
+        // Check for unterminated string
+        if (is_at_end()) {
+            return make_error_token("Unterminated raw string");
+        }
+        
+        advance(); // consume closing '"'
+        return make_token(TokenType.RawStringLiteral);
+    }
+    
+    /// Scan template string literal (t"with ${expressions}")
+    /// Template strings allow expression interpolation with ${}
+    /// @return Token untuk template string literal atau error jika unterminated
+    function scan_template_string() private returns (Token memory) {
+        // Consume characters until closing quote atau end of file
+        while (peek() != '"' && !is_at_end()) {
+            // Track line numbers untuk multi-line template strings
+            if (peek() == '\n') line++;
+            
+            // Handle expression interpolation (${...})
+            if (peek() == '$' && peek_next() == '{') {
+                advance(); // consume '$'
+                advance(); // consume '{'
+                
+                // Consume characters until closing '}'
+                uint256 brace_count = 1;
+                while (brace_count > 0 && !is_at_end()) {
+                    if (peek() == '{') brace_count++;
+                    else if (peek() == '}') brace_count--;
+                    if (brace_count > 0) advance();
+                }
+                
+                if (brace_count > 0) {
+                    return make_error_token("Unterminated expression in template string");
+                }
+                advance(); // consume closing '}'
+            }
+            else {
+                advance();
+            }
+        }
+        
+        // Check for unterminated string
+        if (is_at_end()) {
+            return make_error_token("Unterminated template string");
+        }
+        
+        advance(); // consume closing '"'
+        return make_token(TokenType.TemplateStringLiteral);
     }
     
     /// Scan annotation yang dimulai dengan @ symbol
@@ -650,7 +898,7 @@ struct Token {
     uint256 line;            // Line number dalam source code (1-indexed)
     uint256 column;          // Column number dalam line (1-indexed)
     uint256 position;        // Absolute position dalam source code (0-indexed)
-}
+};
 
 /// Enumeration dari semua token types yang didukung oleh OMEGA lexer
 /// Mencakup literals, keywords, operators, dan special tokens
@@ -664,6 +912,10 @@ enum TokenType {
     StringLiteral,       // String values ("hello world")
     CharLiteral,         // Single character values ('a', 'Z')
     HexLiteral,          // Hexadecimal numbers (0xFF, 0x123ABC)
+    BinaryLiteral,       // Binary numbers (0b1101, 0b_1101_0011)
+    OctalLiteral,        // Octal numbers (0o755, 0o_755)
+    RawStringLiteral,    // Raw string literals (r"no escapes")
+    TemplateStringLiteral, // Template string literals (t"with ${vars}")
     
     // ========================================================================
     // KEYWORDS - BLOCKCHAIN SPECIFIC

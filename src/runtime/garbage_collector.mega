@@ -1,0 +1,398 @@
+// OMEGA Compiler - Garbage Collector
+// Mark & Sweep GC, reference tracking, automatic memory reclamation
+
+use std::collections::{HashMap, HashSet};
+
+// ========== Garbage Collector ==========
+
+pub struct GarbageCollector {
+    marked_objects: HashSet<usize>,
+    live_objects: HashSet<usize>,
+    collection_count: usize,
+    collected_bytes: usize,
+    gc_pause_time_ms: f64,
+}
+
+impl GarbageCollector {
+    pub fn new() -> Self {
+        GarbageCollector {
+            marked_objects: HashSet::new(),
+            live_objects: HashSet::new(),
+            collection_count: 0,
+            collected_bytes: 0,
+            gc_pause_time_ms: 0.0,
+        }
+    }
+
+    // Mark phase: Mark all reachable objects
+    pub fn mark_reachable_objects(&mut self, roots: Vec<usize>, references: &HashMap<usize, Vec<usize>>) {
+        self.marked_objects.clear();
+
+        let mut to_mark = roots;
+        while !to_mark.is_empty() {
+            let obj = to_mark.pop().unwrap();
+
+            if !self.marked_objects.contains(&obj) {
+                self.marked_objects.insert(obj);
+
+                // Mark all objects this object references
+                if let Some(refs) = references.get(&obj) {
+                    for &ref_obj in refs {
+                        if !self.marked_objects.contains(&ref_obj) {
+                            to_mark.push(ref_obj);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Sweep phase: Reclaim unmarked objects
+    pub fn sweep_unreachable_objects(&mut self, all_objects: &HashMap<usize, ObjectMetadata>) -> Vec<usize> {
+        let mut to_collect = Vec::new();
+
+        for (obj_id, metadata) in all_objects {
+            if !self.marked_objects.contains(obj_id) {
+                to_collect.push(*obj_id);
+                self.collected_bytes += metadata.size;
+            }
+        }
+
+        self.collection_count += 1;
+        to_collect
+    }
+
+    // Run full GC cycle
+    pub fn collect(&mut self, roots: Vec<usize>, references: &HashMap<usize, Vec<usize>>, all_objects: &HashMap<usize, ObjectMetadata>) -> CollectionResult {
+        let start_time = std::time::Instant::now();
+
+        // Mark phase
+        self.mark_reachable_objects(roots, references);
+        let marked_count = self.marked_objects.len();
+
+        // Sweep phase
+        let collected = self.sweep_unreachable_objects(all_objects);
+        let collected_count = collected.len();
+
+        let elapsed = start_time.elapsed().as_secs_f64() * 1000.0;
+        self.gc_pause_time_ms = elapsed;
+
+        CollectionResult {
+            marked_objects: marked_count,
+            collected_objects: collected_count,
+            collected_bytes: self.collected_bytes,
+            collection_time_ms: elapsed,
+            objects_to_free: collected,
+        }
+    }
+
+    // Get GC statistics
+    pub fn get_stats(&self) -> GCStatistics {
+        GCStatistics {
+            collection_count: self.collection_count,
+            total_collected_bytes: self.collected_bytes,
+            average_pause_time_ms: self.gc_pause_time_ms,
+            marked_objects: self.marked_objects.len(),
+            live_objects: self.live_objects.len(),
+        }
+    }
+}
+
+// ========== Object Metadata ==========
+
+pub struct ObjectMetadata {
+    pub object_id: usize,
+    pub size: usize,
+    pub ref_count: usize,
+    pub creation_time: u64,
+    pub last_accessed: u64,
+    pub generation: u8, // 0 = young, 1 = intermediate, 2 = old
+}
+
+impl ObjectMetadata {
+    pub fn new(object_id: usize, size: usize) -> Self {
+        ObjectMetadata {
+            object_id,
+            size,
+            ref_count: 1,
+            creation_time: get_current_time(),
+            last_accessed: get_current_time(),
+            generation: 0,
+        }
+    }
+
+    pub fn age_generation(&mut self) {
+        if self.generation < 2 {
+            self.generation += 1;
+        }
+    }
+
+    pub fn is_young_generation(&self) -> bool {
+        self.generation == 0
+    }
+
+    pub fn is_old_generation(&self) -> bool {
+        self.generation == 2
+    }
+}
+
+// ========== Reference Counting ==========
+
+pub struct ReferenceCounter {
+    ref_counts: HashMap<usize, usize>,
+    reference_graph: HashMap<usize, HashSet<usize>>,
+}
+
+impl ReferenceCounter {
+    pub fn new() -> Self {
+        ReferenceCounter {
+            ref_counts: HashMap::new(),
+            reference_graph: HashMap::new(),
+        }
+    }
+
+    // Increment reference count
+    pub fn increment_ref(&mut self, object_id: usize) {
+        *self.ref_counts.entry(object_id).or_insert(0) += 1;
+    }
+
+    // Decrement reference count
+    pub fn decrement_ref(&mut self, object_id: usize) -> bool {
+        if let Some(count) = self.ref_counts.get_mut(&object_id) {
+            if *count > 0 {
+                *count -= 1;
+                return *count == 0;
+            }
+        }
+        false
+    }
+
+    // Add reference edge
+    pub fn add_reference(&mut self, from: usize, to: usize) {
+        self.reference_graph.entry(from).or_insert_with(HashSet::new).insert(to);
+    }
+
+    // Get reference count
+    pub fn get_ref_count(&self, object_id: usize) -> usize {
+        self.ref_counts.get(&object_id).copied().unwrap_or(0)
+    }
+
+    // Detect reference cycles
+    pub fn detect_cycles(&self) -> Vec<Vec<usize>> {
+        let mut cycles = Vec::new();
+        let mut visited = HashSet::new();
+        let mut rec_stack = HashSet::new();
+
+        for node in self.reference_graph.keys() {
+            if !visited.contains(node) {
+                let mut path = Vec::new();
+                if self.has_cycle(*node, &mut visited, &mut rec_stack, &mut path) {
+                    cycles.push(path);
+                }
+            }
+        }
+
+        cycles
+    }
+
+    fn has_cycle(&self, node: usize, visited: &mut HashSet<usize>, rec_stack: &mut HashSet<usize>, path: &mut Vec<usize>) -> bool {
+        visited.insert(node);
+        rec_stack.insert(node);
+        path.push(node);
+
+        if let Some(neighbors) = self.reference_graph.get(&node) {
+            for &neighbor in neighbors {
+                if !visited.contains(&neighbor) {
+                    if self.has_cycle(neighbor, visited, rec_stack, path) {
+                        return true;
+                    }
+                } else if rec_stack.contains(&neighbor) {
+                    return true;
+                }
+            }
+        }
+
+        rec_stack.remove(&node);
+        path.pop();
+        false
+    }
+
+    pub fn get_stats(&self) -> ReferenceStats {
+        ReferenceStats {
+            tracked_objects: self.ref_counts.len(),
+            total_references: self.ref_counts.values().sum(),
+            reference_edges: self.reference_graph.values().map(|set| set.len()).sum(),
+            cycles_detected: self.detect_cycles().len(),
+        }
+    }
+}
+
+// ========== Generational Garbage Collector ==========
+
+pub struct GenerationalGC {
+    young_gen: HashSet<usize>,
+    intermediate_gen: HashSet<usize>,
+    old_gen: HashSet<usize>,
+    young_collections: usize,
+    full_collections: usize,
+}
+
+impl GenerationalGC {
+    pub fn new() -> Self {
+        GenerationalGC {
+            young_gen: HashSet::new(),
+            intermediate_gen: HashSet::new(),
+            old_gen: HashSet::new(),
+            young_collections: 0,
+            full_collections: 0,
+        }
+    }
+
+    // Add object to appropriate generation
+    pub fn add_object(&mut self, object_id: usize, generation: u8) {
+        match generation {
+            0 => { self.young_gen.insert(object_id); }
+            1 => { self.intermediate_gen.insert(object_id); }
+            _ => { self.old_gen.insert(object_id); }
+        }
+    }
+
+    // Promote object to next generation
+    pub fn promote_object(&mut self, object_id: usize) {
+        if self.young_gen.remove(&object_id) {
+            self.intermediate_gen.insert(object_id);
+        } else if self.intermediate_gen.remove(&object_id) {
+            self.old_gen.insert(object_id);
+        }
+    }
+
+    // Collect young generation only
+    pub fn collect_young_generation(&mut self, roots: &HashSet<usize>) {
+        let mut to_keep = HashSet::new();
+        let mut to_process: Vec<usize> = roots.iter().copied().collect();
+
+        while let Some(obj) = to_process.pop() {
+            if !to_keep.contains(&obj) && self.young_gen.contains(&obj) {
+                to_keep.insert(obj);
+            }
+        }
+
+        self.young_gen = to_keep;
+        self.young_collections += 1;
+    }
+
+    // Full collection (all generations)
+    pub fn collect_full(&mut self, roots: &HashSet<usize>) {
+        let mut to_keep = HashSet::new();
+        let mut to_process: Vec<usize> = roots.iter().copied().collect();
+
+        while let Some(obj) = to_process.pop() {
+            if !to_keep.contains(&obj) {
+                to_keep.insert(obj);
+                if self.young_gen.contains(&obj) || self.intermediate_gen.contains(&obj) || self.old_gen.contains(&obj) {
+                    // Continue collecting
+                }
+            }
+        }
+
+        self.young_gen.retain(|obj| to_keep.contains(obj));
+        self.intermediate_gen.retain(|obj| to_keep.contains(obj));
+        self.old_gen.retain(|obj| to_keep.contains(obj));
+        self.full_collections += 1;
+    }
+
+    pub fn get_stats(&self) -> GenerationalStats {
+        GenerationalStats {
+            young_objects: self.young_gen.len(),
+            intermediate_objects: self.intermediate_gen.len(),
+            old_objects: self.old_gen.len(),
+            young_collections: self.young_collections,
+            full_collections: self.full_collections,
+            total_objects: self.young_gen.len() + self.intermediate_gen.len() + self.old_gen.len(),
+        }
+    }
+}
+
+// ========== Statistics ==========
+
+pub struct CollectionResult {
+    pub marked_objects: usize,
+    pub collected_objects: usize,
+    pub collected_bytes: usize,
+    pub collection_time_ms: f64,
+    pub objects_to_free: Vec<usize>,
+}
+
+pub struct GCStatistics {
+    pub collection_count: usize,
+    pub total_collected_bytes: usize,
+    pub average_pause_time_ms: f64,
+    pub marked_objects: usize,
+    pub live_objects: usize,
+}
+
+pub struct ReferenceStats {
+    pub tracked_objects: usize,
+    pub total_references: usize,
+    pub reference_edges: usize,
+    pub cycles_detected: usize,
+}
+
+pub struct GenerationalStats {
+    pub young_objects: usize,
+    pub intermediate_objects: usize,
+    pub old_objects: usize,
+    pub young_collections: usize,
+    pub full_collections: usize,
+    pub total_objects: usize,
+}
+
+fn get_current_time() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+#[cfg(test)]
+mod gc_tests {
+    use super::*;
+
+    #[test]
+    fn test_gc_creation() {
+        let gc = GarbageCollector::new();
+        assert_eq!(gc.collection_count, 0);
+    }
+
+    #[test]
+    fn test_mark_reachable() {
+        let mut gc = GarbageCollector::new();
+        let references = HashMap::new();
+        let roots = vec![1, 2, 3];
+        gc.mark_reachable_objects(roots, &references);
+        assert_eq!(gc.marked_objects.len(), 3);
+    }
+
+    #[test]
+    fn test_reference_counter() {
+        let mut counter = ReferenceCounter::new();
+        counter.increment_ref(1);
+        counter.increment_ref(1);
+        assert_eq!(counter.get_ref_count(1), 2);
+    }
+
+    #[test]
+    fn test_generational_gc() {
+        let mut gen_gc = GenerationalGC::new();
+        gen_gc.add_object(1, 0);
+        gen_gc.add_object(2, 0);
+        assert_eq!(gen_gc.get_stats().young_objects, 2);
+    }
+
+    #[test]
+    fn test_object_metadata() {
+        let metadata = ObjectMetadata::new(1, 1024);
+        assert_eq!(metadata.size, 1024);
+        assert!(metadata.is_young_generation());
+    }
+}

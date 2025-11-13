@@ -1,0 +1,276 @@
+// OMEGA Compiler - IR Optimizer Framework
+// Main coordinator for all optimization passes
+// Manages optimization levels (O0-O3) and pass ordering
+// Tracks statistics and validates optimization results
+
+import "../ir/ir.mega";
+import "../ir/ir_nodes.mega";
+import "../ir/ir_validator.mega";
+import "./constant_folder.mega";
+import "./dead_code_eliminator.mega";
+import "./cse_optimizer.mega";
+import "./loop_optimizer.mega";
+import "./strength_reducer.mega";
+
+// Optimization levels
+pub enum OptimizationLevel {
+    O0,  // No optimization (debug)
+    O1,  // Basic optimization (small code)
+    O2,  // Balanced optimization (default)
+    O3,  // Aggressive optimization (high performance)
+}
+
+// Optimizer statistics
+pub struct OptimizerStats {
+    total_optimizations: i64;
+    constant_folding_count: i64;
+    dead_code_eliminated: i64;
+    cse_subexpressions: i64;
+    loop_invariants_hoisted: i64;
+    strength_reductions: i64;
+    total_lines_removed: i64;
+    total_instructions_simplified: i64;
+    optimization_time_ms: i64;
+    validation_errors: string[];
+}
+
+// Main IR Optimizer
+pub struct IROptimizer {
+    level: OptimizationLevel;
+    ir_module: IRModule;
+    stats: OptimizerStats;
+    validator: IRValidator;
+    enable_constant_folding: bool;
+    enable_dce: bool;
+    enable_cse: bool;
+    enable_loop_opt: bool;
+    enable_strength_reduction: bool;
+}
+
+impl IROptimizer {
+    // Constructor
+    pub fn new(module: IRModule, level: OptimizationLevel) -> Self {
+        IROptimizer {
+            level: level,
+            ir_module: module,
+            stats: OptimizerStats::default(),
+            validator: IRValidator::new(),
+            enable_constant_folding: true,
+            enable_dce: true,
+            enable_cse: level >= OptimizationLevel::O1,
+            enable_loop_opt: level >= OptimizationLevel::O2,
+            enable_strength_reduction: level >= OptimizationLevel::O2,
+        }
+    }
+
+    // Run all optimization passes
+    pub fn optimize(&mut self) -> Result<IRModule, string> {
+        let start_time = time::now_ms();
+        let mut errors: string[] = [];
+
+        // O0: Skip all optimizations
+        if self.level == OptimizationLevel::O0 {
+            return Ok(self.ir_module.clone());
+        }
+
+        // Pass 1: Constant Folding (always safe, high impact)
+        if self.enable_constant_folding {
+            match self.run_constant_folding() {
+                Ok(_) => {
+                    self.stats.constant_folding_count += 1;
+                },
+                Err(e) => {
+                    errors.push("Constant folding failed: ".to_string() + e);
+                }
+            }
+        }
+
+        // Pass 2: Dead Code Elimination (safe, medium impact)
+        if self.enable_dce {
+            match self.run_dead_code_elimination() {
+                Ok(_) => {
+                    self.stats.dead_code_eliminated += 1;
+                },
+                Err(e) => {
+                    errors.push("DCE failed: ".to_string() + e);
+                }
+            }
+        }
+
+        // Pass 3: Common Subexpression Elimination (safe with alias analysis)
+        if self.enable_cse {
+            match self.run_cse() {
+                Ok(_) => {
+                    self.stats.cse_subexpressions += 1;
+                },
+                Err(e) => {
+                    errors.push("CSE failed: ".to_string() + e);
+                }
+            }
+        }
+
+        // Pass 4: Loop Optimization (medium complexity, high impact)
+        if self.enable_loop_opt {
+            match self.run_loop_optimization() {
+                Ok(_) => {
+                    self.stats.loop_invariants_hoisted += 1;
+                },
+                Err(e) => {
+                    errors.push("Loop optimization failed: ".to_string() + e);
+                }
+            }
+        }
+
+        // Pass 5: Strength Reduction (low risk, medium impact)
+        if self.enable_strength_reduction {
+            match self.run_strength_reduction() {
+                Ok(_) => {
+                    self.stats.strength_reductions += 1;
+                },
+                Err(e) => {
+                    errors.push("Strength reduction failed: ".to_string() + e);
+                }
+            }
+        }
+
+        // Validate optimized IR
+        match self.validator.validate(&self.ir_module) {
+            Ok(_) => {},
+            Err(validation_errors) => {
+                self.stats.validation_errors = validation_errors.clone();
+                return Err("Optimization validation failed".to_string());
+            }
+        }
+
+        self.stats.optimization_time_ms = time::now_ms() - start_time;
+
+        if errors.len() > 0 {
+            return Err(errors.join("\n"));
+        }
+
+        Ok(self.ir_module.clone())
+    }
+
+    // Run constant folding on all functions
+    fn run_constant_folding(&mut self) -> Result<(), string> {
+        let mut folder = ConstantFolder::new();
+
+        for i in 0..self.ir_module.functions.len() {
+            match folder.fold_function(&mut self.ir_module.functions[i]) {
+                Ok(count) => {
+                    self.stats.total_optimizations += count as i64;
+                },
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(())
+    }
+
+    // Run dead code elimination on all functions
+    fn run_dead_code_elimination(&mut self) -> Result<(), string> {
+        let mut eliminator = DeadCodeEliminator::new();
+
+        for i in 0..self.ir_module.functions.len() {
+            match eliminator.eliminate(&mut self.ir_module.functions[i]) {
+                Ok(removed) => {
+                    self.stats.total_lines_removed += removed as i64;
+                },
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(())
+    }
+
+    // Run CSE on all functions
+    fn run_cse(&mut self) -> Result<(), string> {
+        let mut cse = CSEOptimizer::new();
+
+        for i in 0..self.ir_module.functions.len() {
+            match cse.optimize(&mut self.ir_module.functions[i]) {
+                Ok(count) => {
+                    self.stats.total_optimizations += count as i64;
+                },
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(())
+    }
+
+    // Run loop optimizations on all functions
+    fn run_loop_optimization(&mut self) -> Result<(), string> {
+        let mut loop_opt = LoopOptimizer::new();
+
+        for i in 0..self.ir_module.functions.len() {
+            match loop_opt.optimize(&mut self.ir_module.functions[i]) {
+                Ok(count) => {
+                    self.stats.total_optimizations += count as i64;
+                },
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(())
+    }
+
+    // Run strength reduction on all functions
+    fn run_strength_reduction(&mut self) -> Result<(), string> {
+        let mut reducer = StrengthReducer::new();
+
+        for i in 0..self.ir_module.functions.len() {
+            match reducer.reduce(&mut self.ir_module.functions[i]) {
+                Ok(count) => {
+                    self.stats.total_optimizations += count as i64;
+                },
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(())
+    }
+
+    // Get optimization statistics
+    pub fn get_stats(&self) -> OptimizerStats {
+        self.stats.clone()
+    }
+
+    // Print optimization report
+    pub fn print_report(&self) {
+        println!("═══════════════════════════════════════════════════════");
+        println!("IR OPTIMIZATION REPORT");
+        println!("═══════════════════════════════════════════════════════");
+        println!("Optimization Level: {:?}", self.level);
+        println!("Total Optimizations: {}", self.stats.total_optimizations);
+        println!("Constant Folding: {}", self.stats.constant_folding_count);
+        println!("Dead Code Eliminated: {}", self.stats.dead_code_eliminated);
+        println!("CSE Subexpressions: {}", self.stats.cse_subexpressions);
+        println!("Loop Invariants Hoisted: {}", self.stats.loop_invariants_hoisted);
+        println!("Strength Reductions: {}", self.stats.strength_reductions);
+        println!("Total Lines Removed: {}", self.stats.total_lines_removed);
+        println!("Total Instructions Simplified: {}", self.stats.total_instructions_simplified);
+        println!("Optimization Time: {} ms", self.stats.optimization_time_ms);
+        
+        if self.stats.validation_errors.len() > 0 {
+            println!("Validation Errors: {}", self.stats.validation_errors.len());
+            for error in &self.stats.validation_errors {
+                println!("  - {}", error);
+            }
+        }
+        
+        println!("═══════════════════════════════════════════════════════");
+    }
+}
+
+// Trait for individual optimizers
+pub trait Optimizer {
+    fn optimize_function(&mut self, func: &mut IRFunction) -> Result<i64, string>;
+}
+
+// Module exports
+pub mod constant_folder;
+pub mod dead_code_eliminator;
+pub mod cse_optimizer;
+pub mod loop_optimizer;
+pub mod strength_reducer;

@@ -1,0 +1,331 @@
+// OMEGA Compiler - Performance Measurement Framework
+// Tracks and validates optimization performance metrics
+// Baseline measurement, benchmarking, and validation
+
+use std::time::{Instant, Duration};
+use std::collections::HashMap;
+
+pub struct PerformanceMetrics {
+    pub compilation_time_ms: f64,
+    pub code_size_bytes: usize,
+    pub code_size_reduction_percent: f64,
+    pub runtime_speedup_percent: f64,
+    pub memory_usage_mb: f64,
+    pub optimization_count: usize,
+}
+
+impl PerformanceMetrics {
+    pub fn new() -> Self {
+        PerformanceMetrics {
+            compilation_time_ms: 0.0,
+            code_size_bytes: 0,
+            code_size_reduction_percent: 0.0,
+            runtime_speedup_percent: 0.0,
+            memory_usage_mb: 0.0,
+            optimization_count: 0,
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.compilation_time_ms > 0.0 && self.code_size_bytes > 0
+    }
+}
+
+pub struct PerformanceBaseline {
+    pub original_compilation_time_ms: f64,
+    pub original_code_size_bytes: usize,
+    pub original_runtime_seconds: f64,
+}
+
+pub struct PerformanceBenchmark {
+    baselines: HashMap<String, PerformanceBaseline>,
+    measurements: HashMap<String, PerformanceMetrics>,
+    optimization_levels: Vec<String>,
+}
+
+impl PerformanceBenchmark {
+    pub fn new() -> Self {
+        PerformanceBenchmark {
+            baselines: HashMap::new(),
+            measurements: HashMap::new(),
+            optimization_levels: vec![
+                "O0".to_string(),
+                "O1".to_string(),
+                "O2".to_string(),
+                "O3".to_string(),
+            ],
+        }
+    }
+
+    // Establish baseline measurements (no optimizations)
+    pub fn establish_baseline(&mut self, test_name: &str, compilation_time_ms: f64, code_size_bytes: usize, runtime_seconds: f64) {
+        let baseline = PerformanceBaseline {
+            original_compilation_time_ms: compilation_time_ms,
+            original_code_size_bytes: code_size_bytes,
+            original_runtime_seconds: runtime_seconds,
+        };
+        self.baselines.insert(test_name.to_string(), baseline);
+    }
+
+    // Record optimization measurements
+    pub fn record_measurement(&mut self, test_name: &str, metrics: PerformanceMetrics) {
+        self.measurements.insert(test_name.to_string(), metrics);
+    }
+
+    // Calculate compilation time improvement
+    pub fn calculate_compilation_improvement(&self, test_name: &str, optimized_time_ms: f64) -> Option<f64> {
+        self.baselines.get(test_name).map(|baseline| {
+            ((baseline.original_compilation_time_ms - optimized_time_ms) / baseline.original_compilation_time_ms) * 100.0
+        })
+    }
+
+    // Calculate code size reduction
+    pub fn calculate_code_size_reduction(&self, test_name: &str, optimized_size_bytes: usize) -> Option<f64> {
+        self.baselines.get(test_name).map(|baseline| {
+            ((baseline.original_code_size_bytes as f64 - optimized_size_bytes as f64) / baseline.original_code_size_bytes as f64) * 100.0
+        })
+    }
+
+    // Calculate runtime speedup
+    pub fn calculate_runtime_speedup(&self, test_name: &str, optimized_runtime_seconds: f64) -> Option<f64> {
+        self.baselines.get(test_name).map(|baseline| {
+            ((baseline.original_runtime_seconds - optimized_runtime_seconds) / baseline.original_runtime_seconds) * 100.0
+        })
+    }
+
+    // Validate that optimizations meet performance targets
+    pub fn validate_performance_targets(&self) -> ValidationResult {
+        let mut result = ValidationResult::new();
+
+        for (test_name, baseline) in self.baselines.iter() {
+            if let Some(metrics) = self.measurements.get(test_name) {
+                // Target: 30-50% faster compilation
+                let compilation_improvement = ((baseline.original_compilation_time_ms - metrics.compilation_time_ms) / baseline.original_compilation_time_ms) * 100.0;
+                if compilation_improvement >= 30.0 && compilation_improvement <= 50.0 {
+                    result.passed_compilation_improvement += 1;
+                } else {
+                    result.failed_compilation_improvement += 1;
+                    result.compilation_improvement_pct = compilation_improvement;
+                }
+
+                // Target: 20-30% smaller code
+                let code_size_reduction = ((baseline.original_code_size_bytes as f64 - metrics.code_size_bytes as f64) / baseline.original_code_size_bytes as f64) * 100.0;
+                if code_size_reduction >= 20.0 && code_size_reduction <= 30.0 {
+                    result.passed_code_size_reduction += 1;
+                } else {
+                    result.failed_code_size_reduction += 1;
+                    result.code_size_reduction_pct = code_size_reduction;
+                }
+
+                // Target: 15-25% runtime improvement
+                let runtime_speedup = ((baseline.original_runtime_seconds - metrics.runtime_speedup_percent) / baseline.original_runtime_seconds) * 100.0;
+                if runtime_speedup >= 15.0 && runtime_speedup <= 25.0 {
+                    result.passed_runtime_improvement += 1;
+                } else {
+                    result.failed_runtime_improvement += 1;
+                }
+
+                result.total_tests += 1;
+            }
+        }
+
+        result
+    }
+
+    // Generate detailed performance report
+    pub fn generate_report(&self) -> String {
+        let mut report = String::new();
+        report.push_str("=== OMEGA Compiler Performance Report ===\n");
+        report.push_str("\n");
+
+        for optimization_level in &self.optimization_levels {
+            report.push_str(&format!("## Optimization Level: {}\n", optimization_level));
+
+            if let Some(metrics) = self.measurements.get(optimization_level) {
+                report.push_str(&format!("  Compilation Time: {:.2} ms\n", metrics.compilation_time_ms));
+                report.push_str(&format!("  Code Size: {} bytes\n", metrics.code_size_bytes));
+                report.push_str(&format!("  Code Size Reduction: {:.2}%\n", metrics.code_size_reduction_percent));
+                report.push_str(&format!("  Runtime Speedup: {:.2}%\n", metrics.runtime_speedup_percent));
+                report.push_str(&format!("  Memory Usage: {:.2} MB\n", metrics.memory_usage_mb));
+                report.push_str(&format!("  Optimizations Applied: {}\n", metrics.optimization_count));
+            }
+            report.push_str("\n");
+        }
+
+        report.push_str("## Performance Targets Validation\n");
+        let validation = self.validate_performance_targets();
+        report.push_str(&format!("  Total Tests: {}\n", validation.total_tests));
+        report.push_str(&format!("  Compilation Improvement: {}/{} passed\n", validation.passed_compilation_improvement, validation.total_tests));
+        report.push_str(&format!("  Code Size Reduction: {}/{} passed\n", validation.passed_code_size_reduction, validation.total_tests));
+        report.push_str(&format!("  Runtime Improvement: {}/{} passed\n", validation.passed_runtime_improvement, validation.total_tests));
+        report.push_str("\n");
+
+        report.push_str("## Detailed Metrics by Optimization Level\n");
+        for (test_name, baseline) in self.baselines.iter() {
+            report.push_str(&format!("\nTest: {}\n", test_name));
+            report.push_str(&format!("  Baseline Compilation Time: {:.2} ms\n", baseline.original_compilation_time_ms));
+            report.push_str(&format!("  Baseline Code Size: {} bytes\n", baseline.original_code_size_bytes));
+            report.push_str(&format!("  Baseline Runtime: {:.2} s\n", baseline.original_runtime_seconds));
+
+            if let Some(metrics) = self.measurements.get(test_name) {
+                let time_improvement = ((baseline.original_compilation_time_ms - metrics.compilation_time_ms) / baseline.original_compilation_time_ms) * 100.0;
+                let size_improvement = ((baseline.original_code_size_bytes as f64 - metrics.code_size_bytes as f64) / baseline.original_code_size_bytes as f64) * 100.0;
+
+                report.push_str(&format!("  Optimized Compilation Time: {:.2} ms ({:.2}% improvement)\n", metrics.compilation_time_ms, time_improvement));
+                report.push_str(&format!("  Optimized Code Size: {} bytes ({:.2}% reduction)\n", metrics.code_size_bytes, size_improvement));
+            }
+        }
+
+        report
+    }
+}
+
+pub struct ValidationResult {
+    pub total_tests: usize,
+    pub passed_compilation_improvement: usize,
+    pub failed_compilation_improvement: usize,
+    pub compilation_improvement_pct: f64,
+    pub passed_code_size_reduction: usize,
+    pub failed_code_size_reduction: usize,
+    pub code_size_reduction_pct: f64,
+    pub passed_runtime_improvement: usize,
+    pub failed_runtime_improvement: usize,
+}
+
+impl ValidationResult {
+    pub fn new() -> Self {
+        ValidationResult {
+            total_tests: 0,
+            passed_compilation_improvement: 0,
+            failed_compilation_improvement: 0,
+            compilation_improvement_pct: 0.0,
+            passed_code_size_reduction: 0,
+            failed_code_size_reduction: 0,
+            code_size_reduction_pct: 0.0,
+            passed_runtime_improvement: 0,
+            failed_runtime_improvement: 0,
+        }
+    }
+
+    pub fn is_passed(&self) -> bool {
+        self.failed_compilation_improvement == 0 && 
+        self.failed_code_size_reduction == 0 && 
+        self.failed_runtime_improvement == 0
+    }
+
+    pub fn pass_rate(&self) -> f64 {
+        if self.total_tests == 0 {
+            return 0.0;
+        }
+        let passed = self.passed_compilation_improvement + self.passed_code_size_reduction + self.passed_runtime_improvement;
+        (passed as f64 / (self.total_tests as f64 * 3.0)) * 100.0
+    }
+}
+
+pub struct TimingAnalyzer {
+    timers: HashMap<String, Instant>,
+    durations: HashMap<String, Duration>,
+}
+
+impl TimingAnalyzer {
+    pub fn new() -> Self {
+        TimingAnalyzer {
+            timers: HashMap::new(),
+            durations: HashMap::new(),
+        }
+    }
+
+    pub fn start_timer(&mut self, label: &str) {
+        self.timers.insert(label.to_string(), Instant::now());
+    }
+
+    pub fn stop_timer(&mut self, label: &str) -> Duration {
+        if let Some(start_time) = self.timers.get(label) {
+            let duration = start_time.elapsed();
+            self.durations.insert(label.to_string(), duration);
+            duration
+        } else {
+            Duration::new(0, 0)
+        }
+    }
+
+    pub fn get_duration(&self, label: &str) -> Option<Duration> {
+        self.durations.get(label).copied()
+    }
+
+    pub fn get_all_durations(&self) -> String {
+        let mut report = String::new();
+        report.push_str("=== Timing Analysis ===\n");
+
+        for (label, duration) in self.durations.iter() {
+            report.push_str(&format!("{}: {:.2} ms\n", label, duration.as_secs_f64() * 1000.0));
+        }
+
+        report
+    }
+}
+
+#[cfg(test)]
+mod performance_tests {
+    use super::*;
+
+    #[test]
+    fn test_performance_baseline_establishment() {
+        let mut benchmark = PerformanceBenchmark::new();
+        benchmark.establish_baseline("test_function", 50.0, 1000, 1.5);
+
+        assert!(benchmark.baselines.contains_key("test_function"));
+    }
+
+    #[test]
+    fn test_compilation_improvement_calculation() {
+        let mut benchmark = PerformanceBenchmark::new();
+        benchmark.establish_baseline("test", 100.0, 1000, 2.0);
+
+        let improvement = benchmark.calculate_compilation_improvement("test", 75.0);
+        assert!(improvement.is_some());
+        assert_eq!(improvement.unwrap(), 25.0);
+    }
+
+    #[test]
+    fn test_code_size_reduction_calculation() {
+        let mut benchmark = PerformanceBenchmark::new();
+        benchmark.establish_baseline("test", 100.0, 1000, 2.0);
+
+        let reduction = benchmark.calculate_code_size_reduction("test", 800);
+        assert!(reduction.is_some());
+        assert_eq!(reduction.unwrap(), 20.0);
+    }
+
+    #[test]
+    fn test_timing_analyzer() {
+        let mut analyzer = TimingAnalyzer::new();
+        analyzer.start_timer("optimization_pass");
+        // Simulate some work
+        analyzer.stop_timer("optimization_pass");
+
+        assert!(analyzer.get_duration("optimization_pass").is_some());
+    }
+
+    #[test]
+    fn test_validation_result_pass_rate() {
+        let mut result = ValidationResult::new();
+        result.total_tests = 10;
+        result.passed_compilation_improvement = 10;
+        result.passed_code_size_reduction = 10;
+        result.passed_runtime_improvement = 10;
+
+        assert_eq!(result.pass_rate(), 100.0);
+    }
+
+    #[test]
+    fn test_validation_result_is_passed() {
+        let mut result = ValidationResult::new();
+        result.total_tests = 3;
+        result.passed_compilation_improvement = 1;
+        result.passed_code_size_reduction = 1;
+        result.passed_runtime_improvement = 1;
+
+        assert!(result.is_passed());
+    }
+}

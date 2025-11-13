@@ -38,7 +38,7 @@ blockchain ExpressionParser {
     
     /// Parse assignment expressions (lowest precedence)
     function parse_assignment() private returns (Expression memory) {
-        Expression memory expr = parse_logical_or();
+        Expression memory expr = parse_ternary();
         
         if (match_assignment_operator()) {
             AssignmentOperator op = get_assignment_operator(previous().token_type);
@@ -50,6 +50,28 @@ blockchain ExpressionParser {
                     left: expr,
                     operator: op,
                     right: right
+                })
+            });
+        }
+        
+        return expr;
+    }
+    
+    /// Parse ternary conditional expressions (? :)
+    function parse_ternary() private returns (Expression memory) {
+        Expression memory expr = parse_logical_or();
+        
+        if (match(TokenType.Question)) {
+            Expression memory then_expr = parse_expression();
+            consume(TokenType.Colon, "Expected ':' in ternary expression");
+            Expression memory else_expr = parse_ternary();
+            
+            return Expression({
+                expression_type: ExpressionType.Ternary,
+                ternary: TernaryExpression({
+                    condition: expr,
+                    then_expr: then_expr,
+                    else_expr: else_expr
                 })
             });
         }
@@ -260,8 +282,26 @@ blockchain ExpressionParser {
         });
     }
     
-    /// Parse primary expressions (literals, identifiers, parentheses)
+    /// Parse primary expressions (literals, identifiers, parentheses, casts, struct literals)
     function parse_primary() private returns (Expression memory) {
+        // Handle type casting: (uint256) expr, (address) expr, etc.
+        if (check(TokenType.LeftParen) && is_type_at_position(1)) {
+            consume(TokenType.LeftParen, "Expected '('");
+            Type memory cast_type = parse_type();
+            consume(TokenType.RightParen, "Expected ')' after type");
+            
+            Expression memory operand = parse_unary();
+            
+            return Expression({
+                expression_type: ExpressionType.TypeCast,
+                type_cast: TypeCastExpression({
+                    target_type: cast_type,
+                    operand: operand
+                })
+            });
+        }
+        
+        // Handle boolean literals
         if (match(TokenType.True)) {
             return Expression({
                 expression_type: ExpressionType.Literal,
@@ -282,6 +322,7 @@ blockchain ExpressionParser {
             });
         }
         
+        // Handle numeric literals
         if (match(TokenType.Number)) {
             return Expression({
                 expression_type: ExpressionType.Literal,
@@ -292,6 +333,7 @@ blockchain ExpressionParser {
             });
         }
         
+        // Handle string literals
         if (match(TokenType.String)) {
             return Expression({
                 expression_type: ExpressionType.Literal,
@@ -302,6 +344,7 @@ blockchain ExpressionParser {
             });
         }
         
+        // Handle address literals
         if (match(TokenType.Address)) {
             return Expression({
                 expression_type: ExpressionType.Literal,
@@ -312,17 +355,90 @@ blockchain ExpressionParser {
             });
         }
         
-        if (match(TokenType.Identifier)) {
+        // Handle array/struct literals with identifier followed by {
+        if (check(TokenType.Identifier)) {
+            uint256 checkpoint = current;
+            Token memory ident = advance();
+            
+            // Check for struct literal: Name { field: value, ... }
+            if (match(TokenType.LeftBrace)) {
+                StructLiteralField[] memory fields;
+                uint256 field_count = 0;
+                
+                if (!check(TokenType.RightBrace)) {
+                    do {
+                        Token memory field_name = consume(TokenType.Identifier, "Expected field name");
+                        consume(TokenType.Colon, "Expected ':' after field name");
+                        Expression memory field_value = parse_expression();
+                        
+                        fields[field_count] = StructLiteralField({
+                            name: field_name.lexeme,
+                            value: field_value
+                        });
+                        field_count++;
+                    } while (match(TokenType.Comma));
+                }
+                
+                consume(TokenType.RightBrace, "Expected '}' after struct literal");
+                
+                return Expression({
+                    expression_type: ExpressionType.StructLiteral,
+                    struct_literal: StructLiteralExpression({
+                        struct_name: ident.lexeme,
+                        fields: fields
+                    })
+                });
+            }
+            
+            // Not a struct literal, backtrack and return identifier
+            current = checkpoint;
+            consume(TokenType.Identifier, "Expected identifier");
+            
             return Expression({
                 expression_type: ExpressionType.Identifier,
-                identifier: previous().lexeme
+                identifier: ident.lexeme
             });
         }
         
+        // Handle array literals: [1, 2, 3]
+        if (match(TokenType.LeftBracket)) {
+            Expression[] memory elements;
+            uint256 element_count = 0;
+            
+            if (!check(TokenType.RightBracket)) {
+                do {
+                    elements[element_count] = parse_expression();
+                    element_count++;
+                } while (match(TokenType.Comma));
+            }
+            
+            consume(TokenType.RightBracket, "Expected ']' after array literal");
+            
+            return Expression({
+                expression_type: ExpressionType.ArrayLiteral,
+                array_literal: ArrayLiteralExpression({
+                    elements: elements,
+                    element_count: element_count
+                })
+            });
+        }
+        
+        // Handle parenthesized expressions
         if (match(TokenType.LeftParen)) {
             Expression memory expr = parse_expression();
             consume(TokenType.RightParen, "Expected ')' after expression");
             return expr;
+        }
+        
+        // Handle null/none literal
+        if (match(TokenType.None)) {
+            return Expression({
+                expression_type: ExpressionType.Literal,
+                literal: Literal({
+                    literal_type: LiteralType.None,
+                    none_value: true
+                })
+            });
         }
         
         revert("Expected expression");
@@ -468,5 +584,117 @@ blockchain ExpressionParser {
         }
         
         return result;
+    }
+    
+    /// Helper function untuk check apakah ada type di position relative
+    function is_type_at_position(uint256 offset) private view returns (bool) {
+        uint256 pos = current + offset;
+        if (pos >= tokens.length) return false;
+        return is_type_keyword(tokens[pos].token_type);
+    }
+    
+    /// Helper function untuk check apakah token adalah type keyword
+    function is_type_keyword(TokenType token_type) private pure returns (bool) {
+        return token_type == TokenType.Uint256 || 
+               token_type == TokenType.Uint ||
+               token_type == TokenType.Int256 || 
+               token_type == TokenType.Int ||
+               token_type == TokenType.Bool ||
+               token_type == TokenType.Address ||
+               token_type == TokenType.String ||
+               token_type == TokenType.Bytes ||
+               token_type == TokenType.Void ||
+               token_type == TokenType.Identifier; // Struct names are identifiers
+    }
+    
+    /// Parse type annotation
+    function parse_type() private returns (Type memory) {
+        Token memory base_type = peek();
+        
+        // Match primitive types
+        if (check(TokenType.Uint256)) {
+            advance();
+            return Type({
+                base_type: BaseType.Uint256,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        if (check(TokenType.Uint)) {
+            advance();
+            return Type({
+                base_type: BaseType.Uint,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        if (check(TokenType.Int256)) {
+            advance();
+            return Type({
+                base_type: BaseType.Int256,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        if (check(TokenType.Int)) {
+            advance();
+            return Type({
+                base_type: BaseType.Int,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        if (check(TokenType.Bool)) {
+            advance();
+            return Type({
+                base_type: BaseType.Bool,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        if (check(TokenType.Address)) {
+            advance();
+            return Type({
+                base_type: BaseType.Address,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        if (check(TokenType.String)) {
+            advance();
+            return Type({
+                base_type: BaseType.String,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        if (check(TokenType.Bytes)) {
+            advance();
+            return Type({
+                base_type: BaseType.Bytes,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        // Custom type (struct, etc)
+        if (check(TokenType.Identifier)) {
+            Token memory name = advance();
+            return Type({
+                base_type: BaseType.Custom,
+                custom_type_name: name.lexeme,
+                is_array: false,
+                array_size: 0
+            });
+        }
+        
+        revert("Expected type");
     }
 }

@@ -1,0 +1,316 @@
+// OMEGA Compiler - Native x86-64 Runtime
+// Native code execution, system calls, CPU instruction handling
+
+use std::collections::HashMap;
+
+// ========== CPU Registers ==========
+
+#[derive(Clone, Debug)]
+pub struct CPURegisters {
+    pub rax: u64,
+    pub rbx: u64,
+    pub rcx: u64,
+    pub rdx: u64,
+    pub rsi: u64,
+    pub rdi: u64,
+    pub rbp: u64,
+    pub rsp: u64,
+    pub r8: u64,
+    pub r9: u64,
+    pub r10: u64,
+    pub r11: u64,
+    pub r12: u64,
+    pub r13: u64,
+    pub r14: u64,
+    pub r15: u64,
+    pub rip: u64,
+    pub rflags: u64,
+}
+
+impl CPURegisters {
+    pub fn new() -> Self {
+        CPURegisters {
+            rax: 0,
+            rbx: 0,
+            rcx: 0,
+            rdx: 0,
+            rsi: 0,
+            rdi: 0,
+            rbp: 0,
+            rsp: 0,
+            r8: 0,
+            r9: 0,
+            r10: 0,
+            r11: 0,
+            r12: 0,
+            r13: 0,
+            r14: 0,
+            r15: 0,
+            rip: 0,
+            rflags: 0,
+        }
+    }
+
+    pub fn set_register(&mut self, name: &str, value: u64) -> Result<(), String> {
+        match name {
+            "rax" => self.rax = value,
+            "rbx" => self.rbx = value,
+            "rcx" => self.rcx = value,
+            "rdx" => self.rdx = value,
+            "rsi" => self.rsi = value,
+            "rdi" => self.rdi = value,
+            "rbp" => self.rbp = value,
+            "rsp" => self.rsp = value,
+            _ => return Err(format!("Unknown register: {}", name)),
+        }
+        Ok(())
+    }
+
+    pub fn get_register(&self, name: &str) -> Result<u64, String> {
+        match name {
+            "rax" => Ok(self.rax),
+            "rbx" => Ok(self.rbx),
+            "rcx" => Ok(self.rcx),
+            "rdx" => Ok(self.rdx),
+            "rsi" => Ok(self.rsi),
+            "rdi" => Ok(self.rdi),
+            "rbp" => Ok(self.rbp),
+            "rsp" => Ok(self.rsp),
+            _ => Err(format!("Unknown register: {}", name)),
+        }
+    }
+
+    pub fn set_zero_flag(&mut self, zero: bool) {
+        if zero {
+            self.rflags |= 0x40;
+        } else {
+            self.rflags &= !0x40;
+        }
+    }
+
+    pub fn set_carry_flag(&mut self, carry: bool) {
+        if carry {
+            self.rflags |= 0x01;
+        } else {
+            self.rflags &= !0x01;
+        }
+    }
+
+    pub fn zero_flag(&self) -> bool {
+        (self.rflags & 0x40) != 0
+    }
+
+    pub fn carry_flag(&self) -> bool {
+        (self.rflags & 0x01) != 0
+    }
+}
+
+// ========== System Call Interface ==========
+
+pub enum SystemCall {
+    Exit(u64),
+    Write(u64, u64, u64),      // fd, buffer, count
+    Read(u64, u64, u64),       // fd, buffer, count
+    Open(String, u64),         // path, flags
+    Close(u64),                // fd
+    Mmap(u64, u64),            // size, flags
+    Munmap(u64, u64),          // addr, size
+    Brk(u64),                  // new_brk
+}
+
+// ========== Native Runtime ==========
+
+pub struct NativeRuntime {
+    pub registers: CPURegisters,
+    pub memory: Vec<u8>,
+    pub call_stack: Vec<u64>,
+    pub open_files: HashMap<u64, String>,
+    pub next_fd: u64,
+    pub instructions_executed: u64,
+    pub heap_ptr: u64,
+}
+
+impl NativeRuntime {
+    pub fn new(memory_size: usize) -> Self {
+        NativeRuntime {
+            registers: CPURegisters::new(),
+            memory: vec![0; memory_size],
+            call_stack: Vec::new(),
+            open_files: HashMap::new(),
+            next_fd: 3,
+            instructions_executed: 0,
+            heap_ptr: memory_size as u64 / 2,
+        }
+    }
+
+    pub fn execute_syscall(&mut self, syscall: SystemCall) -> Result<u64, String> {
+        match syscall {
+            SystemCall::Exit(code) => {
+                Err(format!("Program exited with code: {}", code))
+            }
+            SystemCall::Write(fd, buf_addr, count) => {
+                self.instructions_executed += 1;
+                Ok(count)
+            }
+            SystemCall::Read(fd, buf_addr, count) => {
+                self.instructions_executed += 1;
+                Ok(0)
+            }
+            SystemCall::Open(path, _flags) => {
+                let fd = self.next_fd;
+                self.open_files.insert(fd, path);
+                self.next_fd += 1;
+                self.instructions_executed += 1;
+                Ok(fd)
+            }
+            SystemCall::Close(fd) => {
+                self.open_files.remove(&fd);
+                self.instructions_executed += 1;
+                Ok(0)
+            }
+            SystemCall::Mmap(size, _flags) => {
+                let addr = self.heap_ptr;
+                self.heap_ptr += size;
+                self.instructions_executed += 1;
+                Ok(addr)
+            }
+            SystemCall::Munmap(addr, size) => {
+                self.instructions_executed += 1;
+                Ok(0)
+            }
+            SystemCall::Brk(new_brk) => {
+                self.heap_ptr = new_brk;
+                self.instructions_executed += 1;
+                Ok(self.heap_ptr)
+            }
+        }
+    }
+
+    pub fn push_stack(&mut self, value: u64) -> Result<(), String> {
+        self.registers.rsp = self.registers.rsp.saturating_sub(8);
+        self.write_memory(self.registers.rsp as usize, &value.to_le_bytes())?;
+        Ok(())
+    }
+
+    pub fn pop_stack(&mut self) -> Result<u64, String> {
+        let addr = self.registers.rsp as usize;
+        let value = self.read_memory_u64(addr)?;
+        self.registers.rsp += 8;
+        Ok(value)
+    }
+
+    pub fn write_memory(&mut self, addr: usize, data: &[u8]) -> Result<(), String> {
+        if addr + data.len() > self.memory.len() {
+            return Err("Memory access out of bounds".to_string());
+        }
+        self.memory[addr..addr + data.len()].copy_from_slice(data);
+        Ok(())
+    }
+
+    pub fn read_memory(&self, addr: usize, len: usize) -> Result<Vec<u8>, String> {
+        if addr + len > self.memory.len() {
+            return Err("Memory access out of bounds".to_string());
+        }
+        Ok(self.memory[addr..addr + len].to_vec())
+    }
+
+    pub fn read_memory_u64(&self, addr: usize) -> Result<u64, String> {
+        let bytes = self.read_memory(addr, 8)?;
+        Ok(u64::from_le_bytes([
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+        ]))
+    }
+
+    pub fn allocate_heap(&mut self, size: u64) -> Result<u64, String> {
+        if self.heap_ptr + size >= self.memory.len() as u64 {
+            return Err("Heap exhausted".to_string());
+        }
+        let addr = self.heap_ptr;
+        self.heap_ptr += size;
+        Ok(addr)
+    }
+
+    pub fn get_runtime_stats(&self) -> RuntimeStats {
+        RuntimeStats {
+            instructions_executed: self.instructions_executed,
+            memory_used: self.heap_ptr as usize,
+            memory_total: self.memory.len(),
+            open_files: self.open_files.len(),
+            stack_depth: self.call_stack.len(),
+        }
+    }
+}
+
+// ========== Runtime Statistics ==========
+
+pub struct RuntimeStats {
+    pub instructions_executed: u64,
+    pub memory_used: usize,
+    pub memory_total: usize,
+    pub open_files: usize,
+    pub stack_depth: usize,
+}
+
+impl RuntimeStats {
+    pub fn memory_usage_percent(&self) -> f64 {
+        (self.memory_used as f64 / self.memory_total as f64) * 100.0
+    }
+
+    pub fn instructions_per_second(&self, elapsed_secs: f64) -> f64 {
+        if elapsed_secs > 0.0 {
+            self.instructions_executed as f64 / elapsed_secs
+        } else {
+            0.0
+        }
+    }
+}
+
+#[cfg(test)]
+mod native_tests {
+    use super::*;
+
+    #[test]
+    fn test_cpu_registers() {
+        let mut registers: CPURegisters = CPURegisters::new();
+        assert!(registers.set_register("rax", 42).is_ok());
+        assert_eq!(registers.get_register("rax").unwrap(), 42);
+    }
+
+    #[test]
+    fn test_flags() {
+        let mut registers: CPURegisters = CPURegisters::new();
+        registers.set_zero_flag(true);
+        assert!(registers.zero_flag());
+    }
+
+    #[test]
+    fn test_native_runtime() {
+        let mut runtime: NativeRuntime = NativeRuntime::new(4096);
+        assert_eq!(runtime.memory.len(), 4096);
+    }
+
+    #[test]
+    fn test_stack_operations() {
+        let mut runtime: NativeRuntime = NativeRuntime::new(4096);
+        runtime.registers.rsp = 4096;
+        assert!(runtime.push_stack(42).is_ok());
+        assert!(runtime.pop_stack().is_ok());
+    }
+
+    #[test]
+    fn test_memory_operations() {
+        let mut runtime: NativeRuntime = NativeRuntime::new(4096);
+        let data: Vec<u8> = vec![1, 2, 3, 4];
+        assert!(runtime.write_memory(0, &data).is_ok());
+        let read_data: Vec<u8> = runtime.read_memory(0, 4).unwrap();
+        assert_eq!(read_data, data);
+    }
+
+    #[test]
+    fn test_heap_allocation() {
+        let mut runtime: NativeRuntime = NativeRuntime::new(4096);
+        let addr: u64 = runtime.allocate_heap(256).unwrap();
+        assert!(addr > 0);
+    }
+}

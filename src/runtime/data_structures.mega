@@ -1,0 +1,619 @@
+// OMEGA Compiler - Data Structures Library
+// Array, LinkedList, HashMap, Stack, Queue, Set implementations
+
+use std::collections::HashMap as StdHashMap;
+use std::fmt;
+
+// ========== Dynamic Array ==========
+
+pub struct DynamicArray<T: Clone> {
+    data: Vec<T>,
+    capacity: usize,
+    length: usize,
+}
+
+impl<T: Clone> DynamicArray<T> {
+    pub fn new() -> Self {
+        DynamicArray {
+            data: Vec::new(),
+            capacity: 10,
+            length: 0,
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        DynamicArray {
+            data: Vec::with_capacity(capacity),
+            capacity,
+            length: 0,
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        if self.length >= self.capacity {
+            self.capacity *= 2;
+        }
+        self.data.push(value);
+        self.length += 1;
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        if self.length > 0 {
+            self.length -= 1;
+            self.data.pop()
+        } else {
+            None
+        }
+    }
+
+    pub fn get(&self, index: usize) -> Option<&T> {
+        if index < self.length {
+            self.data.get(index)
+        } else {
+            None
+        }
+    }
+
+    pub fn set(&mut self, index: usize, value: T) -> Result<(), String> {
+        if index < self.length {
+            self.data[index] = value;
+            Ok(())
+        } else {
+            Err(format!("Index {} out of bounds", index))
+        }
+    }
+
+    pub fn insert(&mut self, index: usize, value: T) -> Result<(), String> {
+        if index > self.length {
+            return Err(format!("Index {} out of bounds", index));
+        }
+        if self.length >= self.capacity {
+            self.capacity *= 2;
+        }
+        self.data.insert(index, value);
+        self.length += 1;
+        Ok(())
+    }
+
+    pub fn remove(&mut self, index: usize) -> Result<T, String> {
+        if index < self.length {
+            self.length -= 1;
+            Ok(self.data.remove(index))
+        } else {
+            Err(format!("Index {} out of bounds", index))
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    pub fn clear(&mut self) {
+        self.data.clear();
+        self.length = 0;
+    }
+
+    pub fn contains(&self, value: &T) -> bool
+    where
+        T: PartialEq,
+    {
+        self.data[..self.length].contains(value)
+    }
+
+    pub fn index_of(&self, value: &T) -> Option<usize>
+    where
+        T: PartialEq,
+    {
+        self.data[..self.length].iter().position(|x| x == value)
+    }
+
+    pub fn reverse(&mut self) {
+        self.data[..self.length].reverse();
+    }
+
+    pub fn sort(&mut self)
+    where
+        T: Ord,
+    {
+        self.data[..self.length].sort();
+    }
+}
+
+// ========== Linked List ==========
+
+#[derive(Clone)]
+pub struct LinkedListNode<T> {
+    value: T,
+    next: Option<Box<LinkedListNode<T>>>,
+}
+
+pub struct LinkedList<T> {
+    head: Option<Box<LinkedListNode<T>>>,
+    length: usize,
+}
+
+impl<T: Clone> LinkedList<T> {
+    pub fn new() -> Self {
+        LinkedList {
+            head: None,
+            length: 0,
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        let new_node = Box::new(LinkedListNode {
+            value,
+            next: self.head.take(),
+        });
+        self.head = Some(new_node);
+        self.length += 1;
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.head.take().map(|node| {
+            self.head = node.next;
+            self.length -= 1;
+            node.value
+        })
+    }
+
+    pub fn front(&self) -> Option<&T> {
+        self.head.as_ref().map(|node| &node.value)
+    }
+
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    pub fn clear(&mut self) {
+        self.head = None;
+        self.length = 0;
+    }
+}
+
+// ========== Hash Map ==========
+
+pub struct HashMap<K: Clone + Eq, V: Clone> {
+    buckets: Vec<Vec<(K, V)>>,
+    capacity: usize,
+    length: usize,
+    load_factor: f32,
+}
+
+impl<K: Clone + Eq + std::hash::Hash, V: Clone> HashMap<K, V> {
+    pub fn new() -> Self {
+        HashMap {
+            buckets: vec![Vec::new(); 16],
+            capacity: 16,
+            length: 0,
+            load_factor: 0.75,
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        HashMap {
+            buckets: vec![Vec::new(); capacity],
+            capacity,
+            length: 0,
+            load_factor: 0.75,
+        }
+    }
+
+    fn hash(&self, key: &K) -> usize {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        use std::hash::{Hash, Hasher};
+        key.hash(&mut hasher);
+        (hasher.finish() as usize) % self.capacity
+    }
+
+    pub fn insert(&mut self, key: K, value: V) {
+        let hash = self.hash(&key);
+        let bucket = &mut self.buckets[hash];
+
+        for (k, v) in bucket.iter_mut() {
+            if k == &key {
+                *v = value;
+                return;
+            }
+        }
+
+        bucket.push((key, value));
+        self.length += 1;
+
+        if (self.length as f32 / self.capacity as f32) > self.load_factor {
+            self.resize();
+        }
+    }
+
+    pub fn get(&self, key: &K) -> Option<&V> {
+        let hash = self.hash(key);
+        self.buckets[hash].iter().find(|(k, _)| k == key).map(|(_, v)| v)
+    }
+
+    pub fn remove(&mut self, key: &K) -> Option<V> {
+        let hash = self.hash(key);
+        let bucket = &mut self.buckets[hash];
+
+        if let Some(pos) = bucket.iter().position(|(k, _)| k == key) {
+            self.length -= 1;
+            Some(bucket.remove(pos).1)
+        } else {
+            None
+        }
+    }
+
+    pub fn contains_key(&self, key: &K) -> bool {
+        self.get(key).is_some()
+    }
+
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    pub fn clear(&mut self) {
+        for bucket in &mut self.buckets {
+            bucket.clear();
+        }
+        self.length = 0;
+    }
+
+    fn resize(&mut self) {
+        let old_buckets = std::mem::replace(&mut self.buckets, vec![Vec::new(); self.capacity * 2]);
+        self.capacity *= 2;
+        self.length = 0;
+
+        for bucket in old_buckets {
+            for (key, value) in bucket {
+                self.insert(key, value);
+            }
+        }
+    }
+}
+
+// ========== Stack ==========
+
+pub struct Stack<T: Clone> {
+    data: Vec<T>,
+    capacity: usize,
+}
+
+impl<T: Clone> Stack<T> {
+    pub fn new() -> Self {
+        Stack {
+            data: Vec::new(),
+            capacity: 100,
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        if self.data.len() >= self.capacity {
+            self.capacity *= 2;
+        }
+        self.data.push(value);
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.data.pop()
+    }
+
+    pub fn peek(&self) -> Option<&T> {
+        self.data.last()
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.data.clear();
+    }
+}
+
+// ========== Queue ==========
+
+pub struct Queue<T: Clone> {
+    data: Vec<T>,
+    head: usize,
+    capacity: usize,
+}
+
+impl<T: Clone> Queue<T> {
+    pub fn new() -> Self {
+        Queue {
+            data: Vec::new(),
+            head: 0,
+            capacity: 100,
+        }
+    }
+
+    pub fn enqueue(&mut self, value: T) {
+        if self.data.len() >= self.capacity {
+            self.compact();
+        }
+        self.data.push(value);
+    }
+
+    pub fn dequeue(&mut self) -> Option<T> {
+        if self.head < self.data.len() {
+            let value = self.data[self.head].clone();
+            self.head += 1;
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    pub fn front(&self) -> Option<&T> {
+        if self.head < self.data.len() {
+            Some(&self.data[self.head])
+        } else {
+            None
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len() - self.head
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.head >= self.data.len()
+    }
+
+    pub fn clear(&mut self) {
+        self.data.clear();
+        self.head = 0;
+    }
+
+    fn compact(&mut self) {
+        if self.head > 0 {
+            self.data.drain(0..self.head);
+            self.head = 0;
+        }
+    }
+}
+
+// ========== Hash Set ==========
+
+pub struct HashSet<T: Clone + Eq> {
+    map: HashMap<T, ()>,
+}
+
+impl<T: Clone + Eq + std::hash::Hash> HashSet<T> {
+    pub fn new() -> Self {
+        HashSet {
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn insert(&mut self, value: T) {
+        self.map.insert(value, ());
+    }
+
+    pub fn remove(&mut self, value: &T) -> bool {
+        self.map.remove(value).is_some()
+    }
+
+    pub fn contains(&self, value: &T) -> bool {
+        self.map.contains_key(value)
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.map.clear();
+    }
+
+    pub fn union(&self, other: &HashSet<T>) -> HashSet<T> {
+        let mut result = HashSet::new();
+        for bucket in &self.map.buckets {
+            for (key, _) in bucket {
+                result.insert(key.clone());
+            }
+        }
+        for bucket in &other.map.buckets {
+            for (key, _) in bucket {
+                result.insert(key.clone());
+            }
+        }
+        result
+    }
+
+    pub fn intersection(&self, other: &HashSet<T>) -> HashSet<T> {
+        let mut result = HashSet::new();
+        for bucket in &self.map.buckets {
+            for (key, _) in bucket {
+                if other.contains(key) {
+                    result.insert(key.clone());
+                }
+            }
+        }
+        result
+    }
+
+    pub fn difference(&self, other: &HashSet<T>) -> HashSet<T> {
+        let mut result = HashSet::new();
+        for bucket in &self.map.buckets {
+            for (key, _) in bucket {
+                if !other.contains(key) {
+                    result.insert(key.clone());
+                }
+            }
+        }
+        result
+    }
+}
+
+// ========== Priority Queue ==========
+
+pub struct PriorityQueue<T: Clone + Ord> {
+    heap: Vec<T>,
+}
+
+impl<T: Clone + Ord> PriorityQueue<T> {
+    pub fn new() -> Self {
+        PriorityQueue { heap: Vec::new() }
+    }
+
+    pub fn push(&mut self, value: T) {
+        self.heap.push(value);
+        self.bubble_up(self.heap.len() - 1);
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        if self.heap.is_empty() {
+            return None;
+        }
+        let root = self.heap[0].clone();
+        let last = self.heap.pop().unwrap();
+        if !self.heap.is_empty() {
+            self.heap[0] = last;
+            self.bubble_down(0);
+        }
+        Some(root)
+    }
+
+    pub fn peek(&self) -> Option<&T> {
+        self.heap.first()
+    }
+
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.heap.is_empty()
+    }
+
+    fn bubble_up(&mut self, mut index: usize) {
+        while index > 0 {
+            let parent = (index - 1) / 2;
+            if self.heap[index] > self.heap[parent] {
+                self.heap.swap(index, parent);
+                index = parent;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn bubble_down(&mut self, mut index: usize) {
+        loop {
+            let left = 2 * index + 1;
+            let right = 2 * index + 2;
+            let mut largest = index;
+
+            if left < self.heap.len() && self.heap[left] > self.heap[largest] {
+                largest = left;
+            }
+            if right < self.heap.len() && self.heap[right] > self.heap[largest] {
+                largest = right;
+            }
+
+            if largest != index {
+                self.heap.swap(index, largest);
+                index = largest;
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+// ========== Statistics ==========
+
+pub struct DataStructureStats {
+    pub array_capacity: usize,
+    pub list_length: usize,
+    pub map_length: usize,
+    pub set_length: usize,
+    pub queue_length: usize,
+    pub total_memory_bytes: usize,
+}
+
+#[cfg(test)]
+mod data_structure_tests {
+    use super::*;
+
+    #[test]
+    fn test_dynamic_array() {
+        let mut arr: DynamicArray<i32> = DynamicArray::new();
+        arr.push(1);
+        arr.push(2);
+        arr.push(3);
+        assert_eq!(arr.len(), 3);
+        assert_eq!(arr.get(1), Some(&2));
+    }
+
+    #[test]
+    fn test_linked_list() {
+        let mut list: LinkedList<i32> = LinkedList::new();
+        list.push(1);
+        list.push(2);
+        list.push(3);
+        assert_eq!(list.len(), 3);
+        assert_eq!(list.pop(), Some(3));
+    }
+
+    #[test]
+    fn test_hashmap() {
+        let mut map: HashMap<String, i32> = HashMap::new();
+        map.insert("a".to_string(), 1);
+        map.insert("b".to_string(), 2);
+        assert_eq!(map.get(&"a".to_string()), Some(&1));
+    }
+
+    #[test]
+    fn test_stack() {
+        let mut stack: Stack<i32> = Stack::new();
+        stack.push(1);
+        stack.push(2);
+        assert_eq!(stack.pop(), Some(2));
+    }
+
+    #[test]
+    fn test_queue() {
+        let mut queue: Queue<i32> = Queue::new();
+        queue.enqueue(1);
+        queue.enqueue(2);
+        assert_eq!(queue.dequeue(), Some(1));
+    }
+
+    #[test]
+    fn test_hashset() {
+        let mut set: HashSet<i32> = HashSet::new();
+        set.insert(1);
+        set.insert(2);
+        assert!(set.contains(&1));
+    }
+
+    #[test]
+    fn test_priority_queue() {
+        let mut pq: PriorityQueue<i32> = PriorityQueue::new();
+        pq.push(3);
+        pq.push(1);
+        pq.push(2);
+        assert_eq!(pq.pop(), Some(3));
+    }
+}

@@ -1,0 +1,358 @@
+// OMEGA Compiler - Incremental Compilation System
+// Recompile only changed modules and their dependents
+// Dependency tracking and cache invalidation
+
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub struct IncrementalCompiler {
+    module_cache: HashMap<String, ModuleCache>,
+    source_hashes: HashMap<String, String>,
+    dependency_graph: HashMap<String, Vec<String>>,
+    last_compilation_time: u64,
+}
+
+pub struct ModuleCache {
+    pub module_name: String,
+    pub source_hash: String,
+    pub ir_code: String,
+    pub generated_code: String,
+    pub dependencies: Vec<String>,
+    pub last_compiled_time: u64,
+    pub cache_valid: bool,
+}
+
+impl IncrementalCompiler {
+    pub fn new() -> Self {
+        IncrementalCompiler {
+            module_cache: HashMap::new(),
+            source_hashes: HashMap::new(),
+            dependency_graph: HashMap::new(),
+            last_compilation_time: 0,
+        }
+    }
+
+    // Load previous compilation cache
+    pub fn load_cache(&mut self, cache_file: &str) -> Result<(), String> {
+        // In production: deserialize from JSON/binary format
+        // For now: simple in-memory cache
+        Ok(())
+    }
+
+    // Save compilation cache for next build
+    pub fn save_cache(&self, cache_file: &str) -> Result<(), String> {
+        // In production: serialize to JSON/binary format
+        Ok(())
+    }
+
+    // Calculate hash of source code
+    pub fn hash_source(&self, source_code: &str) -> String {
+        // In production: use SHA256 or similar
+        // Simplified: using string length as placeholder
+        format!("{:x}", source_code.len())
+    }
+
+    // Detect which modules have changed
+    pub fn detect_changes(&mut self, modules: HashMap<String, String>) -> Vec<String> {
+        let mut changed_modules = Vec::new();
+
+        for (module_name, source_code) in modules {
+            let current_hash = self.hash_source(&source_code);
+            let previous_hash = self.source_hashes.get(&module_name);
+
+            if previous_hash.is_none() || previous_hash.unwrap() != &current_hash {
+                changed_modules.push(module_name.clone());
+                self.source_hashes.insert(module_name, current_hash);
+            }
+        }
+
+        changed_modules
+    }
+
+    // Find all modules that depend on changed modules
+    pub fn find_affected_modules(&self, changed_modules: &[String]) -> Vec<String> {
+        let mut affected = changed_modules.to_vec();
+        let mut to_process = changed_modules.to_vec();
+        let mut processed = std::collections::HashSet::new();
+
+        while let Some(module) = to_process.pop() {
+            if processed.contains(&module) {
+                continue;
+            }
+            processed.insert(module.clone());
+
+            // Find all modules that depend on this one
+            for (dependent, deps) in self.dependency_graph.iter() {
+                if deps.contains(&module) && !affected.contains(dependent) {
+                    affected.push(dependent.clone());
+                    to_process.push(dependent.clone());
+                }
+            }
+        }
+
+        affected
+    }
+
+    // Cache compiled module
+    pub fn cache_module(&mut self, module_name: String, source_hash: String, ir_code: String, generated_code: String, dependencies: Vec<String>) {
+        let cache = ModuleCache {
+            module_name: module_name.clone(),
+            source_hash: source_hash.clone(),
+            ir_code,
+            generated_code,
+            dependencies,
+            last_compiled_time: get_current_time(),
+            cache_valid: true,
+        };
+
+        self.module_cache.insert(module_name, cache);
+        self.source_hashes.insert(module_name, source_hash);
+    }
+
+    // Retrieve cached module if valid
+    pub fn get_cached_module(&self, module_name: &str) -> Option<&ModuleCache> {
+        self.module_cache.get(module_name)
+    }
+
+    // Invalidate cache for a module
+    pub fn invalidate_cache(&mut self, module_name: &str) {
+        if let Some(cache) = self.module_cache.get_mut(module_name) {
+            cache.cache_valid = false;
+        }
+    }
+
+    // Check if cache is still valid
+    pub fn is_cache_valid(&self, module_name: &str) -> bool {
+        self.module_cache
+            .get(module_name)
+            .map(|cache| cache.cache_valid)
+            .unwrap_or(false)
+    }
+
+    // Add module dependency
+    pub fn add_dependency(&mut self, module: String, depends_on: String) {
+        self.dependency_graph
+            .entry(module)
+            .or_insert_with(Vec::new)
+            .push(depends_on);
+    }
+
+    // Get modules that need recompilation
+    pub fn get_modules_to_recompile(&self) -> Vec<String> {
+        self.module_cache
+            .iter()
+            .filter(|(_, cache)| !cache.cache_valid)
+            .map(|(name, _)| name.clone())
+            .collect()
+    }
+
+    // Calculate compilation speedup from incremental compilation
+    pub fn calculate_speedup(&self, total_modules: usize, changed_modules: usize) -> f64 {
+        if total_modules == 0 {
+            return 0.0;
+        }
+        let percentage_unchanged = ((total_modules - changed_modules) as f64 / total_modules as f64) * 100.0;
+        percentage_unchanged
+    }
+}
+
+pub struct FileWatcher {
+    watched_files: HashMap<String, FileState>,
+}
+
+pub struct FileState {
+    pub path: String,
+    pub last_modified: u64,
+    pub file_size: u64,
+}
+
+impl FileWatcher {
+    pub fn new() -> Self {
+        FileWatcher {
+            watched_files: HashMap::new(),
+        }
+    }
+
+    // Start watching file for changes
+    pub fn watch_file(&mut self, path: &str) -> Result<(), String> {
+        let file_metadata = fs::metadata(path).map_err(|e| format!("Failed to stat file: {}", e))?;
+
+        let state = FileState {
+            path: path.to_string(),
+            last_modified: file_metadata.modified()
+                .ok()
+                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            file_size: file_metadata.len(),
+        };
+
+        self.watched_files.insert(path.to_string(), state);
+        Ok(())
+    }
+
+    // Check for file changes
+    pub fn check_changes(&mut self) -> Vec<String> {
+        let mut changed_files = Vec::new();
+
+        for (path, old_state) in self.watched_files.iter_mut() {
+            if let Ok(file_metadata) = fs::metadata(path) {
+                let new_time_result = file_metadata.modified().ok().and_then(|time| time.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+                let new_size = file_metadata.len();
+
+                if new_time_result != old_state.last_modified || new_size != old_state.file_size {
+                    changed_files.push(path.clone());
+                    old_state.last_modified = new_time_result;
+                    old_state.file_size = new_size;
+                }
+            }
+        }
+
+        changed_files
+    }
+}
+
+pub struct CompilationStatistics {
+    pub total_modules: usize,
+    pub changed_modules: usize,
+    pub recompiled_modules: usize,
+    pub cached_modules: usize,
+    pub compilation_time_total_ms: f64,
+    pub cache_hit_rate: f64,
+}
+
+impl CompilationStatistics {
+    pub fn new() -> Self {
+        CompilationStatistics {
+            total_modules: 0,
+            changed_modules: 0,
+            recompiled_modules: 0,
+            cached_modules: 0,
+            compilation_time_total_ms: 0.0,
+            cache_hit_rate: 0.0,
+        }
+    }
+
+    pub fn calculate_cache_hit_rate(&mut self) {
+        if self.total_modules > 0 {
+            self.cache_hit_rate = (self.cached_modules as f64 / self.total_modules as f64) * 100.0;
+        }
+    }
+
+    pub fn speedup_factor(&self) -> f64 {
+        if self.recompiled_modules == 0 {
+            return 1.0;
+        }
+        self.total_modules as f64 / self.recompiled_modules as f64
+    }
+
+    pub fn report(&self) -> String {
+        let mut report = String::new();
+        report.push_str("=== Incremental Compilation Statistics ===\n");
+        report.push_str(&format!("Total Modules: {}\n", self.total_modules));
+        report.push_str(&format!("Changed Modules: {}\n", self.changed_modules));
+        report.push_str(&format!("Recompiled Modules: {}\n", self.recompiled_modules));
+        report.push_str(&format!("Cached Modules: {}\n", self.cached_modules));
+        report.push_str(&format!("Cache Hit Rate: {:.2}%\n", self.cache_hit_rate));
+        report.push_str(&format!("Speedup Factor: {:.2}x\n", self.speedup_factor()));
+        report.push_str(&format!("Total Compilation Time: {:.2} ms\n", self.compilation_time_total_ms));
+        report
+    }
+}
+
+fn get_current_time() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+#[cfg(test)]
+mod incremental_compilation_tests {
+    use super::*;
+
+    #[test]
+    fn test_incremental_compiler_creation() {
+        let compiler = IncrementalCompiler::new();
+        assert_eq!(compiler.module_cache.len(), 0);
+    }
+
+    #[test]
+    fn test_module_caching() {
+        let mut compiler = IncrementalCompiler::new();
+        compiler.cache_module(
+            "module_a".to_string(),
+            "hash_a".to_string(),
+            "ir_code".to_string(),
+            "generated_code".to_string(),
+            vec![],
+        );
+
+        assert!(compiler.get_cached_module("module_a").is_some());
+    }
+
+    #[test]
+    fn test_cache_invalidation() {
+        let mut compiler = IncrementalCompiler::new();
+        compiler.cache_module(
+            "module_a".to_string(),
+            "hash_a".to_string(),
+            "ir_code".to_string(),
+            "generated_code".to_string(),
+            vec![],
+        );
+
+        compiler.invalidate_cache("module_a");
+        assert!(!compiler.is_cache_valid("module_a"));
+    }
+
+    #[test]
+    fn test_detect_changes() {
+        let mut compiler = IncrementalCompiler::new();
+        let mut modules = HashMap::new();
+        modules.insert("module_a".to_string(), "source_code_a".to_string());
+
+        let changed = compiler.detect_changes(modules);
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0], "module_a");
+    }
+
+    #[test]
+    fn test_find_affected_modules() {
+        let mut compiler = IncrementalCompiler::new();
+        compiler.add_dependency("module_b".to_string(), "module_a".to_string());
+        compiler.add_dependency("module_c".to_string(), "module_b".to_string());
+
+        let affected = compiler.find_affected_modules(&["module_a".to_string()]);
+        assert!(affected.contains(&"module_a"));
+        assert!(affected.contains(&"module_b"));
+        assert!(affected.contains(&"module_c"));
+    }
+
+    #[test]
+    fn test_compilation_speedup_calculation() {
+        let compiler = IncrementalCompiler::new();
+        let speedup = compiler.calculate_speedup(100, 10);
+        assert_eq!(speedup, 90.0);
+    }
+
+    #[test]
+    fn test_compilation_statistics() {
+        let mut stats = CompilationStatistics::new();
+        stats.total_modules = 100;
+        stats.cached_modules = 90;
+        stats.recompiled_modules = 10;
+        stats.calculate_cache_hit_rate();
+
+        assert_eq!(stats.cache_hit_rate, 90.0);
+        assert_eq!(stats.speedup_factor(), 10.0);
+    }
+
+    #[test]
+    fn test_file_watcher_creation() {
+        let watcher = FileWatcher::new();
+        assert_eq!(watcher.watched_files.len(), 0);
+    }
+}

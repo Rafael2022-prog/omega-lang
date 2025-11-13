@@ -1,0 +1,408 @@
+// OMEGA Compiler - Exception Handling
+// Exception types, throwing, catching, error propagation, stack unwinding
+
+use std::fmt;
+
+// ========== Exception Types ==========
+
+#[derive(Clone, Debug)]
+pub enum ExceptionType {
+    DivisionByZero,
+    NullPointerAccess,
+    IndexOutOfBounds { index: usize, length: usize },
+    TypeMismatch { expected: String, found: String },
+    UndefinedVariable(String),
+    FunctionNotFound(String),
+    StackOverflow,
+    StackUnderflow,
+    HeapExhausted,
+    InvalidMemoryAccess { address: usize },
+    RuntimeError(String),
+    IOError(String),
+    CustomException(String),
+    UnhandledException(String),
+}
+
+impl fmt::Display for ExceptionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExceptionType::DivisionByZero => write!(f, "Division by zero"),
+            ExceptionType::NullPointerAccess => write!(f, "Null pointer access"),
+            ExceptionType::IndexOutOfBounds { index, length } => {
+                write!(f, "Index out of bounds: {} >= {}", index, length)
+            }
+            ExceptionType::TypeMismatch { expected, found } => {
+                write!(f, "Type mismatch: expected {}, found {}", expected, found)
+            }
+            ExceptionType::UndefinedVariable(name) => write!(f, "Undefined variable: {}", name),
+            ExceptionType::FunctionNotFound(name) => write!(f, "Function not found: {}", name),
+            ExceptionType::StackOverflow => write!(f, "Stack overflow"),
+            ExceptionType::StackUnderflow => write!(f, "Stack underflow"),
+            ExceptionType::HeapExhausted => write!(f, "Heap memory exhausted"),
+            ExceptionType::InvalidMemoryAccess { address } => {
+                write!(f, "Invalid memory access at address: 0x{:x}", address)
+            }
+            ExceptionType::RuntimeError(msg) => write!(f, "Runtime error: {}", msg),
+            ExceptionType::IOError(msg) => write!(f, "I/O error: {}", msg),
+            ExceptionType::CustomException(msg) => write!(f, "Exception: {}", msg),
+            ExceptionType::UnhandledException(msg) => write!(f, "Unhandled exception: {}", msg),
+        }
+    }
+}
+
+// ========== Exception ==========
+
+#[derive(Clone, Debug)]
+pub struct Exception {
+    pub exception_type: ExceptionType,
+    pub message: String,
+    pub source_location: SourceLocation,
+    pub call_stack_trace: Vec<StackTraceEntry>,
+    pub timestamp: u64,
+}
+
+impl Exception {
+    pub fn new(exception_type: ExceptionType, message: String) -> Self {
+        Exception {
+            exception_type,
+            message,
+            source_location: SourceLocation::unknown(),
+            call_stack_trace: Vec::new(),
+            timestamp: get_current_timestamp(),
+        }
+    }
+
+    pub fn with_location(mut self, file: String, line: usize) -> Self {
+        self.source_location = SourceLocation { file, line };
+        self
+    }
+
+    pub fn with_call_stack(mut self, stack_trace: Vec<StackTraceEntry>) -> Self {
+        self.call_stack_trace = stack_trace;
+        self
+    }
+
+    pub fn format_traceback(&self) -> String {
+        let mut output: String = format!("{}: {}\n  at {}:{}\n", self.exception_type, self.message, self.source_location.file, self.source_location.line);
+
+        if !self.call_stack_trace.is_empty() {
+            output.push_str("Call stack:\n");
+            for entry in &self.call_stack_trace {
+                output.push_str(&format!(
+                    "  in {} at {}:{}\n",
+                    entry.function_name, entry.file, entry.line
+                ));
+            }
+        }
+
+        output
+    }
+}
+
+// ========== Source Location ==========
+
+#[derive(Clone, Debug)]
+pub struct SourceLocation {
+    pub file: String,
+    pub line: usize,
+}
+
+impl SourceLocation {
+    pub fn new(file: String, line: usize) -> Self {
+        SourceLocation { file, line }
+    }
+
+    pub fn unknown() -> Self {
+        SourceLocation {
+            file: "unknown".to_string(),
+            line: 0,
+        }
+    }
+}
+
+// ========== Stack Trace Entry ==========
+
+#[derive(Clone, Debug)]
+pub struct StackTraceEntry {
+    pub function_name: String,
+    pub file: String,
+    pub line: usize,
+    pub instruction_offset: usize,
+}
+
+impl StackTraceEntry {
+    pub fn new(function_name: String, file: String, line: usize, instruction_offset: usize) -> Self {
+        StackTraceEntry {
+            function_name,
+            file,
+            line,
+            instruction_offset,
+        }
+    }
+}
+
+// ========== Exception Handler ==========
+
+pub struct ExceptionHandler {
+    active_exception: Option<Exception>,
+    handler_stack: Vec<ExceptionHandlerBlock>,
+    exception_log: Vec<Exception>,
+    caught_count: usize,
+    uncaught_count: usize,
+}
+
+impl ExceptionHandler {
+    pub fn new() -> Self {
+        ExceptionHandler {
+            active_exception: None,
+            handler_stack: Vec::new(),
+            exception_log: Vec::new(),
+            caught_count: 0,
+            uncaught_count: 0,
+        }
+    }
+
+    // Throw an exception
+    pub fn throw(&mut self, exception: Exception) {
+        self.active_exception = Some(exception.clone());
+        self.exception_log.push(exception);
+    }
+
+    // Check if an exception is active
+    pub fn has_active_exception(&self) -> bool {
+        self.active_exception.is_some()
+    }
+
+    // Get active exception
+    pub fn get_active_exception(&self) -> Option<&Exception> {
+        self.active_exception.as_ref()
+    }
+
+    // Clear active exception (when caught)
+    pub fn clear_exception(&mut self) {
+        if self.active_exception.is_some() {
+            self.caught_count += 1;
+            self.active_exception = None;
+        }
+    }
+
+    // Push exception handler block
+    pub fn push_handler_block(&mut self, block: ExceptionHandlerBlock) {
+        self.handler_stack.push(block);
+    }
+
+    // Pop exception handler block
+    pub fn pop_handler_block(&mut self) -> Option<ExceptionHandlerBlock> {
+        self.handler_stack.pop()
+    }
+
+    // Find matching handler for active exception
+    pub fn find_matching_handler(&self) -> Option<&ExceptionHandlerBlock> {
+        if let Some(exc) = &self.active_exception {
+            for handler in self.handler_stack.iter().rev() {
+                if handler.handles(&exc.exception_type) {
+                    return Some(handler);
+                }
+            }
+        }
+        None
+    }
+
+    // Unwind stack on exception
+    pub fn unwind_stack(&mut self) -> Vec<ExceptionHandlerBlock> {
+        self.exception_log.last().map(|e| self.uncaught_count += 1);
+        self.handler_stack.drain(..).collect()
+    }
+
+    // Get exception statistics
+    pub fn get_stats(&self) -> ExceptionStats {
+        ExceptionStats {
+            total_exceptions: self.exception_log.len(),
+            caught_exceptions: self.caught_count,
+            uncaught_exceptions: self.uncaught_count,
+            active_handlers: self.handler_stack.len(),
+            has_active_exception: self.active_exception.is_some(),
+        }
+    }
+
+    // Format exception traceback
+    pub fn format_exception_traceback(&self) -> Option<String> {
+        self.active_exception.as_ref().map(|e| e.format_traceback())
+    }
+}
+
+// ========== Exception Handler Block ==========
+
+#[derive(Clone, Debug)]
+pub struct ExceptionHandlerBlock {
+    pub exception_types: Vec<String>,
+    pub handler_address: usize,
+    pub variable_name: Option<String>,
+}
+
+impl ExceptionHandlerBlock {
+    pub fn new(exception_types: Vec<String>, handler_address: usize) -> Self {
+        ExceptionHandlerBlock {
+            exception_types,
+            handler_address,
+            variable_name: None,
+        }
+    }
+
+    pub fn with_variable(mut self, var_name: String) -> Self {
+        self.variable_name = Some(var_name);
+        self
+    }
+
+    pub fn handles(&self, exception_type: &ExceptionType) -> bool {
+        let exc_name = format!("{:?}", exception_type).split('(').next().unwrap_or("");
+        self.exception_types.iter().any(|t| t.contains(exc_name) || t == "Exception" || t == "*")
+    }
+}
+
+// ========== Try-Catch-Finally ==========
+
+pub struct TryCatchFinally {
+    pub try_block: Vec<u8>,
+    pub catch_blocks: Vec<CatchBlock>,
+    pub finally_block: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CatchBlock {
+    pub exception_type: String,
+    pub variable_name: Option<String>,
+    pub handler_code: Vec<u8>,
+}
+
+impl TryCatchFinally {
+    pub fn new(try_block: Vec<u8>) -> Self {
+        TryCatchFinally {
+            try_block,
+            catch_blocks: Vec::new(),
+            finally_block: None,
+        }
+    }
+
+    pub fn add_catch(mut self, exception_type: String, handler_code: Vec<u8>) -> Self {
+        self.catch_blocks.push(CatchBlock {
+            exception_type,
+            variable_name: None,
+            handler_code,
+        });
+        self
+    }
+
+    pub fn add_catch_with_var(mut self, exception_type: String, var_name: String, handler_code: Vec<u8>) -> Self {
+        self.catch_blocks.push(CatchBlock {
+            exception_type,
+            variable_name: Some(var_name),
+            handler_code,
+        });
+        self
+    }
+
+    pub fn with_finally(mut self, finally_block: Vec<u8>) -> Self {
+        self.finally_block = Some(finally_block);
+        self
+    }
+}
+
+// ========== Exception Context ==========
+
+pub struct ExceptionContext {
+    pub handler: ExceptionHandler,
+    pub error_recovery_mode: bool,
+    pub recovery_point: Option<usize>,
+}
+
+impl ExceptionContext {
+    pub fn new() -> Self {
+        ExceptionContext {
+            handler: ExceptionHandler::new(),
+            error_recovery_mode: false,
+            recovery_point: None,
+        }
+    }
+
+    pub fn enter_recovery_mode(&mut self, recovery_address: usize) {
+        self.error_recovery_mode = true;
+        self.recovery_point = Some(recovery_address);
+    }
+
+    pub fn exit_recovery_mode(&mut self) {
+        self.error_recovery_mode = false;
+        self.recovery_point = None;
+    }
+
+    pub fn is_in_recovery(&self) -> bool {
+        self.error_recovery_mode
+    }
+}
+
+// ========== Statistics ==========
+
+pub struct ExceptionStats {
+    pub total_exceptions: usize,
+    pub caught_exceptions: usize,
+    pub uncaught_exceptions: usize,
+    pub active_handlers: usize,
+    pub has_active_exception: bool,
+}
+
+fn get_current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+#[cfg(test)]
+mod exception_tests {
+    use super::*;
+
+    #[test]
+    fn test_exception_creation() {
+        let exc: Exception = Exception::new(ExceptionType::DivisionByZero, "Cannot divide by zero".to_string());
+        assert_eq!(exc.message, "Cannot divide by zero");
+    }
+
+    #[test]
+    fn test_exception_with_location() {
+        let exc: Exception = Exception::new(ExceptionType::NullPointerAccess, "Null access".to_string()).with_location("main.omega".to_string(), 42);
+        assert_eq!(exc.source_location.line, 42);
+    }
+
+    #[test]
+    fn test_exception_handler() {
+        let mut handler: ExceptionHandler = ExceptionHandler::new();
+        let exc: Exception = Exception::new(ExceptionType::DivisionByZero, "Test error".to_string());
+        handler.throw(exc);
+        assert!(handler.has_active_exception());
+    }
+
+    #[test]
+    fn test_exception_catching() {
+        let mut handler: ExceptionHandler = ExceptionHandler::new();
+        let exc: Exception = Exception::new(ExceptionType::RuntimeError("test".to_string()), "Test".to_string());
+        handler.throw(exc);
+        handler.clear_exception();
+        assert!(!handler.has_active_exception());
+    }
+
+    #[test]
+    fn test_handler_block() {
+        let block: ExceptionHandlerBlock = ExceptionHandlerBlock::new(vec!["DivisionByZero".to_string()], 100);
+        let exc_type = ExceptionType::DivisionByZero;
+        assert!(block.handles(&exc_type));
+    }
+
+    #[test]
+    fn test_exception_statistics() {
+        let mut handler = ExceptionHandler::new();
+        handler.throw(Exception::new(ExceptionType::DivisionByZero, "Test".to_string()));
+        handler.clear_exception();
+        let stats = handler.get_stats();
+        assert_eq!(stats.caught_exceptions, 1);
+    }
+}

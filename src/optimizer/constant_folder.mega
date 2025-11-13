@@ -1,0 +1,364 @@
+// OMEGA Compiler - Constant Folding Optimizer
+// Evaluates constant expressions at compile time
+// Replaces compile-time constants with folded results
+// Supports: arithmetic, boolean, comparison, string operations
+
+import "../ir/ir_nodes.mega";
+
+pub struct ConstantFolder {
+    optimizations_count: i64;
+}
+
+impl ConstantFolder {
+    pub fn new() -> Self {
+        ConstantFolder {
+            optimizations_count: 0,
+        }
+    }
+
+    // Fold all constants in a function
+    pub fn fold_function(&mut self, func: &mut IRFunction) -> Result<i64, string> {
+        for block in &mut func.basic_blocks {
+            self.fold_block(block)?;
+        }
+        Ok(self.optimizations_count)
+    }
+
+    // Fold constants in a basic block
+    fn fold_block(&mut self, block: &mut BasicBlock) -> Result<(), string> {
+        let mut i = 0;
+        while i < block.instructions.len() {
+            self.fold_instruction(&mut block.instructions[i])?;
+            i += 1;
+        }
+        Ok(())
+    }
+
+    // Fold a single instruction
+    fn fold_instruction(&mut self, instr: &mut IRInstruction) -> Result<(), string> {
+        match &instr.op {
+            IROperation::BinaryOp(op, left, right) => {
+                // Try to fold binary operations
+                if let (Some(left_const), Some(right_const)) = (
+                    self.to_constant(left),
+                    self.to_constant(right)
+                ) {
+                    match self.fold_binary_op(op, &left_const, &right_const) {
+                        Ok(result) => {
+                            // Replace instruction with constant result
+                            instr.op = IROperation::Constant(result);
+                            self.optimizations_count += 1;
+                        },
+                        Err(_) => {} // Can't fold, keep original
+                    }
+                }
+            },
+            
+            IROperation::UnaryOp(op, operand) => {
+                // Try to fold unary operations
+                if let Some(const_val) = self.to_constant(operand) {
+                    match self.fold_unary_op(op, &const_val) {
+                        Ok(result) => {
+                            instr.op = IROperation::Constant(result);
+                            self.optimizations_count += 1;
+                        },
+                        Err(_) => {} // Can't fold, keep original
+                    }
+                }
+            },
+            
+            IROperation::TypeCast(operand, target_type) => {
+                // Try to fold type casts
+                if let Some(const_val) = self.to_constant(operand) {
+                    match self.fold_cast(&const_val, target_type) {
+                        Ok(result) => {
+                            instr.op = IROperation::Constant(result);
+                            self.optimizations_count += 1;
+                        },
+                        Err(_) => {} // Can't fold, keep original
+                    }
+                }
+            },
+            
+            _ => {} // Other operations don't fold
+        }
+        Ok(())
+    }
+
+    // Convert operand to constant value if possible
+    fn to_constant(&self, operand: &IROperand) -> Option<ConstantValue> {
+        match operand {
+            IROperand::Constant(val) => Some(val.clone()),
+            IROperand::Literal(val) => self.literal_to_constant(val),
+            _ => None,
+        }
+    }
+
+    // Convert literal to constant
+    fn literal_to_constant(&self, literal: &str) -> Option<ConstantValue> {
+        // Try to parse as integer
+        if let Ok(i) = literal.parse::<i64>() {
+            return Some(ConstantValue::Integer(i));
+        }
+        
+        // Try to parse as float
+        if let Ok(f) = literal.parse::<f64>() {
+            return Some(ConstantValue::Float(f));
+        }
+        
+        // Handle boolean
+        if literal == "true" {
+            return Some(ConstantValue::Boolean(true));
+        }
+        if literal == "false" {
+            return Some(ConstantValue::Boolean(false));
+        }
+        
+        // String constant
+        Some(ConstantValue::String(literal.to_string()))
+    }
+
+    // Fold binary operations
+    fn fold_binary_op(
+        &self,
+        op: &str,
+        left: &ConstantValue,
+        right: &ConstantValue
+    ) -> Result<ConstantValue, string> {
+        match (left, right) {
+            // Integer arithmetic
+            (ConstantValue::Integer(l), ConstantValue::Integer(r)) => {
+                match op {
+                    "+" => Ok(ConstantValue::Integer(l + r)),
+                    "-" => Ok(ConstantValue::Integer(l - r)),
+                    "*" => Ok(ConstantValue::Integer(l * r)),
+                    "/" if *r != 0 => Ok(ConstantValue::Integer(l / r)),
+                    "%" if *r != 0 => Ok(ConstantValue::Integer(l % r)),
+                    "&" => Ok(ConstantValue::Integer(l & r)),
+                    "|" => Ok(ConstantValue::Integer(l | r)),
+                    "^" => Ok(ConstantValue::Integer(l ^ r)),
+                    "<<" => Ok(ConstantValue::Integer(l << r)),
+                    ">>" => Ok(ConstantValue::Integer(l >> r)),
+                    "<" => Ok(ConstantValue::Boolean(l < r)),
+                    "<=" => Ok(ConstantValue::Boolean(l <= r)),
+                    ">" => Ok(ConstantValue::Boolean(l > r)),
+                    ">=" => Ok(ConstantValue::Boolean(l >= r)),
+                    "==" => Ok(ConstantValue::Boolean(l == r)),
+                    "!=" => Ok(ConstantValue::Boolean(l != r)),
+                    _ => Err("Unknown operator".to_string()),
+                }
+            },
+            
+            // Float arithmetic
+            (ConstantValue::Float(l), ConstantValue::Float(r)) => {
+                match op {
+                    "+" => Ok(ConstantValue::Float(l + r)),
+                    "-" => Ok(ConstantValue::Float(l - r)),
+                    "*" => Ok(ConstantValue::Float(l * r)),
+                    "/" if *r != 0.0 => Ok(ConstantValue::Float(l / r)),
+                    "<" => Ok(ConstantValue::Boolean(l < r)),
+                    "<=" => Ok(ConstantValue::Boolean(l <= r)),
+                    ">" => Ok(ConstantValue::Boolean(l > r)),
+                    ">=" => Ok(ConstantValue::Boolean(l >= r)),
+                    "==" => Ok(ConstantValue::Boolean((l - r).abs() < 1e-10)),
+                    "!=" => Ok(ConstantValue::Boolean((l - r).abs() >= 1e-10)),
+                    _ => Err("Unsupported float operation".to_string()),
+                }
+            },
+            
+            // Boolean logic
+            (ConstantValue::Boolean(l), ConstantValue::Boolean(r)) => {
+                match op {
+                    "&&" => Ok(ConstantValue::Boolean(*l && *r)),
+                    "||" => Ok(ConstantValue::Boolean(*l || *r)),
+                    "==" => Ok(ConstantValue::Boolean(l == r)),
+                    "!=" => Ok(ConstantValue::Boolean(l != r)),
+                    _ => Err("Unsupported boolean operation".to_string()),
+                }
+            },
+            
+            // String concatenation
+            (ConstantValue::String(l), ConstantValue::String(r)) => {
+                match op {
+                    "+" => Ok(ConstantValue::String(l.clone() + r)),
+                    "==" => Ok(ConstantValue::Boolean(l == r)),
+                    "!=" => Ok(ConstantValue::Boolean(l != r)),
+                    _ => Err("Unsupported string operation".to_string()),
+                }
+            },
+            
+            _ => Err("Type mismatch in constant folding".to_string()),
+        }
+    }
+
+    // Fold unary operations
+    fn fold_unary_op(
+        &self,
+        op: &str,
+        operand: &ConstantValue
+    ) -> Result<ConstantValue, string> {
+        match (op, operand) {
+            // Integer unary ops
+            ("-", ConstantValue::Integer(val)) => {
+                Ok(ConstantValue::Integer(-val))
+            },
+            ("~", ConstantValue::Integer(val)) => {
+                Ok(ConstantValue::Integer(!val))
+            },
+            
+            // Float unary ops
+            ("-", ConstantValue::Float(val)) => {
+                Ok(ConstantValue::Float(-val))
+            },
+            
+            // Boolean not
+            ("!", ConstantValue::Boolean(val)) => {
+                Ok(ConstantValue::Boolean(!val))
+            },
+            
+            _ => Err("Unsupported unary operation".to_string()),
+        }
+    }
+
+    // Fold type casts
+    fn fold_cast(
+        &self,
+        value: &ConstantValue,
+        target_type: &str
+    ) -> Result<ConstantValue, string> {
+        match (value, target_type) {
+            // Integer casts
+            (ConstantValue::Integer(val), "int") => Ok(ConstantValue::Integer(*val)),
+            (ConstantValue::Integer(val), "float") => Ok(ConstantValue::Float(*val as f64)),
+            (ConstantValue::Float(val), "int") => Ok(ConstantValue::Integer(*val as i64)),
+            (ConstantValue::Float(val), "float") => Ok(ConstantValue::Float(*val)),
+            
+            // Boolean casts
+            (ConstantValue::Boolean(true), "int") => Ok(ConstantValue::Integer(1)),
+            (ConstantValue::Boolean(false), "int") => Ok(ConstantValue::Integer(0)),
+            (ConstantValue::Integer(0), "bool") => Ok(ConstantValue::Boolean(false)),
+            (ConstantValue::Integer(_), "bool") => Ok(ConstantValue::Boolean(true)),
+            
+            // String casts
+            (ConstantValue::String(s), "string") => Ok(ConstantValue::String(s.clone())),
+            
+            _ => Err(format!("Cannot cast {:?} to {}", value, target_type)),
+        }
+    }
+}
+
+// Constant value representation
+#[derive(Clone, Debug)]
+pub enum ConstantValue {
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Null,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_integer_arithmetic() {
+        let folder = ConstantFolder::new();
+        
+        // Addition
+        let result = folder.fold_binary_op(
+            "+",
+            &ConstantValue::Integer(5),
+            &ConstantValue::Integer(3)
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Integer(8));
+        {}
+        
+        // Multiplication
+        let result = folder.fold_binary_op(
+            "*",
+            &ConstantValue::Integer(5),
+            &ConstantValue::Integer(3)
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Integer(15));
+        
+        // Division
+        let result = folder.fold_binary_op(
+            "/",
+            &ConstantValue::Integer(15),
+            &ConstantValue::Integer(3)
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Integer(5));
+    }
+
+    #[test]
+    fn test_boolean_logic() {
+        let folder = ConstantFolder::new();
+        
+        // AND
+        let result = folder.fold_binary_op(
+            "&&",
+            &ConstantValue::Boolean(true),
+            &ConstantValue::Boolean(true)
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Boolean(true));
+        
+        // OR
+        let result = folder.fold_binary_op(
+            "||",
+            &ConstantValue::Boolean(true),
+            &ConstantValue::Boolean(false)
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Boolean(true));
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let folder = ConstantFolder::new();
+        
+        let result = folder.fold_binary_op(
+            "+",
+            &ConstantValue::String("Hello".to_string()),
+            &ConstantValue::String(" World".to_string())
+        ).unwrap();
+        assert_eq!(result, ConstantValue::String("Hello World".to_string()));
+    }
+
+    #[test]
+    fn test_unary_operations() {
+        let folder = ConstantFolder::new();
+        
+        // Negation
+        let result = folder.fold_unary_op(
+            "-",
+            &ConstantValue::Integer(5)
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Integer(-5));
+        
+        // Boolean NOT
+        let result = folder.fold_unary_op(
+            "!",
+            &ConstantValue::Boolean(true)
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Boolean(false));
+    }
+
+    #[test]
+    fn test_type_casting() {
+        let folder = ConstantFolder::new();
+        
+        // Int to float
+        let result = folder.fold_cast(
+            &ConstantValue::Integer(5),
+            "float"
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Float(5.0));
+        
+        // Float to int
+        let result = folder.fold_cast(
+            &ConstantValue::Float(5.5),
+            "int"
+        ).unwrap();
+        assert_eq!(result, ConstantValue::Integer(5));
+    }
+}

@@ -1,0 +1,270 @@
+// OMEGA Compiler - Dead Code Elimination Optimizer
+// Removes unreachable code, unused variables, and dead stores
+// Performs liveness analysis and control flow analysis
+
+import "../ir/ir_nodes.mega";
+
+pub struct DeadCodeEliminator {
+    removed_count: i64;
+    live_values: map<string, bool>;
+}
+
+impl DeadCodeEliminator {
+    pub fn new() -> Self {
+        DeadCodeEliminator {
+            removed_count: 0,
+            live_values: map::new(),
+        }
+    }
+
+    // Eliminate dead code from a function
+    pub fn eliminate(&mut self, func: &mut IRFunction) -> Result<i64, string> {
+        // Phase 1: Build control flow graph and find reachable blocks
+        let reachable_blocks = self.find_reachable_blocks(func);
+
+        // Phase 2: Perform liveness analysis on reachable blocks
+        self.analyze_liveness(func, &reachable_blocks)?;
+
+        // Phase 3: Remove unreachable blocks
+        self.remove_unreachable_blocks(func, &reachable_blocks);
+
+        // Phase 4: Remove unused instructions in reachable blocks
+        self.remove_unused_instructions(func);
+
+        Ok(self.removed_count)
+    }
+
+    // Find all reachable blocks in the function
+    fn find_reachable_blocks(&self, func: &IRFunction) -> set<i64> {
+        let mut reachable = set::new();
+        let mut worklist = vec::new();
+
+        // Entry block is always reachable
+        if func.basic_blocks.len() > 0 {
+            reachable.insert(func.basic_blocks[0].id);
+            worklist.push(0);
+        }
+
+        // BFS to find all reachable blocks
+        while worklist.len() > 0 {
+            let block_idx = worklist.pop().unwrap();
+            if block_idx >= func.basic_blocks.len() {
+                continue;
+            }
+
+            let block = &func.basic_blocks[block_idx];
+
+            // Check successors based on terminator
+            match &block.terminator {
+                Some(IRInstruction { op: IROperation::Jump(_), .. }) => {
+                    // Only one successor (jump target)
+                },
+                Some(IRInstruction { op: IROperation::BranchIf(_, true_target, false_target), .. }) => {
+                    // Two successors
+                    if reachable.insert(*true_target) {
+                        worklist.push(*true_target as usize);
+                    }
+                    if reachable.insert(*false_target) {
+                        worklist.push(*false_target as usize);
+                    }
+                },
+                None => {
+                    // Fall through to next block
+                    if block_idx + 1 < func.basic_blocks.len() {
+                        if reachable.insert(func.basic_blocks[block_idx + 1].id) {
+                            worklist.push(block_idx + 1);
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+
+        reachable
+    }
+
+    // Analyze which values are live at each point
+    fn analyze_liveness(
+        &mut self,
+        func: &IRFunction,
+        reachable_blocks: &set<i64>
+    ) -> Result<(), string> {
+        let mut live_out: map<i64, set<string>> = map::new();
+
+        // Backward pass from each block
+        for block in &func.basic_blocks {
+            if !reachable_blocks.contains(&block.id) {
+                continue;
+            }
+
+            let mut live = set::new();
+
+            // Start with instructions in reverse order
+            for i in (0..block.instructions.len()).rev() {
+                let instr = &block.instructions[i];
+                self.update_liveness(&mut live, instr);
+            }
+
+            live_out.insert(block.id, live);
+        }
+
+        self.live_values = map::new(); // Store for later use
+
+        Ok(())
+    }
+
+    // Update live set based on an instruction
+    fn update_liveness(&self, live: &mut set<string>, instr: &IRInstruction) {
+        // Remove destination from live set (it's being defined)
+        match &instr.op {
+            IROperation::Assign(dest, _) => {
+                live.remove(dest);
+            },
+            _ => {}
+        }
+
+        // Add operands to live set (they're being used)
+        self.add_operand_uses(live, instr);
+    }
+
+    // Add operand uses to live set
+    fn add_operand_uses(&self, live: &mut set<string>, instr: &IRInstruction) {
+        match &instr.op {
+            IROperation::BinaryOp(_, left, right) => {
+                self.add_operand_to_live(live, left);
+                self.add_operand_to_live(live, right);
+            },
+            IROperation::UnaryOp(_, operand) => {
+                self.add_operand_to_live(live, operand);
+            },
+            IROperation::Load(addr) => {
+                self.add_operand_to_live(live, addr);
+            },
+            IROperation::Store(addr, value) => {
+                self.add_operand_to_live(live, addr);
+                self.add_operand_to_live(live, value);
+            },
+            IROperation::Call(_, args) => {
+                for arg in args {
+                    self.add_operand_to_live(live, arg);
+                }
+            },
+            _ => {}
+        }
+    }
+
+    // Add operand to live set
+    fn add_operand_to_live(&self, live: &mut set<string>, operand: &IROperand) {
+        match operand {
+            IROperand::Variable(name) => {
+                live.insert(name.clone());
+            },
+            _ => {}
+        }
+    }
+
+    // Remove unreachable blocks
+    fn remove_unreachable_blocks(
+        &mut self,
+        func: &mut IRFunction,
+        reachable_blocks: &set<i64>
+    ) {
+        let mut new_blocks = vec::new();
+
+        for block in &func.basic_blocks {
+            if reachable_blocks.contains(&block.id) {
+                new_blocks.push(block.clone());
+            } else {
+                self.removed_count += block.instructions.len() as i64;
+            }
+        }
+
+        func.basic_blocks = new_blocks;
+    }
+
+    // Remove unused instructions within blocks
+    fn remove_unused_instructions(&mut self, func: &mut IRFunction) {
+        for block in &mut func.basic_blocks {
+            let mut i = 0;
+            while i < block.instructions.len() {
+                let instr = &block.instructions[i];
+
+                // Check if instruction has side effects
+                if !self.has_side_effects(instr) {
+                    // Check if result is used
+                    if !self.is_result_used(instr, block, i) {
+                        block.instructions.remove(i);
+                        self.removed_count += 1;
+                        continue; // Don't increment i
+                    }
+                }
+
+                i += 1;
+            }
+        }
+    }
+
+    // Check if instruction has side effects (can't be eliminated)
+    fn has_side_effects(&self, instr: &IRInstruction) -> bool {
+        match &instr.op {
+            IROperation::Call(_, _) => true, // Function calls have side effects
+            IROperation::Store(_, _) => true, // Stores have side effects
+            IROperation::Return(_) => true,
+            IROperation::Throw(_) => true,
+            IROperation::Jump(_) => true,
+            IROperation::BranchIf(_, _, _) => true,
+            _ => false,
+        }
+    }
+
+    // Check if result of instruction is used later
+    fn is_result_used(&self, instr: &IRInstruction, block: &BasicBlock, instr_idx: usize) -> bool {
+        // Check remaining instructions in this block
+        for i in (instr_idx + 1)..block.instructions.len() {
+            if self.uses_instruction(&block.instructions[i], instr) {
+                return true;
+            }
+        }
+
+        // For now, assume blocks after this use it (conservative)
+        false
+    }
+
+    // Check if an instruction uses result of another
+    fn uses_instruction(&self, user: &IRInstruction, producer: &IRInstruction) -> bool {
+        // Check if user references producer's result
+        match &producer.op {
+            IROperation::Assign(dest, _) => {
+                self.uses_value(user, dest)
+            },
+            _ => false,
+        }
+    }
+
+    // Check if instruction uses a specific value
+    fn uses_value(&self, instr: &IRInstruction, value_name: &str) -> bool {
+        match &instr.op {
+            IROperation::BinaryOp(_, left, right) => {
+                self.operand_is_value(left, value_name) || self.operand_is_value(right, value_name)
+            },
+            IROperation::UnaryOp(_, operand) => {
+                self.operand_is_value(operand, value_name)
+            },
+            IROperation::Load(addr) => {
+                self.operand_is_value(addr, value_name)
+            },
+            IROperation::Store(addr, val) => {
+                self.operand_is_value(addr, value_name) || self.operand_is_value(val, value_name)
+            },
+            _ => false,
+        }
+    }
+
+    // Check if operand is a specific value
+    fn operand_is_value(&self, operand: &IROperand, value_name: &str) -> bool {
+        match operand {
+            IROperand::Variable(name) => name == value_name,
+            _ => false,
+        }
+    }
+}
