@@ -1,25 +1,24 @@
-// OMEGA Bootstrap Script
-// Script untuk self-hosting compiler OMEGA dari Rust ke MEGA
+// OMEGA Bootstrap Script - Pure Native Self-Hosting
+// Pure OMEGA native compiler bootstrap (no external toolchain dependencies)
 
 blockchain OmegaBootstrap {
     state {
         BootstrapConfig config;
         BootstrapStats stats;
-        string[] migration_steps;
+        string[] bootstrap_steps;
         mapping(string => bool) completed_steps;
         Logger logger;
     }
 
-    // Bootstrap configuration
+    // Bootstrap configuration (pure native)
     struct BootstrapConfig {
-        string rust_compiler_path;
-        string mega_compiler_path;
+        string omega_compiler_path;
         string source_directory;
         string build_directory;
         string backup_directory;
         bool verbose;
         bool dry_run;
-        bool keep_rust_backup;
+        bool enable_optimization;
     }
 
     // Bootstrap statistics
@@ -83,29 +82,26 @@ blockchain OmegaBootstrap {
 
     // Initialize bootstrap configuration
     function _initialize_config() private {
-        config.rust_compiler_path = "target/release/omega";
-        config.mega_compiler_path = "build/omega";
+        config.omega_compiler_path = "build/omega";
         config.source_directory = "src";
         config.build_directory = "build";
         config.backup_directory = "backup";
         config.verbose = true;
         config.dry_run = false;
-        config.keep_rust_backup = true;
+        config.enable_optimization = true;
     }
 
-    // Initialize migration steps
+    // Initialize bootstrap steps (pure OMEGA native)
     function _initialize_migration_steps() private {
-        migration_steps = new string[](10);
-        migration_steps[0] = "validate_environment";
-        migration_steps[1] = "backup_rust_compiler";
-        migration_steps[2] = "compile_mega_components";
-        migration_steps[3] = "build_stage1_compiler";
-        migration_steps[4] = "self_compile_stage2";
-        migration_steps[5] = "verify_stage2_compiler";
-        migration_steps[6] = "run_bootstrap_tests";
-        migration_steps[7] = "performance_benchmarks";
-        migration_steps[8] = "generate_documentation";
-        migration_steps[9] = "finalize_bootstrap";
+        bootstrap_steps = new string[](8);
+        bootstrap_steps[0] = "validate_environment";
+        bootstrap_steps[1] = "compile_lexer";
+        bootstrap_steps[2] = "compile_parser";
+        bootstrap_steps[3] = "compile_semantic_analyzer";
+        bootstrap_steps[4] = "compile_codegen";
+        bootstrap_steps[5] = "self_compile_omega";
+        bootstrap_steps[6] = "run_bootstrap_tests";
+        bootstrap_steps[7] = "finalize_bootstrap";
     }
 
     // Initialize logger
@@ -115,13 +111,13 @@ blockchain OmegaBootstrap {
         logger.log_file = "bootstrap.log";
     }
 
-    // Validate bootstrap environment
+    // Validate bootstrap environment (pure native)
     function _validate_environment() private returns (bool) {
-        _log_info("Validating bootstrap environment...");
+        _log_info("Validating bootstrap environment for pure native OMEGA compilation...");
 
-        // Check if Rust compiler exists
-        if (!_file_exists(config.rust_compiler_path)) {
-            _log_error("Rust compiler not found. Please build it first with 'cargo build --release'");
+        // Check if OMEGA compiler exists
+        if (!_file_exists(config.omega_compiler_path)) {
+            _log_error("OMEGA compiler not found. Please build it first with 'omega build'");
             return false;
         }
 
@@ -131,7 +127,7 @@ blockchain OmegaBootstrap {
             return false;
         }
 
-        // Check MEGA source files
+        // Check OMEGA source files
         string[] required_files = new string[](5);
         required_files[0] = "src/lexer/lexer.mega";
         required_files[1] = "src/parser/parser.mega";
@@ -141,12 +137,12 @@ blockchain OmegaBootstrap {
 
         for (uint i = 0; i < required_files.length; i++) {
             if (!_file_exists(required_files[i])) {
-                _log_error(string.concat("Required MEGA file not found: ", required_files[i]));
+                _log_error(string.concat("Required OMEGA file not found: ", required_files[i]));
                 return false;
             }
         }
 
-        _log_success("Environment validation passed");
+        _log_success("Environment validation passed - Ready for pure native compilation");
         return true;
     }
 
@@ -154,11 +150,15 @@ blockchain OmegaBootstrap {
     function _execute_step(string step) private returns (bool) {
         if (string.compare(step, "validate_environment") == 0) {
             return _validate_environment();
-        } else if (string.compare(step, "backup_rust_compiler") == 0) {
-            return _backup_rust_compiler();
-        } else if (string.compare(step, "compile_mega_components") == 0) {
-            return _compile_mega_components();
-        } else if (string.compare(step, "build_stage1_compiler") == 0) {
+        } else if (string.compare(step, "compile_lexer") == 0) {
+            return _compile_module("src/lexer/lexer.mega");
+        } else if (string.compare(step, "compile_parser") == 0) {
+            return _compile_module("src/parser/parser.mega");
+        } else if (string.compare(step, "compile_semantic_analyzer") == 0) {
+            return _compile_module("src/semantic/analyzer.mega");
+        } else if (string.compare(step, "compile_codegen") == 0) {
+            return _compile_module("src/codegen/codegen.mega");
+        } else if (string.compare(step, "self_compile_omega") == 0) {
             return _build_stage1_compiler();
         } else if (string.compare(step, "self_compile_stage2") == 0) {
             return _self_compile_stage2();
@@ -178,52 +178,29 @@ blockchain OmegaBootstrap {
         }
     }
 
-    // Backup Rust compiler
-    function _backup_rust_compiler() private returns (bool) {
-        _log_info("Backing up Rust compiler...");
+    // Compile a single OMEGA module
+    function _compile_module(string file) private returns (bool) {
+        _log_info(string.concat("Compiling OMEGA module: ", file));
         
-        if (!_directory_exists(config.backup_directory)) {
-            if (!_create_directory(config.backup_directory)) {
-                _log_error("Failed to create backup directory");
-                return false;
-            }
-        }
-
-        string backup_path = string.concat(config.backup_directory, "/omega-rust");
-        if (!_copy_file(config.rust_compiler_path, backup_path)) {
-            _log_error("Failed to backup Rust compiler");
+        if (!_file_exists(file)) {
+            _log_error(string.concat("Source file not found: ", file));
             return false;
         }
 
-        _log_success("Rust compiler backed up successfully");
-        return true;
-    }
+        // Use native OMEGA compiler
+        string[] args = new string[](3);
+        args[0] = "compile";
+        args[1] = file;
+        args[2] = "--optimize";
 
-    // Compile MEGA components using Rust compiler
-    function _compile_mega_components() private returns (bool) {
-        _log_info("Compiling MEGA components with Rust compiler...");
-
-        string[] mega_files = new string[](6);
-        mega_files[0] = "src/lexer/lexer.mega";
-        mega_files[1] = "src/parser/parser.mega";
-        mega_files[2] = "src/semantic/analyzer.mega";
-        mega_files[3] = "src/ir/ir.mega";
-        mega_files[4] = "src/codegen/codegen.mega";
-        mega_files[5] = "src/main.mega";
-
-        for (uint i = 0; i < mega_files.length; i++) {
-            string file = mega_files[i];
-            _log_info(string.concat("Compiling: ", file));
-            
-            if (!_compile_with_rust(file)) {
-                _log_error(string.concat("Failed to compile: ", file));
-                return false;
-            }
+        if (!_execute_compiler(config.omega_compiler_path, args)) {
+            _log_error(string.concat("Failed to compile: ", file));
+            return false;
         }
 
-        _log_success("All MEGA components compiled successfully");
+        _log_success(string.concat("Successfully compiled: ", file));
         return true;
-    }
+    }    }
 
     // Build Stage 1 compiler (Rust -> MEGA)
     function _build_stage1_compiler() private returns (bool) {
@@ -371,30 +348,19 @@ blockchain OmegaBootstrap {
         }
 
         // Make executable
-        if (!_make_executable(config.mega_compiler_path)) {
+        if (!_make_executable(config.omega_compiler_path)) {
             _log_error("Failed to make compiler executable");
             return false;
         }
 
         // Clean up intermediate files
-        if (!config.keep_rust_backup) {
-            _cleanup_intermediate_files();
-        }
+        _cleanup_intermediate_files();
 
         _log_success("Bootstrap finalized successfully");
         return true;
     }
 
     // Utility functions
-    function _compile_with_rust(string file) private returns (bool) {
-        string[] args = new string[](3);
-        args[0] = "build";
-        args[1] = file;
-        args[2] = "--target=native";
-        
-        return _execute_compiler(config.rust_compiler_path, args);
-    }
-
     function _execute_compiler(string compiler_path, string[] args) private returns (bool) {
         // Execute compiler with given arguments
         // In real implementation, this would use system calls
@@ -484,8 +450,8 @@ blockchain OmegaBootstrap {
     function _print_banner() private {
         _print("╔══════════════════════════════════════════════════════════════╗");
         _print("║                    OMEGA BOOTSTRAP                           ║");
-        _print("║              Self-Hosting Compiler Migration                ║");
-        _print("║                  Rust → MEGA                                ║");
+        _print("║            Pure Native Self-Hosting Compiler                ║");
+        _print("║              No External Toolchain Dependencies             ║");
         _print("╚══════════════════════════════════════════════════════════════╝");
         _print("");
     }

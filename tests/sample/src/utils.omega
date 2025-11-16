@@ -1,0 +1,34 @@
+// Utility functions for the sample project
+
+function is_positive(value: i32) -> bool {
+    return value > 0;
+}
+
+function is_negative(value: i32) -> bool {
+    return value < 0;
+}
+
+function is_zero(value: i32) -> bool {
+    return value == 0;
+}
+
+function abs(value: i32) -> i32 {
+    if value < 0 {
+        return 0 - value;
+    }
+    return value;
+}
+
+function max(a: i32, b: i32) -> i32 {
+    if a > b {
+        return a;
+    }
+    return b;
+}
+
+function min(a: i32, b: i32) -> i32 {
+    if a < b {
+        return a;
+    }
+    return b;
+}

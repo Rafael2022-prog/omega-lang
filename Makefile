@@ -52,28 +52,39 @@ all: build-native
 # Build native executables
 build-native: $(TARGETS)
 
-# Create omega executable
-omega$(EXEC_EXT): omega$(SHELL_EXT)
-	@echo "Building OMEGA native compiler for $(PLATFORM)..."
-	@chmod +x omega$(SHELL_EXT)
+# Create omega executable using pure OMEGA build system
+omega$(EXEC_EXT): build-pure-omega
 	@echo "✅ OMEGA native compiler built successfully for $(PLATFORM)"
+	@chmod +x omega$(EXEC_EXT)
+
+# Build using pure OMEGA build system (no PowerShell)
+build-pure-omega:
+	@echo "🔨 Building OMEGA using pure MEGA build system..."
+	@./omega compile build_pure_omega.mega
+	@echo "✅ Pure OMEGA build system compiled"
 
 # Platform-specific builds
 build-windows: PLATFORM=windows
-build-windows: omega.cmd
+build-windows: build-pure-omega
+	@echo "🪟 Building for Windows..."
+	@./omega build --release --verbose
 	@echo "✅ Windows build completed"
 
 build-linux: PLATFORM=linux
-build-linux: omega
+build-linux: build-pure-omega
+	@echo "🐧 Building for Linux..."
+	@./omega build --release --verbose
 	@echo "✅ Linux build completed"
 
 build-macos: PLATFORM=macos
-build-macos: omega
+build-macos: build-pure-omega
+	@echo "🍎 Building for macOS..."
+	@./omega build --release --verbose
 	@echo "✅ macOS build completed"
 
 # Cross-platform build
 build-all: build-windows build-linux build-macos
-	@echo "✅ All platform builds completed"
+	@echo "✅ All platform builds completed successfully"
 
 # Install
 install: build-native

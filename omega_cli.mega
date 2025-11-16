@@ -1,0 +1,228 @@
+// OMEGA CLI - Pure Cross-Platform Entry Point
+// Replaces: omega.ps1, omega.cmd
+// Works on: Windows, Linux, macOS
+
+import "src/std/io";
+import "src/std/env";
+import "src/std/process";
+import "src/std/fs";
+import "src/std/string";
+import "src/commands/build";
+import "src/commands/test";
+import "src/commands/deploy";
+
+function main(string[] args) public returns (int32) {
+    if (args.length == 0) {
+        print_help();
+        return 0;
+    }
+    
+    string command = args[0];
+    string[] command_args = slice_args(args, 1);
+    
+    return dispatch_command(command, command_args);
+}
+
+function dispatch_command(string cmd, string[] args) private returns (int32) {
+    match cmd {
+        "compile" => cmd_compile(args),
+        "build" => build_main(args),
+        "test" => test_main(args),
+        "deploy" => deploy_main(args),
+        "version" => cmd_version(),
+        "help" => { print_help(); return 0; },
+        "--version" => cmd_version(),
+        "--help" => { print_help(); return 0; },
+        "-h" => { print_help(); return 0; },
+        _ => {
+            println_error_format("Unknown command: %s", cmd);
+            return 1;
+        }
+    }
+}
+
+function cmd_compile(string[] args) private returns (int32) {
+    println("🔨 OMEGA Compiler - File Compilation Mode");
+    println("");
+    
+    if (args.length == 0) {
+        println_error("Usage: omega compile <file.omega> [options]");
+        println_error("       omega compile <dir> [options]");
+        return 1;
+    }
+    
+    string target = args[0];
+    string[] options = slice_args(args, 1);
+    
+    println_format("📝 Compiling: %s", target);
+    
+    // TODO: Implement actual compilation
+    return 0;
+}
+
+function cmd_build(string[] args) private returns (int32) {
+    println("🔨 OMEGA Builder - Project-wide Build");
+    println("");
+    
+    // Check if omega.toml exists
+    if (!fs_file_exists("omega.toml")) {
+        println_error("❌ omega.toml not found in current directory");
+        return 1;
+    }
+    
+    // Delegate to build_main function from build.mega
+    return build_main(args);
+}
+
+function cmd_test(string[] args) private returns (int32) {
+    // Delegate to test_main function from test.mega
+    return test_main(args);
+}
+
+function cmd_deploy(string[] args) private returns (int32) {
+    // Delegate to deploy_main function from deploy.mega
+    return deploy_main(args);
+}
+
+function cmd_version() private returns (int32) {
+    println("OMEGA v2.0.0");
+    println("Pure native cross-platform compiler");
+    println("");
+    println("Build: 2025-11-13");
+    println("Platform: " + get_platform());
+    
+    return 0;
+}
+
+function print_help() private {
+    println("╔═══════════════════════════════════════════════════════════════╗");
+    println("║  OMEGA v2.0.0 - Pure Native Cross-Platform Compiler          ║");
+    println("║  100% OMEGA - No PowerShell, No .NET, No External Deps       ║");
+    println("║  Windows | Linux | macOS                                     ║");
+    println("╚═══════════════════════════════════════════════════════════════╝");
+    println("");
+    
+    println("USAGE:");
+    println("  omega <command> [options]");
+    println("");
+    
+    println("COMMANDS:");
+    println("  compile <file|dir>    Compile individual files or directory");
+    println("  build [options]       Build entire project");
+    println("  test [options]        Run test suite");
+    println("  deploy <network>      Deploy to blockchain");
+    println("  version               Show version information");
+    println("  help                  Show this help message");
+    println("");
+    
+    println("BUILD OPTIONS:");
+    println("  --clean               Clean build artifacts before building");
+    println("  --debug               Build with debug symbols (no optimization)");
+    println("  --release             Build optimized release (default)");
+    println("  --verbose             Show detailed build output");
+    println("  --no-optimize         Disable optimizations");
+    println("");
+    
+    println("DEPLOY NETWORKS:");
+    println("  evm                   Ethereum Virtual Machine");
+    println("  solana                Solana blockchain");
+    println("  cosmos                Cosmos ecosystem");
+    println("  substrate             Substrate-based chains");
+    println("");
+    
+    println("EXAMPLES:");
+    println("  omega compile main.omega");
+    println("  omega build --release");
+    println("  omega build --debug --verbose");
+    println("  omega test");
+    println("  omega deploy evm --network mainnet");
+    println("  omega deploy solana --network devnet");
+    println("");
+    
+    println("DOCUMENTATION:");
+    println("  https://omega-lang.dev/docs");
+}
+
+function get_platform() private returns (string) {
+    string os = env_get("OS");
+    
+    if (string_contains(os, "Windows")) {
+        return "Windows";
+    } else if (string_contains(os, "Linux")) {
+        return "Linux";
+    } else {
+        return "macOS";
+    }
+}
+
+function slice_args(string[] arr, uint256 start) private returns (string[]) {
+    if (start >= arr.length) {
+        return new string[0];
+    }
+    
+    string[] result = new string[arr.length - start];
+    for (uint256 i = 0; i < result.length; i++) {
+        result[i] = arr[start + i];
+    }
+    return result;
+}
+
+function println_error(string msg) private {
+    println("❌ " + msg);
+}
+
+function println_error_format(string format, string value) private {
+    println_error(string_replace(format, "%s", value));
+}
+
+function println_format(string format, string value) private {
+    println(string_replace(format, "%s", value));
+}
+
+function string_contains(string str, string substr) private returns (bool) {
+    if (substr.length > str.length) {
+        return false;
+    }
+    for (uint256 i = 0; i <= str.length - substr.length; i++) {
+        bool match = true;
+        for (uint256 j = 0; j < substr.length; j++) {
+            if (str[i + j] != substr[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function string_replace(string str, string find, string replace_with) private returns (string) {
+    string result = "";
+    uint256 i = 0;
+    
+    while (i < str.length) {
+        if (i + find.length <= str.length) {
+            bool match = true;
+            for (uint256 j = 0; j < find.length; j++) {
+                if (str[i + j] != find[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            
+            if (match) {
+                result += replace_with;
+                i += find.length;
+                continue;
+            }
+        }
+        
+        result += str[i];
+        i++;
+    }
+    
+    return result;
+}
+

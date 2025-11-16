@@ -1,0 +1,21 @@
+// Main entry point for sample project
+// Tests basic compilation and multi-file support
+
+import "src/math";
+import "src/utils";
+
+function main() {
+    let x: i32 = 10;
+    let y: i32 = 20;
+    
+    let sum: i32 = add(x, y);
+    let product: i32 = multiply(x, y);
+    
+    print("Sample OMEGA Project");
+    print_int(sum);
+    print_int(product);
+}
+
+function print_int(value: i32) {
+    print(value);
+}

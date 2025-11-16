@@ -1,0 +1,33 @@
+[project]
+name = "sample-omega-project"
+version = "0.1.0"
+description = "Sample OMEGA project for testing Week 1 functionality"
+author = "OMEGA Test Suite"
+
+[build]
+sources = ["src"]
+targets = ["native", "evm", "solana"]
+optimization = "z2"
+debug = false
+verbose = false
+
+[evm]
+network = "ethereum"
+gas-limit = 30000000
+evm-version = "istanbul"
+
+[solana]
+cluster = "devnet"
+rpc-url = "https://api.devnet.solana.com"
+
+[deploy]
+network = "goerli"
+rpc-endpoint = "https://goerli.infura.io/v3/YOUR_INFURA_KEY"
+
+[test]
+framework = "omega-assert"
+timeout = 30000
+parallel = true
+
+[dependencies]
+omega-std = "1.0.0"

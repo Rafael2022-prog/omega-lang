@@ -48,9 +48,6 @@
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
-  "optionalDependencies": {
-    "rust": "^0.1.6"
-  },
   "omega": {
     "version": "1.3.0-dev",
     "features": {

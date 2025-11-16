@@ -1,0 +1,61 @@
+# OMEGA Project Configuration Example
+# This is used by omega build and omega test commands
+
+[project]
+name = "HelloWorld"
+version = "1.0.0"
+description = "Simple OMEGA contract example"
+authors = ["Developer <dev@example.com>"]
+
+[build]
+# Source directories to compile
+sources = [
+    "src",
+    "contracts"
+]
+
+# Target platforms
+targets = [
+    "native",
+    "evm",
+    "solana"
+]
+
+# Build options
+optimization = "z3"  # z0 (none), z1, z2, z3 (aggressive)
+debug_symbols = false
+
+[evm]
+# EVM-specific settings
+compiler_version = "0.8.20"
+optimize = true
+optimize_runs = 200
+gas_limit = 30000000
+gas_price = "auto"
+
+[solana]
+# Solana-specific settings
+cluster = "mainnet-beta"  # devnet, testnet, mainnet-beta
+program_name = "hello_world"
+
+[deploy]
+# Deployment settings
+verify_contract = true
+wait_confirmations = 12
+networks = ["ethereum", "polygon", "solana"]
+
+[test]
+# Test settings
+coverage = true
+coverage_threshold = 80
+timeout_seconds = 60
+parallel = true
+
+[dependencies]
+# External dependencies
+# Format: "package_name" = "version"
+# Example: "math_lib" = "1.2.3"
+
+[dev-dependencies]
+# Development-only dependencies
+# mock_data = "1.0.0"

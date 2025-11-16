@@ -1,14 +1,16 @@
 # Multi-stage build for OMEGA Universal Blockchain Programming Language
+# Pure Native Compiler - No external toolchain dependencies
 # Optimized for production deployment with security best practices
 
-# Build stage
-FROM rust:1.70-alpine AS builder
+# Build stage - using pure OMEGA native compiler
+FROM alpine:3.18 AS builder
 
-# Install build dependencies
+# Install build dependencies (minimal - no PowerShell, no Rust)
 RUN apk add --no-cache \
     musl-dev \
-    openssl-dev \
-    pkgconfig \
+    gcc \
+    g++ \
+    make \
     git \
     ca-certificates
 
@@ -19,31 +21,27 @@ RUN addgroup -g 1000 omega && \
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY Cargo.toml Cargo.lock ./
-
-# Create dummy main.rs to build dependencies
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
-
-# Copy source code
+# Copy source files for OMEGA pure native compiler
+COPY omega ./bin/omega
 COPY src/ ./src/
-COPY docs/ ./docs/
+COPY omega.toml ./omega.toml
+COPY bootstrap.mega ./bootstrap.mega
+
+# Build OMEGA compiler (pure native, cross-platform)
+RUN chmod +x ./bin/omega && \
+    ./bin/omega --version && \
+    ./bin/omega compile bootstrap.mega
+
+# Copy documentation and examples
+COPY README.md ./
+COPY CONTRIBUTING.md ./
 COPY examples/ ./examples/
-COPY test_suites/ ./test_suites/
-
-# Build OMEGA compiler
-RUN cargo build --release --target x86_64-unknown-linux-musl
-
-# Verify the binary works
-RUN ./target/x86_64-unknown-linux-musl/release/omega --version
+COPY docs/ ./docs/
 
 # Runtime stage
 FROM alpine:3.18
 
-# Install runtime dependencies
+# Install minimal runtime dependencies (no PowerShell needed)
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
@@ -58,7 +56,8 @@ RUN mkdir -p /app/bin /app/lib /app/examples /app/docs && \
     chown -R omega:omega /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/omega /app/bin/omega
+COPY --from=builder /app/bin/omega /app/bin/omega
+COPY --from=builder /app/bootstrap.mega /app/lib/bootstrap.mega
 
 # Copy standard library and examples
 COPY --from=builder /app/examples/ /app/examples/
@@ -80,8 +79,6 @@ WORKDIR /app
 ENV PATH="/app/bin:${PATH}"
 ENV OMEGA_HOME="/app"
 ENV OMEGA_LIB_PATH="/app/lib"
-ENV RUST_LOG="info"
-ENV RUST_BACKTRACE="1"
 
 # Expose port for web interface (if applicable)
 EXPOSE 8080
@@ -98,11 +95,11 @@ CMD ["omega", "--help"]
 
 # Labels for metadata
 LABEL maintainer="OMEGA Team <team@omega-lang.org>" \
-      version="1.0.0" \
-      description="OMEGA Universal Blockchain Programming Language Compiler" \
+      version="2.0.0" \
+      description="OMEGA Pure Native Blockchain Programming Language Compiler" \
       org.opencontainers.image.title="OMEGA Compiler" \
-      org.opencontainers.image.description="Universal blockchain programming language compiler" \
-      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.description="Pure native cross-platform blockchain programming language compiler" \
+      org.opencontainers.image.version="2.0.0" \
       org.opencontainers.image.vendor="OMEGA Team" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/Rafael2022-prog/omega-lang" \

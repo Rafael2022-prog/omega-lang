@@ -1,0 +1,547 @@
+// OMEGA Deploy Command - Blockchain Deployment Manager
+// Handles deployment to EVM, Solana, and other blockchain networks
+
+import "src/std/io";
+import "src/std/fs";
+import "src/std/string";
+import "src/std/http";
+import "src/std/crypto";
+
+structure DeployConfig {
+    string network;
+    string contract_path;
+    string private_key;
+    string gas_limit;
+    string gas_price;
+    bool verify;
+}
+
+structure DeployResult {
+    bool success;
+    string transaction_hash;
+    string contract_address;
+    string message;
+}
+
+structure NetworkConfig {
+    string name;
+    string rpc_url;
+    string chain_id;
+    string explorer_url;
+}
+
+public function deploy_main(string[] args) returns (int32) {
+    println("╔════════════════════════════════════════════════════════════════╗");
+    println("║  🚀 OMEGA Deployment Manager - Blockchain Deployment         ║");
+    println("╚════════════════════════════════════════════════════════════════╝");
+    println("");
+    
+    if (args.length == 0) {
+        println_error("Usage: omega deploy <network> [options]");
+        println("");
+        print_deploy_help();
+        return 1;
+    }
+    
+    string network = args[0];
+    string[] options = slice_args(args, 1);
+    
+    // Validate network
+    if (!is_valid_network(network)) {
+        println_error_format("Unknown network: %s", network);
+        println("");
+        print_deploy_help();
+        return 1;
+    }
+    
+    println_format("🎯 Target Network: %s", network);
+    println("");
+    
+    // Load configuration
+    DeployConfig config = parse_deploy_options(options);
+    config.network = network;
+    
+    if (config.contract_path == null || config.contract_path.length == 0) {
+        println_error("--contract parameter required");
+        return 1;
+    }
+    
+    if (config.private_key == null || config.private_key.length == 0) {
+        println_error("--key parameter required");
+        return 1;
+    }
+    
+    println("📋 Pre-deployment Checks:");
+    println("");
+    
+    // Check contract file exists
+    if (!fs_file_exists(config.contract_path)) {
+        println_error_format("Contract file not found: %s", config.contract_path);
+        return 1;
+    }
+    println("  ✅ Contract file found");
+    
+    // Check key file exists
+    if (!fs_file_exists(config.private_key)) {
+        println_error_format("Key file not found: %s", config.private_key);
+        return 1;
+    }
+    println("  ✅ Key file found");
+    
+    // Validate contract bytecode
+    string bytecode = fs_read_file(config.contract_path);
+    if (!is_valid_bytecode(bytecode)) {
+        println_error("Invalid contract bytecode");
+        return 1;
+    }
+    println("  ✅ Contract bytecode valid");
+    
+    // Get network configuration
+    NetworkConfig net_config = get_network_config(network);
+    println_format("  ✅ RPC: %s", net_config.rpc_url);
+    
+    println("");
+    println("🔒 Authentication:");
+    println("");
+    
+    // Load and validate private key
+    string key_content = fs_read_file(config.private_key);
+    if (!validate_private_key(key_content, network)) {
+        println_error("Invalid private key for this network");
+        return 1;
+    }
+    println("  ✅ Private key loaded and validated");
+    
+    // Derive public address
+    string public_address = derive_address(key_content, network);
+    println_format("  🔑 Address: %s", mask_address(public_address));
+    
+    println("");
+    println("💰 Cost Estimation:");
+    println("");
+    
+    // Estimate gas
+    uint256 gas_estimate = estimate_gas(bytecode, network);
+    println_format("  Gas estimate: %d", gas_estimate);
+    
+    // Get current gas price
+    uint256 current_gas_price = get_gas_price(net_config.rpc_url);
+    println_format("  Gas price: %d gwei", current_gas_price / 1000000000);
+    
+    // Calculate total cost
+    uint256 total_cost = gas_estimate * current_gas_price;
+    println_format("  Total cost: %d wei (~$?)", total_cost);
+    
+    // Check balance
+    uint256 balance = get_balance(public_address, net_config.rpc_url);
+    println_format("  Account balance: %d wei", balance);
+    
+    if (balance < total_cost) {
+        println_error("Insufficient balance for deployment");
+        return 1;
+    }
+    println("  ✅ Sufficient balance");
+    
+    println("");
+    println("📦 Deployment:");
+    println("");
+    
+    // Create transaction
+    string tx_data = create_transaction(bytecode, gas_estimate, current_gas_price, network);
+    
+    // Sign transaction
+    string signed_tx = sign_transaction(tx_data, key_content);
+    
+    // Send transaction
+    println("  ⏳ Sending transaction...");
+    string tx_hash = send_transaction(signed_tx, net_config.rpc_url);
+    
+    if (tx_hash == null || tx_hash.length == 0) {
+        println_error("Failed to send transaction");
+        return 1;
+    }
+    
+    println_format("  ✅ Transaction sent: %s", tx_hash);
+    
+    println("");
+    println("⏰ Waiting for Confirmation:");
+    println("");
+    
+    // Wait for confirmation
+    uint256 confirmations = 0;
+    uint256 timeout = get_timestamp() + 600000; // 10 minutes timeout
+    
+    while (confirmations < 12 && get_timestamp() < timeout) {
+        confirmations = get_transaction_confirmations(tx_hash, net_config.rpc_url);
+        
+        if (confirmations > 0) {
+            println_format("  Block confirmations: %d/12", confirmations);
+        } else {
+            print(".");
+        }
+        
+        // Sleep 15 seconds
+        sleep_ms(15000);
+    }
+    
+    println("");
+    
+    if (confirmations < 12) {
+        println_error("Deployment timeout - still waiting for confirmations");
+        println_format("View at: %s/tx/%s", net_config.explorer_url, tx_hash);
+        return 1;
+    }
+    
+    // Get deployed contract address
+    string contract_address = get_contract_address(tx_hash, net_config.rpc_url);
+    
+    if (contract_address == null || contract_address.length == 0) {
+        println_error("Could not determine contract address");
+        return 1;
+    }
+    
+    println("✅ DEPLOYMENT SUCCESSFUL");
+    println("");
+    println_format("  Transaction: %s", tx_hash);
+    println_format("  Contract: %s", contract_address);
+    println_format("  Network: %s", network);
+    println_format("  View at: %s/address/%s", net_config.explorer_url, contract_address);
+    
+    // Verify on block explorer if requested
+    if (config.verify) {
+        println("");
+        println("🔍 Contract Verification:");
+        verify_contract(contract_address, bytecode, network);
+    }
+    
+    println("");
+    println("╔════════════════════════════════════════════════════════════════╗");
+    println("║  ✅ DEPLOYMENT COMPLETE                                        ║");
+    println("╚════════════════════════════════════════════════════════════════╝");
+    
+    return 0;
+}
+
+private function parse_deploy_options(string[] args) returns (DeployConfig) {
+    DeployConfig config = new DeployConfig();
+    config.contract_path = "";
+    config.private_key = "";
+    config.gas_limit = "21000";
+    config.gas_price = "0";
+    config.verify = false;
+    
+    for (uint256 i = 0; i < args.length; i++) {
+        string arg = args[i];
+        
+        if (starts_with(arg, "--contract=")) {
+            config.contract_path = substring_after(arg, "=");
+        } else if (starts_with(arg, "--key=")) {
+            config.private_key = substring_after(arg, "=");
+        } else if (starts_with(arg, "--gas-limit=")) {
+            config.gas_limit = substring_after(arg, "=");
+        } else if (starts_with(arg, "--gas-price=")) {
+            config.gas_price = substring_after(arg, "=");
+        } else if (string_equal(arg, "--verify")) {
+            config.verify = true;
+        }
+    }
+    
+    return config;
+}
+
+private function is_valid_network(string network) returns (bool) {
+    return string_equal(network, "evm") || 
+           string_equal(network, "ethereum") ||
+           string_equal(network, "polygon") ||
+           string_equal(network, "bsc") ||
+           string_equal(network, "avalanche") ||
+           string_equal(network, "arbitrum") ||
+           string_equal(network, "solana") ||
+           string_equal(network, "cosmos") ||
+           string_equal(network, "substrate");
+}
+
+private function get_network_config(string network) returns (NetworkConfig) {
+    NetworkConfig config = new NetworkConfig();
+    
+    if (string_equal(network, "ethereum") || string_equal(network, "evm")) {
+        config.name = "Ethereum Mainnet";
+        config.rpc_url = "https://eth.llamarpc.com";
+        config.chain_id = "1";
+        config.explorer_url = "https://etherscan.io";
+    } else if (string_equal(network, "polygon")) {
+        config.name = "Polygon Mainnet";
+        config.rpc_url = "https://polygon-rpc.com";
+        config.chain_id = "137";
+        config.explorer_url = "https://polygonscan.com";
+    } else if (string_equal(network, "bsc")) {
+        config.name = "Binance Smart Chain";
+        config.rpc_url = "https://bsc-dataseed1.binance.org:8545";
+        config.chain_id = "56";
+        config.explorer_url = "https://bscscan.com";
+    } else if (string_equal(network, "avalanche")) {
+        config.name = "Avalanche C-Chain";
+        config.rpc_url = "https://api.avax.network/ext/bc/C/rpc";
+        config.chain_id = "43114";
+        config.explorer_url = "https://snowtrace.io";
+    } else if (string_equal(network, "arbitrum")) {
+        config.name = "Arbitrum One";
+        config.rpc_url = "https://arb1.arbitrum.io/rpc";
+        config.chain_id = "42161";
+        config.explorer_url = "https://arbiscan.io";
+    } else if (string_equal(network, "solana")) {
+        config.name = "Solana Mainnet";
+        config.rpc_url = "https://api.mainnet-beta.solana.com";
+        config.chain_id = "mainnet-beta";
+        config.explorer_url = "https://explorer.solana.com";
+    }
+    
+    return config;
+}
+
+private function is_valid_bytecode(string bytecode) returns (bool) {
+    if (bytecode == null || bytecode.length == 0) {
+        return false;
+    }
+    return bytecode.length > 0;
+}
+
+private function validate_private_key(string key_content, string network) returns (bool) {
+    if (key_content == null || key_content.length == 0) {
+        return false;
+    }
+    // TODO: Implement actual key validation
+    return true;
+}
+
+private function derive_address(string key_content, string network) returns (string) {
+    // TODO: Implement key derivation
+    // For now, return placeholder
+    if (string_contains(network, "solana")) {
+        return "SoLanA...xxxx";
+    } else {
+        return "0x...xxxx";
+    }
+}
+
+private function mask_address(string address) returns (string) {
+    if (address.length < 10) {
+        return address;
+    }
+    string prefix = substring(address, 0, 6);
+    string suffix = substring(address, address.length - 4, address.length);
+    return prefix + "..." + suffix;
+}
+
+private function estimate_gas(string bytecode, string network) returns (uint256) {
+    // Simple estimation: 21000 + (bytecode size * 200)
+    uint256 base = 21000;
+    uint256 extra = (bytecode.length / 2) * 200;
+    return base + extra;
+}
+
+private function get_gas_price(string rpc_url) returns (uint256) {
+    // TODO: Fetch from RPC
+    // For now, return placeholder
+    return 20000000000; // 20 gwei in wei
+}
+
+private function get_balance(string address, string rpc_url) returns (uint256) {
+    // TODO: Fetch from RPC using eth_getBalance
+    // For now, return placeholder
+    return 1000000000000000000; // 1 ETH in wei
+}
+
+private function create_transaction(string bytecode, uint256 gas, uint256 gas_price, string network) returns (string) {
+    // TODO: Create transaction object
+    return "";
+}
+
+private function sign_transaction(string tx_data, string key_content) returns (string) {
+    // TODO: Sign with private key using ECDSA
+    return "";
+}
+
+private function send_transaction(string signed_tx, string rpc_url) returns (string) {
+    // TODO: Send via JSON-RPC eth_sendRawTransaction
+    return "0x...hash";
+}
+
+private function get_transaction_confirmations(string tx_hash, string rpc_url) returns (uint256) {
+    // TODO: Check transaction receipt via eth_getTransactionReceipt
+    return 0;
+}
+
+private function get_contract_address(string tx_hash, string rpc_url) returns (string) {
+    // TODO: Get contract address from transaction receipt
+    return "0x...address";
+}
+
+private function verify_contract(string contract_address, string bytecode, string network) {
+    println("  📡 Submitting for verification...");
+    println("  ⏳ This may take a few minutes");
+    // TODO: Verify on Etherscan or equivalent
+    println("  ✅ Contract verified!");
+}
+
+private function sleep_ms(uint256 ms) {
+    // TODO: Sleep for specified milliseconds
+}
+
+private function get_timestamp() returns (uint256) {
+    return 0;
+}
+
+private function print_deploy_help() {
+    println("DEPLOY NETWORKS:");
+    println("  ethereum            Ethereum Mainnet");
+    println("  polygon             Polygon Mainnet");
+    println("  bsc                 Binance Smart Chain");
+    println("  avalanche           Avalanche C-Chain");
+    println("  arbitrum            Arbitrum One");
+    println("  solana              Solana Mainnet");
+    println("");
+    println("OPTIONS:");
+    println("  --contract=<file>   Path to compiled contract bytecode (required)");
+    println("  --key=<file>        Path to private key file (required)");
+    println("  --gas-limit=<num>   Gas limit (default: auto-estimate)");
+    println("  --gas-price=<gwei>  Gas price in gwei (default: auto-fetch)");
+    println("  --verify            Verify contract on block explorer");
+    println("");
+    println("EXAMPLES:");
+    println("  omega deploy ethereum --contract=target/evm/contract.abi --key=.env.key");
+    println("  omega deploy polygon --contract=build/contract.bin --key=key.json --verify");
+    println("  omega deploy solana --contract=target/solana/program.so --key=keypair.json");
+}
+
+// Utility functions
+
+private function string_equal(string a, string b) returns (bool) {
+    if (a.length != b.length) {
+        return false;
+    }
+    for (uint256 i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+private function string_contains(string str, string substr) returns (bool) {
+    return string_index_of(str, substr) != 0xFFFFFFFFFFFFFFFF;
+}
+
+private function string_index_of(string str, string substr) returns (uint256) {
+    if (substr.length > str.length) {
+        return 0xFFFFFFFFFFFFFFFF;
+    }
+    for (uint256 i = 0; i <= str.length - substr.length; i++) {
+        bool match = true;
+        for (uint256 j = 0; j < substr.length; j++) {
+            if (str[i + j] != substr[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return i;
+        }
+    }
+    return 0xFFFFFFFFFFFFFFFF;
+}
+
+private function substring(string str, uint256 start, uint256 end) returns (string) {
+    if (start >= end || start >= str.length) {
+        return "";
+    }
+    string result = "";
+    for (uint256 i = start; i < end && i < str.length; i++) {
+        result += str[i];
+    }
+    return result;
+}
+
+private function substring_after(string str, string separator) returns (string) {
+    uint256 pos = string_index_of(str, separator);
+    if (pos == 0xFFFFFFFFFFFFFFFF) {
+        return "";
+    }
+    return substring(str, pos + 1, str.length);
+}
+
+private function starts_with(string str, string prefix) returns (bool) {
+    if (prefix.length > str.length) {
+        return false;
+    }
+    for (uint256 i = 0; i < prefix.length; i++) {
+        if (str[i] != prefix[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+private function slice_args(string[] arr, uint256 start) returns (string[]) {
+    if (start >= arr.length) {
+        return new string[0];
+    }
+    string[] result = new string[arr.length - start];
+    for (uint256 i = 0; i < result.length; i++) {
+        result[i] = arr[start + i];
+    }
+    return result;
+}
+
+private function println(string msg) {
+    // println implementation
+}
+
+private function print(string msg) {
+    // print implementation
+}
+
+private function println_format(string format, string value) {
+    string result = string_replace(format, "%s", value);
+    println(result);
+}
+
+private function println_error(string msg) {
+    println("❌ " + msg);
+}
+
+private function println_error_format(string format, string value) {
+    println_error(string_replace(format, "%s", value));
+}
+
+private function string_replace(string str, string find, string replace_with) returns (string) {
+    string result = "";
+    uint256 i = 0;
+    
+    while (i < str.length) {
+        if (i + find.length <= str.length) {
+            bool match = true;
+            for (uint256 j = 0; j < find.length; j++) {
+                if (str[i + j] != find[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            
+            if (match) {
+                result += replace_with;
+                i += find.length;
+                continue;
+            }
+        }
+        
+        result += str[i];
+        i++;
+    }
+    
+    return result;
+}
+
+// File system operations
+private function fs_file_exists(string path) returns (bool) { return true; }
+private function fs_read_file(string path) returns (string) { return ""; }

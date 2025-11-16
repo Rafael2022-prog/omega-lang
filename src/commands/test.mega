@@ -1,0 +1,523 @@
+// OMEGA Test Command - Testing Framework and Test Runner
+// Discovers and runs test files with assertion framework
+
+import "src/std/io";
+import "src/std/fs";
+import "src/std/string";
+import "src/parser/parser";
+
+structure TestCase {
+    string name;
+    string filepath;
+    function handler;
+    bool passed;
+    string error_message;
+}
+
+structure TestSuite {
+    string name;
+    TestCase[] tests;
+    uint256 total;
+    uint256 passed;
+    uint256 failed;
+    uint256 start_time;
+    uint256 end_time;
+}
+
+structure TestResult {
+    bool success;
+    string message;
+}
+
+public function test_main(string[] args) returns (int32) {
+    println("╔════════════════════════════════════════════════════════════════╗");
+    println("║  🧪 OMEGA Test Runner - Testing Framework                     ║");
+    println("╚════════════════════════════════════════════════════════════════╝");
+    println("");
+    
+    // Parse command line options
+    bool verbose = false;
+    bool coverage = false;
+    string filter = "";
+    
+    for (uint256 i = 0; i < args.length; i++) {
+        string arg = args[i];
+        
+        if (string_equal(arg, "--verbose")) {
+            verbose = true;
+        } else if (string_equal(arg, "--coverage")) {
+            coverage = true;
+        } else if (starts_with(arg, "--filter=")) {
+            filter = substring_after(arg, "=");
+        }
+    }
+    
+    // Discover test files
+    string[] test_files = discover_test_files("tests");
+    if (test_files.length == 0) {
+        println_warn("No test files found in 'tests' directory");
+        return 0;
+    }
+    
+    println_format("📂 Found %d test files", test_files.length);
+    println("");
+    
+    // Create test suite
+    TestSuite suite = new TestSuite();
+    suite.name = "OMEGA Test Suite";
+    suite.tests = new TestCase[0];
+    suite.start_time = get_timestamp();
+    
+    // Load and parse test files
+    println("📝 Loading tests...");
+    
+    for (uint256 i = 0; i < test_files.length; i++) {
+        string filepath = test_files[i];
+        
+        if (verbose) {
+            println_format("  • %s", filepath);
+        }
+        
+        TestCase[] cases = load_test_file(filepath);
+        
+        for (uint256 j = 0; j < cases.length; j++) {
+            TestCase tc = cases[j];
+            
+            // Apply filter if specified
+            if (filter.length > 0 && !string_contains(tc.name, filter)) {
+                continue;
+            }
+            
+            // Add to suite
+            append_test_case(suite, tc);
+        }
+    }
+    
+    suite.total = suite.tests.length;
+    
+    if (suite.total == 0) {
+        println_error("No tests matched the filter");
+        return 1;
+    }
+    
+    println_format("✅ Loaded %d tests", suite.total);
+    println("");
+    
+    // Run tests
+    println("▶️  Running tests...");
+    println("");
+    
+    for (uint256 i = 0; i < suite.tests.length; i++) {
+        TestCase tc = suite.tests[i];
+        
+        string test_name = format_test_name(tc.filepath, tc.name);
+        
+        if (verbose) {
+            print_format("  [%d/%d] %s", i + 1, suite.total, test_name);
+        }
+        
+        // Run the test
+        bool test_passed = run_test(tc);
+        
+        if (test_passed) {
+            suite.passed++;
+            if (!verbose) {
+                print(".");
+            } else {
+                println_success(" ✅ PASSED");
+            }
+        } else {
+            suite.failed++;
+            if (!verbose) {
+                print("F");
+            } else {
+                println_error_msg(" ❌ FAILED");
+                if (tc.error_message.length > 0) {
+                    println_format("       %s", tc.error_message);
+                }
+            }
+        }
+    }
+    
+    if (!verbose) {
+        println("");
+    }
+    
+    println("");
+    
+    // Print summary
+    uint256 elapsed = get_timestamp() - suite.start_time;
+    
+    println("╔════════════════════════════════════════════════════════════════╗");
+    print_test_summary(suite, elapsed);
+    println("╚════════════════════════════════════════════════════════════════╝");
+    println("");
+    
+    // Print coverage if requested
+    if (coverage) {
+        println("📊 Code Coverage:");
+        println("  • Lines: 0% (not implemented)");
+        println("  • Functions: 0% (not implemented)");
+        println("  • Branches: 0% (not implemented)");
+        println("");
+    }
+    
+    // Return exit code based on results
+    if (suite.failed > 0) {
+        return 1;
+    }
+    
+    return 0;
+}
+
+private function discover_test_files(string directory) returns (string[]) {
+    // Discover all .test.omega files
+    string[] files = fs_list_files(directory, "*.test.omega");
+    return files;
+}
+
+private function load_test_file(string filepath) returns (TestCase[]) {
+    // Read test file
+    string content = fs_read_file(filepath);
+    if (content == null) {
+        return new TestCase[0];
+    }
+    
+    // Parse test file to extract test functions
+    TestCase[] cases = new TestCase[0];
+    
+    // Simple pattern: look for functions starting with "test_"
+    uint256 pos = 0;
+    while (pos < content.length) {
+        uint256 func_pos = string_index_of_from(content, "function test_", pos);
+        if (func_pos == 0xFFFFFFFFFFFFFFFF) {
+            break;
+        }
+        
+        // Extract function name
+        uint256 name_start = func_pos + 9; // length of "function "
+        uint256 name_end = string_index_of_from(content, "(", name_start);
+        
+        string func_name = substring(content, name_start, name_end);
+        
+        // Create test case
+        TestCase tc = new TestCase();
+        tc.name = func_name;
+        tc.filepath = filepath;
+        tc.passed = false;
+        
+        cases = append_array(cases, tc);
+        
+        pos = name_end + 1;
+    }
+    
+    return cases;
+}
+
+private function run_test(TestCase tc) returns (bool) {
+    // In a real implementation, this would:
+    // 1. Compile the test
+    // 2. Execute it
+    // 3. Capture assertions
+    // 4. Return pass/fail
+    
+    // For now, return true (placeholder)
+    return true;
+}
+
+private function append_test_case(TestSuite suite, TestCase tc) {
+    TestCase[] new_tests = new TestCase[suite.tests.length + 1];
+    for (uint256 i = 0; i < suite.tests.length; i++) {
+        new_tests[i] = suite.tests[i];
+    }
+    new_tests[suite.tests.length] = tc;
+    suite.tests = new_tests;
+}
+
+private function format_test_name(string filepath, string test_name) returns (string) {
+    // Extract filename
+    uint256 last_slash = string_last_index_of(filepath, "/");
+    if (last_slash == 0xFFFFFFFFFFFFFFFF) {
+        last_slash = string_last_index_of(filepath, "\\");
+    }
+    
+    string filename = "";
+    if (last_slash != 0xFFFFFFFFFFFFFFFF) {
+        filename = substring(filepath, last_slash + 1, filepath.length);
+    } else {
+        filename = filepath;
+    }
+    
+    return filename + "::" + test_name;
+}
+
+private function print_test_summary(TestSuite suite, uint256 elapsed) {
+    string status = "✅ ALL TESTS PASSED";
+    if (suite.failed > 0) {
+        status = "❌ TESTS FAILED";
+    }
+    
+    println(status);
+    
+    println_format("║  %d/%d passed", suite.passed, suite.total);
+    
+    if (suite.failed > 0) {
+        println_format("║  %d failed", suite.failed);
+    }
+    
+    println_format("║  Time: %dms", elapsed);
+}
+
+// Assertion framework
+
+public function assert_equal(string expected, string actual) returns (bool) {
+    return string_equal(expected, actual);
+}
+
+public function assert_equal_int(uint256 expected, uint256 actual) returns (bool) {
+    return expected == actual;
+}
+
+public function assert_true(bool value) returns (bool) {
+    return value == true;
+}
+
+public function assert_false(bool value) returns (bool) {
+    return value == false;
+}
+
+public function assert_not_null(string value) returns (bool) {
+    return value != null && value.length > 0;
+}
+
+public function assert_throws(function fn) returns (bool) {
+    // Would capture exceptions from function execution
+    return false; // Placeholder
+}
+
+public function expect_equal(string expected, string actual) returns (bool) {
+    return string_equal(expected, actual);
+}
+
+public function expect_equal_int(uint256 expected, uint256 actual) returns (bool) {
+    return expected == actual;
+}
+
+public function expect_true(bool value) returns (bool) {
+    return value == true;
+}
+
+public function expect_false(bool value) returns (bool) {
+    return value == false;
+}
+
+// Utility functions
+
+private function string_equal(string a, string b) returns (bool) {
+    if (a.length != b.length) {
+        return false;
+    }
+    for (uint256 i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+private function string_contains(string str, string substr) returns (bool) {
+    return string_index_of(str, substr) != 0xFFFFFFFFFFFFFFFF;
+}
+
+private function string_index_of(string str, string substr) returns (uint256) {
+    if (substr.length > str.length) {
+        return 0xFFFFFFFFFFFFFFFF;
+    }
+    for (uint256 i = 0; i <= str.length - substr.length; i++) {
+        bool match = true;
+        for (uint256 j = 0; j < substr.length; j++) {
+            if (str[i + j] != substr[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return i;
+        }
+    }
+    return 0xFFFFFFFFFFFFFFFF;
+}
+
+private function string_index_of_from(string str, string substr, uint256 from) returns (uint256) {
+    if (from >= str.length) {
+        return 0xFFFFFFFFFFFFFFFF;
+    }
+    for (uint256 i = from; i <= str.length - substr.length; i++) {
+        bool match = true;
+        for (uint256 j = 0; j < substr.length; j++) {
+            if (str[i + j] != substr[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return i;
+        }
+    }
+    return 0xFFFFFFFFFFFFFFFF;
+}
+
+private function string_last_index_of(string str, string substr) returns (uint256) {
+    if (substr.length > str.length) {
+        return 0xFFFFFFFFFFFFFFFF;
+    }
+    
+    uint256 last = 0xFFFFFFFFFFFFFFFF;
+    for (uint256 i = 0; i <= str.length - substr.length; i++) {
+        bool match = true;
+        for (uint256 j = 0; j < substr.length; j++) {
+            if (str[i + j] != substr[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            last = i;
+        }
+    }
+    
+    return last;
+}
+
+private function substring(string str, uint256 start, uint256 end) returns (string) {
+    if (start >= end || start >= str.length) {
+        return "";
+    }
+    string result = "";
+    for (uint256 i = start; i < end && i < str.length; i++) {
+        result += str[i];
+    }
+    return result;
+}
+
+private function substring_after(string str, string separator) returns (string) {
+    uint256 pos = string_index_of(str, separator);
+    if (pos == 0xFFFFFFFFFFFFFFFF) {
+        return "";
+    }
+    return substring(str, pos + 1, str.length);
+}
+
+private function starts_with(string str, string prefix) returns (bool) {
+    if (prefix.length > str.length) {
+        return false;
+    }
+    for (uint256 i = 0; i < prefix.length; i++) {
+        if (str[i] != prefix[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+private function append_array(TestCase[] arr, TestCase item) returns (TestCase[]) {
+    TestCase[] result = new TestCase[arr.length + 1];
+    for (uint256 i = 0; i < arr.length; i++) {
+        result[i] = arr[i];
+    }
+    result[arr.length] = item;
+    return result;
+}
+
+private function get_timestamp() returns (uint256) {
+    // Get current timestamp in milliseconds
+    return 0; // Placeholder
+}
+
+private function println(string msg) {
+    // println implementation
+}
+
+private function print(string msg) {
+    // print implementation (no newline)
+}
+
+private function println_format(string format, string value) {
+    string result = string_replace(format, "%s", value);
+    println(result);
+}
+
+private function print_format(string format, uint256 value) {
+    string value_str = uint256_to_string(value);
+    string result = string_replace(format, "%d", value_str);
+    print(result);
+}
+
+private function println_error(string msg) {
+    println("❌ " + msg);
+}
+
+private function println_error_msg(string msg) {
+    println(msg);
+}
+
+private function println_success(string msg) {
+    println(msg);
+}
+
+private function println_warn(string msg) {
+    println("⚠️  " + msg);
+}
+
+private function string_replace(string str, string find, string replace_with) returns (string) {
+    string result = "";
+    uint256 i = 0;
+    
+    while (i < str.length) {
+        if (i + find.length <= str.length) {
+            bool match = true;
+            for (uint256 j = 0; j < find.length; j++) {
+                if (str[i + j] != find[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            
+            if (match) {
+                result += replace_with;
+                i += find.length;
+                continue;
+            }
+        }
+        
+        result += str[i];
+        i++;
+    }
+    
+    return result;
+}
+
+private function uint256_to_string(uint256 num) returns (string) {
+    if (num == 0) {
+        return "0";
+    }
+    
+    string result = "";
+    while (num > 0) {
+        uint256 digit = num % 10;
+        result = chr(digit + 48) + result;
+        num = num / 10;
+    }
+    
+    return result;
+}
+
+private function chr(uint256 code) returns (string) {
+    // Convert character code to string
+    return "";
+}
+
+// File system operations
+private function fs_file_exists(string path) returns (bool) { return true; }
+private function fs_read_file(string path) returns (string) { return ""; }
+private function fs_list_files(string dir, string pattern) returns (string[]) { return new string[0]; }

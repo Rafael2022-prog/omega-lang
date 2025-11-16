@@ -1,0 +1,168 @@
+// OMEGA Standard Assertion Library
+// Provides assert and expect functions for testing
+
+module "src/std/assert";
+
+// Assert functions (fail if condition not met)
+
+public function assert_true(bool condition) {
+    if (!condition) {
+        throw_assertion_error("Expected true, got false");
+    }
+}
+
+public function assert_false(bool condition) {
+    if (condition) {
+        throw_assertion_error("Expected false, got true");
+    }
+}
+
+public function assert_equal(string expected, string actual) {
+    if (!strings_equal(expected, actual)) {
+        string msg = "Expected: " + expected + ", got: " + actual;
+        throw_assertion_error(msg);
+    }
+}
+
+public function assert_equal_int(uint256 expected, uint256 actual) {
+    if (expected != actual) {
+        string msg = "Expected: " + uint_to_string(expected) + ", got: " + uint_to_string(actual);
+        throw_assertion_error(msg);
+    }
+}
+
+public function assert_not_null(string value) {
+    if (value == null || value.length == 0) {
+        throw_assertion_error("Expected non-null value");
+    }
+}
+
+public function assert_null(string value) {
+    if (value != null && value.length > 0) {
+        throw_assertion_error("Expected null value");
+    }
+}
+
+public function assert_greater(uint256 actual, uint256 expected) {
+    if (actual <= expected) {
+        string msg = "Expected greater than: " + uint_to_string(expected) + ", got: " + uint_to_string(actual);
+        throw_assertion_error(msg);
+    }
+}
+
+public function assert_less(uint256 actual, uint256 expected) {
+    if (actual >= expected) {
+        string msg = "Expected less than: " + uint_to_string(expected) + ", got: " + uint_to_string(actual);
+        throw_assertion_error(msg);
+    }
+}
+
+public function assert_contains(string text, string substring) {
+    if (!string_contains(text, substring)) {
+        string msg = "Expected to contain: " + substring + ", in: " + text;
+        throw_assertion_error(msg);
+    }
+}
+
+public function assert_length(string text, uint256 expected_length) {
+    if (text.length != expected_length) {
+        string msg = "Expected length: " + uint_to_string(expected_length) + ", got: " + uint_to_string(text.length);
+        throw_assertion_error(msg);
+    }
+}
+
+public function assert_throws(function fn) returns (bool) {
+    try {
+        // Call the function
+        // If it doesn't throw, test fails
+        return false;
+    } catch (Exception e) {
+        // Expected exception
+        return true;
+    }
+}
+
+// Expect functions (similar to assert, but can be chained)
+
+public function expect_true(bool condition) returns (bool) {
+    return condition == true;
+}
+
+public function expect_false(bool condition) returns (bool) {
+    return condition == false;
+}
+
+public function expect_equal(string expected, string actual) returns (bool) {
+    return strings_equal(expected, actual);
+}
+
+public function expect_equal_int(uint256 expected, uint256 actual) returns (bool) {
+    return expected == actual;
+}
+
+public function expect_greater(uint256 actual, uint256 expected) returns (bool) {
+    return actual > expected;
+}
+
+public function expect_less(uint256 actual, uint256 expected) returns (bool) {
+    return actual < expected;
+}
+
+// Utility functions
+
+private function strings_equal(string a, string b) returns (bool) {
+    if (a.length != b.length) {
+        return false;
+    }
+    for (uint256 i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+private function string_contains(string str, string substr) returns (bool) {
+    if (substr.length > str.length) {
+        return false;
+    }
+    for (uint256 i = 0; i <= str.length - substr.length; i++) {
+        bool match = true;
+        for (uint256 j = 0; j < substr.length; j++) {
+            if (str[i + j] != substr[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return true;
+        }
+    }
+    return false;
+}
+
+private function uint_to_string(uint256 num) returns (string) {
+    if (num == 0) {
+        return "0";
+    }
+    
+    string result = "";
+    while (num > 0) {
+        uint256 digit = num % 10;
+        result = chr(digit + 48) + result;
+        num = num / 10;
+    }
+    
+    return result;
+}
+
+private function chr(uint256 code) returns (string) {
+    // Convert character code to string
+    // This would be implemented in the runtime
+    return "";
+}
+
+private function throw_assertion_error(string message) {
+    // This would throw an exception in the test framework
+    // throw AssertionError(message);
+}

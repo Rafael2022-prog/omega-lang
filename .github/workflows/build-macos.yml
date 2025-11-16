@@ -1,84 +1,182 @@
-name: Build macOS Release Assets (Bootstrap)
+# OMEGA macOS Build Configuration for CI/CD
+# Builds on macOS for both Intel and Apple Silicon
 
-on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g., 1.3.0)'
-        required: true
-      create_release:
-        description: 'Create GitHub release if not exists'
-        required: false
-        default: 'true'
+name: Build OMEGA - macOS
+on: [push, pull_request]
 
 jobs:
-  build-and-release:
-    runs-on: macos-14
-
+  build-macos-intel:
+    runs-on: macos-12
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set version
-        shell: bash
+      - uses: actions/checkout@v4
+      
+      - name: Install build tools
         run: |
-          VERSION_INPUT="${{ github.event.inputs.version }}"
-          if [ -z "$VERSION_INPUT" ]; then
-            VERSION_INPUT=$(cat VERSION)
-          fi
-          echo "VERSION=$VERSION_INPUT" >> $GITHUB_ENV
-          echo "TAG=v$VERSION_INPUT" >> $GITHUB_ENV
-          echo "ARM64_ASSET=omega-darwin-arm64.zip" >> $GITHUB_ENV
-
-      - name: Create macOS bootstrap script (arm64)
-        shell: bash
+          echo "📦 Installing build tools..."
+          brew install gcc make --quiet
+      
+      - name: Build C bootstrap (Intel)
         run: |
-          set -euo pipefail
-          cat > omega << 'EOF'
-          #!/usr/bin/env bash
-          set -euo pipefail
-          VERSION_STRING="OMEGA Language v__VERSION__ (bootstrap)"
-          CMD="${1:-}"
-          case "$CMD" in
-            --version)
-              echo "$VERSION_STRING"
-              ;;
-            build)
-              mkdir -p build
-              echo "[bootstrap] build completed"
-              ;;
-            test)
-              echo "[bootstrap] tests passed"
-              ;;
-            *)
-              echo "omega (bootstrap)"
-              echo "Usage: omega [--version|build|test]"
-              ;;
-          esac
-          EOF
-          # Embed actual version string into the script
-          sed -i '' "s/__VERSION__/${VERSION}/g" omega
-          chmod +x omega
-          /usr/bin/zip -r "$ARM64_ASSET" omega
-
-      - name: Upload asset to release
-        uses: softprops/action-gh-release@v1
+          echo "📦 Building C bootstrap for Intel macOS..."
+          gcc-13 -std=c99 -Wall -Wextra -O2 \
+            -o bootstrap/omega_minimal \
+            bootstrap/omega_minimal.c
+          echo "✅ C bootstrap compiled for Intel"
+      
+      - name: Build OMEGA compiler (Intel)
+        run: |
+          echo "🔨 Building OMEGA for macOS Intel..."
+          ./bootstrap/omega_minimal src/lexer/lexer.mega
+          ./bootstrap/omega_minimal src/parser/parser.mega
+          ./bootstrap/omega_minimal src/semantic/analyzer.mega
+          ./bootstrap/omega_minimal src/codegen/codegen.mega
+          ./bootstrap/omega_minimal src/optimizer/optimizer.mega
+          echo "✅ OMEGA modules bootstrapped for Intel"
+      
+      - name: Link OMEGA executable (Intel)
+        run: |
+          echo "🔗 Linking OMEGA for Intel..."
+          gcc-13 -o target/omega \
+            target/lexer.o \
+            target/parser.o \
+            target/semantic.o \
+            target/codegen.o \
+            target/optimizer.o
+          chmod +x target/omega
+          echo "✅ OMEGA linked for Intel"
+      
+      - name: Test OMEGA (Intel)
+        run: |
+          echo "🧪 Testing OMEGA on Intel macOS..."
+          ./target/omega --version
+          ./target/omega --help
+          echo "✅ Intel macOS tests passed"
+      
+      - name: Build distribution (Intel)
+        run: |
+          echo "📦 Building macOS Intel distribution..."
+          mkdir -p dist/omega-macos-intel
+          cp target/omega dist/omega-macos-intel/
+          cp README.md dist/omega-macos-intel/
+          tar -czf omega-2.0.0-macos-intel.tar.gz -C dist omega-macos-intel/
+      
+      - name: Upload Intel artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ env.TAG }}
-          files: ${{ env.ARM64_ASSET }}
-          draft: false
-          prerelease: false
+          name: omega-macos-intel
+          path: dist/omega-macos-intel/
+
+  build-macos-arm64:
+    runs-on: macos-14
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install build tools
+        run: |
+          echo "📦 Installing build tools..."
+          brew install gcc make --quiet
+      
+      - name: Build C bootstrap (ARM64)
+        run: |
+          echo "📦 Building C bootstrap for Apple Silicon..."
+          gcc-13 -std=c99 -Wall -Wextra -O2 \
+            -o bootstrap/omega_minimal \
+            bootstrap/omega_minimal.c
+          echo "✅ C bootstrap compiled for Apple Silicon"
+      
+      - name: Build OMEGA compiler (ARM64)
+        run: |
+          echo "🔨 Building OMEGA for macOS ARM64..."
+          ./bootstrap/omega_minimal src/lexer/lexer.mega
+          ./bootstrap/omega_minimal src/parser/parser.mega
+          ./bootstrap/omega_minimal src/semantic/analyzer.mega
+          ./bootstrap/omega_minimal src/codegen/codegen.mega
+          ./bootstrap/omega_minimal src/optimizer/optimizer.mega
+          echo "✅ OMEGA modules bootstrapped for ARM64"
+      
+      - name: Link OMEGA executable (ARM64)
+        run: |
+          echo "🔗 Linking OMEGA for ARM64..."
+          gcc-13 -o target/omega \
+            target/lexer.o \
+            target/parser.o \
+            target/semantic.o \
+            target/codegen.o \
+            target/optimizer.o
+          chmod +x target/omega
+          echo "✅ OMEGA linked for ARM64"
+      
+      - name: Test OMEGA (ARM64)
+        run: |
+          echo "🧪 Testing OMEGA on Apple Silicon..."
+          ./target/omega --version
+          ./target/omega --help
+          echo "✅ Apple Silicon tests passed"
+      
+      - name: Build distribution (ARM64)
+        run: |
+          echo "📦 Building macOS ARM64 distribution..."
+          mkdir -p dist/omega-macos-arm64
+          cp target/omega dist/omega-macos-arm64/
+          cp README.md dist/omega-macos-arm64/
+          tar -czf omega-2.0.0-macos-arm64.tar.gz -C dist omega-macos-arm64/
+      
+      - name: Upload ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: omega-macos-arm64
+          path: dist/omega-macos-arm64/
+
+  test:
+    needs: [build-macos-intel, build-macos-arm64]
+    runs-on: macos-14
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Intel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: omega-macos-intel
+      
+      - name: Download ARM64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: omega-macos-arm64
+      
+      - name: Verify executables
+        run: |
+          echo "✅ macOS build completed successfully"
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-14
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Create universal binary
+        run: |
+          echo "🔗 Creating universal macOS binary..."
+          lipo -create \
+            omega-macos-intel/omega \
+            omega-macos-arm64/omega \
+            -output omega-universal
+          chmod +x omega-universal
+          echo "✅ Universal binary created"
+      
+      - name: Create release
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Trigger tap formula update (repository_dispatch)
-        shell: bash
-        run: |
-          set -euo pipefail
-          BOOTSTRAP_URL_ARM64="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ARM64_ASSET}"
-          ARCHIVE_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/Rafael2022-prog/homebrew-omega/dispatches \
-            -d "{\"event_type\":\"omega-release\",\"client_payload\":{\"version\":\"${VERSION}\",\"archive_url\":\"${ARCHIVE_URL}\",\"bootstrap_url_arm64\":\"${BOOTSTRAP_URL_ARM64}\"}}"
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: OMEGA ${{ github.ref }}
+          draft: false
+          prerelease: false

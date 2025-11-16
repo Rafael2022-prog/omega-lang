@@ -1,0 +1,138 @@
+# OMEGA Linux Build Configuration for CI/CD
+# Builds on Alpine Linux 3.18 for pure native support
+
+name: Build OMEGA - Linux
+on: [push, pull_request]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.18
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            musl-dev \
+            gcc \
+            g++ \
+            make \
+            git \
+            ca-certificates
+      
+      - name: Build C bootstrap
+        run: |
+          echo "📦 Building C bootstrap compiler..."
+          gcc -std=c99 -Wall -Wextra -O2 \
+            -o bootstrap/omega_minimal \
+            bootstrap/omega_minimal.c
+          echo "✅ C bootstrap compiled"
+          ./bootstrap/omega_minimal --version || ./bootstrap/omega_minimal src/lexer/lexer.mega
+      
+      - name: Verify bootstrap
+        run: |
+          echo "✅ Bootstrap binary size:"
+          ls -lh bootstrap/omega_minimal
+          echo "✅ Bootstrap verification passed"
+      
+      - name: Build OMEGA compiler (Linux)
+        run: |
+          echo "🔨 Building OMEGA compiler for Linux..."
+          # Bootstrap OMEGA using minimal C compiler
+          ./bootstrap/omega_minimal src/lexer/lexer.mega
+          ./bootstrap/omega_minimal src/parser/parser.mega
+          ./bootstrap/omega_minimal src/semantic/analyzer.mega
+          ./bootstrap/omega_minimal src/codegen/codegen.mega
+          ./bootstrap/omega_minimal src/optimizer/optimizer.mega
+          echo "✅ OMEGA modules bootstrapped"
+      
+      - name: Link OMEGA executable
+        run: |
+          echo "🔗 Linking OMEGA executable..."
+          gcc -o target/omega \
+            target/lexer.o \
+            target/parser.o \
+            target/semantic.o \
+            target/codegen.o \
+            target/optimizer.o
+          echo "✅ OMEGA linked successfully"
+          chmod +x target/omega
+      
+      - name: Test OMEGA compiler
+        run: |
+          echo "🧪 Testing OMEGA compiler..."
+          ./target/omega --version
+          ./target/omega --help
+          echo "✅ OMEGA tests passed"
+      
+      - name: Build distribution package
+        run: |
+          echo "📦 Building Linux distribution..."
+          mkdir -p dist/omega-linux-amd64
+          cp target/omega dist/omega-linux-amd64/
+          cp README.md dist/omega-linux-amd64/
+          cp CONTRIBUTING.md dist/omega-linux-amd64/
+          tar -czf omega-2.0.0-linux-amd64.tar.gz -C dist omega-linux-amd64/
+          echo "✅ Distribution package created"
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: omega-linux-amd64
+          path: dist/omega-linux-amd64/
+
+  # Test the built compiler
+  test-linux:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.18
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: omega-linux-amd64
+      
+      - name: Verify executable
+        run: |
+          chmod +x omega
+          ./omega --version
+          ./omega --help
+          echo "✅ Linux executable verified"
+
+  # Release build
+  release:
+    needs: [build-linux, test-linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: omega-linux-amd64
+      
+      - name: Create GitHub release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: OMEGA ${{ github.ref }}
+          draft: false
+          prerelease: false
+      
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./omega
+          asset_name: omega-linux-amd64
+          asset_content_type: application/octet-stream
