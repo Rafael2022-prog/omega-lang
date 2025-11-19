@@ -257,11 +257,25 @@ jobs:
           Write-Host "🔎 Scanning for known Windows path/quoting error messages in test logs..."
           $logPath = ".\logs\for_range_ext_ci.log"
           if (Test-Path $logPath) {
-            $matches = Select-String -Path $logPath -Pattern "The filename, directory name, or volume label syntax is incorrect" -SimpleMatch
-            if ($matches) {
-              Write-Host "⚠️ Detected Windows path/quoting error noise in logs (non-fatal)." -ForegroundColor Yellow
-              Write-Host "   Occurrences: $($matches.Count)"
-            } else {
+            $patterns = @(
+              @{ name = 'filename-dir-volume-syntax-incorrect'; pattern = 'The filename, directory name, or volume label syntax is incorrect' },
+              @{ name = 'system-cannot-find-path'; pattern = 'The system cannot find the path specified' },
+              @{ name = 'cmd-started-with-above-path'; pattern = 'CMD\.EXE was started with the above path as the current directory' },
+              @{ name = 'input-line-too-long'; pattern = 'The input line is too long' },
+              @{ name = 'device-not-functioning'; pattern = 'A device attached to the system is not functioning' },
+              @{ name = 'powershell-script-location'; pattern = 'At line:\s*\d+ char:\s*\d+' },
+              @{ name = 'arg-exception-path'; pattern = 'Unhandled Exception:.*System\.ArgumentException:.*path' }
+            )
+            $totalHits = 0
+            foreach ($p in $patterns) {
+              $m = Select-String -Path $logPath -Pattern $p.pattern
+              if ($m) {
+                $count = $m.Count
+                $totalHits += $count
+                Write-Host "⚠️  Pattern '$($p.name)' detected ($count occurrences)" -ForegroundColor Yellow
+              }
+            }
+            if ($totalHits -eq 0) {
               Write-Host "✅ No Windows path/quoting error messages detected in logs"
             }
           } else {
