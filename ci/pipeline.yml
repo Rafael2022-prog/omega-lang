@@ -156,7 +156,15 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "🔧 Building native OMEGA binary for unit tests..."
-          pwsh -NoProfile -ExecutionPolicy Bypass -File build_omega_native.ps1
+          if (Test-Path .\build_omega_native.ps1) {
+            Write-Host "ℹ️ Using build_omega_native.ps1"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File build_omega_native.ps1
+          } elseif (Test-Path .\build.ps1) {
+            Write-Host "ℹ️ Using build.ps1 as fallback"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File build.ps1
+          } else {
+            Write-Host "❌ No build script found (build_omega_native.ps1 or build.ps1)"; exit 1
+          }
           if (Test-Path ".\omega.exe") {
             Write-Host "✅ omega.exe built successfully"
             .\omega.exe --version
@@ -164,8 +172,7 @@ jobs:
             Write-Host "✅ omega.ps1 available"
             pwsh -NoProfile -ExecutionPolicy Bypass -File .\omega.ps1 --version
           } else {
-            Write-Host "❌ Omega binary not found after build"
-            exit 1
+            Write-Host "❌ Omega binary not found after build"; exit 1
           }
 
       - name: Run unit tests (native)

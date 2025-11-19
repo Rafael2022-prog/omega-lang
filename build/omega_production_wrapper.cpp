@@ -28,6 +28,75 @@ static bool command_exists(const std::string &cmd) {
 }
 
 static int run_in_dir(const std::string &cmd, const std::filesystem::path &dir) {
+    std::cout << "[DEBUG] run_in_dir: requested_dir=" << dir.string() << " cmd=\"" << cmd << "\"" << std::endl;
+#ifdef _WIN32
+    auto to_wstring = [](const std::string &s){ return std::wstring(s.begin(), s.end()); };
+    auto ends_with_ci = [](std::string s, std::string suf){
+        auto tolower_inplace = [](std::string &x){ std::transform(x.begin(), x.end(), x.begin(), [](unsigned char c){return (char)std::tolower(c);} ); };
+        tolower_inplace(s); tolower_inplace(suf);
+        if (s.size() < suf.size()) return false; return s.compare(s.size()-suf.size(), suf.size(), suf) == 0;
+    };
+    // Try to execute .exe directly with CreateProcessW to avoid cmd.exe quoting issues
+    std::string exePath;
+    std::string args;
+    if (!cmd.empty() && cmd[0] == '"') {
+        size_t end = cmd.find('"', 1);
+        if (end != std::string::npos) {
+            exePath = cmd.substr(1, end-1);
+            if (end + 1 < cmd.size()) args = cmd.substr(end+1);
+        }
+    } else {
+        size_t sp = cmd.find(' ');
+        if (sp == std::string::npos) {
+            exePath = cmd; args = std::string();
+        } else {
+            exePath = cmd.substr(0, sp);
+            args = cmd.substr(sp+1);
+        }
+    }
+    if (!exePath.empty() && ends_with_ci(exePath, ".exe")) {
+        std::wstring wExe = to_wstring(exePath);
+        // Compose command line: "exe" <args>
+        std::wstring wArgs = L"\"" + wExe + L"\"";
+        if (!args.empty()) {
+            wArgs += L" ";
+            wArgs += to_wstring(args);
+        }
+        std::wstring wDir = to_wstring(dir.string());
+        STARTUPINFOW si{}; si.cb = sizeof(si);
+        PROCESS_INFORMATION pi{};
+        BOOL ok = CreateProcessW(
+            wExe.c_str(),
+            wArgs.empty() ? nullptr : &wArgs[0],
+            nullptr, nullptr, FALSE,
+            0,
+            nullptr,
+            wDir.empty() ? nullptr : wDir.c_str(),
+            &si, &pi
+        );
+        if (!ok) {
+            DWORD err = GetLastError();
+            std::cout << "[DEBUG] run_in_dir(CreateProcessW) failed: error=" << err << ", falling back to std::system" << std::endl;
+        } else {
+            WaitForSingleObject(pi.hProcess, INFINITE);
+            DWORD exitCode = 0;
+            GetExitCodeProcess(pi.hProcess, &exitCode);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            std::cout << "[DEBUG] run_in_dir(CreateProcessW): working_dir=" << dir.string() << " exit_code=" << exitCode << std::endl;
+            return (int)exitCode;
+        }
+    }
+    // Fallback: use std::system with temporary chdir
+    auto old = std::filesystem::current_path();
+    std::error_code ec;
+    std::filesystem::current_path(dir, ec);
+    std::cout << "[DEBUG] run_in_dir(std::system): working_dir=" << std::filesystem::current_path().string() << " cmd=\"" << cmd << "\"" << std::endl;
+    int rc = std::system(cmd.c_str());
+    std::cout << "[DEBUG] run_in_dir(std::system): exit_code=" << rc << std::endl;
+    std::filesystem::current_path(old, ec);
+    return rc;
+#else
     auto old = std::filesystem::current_path();
     std::error_code ec;
     std::filesystem::current_path(dir, ec);
@@ -36,6 +105,7 @@ static int run_in_dir(const std::string &cmd, const std::filesystem::path &dir) 
     std::cout << "[DEBUG] run_in_dir: exit_code=" << rc << std::endl;
     std::filesystem::current_path(old, ec);
     return rc;
+#endif
 }
 
 // Convert a Windows absolute path like "R:\\OMEGA\\build" to WSL mount path "/mnt/r/OMEGA/build"
