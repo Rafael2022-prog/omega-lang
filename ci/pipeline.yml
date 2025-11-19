@@ -175,6 +175,43 @@ jobs:
             Write-Host "❌ Omega binary not found after build"; exit 1
           }
 
+      - name: Build omega-production.exe (native wrapper)
+        shell: pwsh
+        run: |
+          Write-Host "🏭 Building omega-production.exe (native wrapper)..."
+          Write-Host "ℹ️ Attempting optional installation of C++ toolchain (MinGW/LLVM) via Chocolatey"
+          try {
+            choco --version | Out-Null
+            if (-not (Get-Command g++ -ErrorAction SilentlyContinue)) {
+              Write-Host "⬇️ Installing mingw (may take a few minutes)..."
+              choco install -y mingw | Out-Null
+            }
+            if (-not (Get-Command clang++ -ErrorAction SilentlyContinue)) {
+              Write-Host "⬇️ Installing llvm (clang++) (optional)..."
+              choco install -y llvm | Out-Null
+            }
+          } catch {
+            Write-Host "⚠️ Chocolatey not available or install failed; build script will fallback to C# CodeDom if no C++ compiler is present" -ForegroundColor Yellow
+          }
+
+          # Build production wrapper using external C++ source if present
+          if (Test-Path .\build_production_real_native.ps1) {
+            Write-Host "ℹ️ Using build_production_real_native.ps1"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File .\build_production_real_native.ps1
+          } elseif (Test-Path .\build_production_real.ps1) {
+            Write-Host "ℹ️ Using build_production_real.ps1"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File .\build_production_real.ps1
+          } else {
+            Write-Host "❌ No production build script found"; exit 1
+          }
+
+          if (Test-Path ".\bin\omega-production.exe") {
+            Write-Host "✅ omega-production.exe built successfully at .\\bin\\omega-production.exe"
+            .\bin\omega-production.exe version
+          } else {
+            Write-Host "❌ omega-production.exe not found after production build"; exit 1
+          }
+
       - name: Run unit tests (native)
         shell: pwsh
         run: |
@@ -192,7 +229,7 @@ jobs:
           
           Write-Host "✅ Unit tests compilation completed"
 
-      - name: Run extended for-range transform test (PowerShell)
+      - name: Run extended for-range transform test (PowerShell, with log capture)
         shell: pwsh
         run: |
           Write-Host "🧪 Running extended for-range transform test..."
@@ -209,8 +246,33 @@ jobs:
           } else {
             Write-Host "ℹ️ solc not found; test script will skip syntax checks"
           }
-          pwsh -NoProfile -ExecutionPolicy Bypass -File .\test_range_transform_ext.ps1
+          if (-not (Test-Path .\logs)) { New-Item -ItemType Directory -Path .\logs | Out-Null }
+          # Capture full output of test script to a log file for post-analysis
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\test_range_transform_ext.ps1 *>&1 | Tee-Object -FilePath .\logs\for_range_ext_ci.log
           Write-Host "✅ Extended for-range transform test completed"
+
+      - name: Scan logs for Windows path/quoting errors (informational)
+        shell: pwsh
+        run: |
+          Write-Host "🔎 Scanning for known Windows path/quoting error messages in test logs..."
+          $logPath = ".\logs\for_range_ext_ci.log"
+          if (Test-Path $logPath) {
+            $matches = Select-String -Path $logPath -Pattern "The filename, directory name, or volume label syntax is incorrect" -SimpleMatch
+            if ($matches) {
+              Write-Host "⚠️ Detected Windows path/quoting error noise in logs (non-fatal)." -ForegroundColor Yellow
+              Write-Host "   Occurrences: $($matches.Count)"
+            } else {
+              Write-Host "✅ No Windows path/quoting error messages detected in logs"
+            }
+          } else {
+            Write-Host "ℹ️ Log file not found; skipping scan"
+          }
+
+      - name: Upload extended test logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: for-range-ext-logs
+          path: logs/for_range_ext_ci.log
 
       - name: Generate coverage (native)
         shell: pwsh
