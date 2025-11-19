@@ -189,6 +189,19 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "🧪 Running extended for-range transform test..."
+          Write-Host "ℹ️ Attempting optional Solidity compiler (solc) installation for syntax check..."
+          try {
+            choco --version | Out-Null
+            choco install -y solc | Out-Null
+          } catch {
+            Write-Host "⚠️ Chocolatey or solc installation not available; proceeding without solc" -ForegroundColor Yellow
+          }
+          $solcCmd = Get-Command solc -ErrorAction SilentlyContinue
+          if ($solcCmd) {
+            Write-Host "✅ solc detected: $(solc --version)"
+          } else {
+            Write-Host "ℹ️ solc not found; test script will skip syntax checks"
+          }
           pwsh -NoProfile -ExecutionPolicy Bypass -File .\test_range_transform_ext.ps1
           Write-Host "✅ Extended for-range transform test completed"
 
