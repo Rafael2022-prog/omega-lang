@@ -54,6 +54,14 @@ static int run_in_dir(const std::string &cmd, const std::filesystem::path &dir) 
             args = cmd.substr(sp+1);
         }
     }
+    // If command doesn't explicitly end with .exe, try resolving implicit .exe (Windows PATH often omits extension)
+    if (!exePath.empty() && !ends_with_ci(exePath, ".exe")) {
+        std::string exeCandidate = exePath + ".exe";
+        if (command_exists(exeCandidate)) {
+            std::cout << "[DEBUG] run_in_dir: resolved implicit .exe -> " << exeCandidate << std::endl;
+            exePath = exeCandidate;
+        }
+    }
     if (!exePath.empty() && ends_with_ci(exePath, ".exe")) {
         std::wstring wExe = to_wstring(exePath);
         // Compose command line: "exe" <args>
