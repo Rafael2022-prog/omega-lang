@@ -87,6 +87,13 @@ jobs:
           }
           Write-Host "✅ Project structure validation passed"
 
+      - name: Mask sensitive environment variables (GitHub Actions)
+        shell: pwsh
+        run: |
+          Write-Host "🔒 Masking sensitive environment variables in logs (if set)"
+          if ($env:OMEGA_SERVER_IP) { Write-Host "::add-mask::$($env:OMEGA_SERVER_IP)" }
+          if ($env:OMEGA_SERVER_DOMAIN) { Write-Host "::add-mask::$($env:OMEGA_SERVER_DOMAIN)" }
+
   # Code quality checks
   code_quality:
     name: "Code Quality Analysis"
