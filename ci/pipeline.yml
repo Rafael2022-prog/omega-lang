@@ -185,6 +185,13 @@ jobs:
           
           Write-Host "✅ Unit tests compilation completed"
 
+      - name: Run extended for-range transform test (PowerShell)
+        shell: pwsh
+        run: |
+          Write-Host "🧪 Running extended for-range transform test..."
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\test_range_transform_ext.ps1
+          Write-Host "✅ Extended for-range transform test completed"
+
       - name: Generate coverage (native)
         shell: pwsh
         run: |
