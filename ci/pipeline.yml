@@ -8,9 +8,10 @@ version: "1.0.0"
 # Pipeline triggers
 on:
   push:
-    branches: [ main, develop, feature/* ]
+    branches: [ main, develop, feature/*, ci/* ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
   release:
     types: [ published ]
   schedule:
