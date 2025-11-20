@@ -297,14 +297,20 @@ int main(int argc, char* argv[]) {
 }
 "@
 
-    # Write C++ wrapper to temporary file
-    $cppFile = "$buildDir\omega_production_wrapper.cpp"
-    $cppWrapper | Out-File -FilePath $cppFile -Encoding UTF8
-    
-    Write-Info "Compiling C++ wrapper..."
-    
-    # Compile C++ wrapper
-    $compileResult = & g++ -std=c++17 -O2 -o $productionExe $cppFile 2>&1
+    # Determine wrapper source: prefer relocated src/wrapper if present, otherwise use embedded stub
+    $relocatedWrapper = Join-Path $PSScriptRoot "src\wrapper\omega_production_wrapper.cpp"
+    if (Test-Path -LiteralPath $relocatedWrapper) {
+        Write-Info "Found external wrapper source: $relocatedWrapper"
+        Write-Info "Compiling external wrapper..."
+        $compileResult = & g++ -std=c++17 -O2 -Wall -Wextra -o $productionExe $relocatedWrapper 2>&1
+    } else {
+        # Write C++ wrapper to temporary file (embedded)
+        $cppFile = "$buildDir\omega_production_wrapper.cpp"
+        $cppWrapper | Out-File -FilePath $cppFile -Encoding UTF8
+        Write-Info "Compiling embedded C++ wrapper..."
+        # Compile C++ wrapper
+        $compileResult = & g++ -std=c++17 -O2 -Wall -Wextra -o $productionExe $cppFile 2>&1
+    }
     $compileExitCode = $LASTEXITCODE
     
     if ($compileExitCode -ne 0) {

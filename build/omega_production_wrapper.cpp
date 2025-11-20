@@ -30,6 +30,43 @@ static bool command_exists(const std::string &cmd) {
 static int run_in_dir(const std::string &cmd, const std::filesystem::path &dir) {
     std::cout << "[DEBUG] run_in_dir: requested_dir=" << dir.string() << " cmd=\"" << cmd << "\"" << std::endl;
 #ifdef _WIN32
+    // Advanced quoting: ensure arguments containing spaces are quoted when not already
+    auto auto_quote_windows_args = [](const std::string &raw) {
+        std::vector<std::string> tokens; tokens.reserve(16);
+        std::string cur; bool inQuotes=false; char prev='\0';
+        for (char c : raw) {
+            if (c == '"' && prev != '\\') { inQuotes = !inQuotes; cur.push_back(c); }
+            else if ((c == ' ' || c == '\t') && !inQuotes) { if (!cur.empty()) { tokens.push_back(cur); cur.clear(); } }
+            else { cur.push_back(c); }
+            prev = c;
+        }
+        if (!cur.empty()) tokens.push_back(cur);
+        auto needs_quote = [](const std::string &t) {
+            if (t.empty()) return false;
+            if (t.front()=='"' && t.back()=='"') return false;
+            // Quote if contains whitespace or typical Windows path separators and spaces
+            return (t.find(' ') != std::string::npos) || (t.find('\t') != std::string::npos) ||
+                   (t.find("\\") != std::string::npos && t.find(' ') != std::string::npos) ||
+                   (t.find('(') != std::string::npos) || (t.find(')') != std::string::npos);
+        };
+        std::ostringstream oss;
+        for (size_t i=0;i<tokens.size();++i) {
+            std::string t = tokens[i];
+            if (needs_quote(t)) {
+                // Preserve existing embedded quotes by escaping them minimally
+                bool already_quoted = (!t.empty() && t.front()=='"' && t.back()=='"');
+                if (!already_quoted) {
+                    oss << '"' << t << '"';
+                } else {
+                    oss << t;
+                }
+            } else {
+                oss << t;
+            }
+            if (i+1 < tokens.size()) oss << ' ';
+        }
+        return oss.str();
+    };
     auto to_wstring = [](const std::string &s){ return std::wstring(s.begin(), s.end()); };
     auto ends_with_ci = [](std::string s, std::string suf){
         auto tolower_inplace = [](std::string &x){ std::transform(x.begin(), x.end(), x.begin(), [](unsigned char c){return (char)std::tolower(c);} ); };
@@ -67,8 +104,9 @@ static int run_in_dir(const std::string &cmd, const std::filesystem::path &dir) 
         // Compose command line: "exe" <args>
         std::wstring wArgs = L"\"" + wExe + L"\"";
         if (!args.empty()) {
+            std::string fixed = auto_quote_windows_args(args);
             wArgs += L" ";
-            wArgs += to_wstring(args);
+            wArgs += to_wstring(fixed);
         }
         std::wstring wDir = to_wstring(dir.string());
         STARTUPINFOW si{}; si.cb = sizeof(si);

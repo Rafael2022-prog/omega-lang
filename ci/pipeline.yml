@@ -183,6 +183,60 @@ jobs:
             Write-Host "❌ Omega binary not found after build"; exit 1
           }
 
+      - name: Setup Node.js (for optional Hardhat)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules (if present)
+        uses: actions/cache@v4
+        with:
+          path: |
+            **/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Optional install Hardhat dependencies
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          Write-Host "📦 Optional Hardhat install step (skippable)"
+          if (Test-Path .\package.json -or Test-Path .\hardhat.config.js) {
+            Write-Host "ℹ️ Detected Node project files; preparing minimal install"
+            if (Test-Path .\package-lock.json) {
+              Write-Host "Using npm ci for faster reproducible install"
+              npm ci --prefer-offline --no-audit --no-fund
+            } else {
+              Write-Host "Using npm install (no-audit/no-fund)"
+              npm install --prefer-offline --no-audit --no-fund
+            }
+            try { npx hardhat --version } catch { Write-Host "⚠️ Hardhat not available after install (non-fatal)" -ForegroundColor Yellow }
+          } else {
+            Write-Host "ℹ️ No Node/Hardhat project detected; skipping"
+          }
+
+      - name: Optional install Foundry (WSL)
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 6
+        run: |
+          Write-Host "🛠️ Optional Foundry install via WSL (skippable)"
+          try {
+            $wslList = wsl.exe -l -q 2>$null
+            if ($wslList) {
+              Write-Host "ℹ️ WSL detected; attempting foundryup in default distro"
+              $cmd = 'bash -lc "curl -L https://foundry.paradigm.xyz | bash && source $HOME/.foundry/bin/foundryup && forge --version"'
+              wsl.exe -e $cmd
+            } else {
+              Write-Host "ℹ️ WSL not available; skipping Foundry install"
+            }
+          } catch {
+            Write-Host "⚠️ Foundry install (WSL) failed or not supported; skipping" -ForegroundColor Yellow
+          }
+
       - name: Build omega-production.exe (native wrapper)
         shell: pwsh
         run: |
