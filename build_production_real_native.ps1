@@ -320,9 +320,8 @@ int main(int argc, char* argv[]) {
     $cppFileAbs = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $cppFile))
     if (Test-Path $externalCppRelocated) {
         Write-Info "Using external C++ source (relocated): $externalCppRelocated"
-        $repoAbs = [System.IO.Path]::GetFullPath($externalCppRelocated)
-        if ($repoAbs -ne $cppFileAbs) { Copy-Item -Path $externalCppRelocated -Destination $cppFileAbs -Force }
-        else { Write-Info "External source already at build location" }
+        # Compile directly from relocated source to avoid self-include recursion
+        $cppFileAbs = [System.IO.Path]::GetFullPath($externalCppRelocated)
     }
     elseif (Test-Path $externalCppLegacy) {
         Write-Info "Using external C++ source (legacy): $externalCppLegacy"
