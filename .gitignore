@@ -262,5 +262,4 @@ BLOCKCHAIN_TARGETS_RESTORATION_REPORT.md
 # ========================================
 # Exceptions: Track specific source files inside ignored dirs
 # ========================================
-# Track Windows wrapper source for omega-production (logging & quoting fixes)
-!build/omega_production_wrapper.cpp
+# Wrapper source relocated to src/wrapper; legacy build path no longer tracked

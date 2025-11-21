@@ -4,6 +4,40 @@
 
 This document explains where `omega.exe` comes from and how to rebuild the entire system from source without circular dependencies.
 
+---
+
+### Windows Native Build (Current Repo State)
+
+In the current repository state, we also provide a Windows native production wrapper (`bin/omega-production.exe`) built via `build_production_real_native.ps1`. This wrapper exposes the CLI, prints compilation phases, and produces placeholder target artifacts (.sol/.rs/.go) while IR text outputs (`*.omegair`) are simplified placeholders generated via `omega.cmd`.
+
+Quick steps:
+1. Install toolchain
+   - Prefer LLVM: `winget install -e LLVM.LLVM`
+   - Optional g++: install MinGW‑w64 (WinLibs)
+2. Build native production wrapper
+   - `./build_production_real_native.ps1 -Verbose:$true`
+3. Verify binary and wrappers
+   - `bin/omega-production.exe version`
+   - `bin/omega-production.exe help`
+   - `omega.cmd compile ./tests/ir_tests.mega`
+4. Run tests
+   - `./run_tests.ps1 -TestType all -GenerateReport`
+   - `./run_tests.ps1 -TestType unit -GenerateReport`
+
+Limitations (to be lifted when backend integration completes):
+- The production wrapper emits placeholder target outputs; non‑stub backend codegen will be integrated as the native pipeline is wired end‑to‑end.
+- Textual IR generated via `omega.cmd` is a simplified placeholder.
+
+Packaging & Distribution:
+- A zip is produced at `dist/omega-production-windows-amd64.zip`.
+- See `dist/README.md` and `dist/install-omega.ps1` for usage and installation.
+- SHA256 checksum is saved to `dist/omega-production-windows-amd64.sha256`.
+
+Unix wrapper options on Windows:
+- Cygwin (`cygpath`) or WSL (`wslpath`) can be used to create a `bin/omega` wrapper that converts Windows paths to Unix paths. The build script currently skips Unix wrapper if `cygpath` is unavailable; WSL support can be added similarly.
+
+---
+
 ## The Bootstrap Problem (v1.3.0)
 
 **Previous Issue**: The OMEGA v1.3.0 compiler had a circular dependency:

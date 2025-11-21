@@ -1,0 +1,18 @@
+blockchain NestedArraysExample {
+    // Nested dynamic arrays of strings
+    function firstOrEmpty(string[][] items) public returns (string) {
+        if (len(items) > 0 && len(items[0]) > 0) {
+            return items[0][0];
+        }
+        return "";
+    }
+
+    // Mixed nested arrays (bytes inside string[] for coverage)
+    function pickBytes(bytes[][] arr) public returns (bytes) {
+        if (len(arr) > 0 && len(arr[0]) > 0) {
+            return arr[0][0];
+        }
+        let empty: bytes = "";
+        return empty;
+    }
+}

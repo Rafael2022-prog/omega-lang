@@ -701,15 +701,29 @@ blockchain EVMCodeGenerator is BaseCodeGenerator {
         return true;
     }
     
-    /// Helper function untuk substring
+    /// Helper function untuk substring (safe bounds-checked)
+    /// Notes:
+    /// - Clamps 'end' ke panjang string bila melebihi batas
+    /// - Mengembalikan string kosong jika 'start' berada di luar batas atau end <= start
+    /// - Mencegah akses indeks di luar rentang yang dapat memicu pengecualian out-of-range
     function substring(string memory str, uint start, uint end) internal pure returns (string memory) {
         bytes memory str_bytes = bytes(str);
+        uint len = str_bytes.length;
+
+        if (start >= len) {
+            return "";
+        }
+        if (end > len) {
+            end = len;
+        }
+        if (end <= start) {
+            return "";
+        }
+
         bytes memory result = new bytes(end - start);
-        
         for (uint i = start; i < end; i++) {
             result[i - start] = str_bytes[i];
         }
-        
         return string(result);
     }
     

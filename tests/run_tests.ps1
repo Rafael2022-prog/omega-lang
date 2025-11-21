@@ -38,7 +38,7 @@ Write-Host ""
 Write-Host "TEST 1: Basic Build..." -ForegroundColor Yellow
 Push-Location "r:\OMEGA\tests\sample"
 try {
-    $output = & r:\OMEGA\omega.exe build 2>&1
+    $output = & r:\OMEGA\omega.ps1 build 2>&1
     $success = $LASTEXITCODE -eq 0 -and ($output -match "SUCCESS" -or (Test-Path "target"))
     Log-Test "Build - Basic" "omega build" $success $output
     if ($success) { Write-Host "  Output: $($output | Select-Object -First 3)" }
@@ -49,7 +49,7 @@ try {
 # Test 2: Build - Debug
 Write-Host "TEST 2: Build Debug Mode..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe build --debug 2>&1
+    $output = & r:\OMEGA\omega.ps1 build --debug 2>&1
     $success = $LASTEXITCODE -eq 0
     Log-Test "Build - Debug" "omega build --debug" $success $output
 } catch {
@@ -59,7 +59,7 @@ try {
 # Test 3: Build - Release
 Write-Host "TEST 3: Build Release Mode..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe build --release 2>&1
+    $output = & r:\OMEGA\omega.ps1 build --release 2>&1
     $success = $LASTEXITCODE -eq 0
     Log-Test "Build - Release" "omega build --release" $success $output
 } catch {
@@ -69,7 +69,7 @@ try {
 # Test 4: Build - Verbose
 Write-Host "TEST 4: Build Verbose..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe build --verbose 2>&1
+    $output = & r:\OMEGA\omega.ps1 build --verbose 2>&1
     $success = $LASTEXITCODE -eq 0
     Log-Test "Build - Verbose" "omega build --verbose" $success $output
 } catch {
@@ -79,7 +79,7 @@ try {
 # Test 5: Build - Clean
 Write-Host "TEST 5: Build Clean..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe build --clean 2>&1
+    $output = & r:\OMEGA\omega.ps1 build --clean 2>&1
     $success = $LASTEXITCODE -eq 0
     Log-Test "Build - Clean" "omega build --clean" $success $output
 } catch {
@@ -89,7 +89,7 @@ try {
 # Test 6: Test Framework - Basic
 Write-Host "TEST 6: Test Framework - Basic..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe test 2>&1
+    $output = & r:\OMEGA\omega.ps1 test 2>&1
     $success = $LASTEXITCODE -eq 0
     Log-Test "Test - Basic" "omega test" $success $output
 } catch {
@@ -99,7 +99,7 @@ try {
 # Test 7: Test Framework - Verbose
 Write-Host "TEST 7: Test Framework - Verbose..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe test --verbose 2>&1
+    $output = & r:\OMEGA\omega.ps1 test --verbose 2>&1
     $success = $LASTEXITCODE -eq 0
     Log-Test "Test - Verbose" "omega test --verbose" $success $output
 } catch {
@@ -109,7 +109,7 @@ try {
 # Test 8: Test Framework - Filter
 Write-Host "TEST 8: Test Framework - Filter..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe test --filter=math 2>&1
+    $output = & r:\OMEGA\omega.ps1 test --filter=math 2>&1
     $success = $LASTEXITCODE -eq 0
     Log-Test "Test - Filter" "omega test --filter=math" $success $output
 } catch {
@@ -119,7 +119,7 @@ try {
 # Test 9: Deploy - List Networks
 Write-Host "TEST 9: Deploy - List Networks..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe deploy --list-networks 2>&1
+    $output = & r:\OMEGA\omega.ps1 deploy --list-networks 2>&1
     $success = $LASTEXITCODE -eq 0 -or ($output -match "ethereum" -or $output -match "solana")
     Log-Test "Deploy - Networks" "omega deploy --list-networks" $success $output
 } catch {
@@ -129,7 +129,7 @@ try {
 # Test 10: Deploy - Dry Run
 Write-Host "TEST 10: Deploy - Dry Run..." -ForegroundColor Yellow
 try {
-    $output = & r:\OMEGA\omega.exe deploy goerli --dry-run 2>&1
+    $output = & r:\OMEGA\omega.ps1 deploy goerli --dry-run 2>&1
     $success = $LASTEXITCODE -eq 0 -or ($output -match "dry" -or $output -match "simulation")
     Log-Test "Deploy - DryRun" "omega deploy goerli --dry-run" $success $output
 } catch {

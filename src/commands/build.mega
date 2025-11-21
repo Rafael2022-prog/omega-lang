@@ -131,6 +131,12 @@ public function build_main(string[] args) returns (int32) {
         println_error_format("Build failed with %d errors", ctx.error_count);
         return 1;
     }
+
+    println("🔎 Verifying artifacts...");
+    if (!verify_artifacts(source_files, config, ctx)) {
+        println_error("Artifact verification failed");
+        return 1;
+    }
     
     // Optimize if release mode
     if (string_equal(ctx.mode, "release")) {
@@ -147,6 +153,7 @@ public function build_main(string[] args) returns (int32) {
     println_format("║  Mode: %s", ctx.mode);
     println_format("║  Time: %dms", elapsed);
     println("║  Output: target/                                              ║");
+    print_artifact_summary(config);
     println("╚════════════════════════════════════════════════════════════════╝");
     println("");
     
@@ -295,7 +302,7 @@ private function generate_evm_target(ProjectConfig config, BuildContext ctx) ret
     // Generate Solidity-compatible bytecode
     string output = "target/evm/";
     output += config.name;
-    output += ".abi";
+    output += ".sol";
     
     println_format("     → %s", output);
     return true;
@@ -311,7 +318,7 @@ private function generate_solana_target(ProjectConfig config, BuildContext ctx) 
     
     string output = "target/solana/";
     output += config.name;
-    output += ".so";
+    output += ".rs";
     
     println_format("     → %s", output);
     return true;
@@ -325,7 +332,7 @@ private function generate_cosmos_target(ProjectConfig config, BuildContext ctx) 
         return false;
     }
     
-    println("     → target/cosmos/module.wasm");
+    println("     → target/cosmos/module.go");
     return true;
 }
 
@@ -379,16 +386,36 @@ private function extract_toml_string(string content, string key) returns (string
 }
 
 private function extract_toml_array(string content, string key) returns (string[]) {
-    // Simplified TOML array parsing
-    uint256 bracket_start = string_index_of_from(content, "[", string_index_of(content, key));
-    uint256 bracket_end = string_index_of_from(content, "]", bracket_start);
-    
+    uint256 key_pos = string_index_of(content, key);
+    if (key_pos == 0xFFFFFFFFFFFFFFFF) {
+        string[] empty = new string[0];
+        return empty;
+    }
+    uint256 bracket_start = string_index_of_from(content, "[", key_pos);
+    if (bracket_start == 0xFFFFFFFFFFFFFFFF) {
+        string[] empty = new string[0];
+        return empty;
+    }
+    uint256 bracket_end = string_index_of_from(content, "]", bracket_start + 1);
+    if (bracket_end == 0xFFFFFFFFFFFFFFFF) {
+        string[] empty = new string[0];
+        return empty;
+    }
     string array_content = string_substring(content, bracket_start + 1, bracket_end);
-    
-    string[] result = new string[0];
-    // TODO: Parse comma-separated values
-    
-    return result;
+    string[] parts = new string[0];
+    uint256 last = 0;
+    for (uint256 i = 0; i < array_content.length; i++) {
+        if (array_content[i] == ',') {
+            string token = string_substring(array_content, last, i);
+            parts = _push_string(parts, _trim_token(token));
+            last = i + 1;
+        }
+    }
+    string tail = string_substring(array_content, last, array_content.length);
+    if (tail.length > 0) {
+        parts = _push_string(parts, _trim_token(tail));
+    }
+    return parts;
 }
 
 private function string_equal(string a, string b) returns (bool) {
@@ -401,6 +428,26 @@ private function string_equal(string a, string b) returns (bool) {
         }
     }
     return true;
+}
+
+private function _trim_token(string s) returns (string) {
+    uint256 start = 0;
+    while (start < s.length && (s[start] == ' ' || s[start] == '\n' || s[start] == '\t')) { start++; }
+    uint256 end = s.length;
+    while (end > start && (s[end - 1] == ' ' || s[end - 1] == '\n' || s[end - 1] == '\t')) { end--; }
+    string t = string_substring(s, start, end);
+    if (t.length >= 2 && t[0] == '"' && t[t.length - 1] == '"') {
+        t = string_substring(t, 1, t.length - 1);
+    }
+    return t;
+}
+
+private function _push_string(string[] arr, string item) returns (string[]) {
+    if (item.length == 0) { return arr; }
+    string[] out = new string[arr.length + 1];
+    for (uint256 i = 0; i < arr.length; i++) { out[i] = arr[i]; }
+    out[arr.length] = item;
+    return out;
 }
 
 private function string_contains(string str, string substr) returns (bool) {
@@ -573,4 +620,56 @@ private function analyze_semantics(string ast) returns (AnalysisResult) {
 
 private function generate_ir(string ast, AnalysisResult analysis) returns (bool) {
     return true;
+}
+private function verify_artifacts(string[] source_files, ProjectConfig config, BuildContext ctx) returns (bool) {
+    bool ok = true;
+    for (uint256 i = 0; i < config.targets.length; i++) {
+        string target = config.targets[i];
+        string tdir = string_concat("target/", target);
+        for (uint256 j = 0; j < source_files.length; j++) {
+            string src = source_files[j];
+            string base = basename_without_ext(src);
+            string ir = string_concat(string_concat(tdir, "/"), string_concat(base, ".omegair"));
+            if (!fs_file_exists(ir)) { ok = false; }
+            string ext = target_ext(target);
+            if (ext.length > 0) {
+                string art = string_concat(string_concat(tdir, "/"), string_concat(base, ext));
+                if (!fs_file_exists(art)) { ok = false; }
+            }
+        }
+    }
+    return ok;
+}
+
+private function print_artifact_summary(ProjectConfig config) {
+    println("║  Artifacts:");
+    for (uint256 i = 0; i < config.targets.length; i++) {
+        string target = config.targets[i];
+        string tdir = string_concat("target/", target);
+        println_format("║    • %s", tdir);
+    }
+}
+
+private function basename_without_ext(string path) returns (string) {
+    uint256 slash = last_index_of(path, '/');
+    uint256 bslash = last_index_of(path, '\\');
+    uint256 sep = slash > bslash ? slash : bslash;
+    string name = sep == 0xFFFFFFFFFFFFFFFF ? path : string_substring(path, sep + 1, path.length);
+    uint256 dot = last_index_of(name, '.');
+    if (dot == 0xFFFFFFFFFFFFFFFF) { return name; }
+    return string_substring(name, 0, dot);
+}
+
+private function last_index_of(string str, char c) returns (uint256) {
+    for (uint256 i = str.length; i > 0; i--) {
+        if (str[i - 1] == c) { return i - 1; }
+    }
+    return 0xFFFFFFFFFFFFFFFF;
+}
+
+private function target_ext(string target) returns (string) {
+    if (string_equal(target, "evm")) { return ".sol"; }
+    if (string_equal(target, "solana")) { return ".rs"; }
+    if (string_equal(target, "cosmos")) { return ".go"; }
+    return "";
 }

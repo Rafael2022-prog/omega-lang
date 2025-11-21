@@ -1,0 +1,84 @@
+// Math test suite - Tests mathematical functions
+import "src/std/assert";
+import "src/math";
+import "src/utils";
+
+test_add_positive() {
+    let result: i32 = add(5, 3);
+    assert_equal_int(result, 8);
+}
+
+test_add_negative() {
+    let result: i32 = add(-5, -3);
+    assert_equal_int(result, -8);
+}
+
+test_add_mixed() {
+    let result: i32 = add(10, -5);
+    assert_equal_int(result, 5);
+}
+
+test_subtract() {
+    let result: i32 = subtract(10, 3);
+    assert_equal_int(result, 7);
+}
+
+test_multiply() {
+    let result: i32 = multiply(4, 5);
+    assert_equal_int(result, 20);
+}
+
+test_multiply_zero() {
+    let result: i32 = multiply(10, 0);
+    assert_equal_int(result, 0);
+}
+
+test_divide() {
+    let result: i32 = divide(20, 4);
+    assert_equal_int(result, 5);
+}
+
+test_divide_by_zero() {
+    let result: i32 = divide(10, 0);
+    assert_equal_int(result, 0);
+}
+
+test_power() {
+    let result: i32 = power(2, 3);
+    assert_equal_int(result, 8);
+}
+
+test_power_zero() {
+    let result: i32 = power(5, 0);
+    assert_equal_int(result, 1);
+}
+
+test_is_positive() {
+    assert_true(is_positive(5));
+    assert_false(is_positive(-5));
+    assert_false(is_positive(0));
+}
+
+test_is_negative() {
+    assert_true(is_negative(-5));
+    assert_false(is_negative(5));
+    assert_false(is_negative(0));
+}
+
+test_abs() {
+    assert_equal_int(abs(10), 10);
+    assert_equal_int(abs(-10), 10);
+    assert_equal_int(abs(0), 0);
+}
+
+test_max() {
+    assert_equal_int(max(5, 3), 5);
+    assert_equal_int(max(3, 5), 5);
+    assert_equal_int(max(5, 5), 5);
+}
+
+test_min() {
+    assert_equal_int(min(5, 3), 3);
+    assert_equal_int(min(3, 5), 3);
+    assert_equal_int(min(5, 5), 5);
+}

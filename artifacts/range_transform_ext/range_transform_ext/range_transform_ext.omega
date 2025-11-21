@@ -1,0 +1,37 @@
+﻿// Extended range transform test cases
+blockchain RangeTransformExt {
+    function main() public {
+        let sum: u256 = 0;
+        // Ascending step 2
+        for i in range(0, 10, 2) {
+            sum = sum + i;
+        }
+        // Ascending step 3
+        for p in range(0, 9, 3) {
+            sum = sum + p;
+        }
+        // Descending step -3 (signed loop)
+        for j in range(10, 0, -3) {
+            sum = sum + j;
+        }
+        // Variable-based bounds (unit step)
+        let a: u256 = 5;
+        let b: u256 = 5;
+        for k in range(a, b) {
+            sum = sum + k;
+        }
+        // Variable-defined step (ascending)
+        let step2: u256 = 2;
+        for q in range(0, 8, step2) {
+            sum = sum + q;
+        }
+        // Zero-to-zero range (no iterations)
+        for m in range(0, 0) {
+            sum = sum + m;
+        }
+        // Large step
+        for n in range(0, 100, 20) {
+            sum = sum + n;
+        }
+    }
+}

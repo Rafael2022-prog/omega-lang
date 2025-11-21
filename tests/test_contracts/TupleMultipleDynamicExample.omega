@@ -1,0 +1,20 @@
+blockchain TupleMultipleDynamicExample {
+    // Tuple return including multiple dynamic types
+    function retMulti(string a, bytes b, u256[] c) public returns (string, bytes, u256[]) {
+        return (a, b, c);
+    }
+
+    // Use len() on array element to test transformation
+    function useLengths(u256[] xs, string[] ss) public returns (u256) {
+        let sum: u256 = 0;
+        if (len(xs) > 0) {
+            // Just return first element for simplicity
+            return xs[0];
+        }
+        if (len(ss) > 0) {
+            // Return the count of strings for coverage
+            return len(ss);
+        }
+        return sum;
+    }
+}

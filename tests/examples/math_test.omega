@@ -1,0 +1,97 @@
+# OMEGA Test Example
+# This is an example test file demonstrating the testing framework
+
+# Test file: tests/math.test.omega
+
+import "src/std/assert";
+import "src/math/operations";
+
+# Basic arithmetic tests
+
+function test_addition() {
+    uint256 result = add(2, 3);
+    assert_equal_int(5, result);
+}
+
+function test_subtraction() {
+    uint256 result = subtract(10, 3);
+    assert_equal_int(7, result);
+}
+
+function test_multiplication() {
+    uint256 result = multiply(4, 5);
+    assert_equal_int(20, result);
+}
+
+function test_division() {
+    uint256 result = divide(20, 4);
+    assert_equal_int(5, result);
+}
+
+function test_division_by_zero() {
+    assert_throws(function() {
+        divide(10, 0);
+    });
+}
+
+# String tests
+
+function test_string_equality() {
+    string result = "hello";
+    assert_equal("hello", result);
+}
+
+function test_string_concatenation() {
+    string result = "hello" + " " + "world";
+    assert_equal("hello world", result);
+}
+
+# Array tests
+
+function test_array_length() {
+    uint256[] arr = [1, 2, 3, 4, 5];
+    assert_equal_int(5, arr.length);
+}
+
+function test_array_access() {
+    uint256[] arr = [10, 20, 30];
+    assert_equal_int(20, arr[1]);
+}
+
+# Smart contract tests
+
+function test_contract_deploy() {
+    // Tests for contract deployment
+    assert_true(true);
+}
+
+function test_contract_interaction() {
+    // Tests for contract calls
+    assert_not_null("contract_address");
+}
+
+# Boolean tests
+
+function test_true() {
+    assert_true(true);
+}
+
+function test_false() {
+    assert_false(false);
+}
+
+# Composite tests
+
+function test_complex_calculation() {
+    uint256 result = (add(5, 3) * multiply(2, 3)) / divide(100, 10);
+    assert_equal_int(480, result);
+}
+
+# Benchmarks (optional)
+
+function benchmark_add() {
+    # This function will be timed by the test runner
+    for (uint256 i = 0; i < 1000; i++) {
+        add(i, i + 1);
+    }
+}

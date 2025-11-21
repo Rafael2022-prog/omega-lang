@@ -1,0 +1,34 @@
+blockchain StringReturnExample {
+    // Functions that return dynamic types without explicit data location
+    function greet() public view returns (string) {
+        return "hello";
+    }
+
+    function echo(string input) public returns (string) {
+        return input;
+    }
+
+    function passBytes(bytes data) public returns (bytes) {
+        return data;
+    }
+
+    // Arrays of dynamic types
+    function sumStrings(string[] items) public returns (string) {
+        let result: string = "";
+        // pseudo concatenation for testing codegen only
+        // In actual OMEGA, concatenation would be handled by std lib
+        // Here we just return the first item to keep example simple
+        if (len(items) > 0) {
+            return items[0];
+        }
+        return result;
+    }
+
+    function echoBytesArray(bytes[] items) public returns (bytes) {
+        if (len(items) > 0) {
+            return items[0];
+        }
+        let empty: bytes = "";
+        return empty;
+    }
+}

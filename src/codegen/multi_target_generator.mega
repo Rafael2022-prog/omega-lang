@@ -38,7 +38,8 @@ blockchain CosmosCodeGenerator is BaseCodeGenerator {
     }
     
     function generate(IRModule memory module) public override returns (string memory) {
-        string memory result = "package main\n\n";
+        // Emit Go package name based on the first blockchain/module name (e.g., "BasicToken")
+        string memory result = string(abi.encodePacked("package ", module.blockchains[0].name, "\n\n"));
         result = string(abi.encodePacked(result, generate_cosmos_imports()));
         result = string(abi.encodePacked(result, generate_cosmos_module(module.blockchains[0])));
         return result;

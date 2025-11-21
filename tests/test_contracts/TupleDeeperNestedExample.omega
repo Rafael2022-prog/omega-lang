@@ -1,0 +1,18 @@
+// Regression: deeper nested tuples and dynamic arrays
+// Validates emitter: tuple flattening, memory insertion, and pure/view inference
+
+blockchain TupleDeeperNestedExample {
+    // Returns a triple-nested tuple where inner items include dynamic types
+    function retDeeper(string a, bytes[] bArr, u256[][] nums2d, bytes c)
+        returns (((string, bytes[]), u256[][]), bytes) {
+        return (((a, bArr), nums2d), c);
+    }
+
+    // Fallback length: prefer first nested name length if present, else bytes length
+    function echoLens(bytes bb, string[][] names) returns (u256) {
+        if len(names) > 0 && len(names[0]) > 0 {
+            return len(names[0][0]);
+        }
+        return len(bb);
+    }
+}
