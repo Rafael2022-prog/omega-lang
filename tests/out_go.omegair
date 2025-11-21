@@ -1,6 +1,0 @@
-; OMEGA IR v1.0
-module out_go
-  ; This is a simplified textual IR placeholder
-  ; Real IR generation is handled by the native compiler,
-  ; and will include typed symbols, control-flow graphs,
-  ; and target-lowering information.
