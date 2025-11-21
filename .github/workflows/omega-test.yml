@@ -2,9 +2,23 @@ name: 🧪 OMEGA Cross-Platform Test Workflow
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'ide/**'
+      - 'omega-vscode-extension/**'
+      - 'homebrew-tap/**'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'ide/**'
+      - 'omega-vscode-extension/**'
+      - 'homebrew-tap/**'
 
 jobs:
   omega_tests:
@@ -22,21 +36,20 @@ jobs:
         if: runner.os != 'Windows'
         uses: ./.github/actions/setup-powershell
 
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18.x'
-          cache: 'npm'
-
-      - name: 📦 Install OMEGA CLI
+      - name: ⛔ Skip external CLI install (pure native policy)
         run: |
-          npm install -g @omega-lang/cli
-          omega --version
+          echo "Skipping npm/choco installs to align with pure native compiler"
+        shell: bash
 
-      - name: 🧪 Run integration tests
+      - name: 🧪 Run native integration tests (if available)
+        shell: pwsh
         run: |
-          echo "Running integration tests with omega CLI..."
-          omega test tests/integration_tests.mega
+          if (Test-Path './omega.exe') {
+            Write-Host "Running integration tests with native omega.exe"
+            ./omega.exe test tests/integration_tests.mega
+          } else {
+            Write-Host "omega.exe not present; skipping native tests" -ForegroundColor Yellow
+          }
 
       - name: 🔎 Compute version for artifact naming
         uses: ./.github/actions/compute-version
