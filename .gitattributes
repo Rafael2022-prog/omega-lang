@@ -1,0 +1,26 @@
+* text=auto
+
+# Windows scripts should use CRLF
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+*.psd1  text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Unix-y / source files prefer LF
+*.sh    text eol=lf
+*.cpp   text eol=lf
+*.hpp   text eol=lf
+*.h     text eol=lf
+*.c     text eol=lf
+*.rs    text eol=lf
+*.go    text eol=lf
+*.sol   text eol=lf
+*.mega  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+*.json  text eol=lf
+*.js    text eol=lf
+*.ts    text eol=lf

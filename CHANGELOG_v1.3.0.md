@@ -129,6 +129,48 @@ strip = true
 - Troubleshooting performance issues
 - Benchmark interpretation guide
 
+### Tooling & CLI Updates (November 2025)
+- Added EVM test/deploy scaffolding using Foundry via `omega-production.exe test|deploy --target evm`
+- Implemented Windows WSL fallback: OMEGA akan menjalankan `forge` di WSL bila tidak tersedia di PATH Windows
+- Added helper script `scripts/setup_foundry_windows.ps1` dan dokumentasi `docs/toolchains/foundry_windows.md`
+- Stabilized Windows PATH for WinLibs runtime DLLs
+- Enhanced codegen:
+  - EVM: stabilisasi penamaan kontrak (deteksi `blockchain <Name> { ... }`)
+  - Solana/Anchor: state skalar di `#[account] State`, event `#[event]`, `Accounts` dan handler stub
+  - Cosmos/SDK: `MsgTransfer`, `MsgApproval`, `Keeper` kosong, handler stub
+
+### Maintenance Update (January 2025)
+- Wrapper C++ direlokasi: titik masuk produksi berada di `src/wrapper/omega_production_wrapper.cpp` dan skrip build/E2E memprioritaskan sumber eksternal ini.
+- Diagnostik crash EVM: ditambahkan handler `std::set_terminate` global (aktif sebelum `main()`) untuk mencatat exception tak-tertangani seperti `std::out_of_range` pada jalur emitter wrapper EVM.
+- Normalisasi line ending: `.gitattributes` ditambahkan (`text=auto`, skrip PowerShell CRLF) untuk menghilangkan peringatan LF/CRLF di Windows.
+- Cosmos codegen: PS wrapper (`omega.ps1`) kini memancarkan `package <ModuleName>` (contoh: `package BasicToken`) agar sesuai konvensi dan ekspektasi pengujian. Multi-target generator (`multi_target_generator.mega`) diselaraskan.
+- E2E: skrip `artifact_content_checks.ps1` kembali lulus untuk target Cosmos setelah penyesuaian paket.
+
+#### Tambahan: Peningkatan Codegen EVM (Data Location & Validitas Solidity)
+- Penyisipan otomatis `memory` untuk tipe dinamis pada parameter dan nilai kembalian:
+  - `string`, `bytes`, dan semua tipe array (termasuk nested arrays seperti `string[][]`).
+- Dukungan tuple returns yang berisi tipe dinamis (contoh: `returns (string, int32[] )`).
+- Pemetaan tipe numerik OMEGA ke Solidity di signature dan body:
+  - `i32` → `int32`, `u32` → `uint32`, `i64` → `int64`, `u64` → `uint64`, dll.
+- Transformasi sintaks OMEGA menjadi Solidity yang valid di body fungsi:
+  - `let name: type = expr;` → `type [memory] name = expr;` (menambahkan `memory` untuk tipe dinamis).
+  - `len(expr)` → `expr.length` untuk array/bytes, dan `len(stringExpr)` → `bytes(stringExpr).length` (deteksi berbasis tipe parameter; mendukung ekspresi bertingkat seperti `names[0][0]`).
+  - `return ((a, b), nums, labels);` → `return (a, b, nums, labels);` (flatten nested tuple returns agar valid di Solidity).
+  - Konversi literal string ke bytes saat diperlukan: `bytes memory x = bytes("...")`.
+- Tes baru untuk memverifikasi keluaran Solidity:
+  - `tests/test_contracts/StringReturnExample.omega`
+  - `tests/test_contracts/ArrayReturnExample.omega`
+  - `tests/test_contracts/TupleNestedExample.omega`
+  - `tests/test_contracts/NestedArraysExample.omega`
+  - `tests/test_contracts/TupleMultipleDynamicExample.omega`
+  - `tests/test_contracts/StringLengthExample.omega`
+  - `tests/test_contracts/TupleDeepDynamicExample.omega`
+- Validasi kompilasi Solidity menggunakan Hardhat (solc ^0.8.20) untuk kontrak hasil codegen di atas.
+  - Kompilasi berhasil untuk contoh tambahan `NestedArraysExample.sol` dan `TupleMultipleDynamicExample.sol`.
+  - Kompilasi berhasil untuk `StringLengthExample.sol` dan `TupleDeepDynamicExample.sol` (returns di-flatten agar valid di Solidity).
+  - Verifikasi normalisasi `len()` untuk `string`: `bytes(s).length` dan `bytes(names[0][0]).length`.
+  - Peringatan mutability telah dihilangkan dengan menambahkan modifier `pure` pada fungsi yang tidak menyentuh state.
+
 ## 🔄 Migration Notes
 
 ### Breaking Changes

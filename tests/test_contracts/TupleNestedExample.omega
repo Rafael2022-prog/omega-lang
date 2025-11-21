@@ -1,0 +1,13 @@
+blockchain TupleNestedExample {
+    function retTupleDyn(string a, i32[] b) public returns (string, i32[]) {
+        return (a, b);
+    }
+
+    function processNested(string[][] items) public returns (string) {
+        // Return first item if exists, else empty
+        if (len(items) > 0 && len(items[0]) > 0) {
+            return items[0][0];
+        }
+        return "";
+    }
+}

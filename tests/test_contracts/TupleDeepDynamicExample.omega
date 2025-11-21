@@ -1,0 +1,15 @@
+blockchain TupleDeepDynamicExample {
+    // Return nested tuple with multiple dynamic types
+    function retNested(string a, bytes b, u256[] nums, string[][] labels) returns ((string, bytes), u256[], string[][]) {
+        return ((a, b), nums, labels);
+    }
+
+    // Use lengths to exercise transformations
+    function lens(bytes bb, string[][] names) returns (u256) {
+        if len(names) > 0 && len(names[0]) > 0 {
+            // first label length
+            return len(names[0][0]);
+        }
+        return len(bb);
+    }
+}

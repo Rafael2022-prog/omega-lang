@@ -1,0 +1,9 @@
+// Regression: named outputs in returns signature, dynamic types
+// Validates emitter memory insertion and ABI names preservation
+
+blockchain NamedOutputsExample {
+    function retNamed(string a, bytes b, u256[] nums)
+        returns (string aOut, bytes bOut, u256[] numsOut) {
+        return (a, b, nums);
+    }
+}

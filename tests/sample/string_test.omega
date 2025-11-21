@@ -1,0 +1,42 @@
+// String utility tests
+import "src/std/assert";
+
+test_string_creation() {
+    let str: string = "hello";
+    assert_true(str != null);
+}
+
+test_string_comparison() {
+    let str1: string = "omega";
+    let str2: string = "omega";
+    assert_equal(str1, str2);
+}
+
+test_string_not_equal() {
+    let str1: string = "omega";
+    let str2: string = "solana";
+    assert_true(str1 != str2);
+}
+
+test_string_contains() {
+    let text: string = "hello world";
+    assert_contains(text, "world");
+    assert_contains(text, "hello");
+}
+
+test_string_length() {
+    let str: string = "omega";
+    assert_equal_int(len(str), 5);
+}
+
+test_empty_string() {
+    let str: string = "";
+    assert_equal_int(len(str), 0);
+}
+
+test_string_concatenation() {
+    let str1: string = "hello";
+    let str2: string = "world";
+    let result: string = str1 + " " + str2;
+    assert_equal(result, "hello world");
+}

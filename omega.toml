@@ -176,8 +176,8 @@ polygonscan_api_key = "${POLYGONSCAN_API_KEY}"
 
 # Security settings
 [security]
-audit_mode = false
-formal_verification = false
+audit_mode = true
+formal_verification = true
 static_analysis = true
 dependency_scanning = true
 

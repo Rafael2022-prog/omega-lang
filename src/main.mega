@@ -15,6 +15,9 @@ import "optimizer/optimizer_core";
 import "codegen/codegen";
 import "error/error";
 import "utils/secure_timestamp";
+import "src/commands/build";
+import "src/commands/test";
+import "src/commands/deploy";
 
 /// Main entry point function untuk OMEGA compiler
 /// Membuat instance OmegaCompilerMain dan menjalankan dengan command line arguments
@@ -238,93 +241,7 @@ blockchain OmegaCompiler {
     /// @param args Build-specific command line arguments
     /// @return Exit code (0 untuk sukses, non-zero untuk error)
     function _handle_build(string[] args) private returns (int) {
-        // Parse build-specific arguments
-        BuildConfig build_config = _parse_build_args(args);
-        
-        // Verbose output untuk debugging
-        if (config.verbose) {
-            _print_info("Starting OMEGA compilation...");
-            _print_info(string.concat("Source file: ", build_config.source_file));
-            _print_info(string.concat("Target platforms: ", _join_strings(build_config.target_platforms, ", ")));
-        }
-
-        // Record start time untuk performance metrics
-        SecureTimestamp secure_ts = SecureTimestamp::new();
-        uint256 start_time = secure_ts.get_secure_timestamp();
-
-        // Phase 1: Lexical Analysis - tokenize source code
-        if (config.verbose) _print_info("Phase 1: Lexical Analysis");
-        Token[] tokens = lexer.tokenize_file(build_config.source_file);
-        stats.tokens_processed = tokens.length;
-
-        // Check untuk lexer errors
-        if (lexer.has_errors()) {
-            _print_lexer_errors();
-            return 1;
-        }
-
-        // Phase 2: Parsing - build Abstract Syntax Tree
-        if (config.verbose) _print_info("Phase 2: Parsing");
-        Program ast = parser.parse(tokens);
-        stats.ast_nodes = _count_ast_nodes(ast);
-
-        // Check untuk parser errors
-        if (parser.has_errors()) {
-            _print_parser_errors();
-            return 1;
-        }
-
-        // Phase 3: Semantic Analysis - type checking dan validation
-        if (config.verbose) _print_info("Phase 3: Semantic Analysis");
-        semantic_analyzer.analyze(ast);
-
-        // Check untuk semantic errors
-        if (semantic_analyzer.has_errors()) {
-            _print_semantic_errors();
-            return 1;
-        }
-
-        // Phase 4: IR Generation - generate intermediate representation
-        if (config.verbose) _print_info("Phase 4: IR Generation");
-        IRModule ir_module = ir_generator.generate_ir(ast);
-        stats.ir_instructions = _count_ir_instructions(ir_module);
-
-        // Phase 5: Optimization - optimize intermediate representation
-        if (config.verbose) _print_info("Phase 5: IR Optimization");
-        optimizer.set_optimization_level(config.optimization_level);
-        optimizer.set_optimization_target(OptimizationTarget.All);
-        OptimizationResult opt_result = optimizer.optimize(ir_module);
-        
-        // Update IR module dengan hasil optimasi
-        ir_module = opt_result.optimized_module;
-        
-        // Log optimization statistics jika verbose
-        if (config.verbose) {
-            OptimizationStats opt_stats = optimizer.get_global_stats();
-            _print_info(string.concat("   - Optimizations applied: ", _to_string(opt_stats.total_optimizations)));
-            _print_info(string.concat("   - Instructions eliminated: ", _to_string(opt_stats.instructions_eliminated)));
-            _print_info(string.concat("   - Performance improvement: ", _to_string(opt_stats.performance_improvement), "%"));
-        }
-
-        // Phase 6: Code Generation - generate target-specific code
-        if (config.verbose) _print_info("Phase 6: Code Generation");
-        GenerationResult gen_result = code_generator.generate_multi_target(
-            ir_module, 
-            build_config.target_platforms
-        );
-
-        // Phase 7: Write Output Files - save generated code to files
-        if (config.verbose) _print_info("Phase 7: Writing Output Files");
-        _write_output_files_from_result(gen_result, build_config);
-
-        // Update compilation statistics
-        uint256 end_time = secure_ts.get_secure_timestamp();
-        stats.compilation_time_ms = (end_time - start_time) * 1000;
-        stats.generated_files = build_config.target_platforms.length;
-
-        // Print success message
-        _print_compilation_success();
-        return 0;
+        return build_main(args);
     }
 
     /// Handler untuk deploy command - deploy compiled contracts ke blockchain networks
@@ -332,75 +249,7 @@ blockchain OmegaCompiler {
     /// @param args Deploy-specific command line arguments
     /// @return Exit code (0 untuk sukses, non-zero untuk error)
     function _handle_deploy(string[] args) private returns (int) {
-        // Validasi minimal arguments untuk deploy
-        if (args.length < 2) {
-            _print_error("Usage: omega deploy --target <platform> --network <network>");
-            return 1;
-        }
-
-        // Extract target platform dan network dari arguments
-        string target_platform = _get_flag_value(args, "--target");
-        string network = _get_flag_value(args, "--network");
-
-        // Validasi required flags
-        if (target_platform == "" || network == "") {
-            _print_error("Both --target and --network flags are required");
-            return 1;
-        }
-
-        // Start deployment process
-        _print_info(string.concat("Deploying to ", target_platform, " on ", network, " network..."));
-        
-        // Implement actual deployment logic
-        try {
-            // Load compiled contracts from build directory
-            string[] contract_files = _discover_compiled_contracts();
-            if (contract_files.length == 0) {
-                _print_error("No compiled contracts found. Run 'omega build' first.");
-                return 1;
-            }
-            
-            // Initialize deployment manager for target platform
-            DeploymentManager memory deploy_manager = _create_deployment_manager(target_platform, network);
-            
-            // Connect to target network
-            bool connected = deploy_manager.connect_to_network();
-            if (!connected) {
-                _print_error(string.concat("Failed to connect to ", network, " network"));
-                return 1;
-            }
-            
-            // Deploy each contract
-            for (uint256 i = 0; i < contract_files.length; i++) {
-                _print_info(string.concat("Deploying contract: ", contract_files[i]));
-                
-                DeploymentResult memory result = deploy_manager.deploy_contract(contract_files[i]);
-                
-                if (!result.success) {
-                    _print_error(string.concat("Failed to deploy ", contract_files[i], ": ", result.error_message));
-                    return 1;
-                }
-                
-                _print_success(string.concat("Contract deployed at: ", result.contract_address));
-                
-                // Verify deployment if requested
-                if (_has_flag(args, "--verify")) {
-                    bool verified = deploy_manager.verify_contract(result.contract_address, contract_files[i]);
-                    if (verified) {
-                        _print_success("Contract verification successful");
-                    } else {
-                        _print_warning("Contract verification failed");
-                    }
-                }
-            }
-            
-        } catch (Error memory e) {
-            _print_error(string.concat("Deployment failed: ", e.message));
-            return 1;
-        }
-        
-        _print_success("Deployment completed successfully!");
-        return 0;
+        return deploy_main(args);
     }
 
     /// Handler untuk test command - jalankan test suite
@@ -408,74 +257,7 @@ blockchain OmegaCompiler {
     /// @param args Test-specific command line arguments
     /// @return Exit code (0 untuk sukses, non-zero untuk error)
     function _handle_test(string[] args) private returns (int) {
-        _print_info("Running OMEGA tests...");
-        
-        // Implement test execution logic
-        try {
-            // Parse test options
-            string test_pattern = _get_flag_value(args, "--pattern");
-            bool verbose = _has_flag(args, "--verbose");
-            bool cross_chain = _has_flag(args, "--cross-chain");
-            
-            // Discover test files
-            string[] test_files = _discover_test_files(test_pattern);
-            if (test_files.length == 0) {
-                _print_warning("No test files found matching pattern");
-                return 0;
-            }
-            
-            _print_info(string.concat("Found ", uint256_to_string(test_files.length), " test files"));
-            
-            // Initialize test runner
-            TestRunner memory test_runner = _create_test_runner(verbose, cross_chain);
-            TestResults memory overall_results = TestResults({
-                total_tests: 0,
-                passed_tests: 0,
-                failed_tests: 0,
-                skipped_tests: 0,
-                execution_time: 0
-            });
-            
-            // Compile and execute each test file
-            for (uint256 i = 0; i < test_files.length; i++) {
-                _print_info(string.concat("Running tests in: ", test_files[i]));
-                
-                // Compile test contract
-                CompilationResult memory compile_result = _compile_test_file(test_files[i]);
-                if (!compile_result.success) {
-                    _print_error(string.concat("Failed to compile test: ", compile_result.error_message));
-                    overall_results.failed_tests++;
-                    continue;
-                }
-                
-                // Execute tests in the file
-                TestResults memory file_results = test_runner.execute_test_file(test_files[i], compile_result);
-                
-                // Aggregate results
-                overall_results.total_tests += file_results.total_tests;
-                overall_results.passed_tests += file_results.passed_tests;
-                overall_results.failed_tests += file_results.failed_tests;
-                overall_results.skipped_tests += file_results.skipped_tests;
-                overall_results.execution_time += file_results.execution_time;
-                
-                if (verbose) {
-                    _print_test_file_summary(test_files[i], file_results);
-                }
-            }
-            
-            // Generate comprehensive test report
-            _generate_test_report(overall_results, test_files);
-            
-            // Print final summary
-            _print_test_summary(overall_results);
-            
-            // Return appropriate exit code
-            return overall_results.failed_tests > 0 ? 1 : 0;
-            
-        } catch (Error memory e) {
-            _print_error(string.concat("Test execution failed: ", e.message));
-            return 1;
-        }
+        return test_main(args);
     }
 
     /// Handler untuk init command - inisialisasi project baru

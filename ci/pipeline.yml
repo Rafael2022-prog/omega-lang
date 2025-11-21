@@ -8,9 +8,10 @@ version: "1.0.0"
 # Pipeline triggers
 on:
   push:
-    branches: [ main, develop, feature/* ]
+    branches: [ main, develop, feature/*, ci/* ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
   release:
     types: [ published ]
   schedule:
@@ -87,6 +88,13 @@ jobs:
           }
           Write-Host "✅ Project structure validation passed"
 
+      - name: Mask sensitive environment variables (GitHub Actions)
+        shell: pwsh
+        run: |
+          Write-Host "🔒 Masking sensitive environment variables in logs (if set)"
+          if ($env:OMEGA_SERVER_IP) { Write-Host "::add-mask::$($env:OMEGA_SERVER_IP)" }
+          if ($env:OMEGA_SERVER_DOMAIN) { Write-Host "::add-mask::$($env:OMEGA_SERVER_DOMAIN)" }
+
   # Code quality checks
   code_quality:
     name: "Code Quality Analysis"
@@ -156,7 +164,15 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "🔧 Building native OMEGA binary for unit tests..."
-          pwsh -NoProfile -ExecutionPolicy Bypass -File build_omega_native.ps1
+          if (Test-Path .\build_omega_native.ps1) {
+            Write-Host "ℹ️ Using build_omega_native.ps1"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File build_omega_native.ps1
+          } elseif (Test-Path .\build.ps1) {
+            Write-Host "ℹ️ Using build.ps1 as fallback"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File build.ps1
+          } else {
+            Write-Host "❌ No build script found (build_omega_native.ps1 or build.ps1)"; exit 1
+          }
           if (Test-Path ".\omega.exe") {
             Write-Host "✅ omega.exe built successfully"
             .\omega.exe --version
@@ -164,8 +180,98 @@ jobs:
             Write-Host "✅ omega.ps1 available"
             pwsh -NoProfile -ExecutionPolicy Bypass -File .\omega.ps1 --version
           } else {
-            Write-Host "❌ Omega binary not found after build"
-            exit 1
+            Write-Host "❌ Omega binary not found after build"; exit 1
+          }
+
+      - name: Setup Node.js (for optional Hardhat)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules (if present)
+        uses: actions/cache@v4
+        with:
+          path: |
+            **/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Optional install Hardhat dependencies
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          Write-Host "📦 Optional Hardhat install step (skippable)"
+          if (Test-Path .\package.json -or Test-Path .\hardhat.config.js) {
+            Write-Host "ℹ️ Detected Node project files; preparing minimal install"
+            if (Test-Path .\package-lock.json) {
+              Write-Host "Using npm ci for faster reproducible install"
+              npm ci --prefer-offline --no-audit --no-fund
+            } else {
+              Write-Host "Using npm install (no-audit/no-fund)"
+              npm install --prefer-offline --no-audit --no-fund
+            }
+            try { npx hardhat --version } catch { Write-Host "⚠️ Hardhat not available after install (non-fatal)" -ForegroundColor Yellow }
+          } else {
+            Write-Host "ℹ️ No Node/Hardhat project detected; skipping"
+          }
+
+      - name: Optional install Foundry (WSL)
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 6
+        run: |
+          Write-Host "🛠️ Optional Foundry install via WSL (skippable)"
+          try {
+            $wslList = wsl.exe -l -q 2>$null
+            if ($wslList) {
+              Write-Host "ℹ️ WSL detected; attempting foundryup in default distro"
+              $cmd = 'bash -lc "curl -L https://foundry.paradigm.xyz | bash && source $HOME/.foundry/bin/foundryup && forge --version"'
+              wsl.exe -e $cmd
+            } else {
+              Write-Host "ℹ️ WSL not available; skipping Foundry install"
+            }
+          } catch {
+            Write-Host "⚠️ Foundry install (WSL) failed or not supported; skipping" -ForegroundColor Yellow
+          }
+
+      - name: Build omega-production.exe (native wrapper)
+        shell: pwsh
+        run: |
+          Write-Host "🏭 Building omega-production.exe (native wrapper)..."
+          Write-Host "ℹ️ Attempting optional installation of C++ toolchain (MinGW/LLVM) via Chocolatey"
+          try {
+            choco --version | Out-Null
+            if (-not (Get-Command g++ -ErrorAction SilentlyContinue)) {
+              Write-Host "⬇️ Installing mingw (may take a few minutes)..."
+              choco install -y mingw | Out-Null
+            }
+            if (-not (Get-Command clang++ -ErrorAction SilentlyContinue)) {
+              Write-Host "⬇️ Installing llvm (clang++) (optional)..."
+              choco install -y llvm | Out-Null
+            }
+          } catch {
+            Write-Host "⚠️ Chocolatey not available or install failed; build script will fallback to C# CodeDom if no C++ compiler is present" -ForegroundColor Yellow
+          }
+
+          # Build production wrapper using external C++ source if present
+          if (Test-Path .\build_production_real_native.ps1) {
+            Write-Host "ℹ️ Using build_production_real_native.ps1"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File .\build_production_real_native.ps1
+          } elseif (Test-Path .\build_production_real.ps1) {
+            Write-Host "ℹ️ Using build_production_real.ps1"
+            pwsh -NoProfile -ExecutionPolicy Bypass -File .\build_production_real.ps1
+          } else {
+            Write-Host "❌ No production build script found"; exit 1
+          }
+
+          if (Test-Path ".\bin\omega-production.exe") {
+            Write-Host "✅ omega-production.exe built successfully at .\\bin\\omega-production.exe"
+            .\bin\omega-production.exe version
+          } else {
+            Write-Host "❌ omega-production.exe not found after production build"; exit 1
           }
 
       - name: Run unit tests (native)
@@ -184,6 +290,65 @@ jobs:
           Invoke-Expression "$omegaCmd compile tests/codegen_tests.mega"
           
           Write-Host "✅ Unit tests compilation completed"
+
+      - name: Run extended for-range transform test (PowerShell, with log capture)
+        shell: pwsh
+        run: |
+          Write-Host "🧪 Running extended for-range transform test..."
+          Write-Host "ℹ️ Attempting optional Solidity compiler (solc) installation for syntax check..."
+          try {
+            choco --version | Out-Null
+            choco install -y solc | Out-Null
+          } catch {
+            Write-Host "⚠️ Chocolatey or solc installation not available; proceeding without solc" -ForegroundColor Yellow
+          }
+          $solcCmd = Get-Command solc -ErrorAction SilentlyContinue
+          if ($solcCmd) {
+            Write-Host "✅ solc detected: $(solc --version)"
+          } else {
+            Write-Host "ℹ️ solc not found; test script will skip syntax checks"
+          }
+          if (-not (Test-Path .\logs)) { New-Item -ItemType Directory -Path .\logs | Out-Null }
+          # Capture full output of test script to a log file for post-analysis
+          pwsh -NoProfile -ExecutionPolicy Bypass -File .\test_range_transform_ext.ps1 *>&1 | Tee-Object -FilePath .\logs\for_range_ext_ci.log
+          Write-Host "✅ Extended for-range transform test completed"
+
+      - name: Scan logs for Windows path/quoting errors (informational)
+        shell: pwsh
+        run: |
+          Write-Host "🔎 Scanning for known Windows path/quoting error messages in test logs..."
+          $logPath = ".\logs\for_range_ext_ci.log"
+          if (Test-Path $logPath) {
+            $patterns = @(
+              @{ name = 'filename-dir-volume-syntax-incorrect'; pattern = 'The filename, directory name, or volume label syntax is incorrect' },
+              @{ name = 'system-cannot-find-path'; pattern = 'The system cannot find the path specified' },
+              @{ name = 'cmd-started-with-above-path'; pattern = 'CMD\.EXE was started with the above path as the current directory' },
+              @{ name = 'input-line-too-long'; pattern = 'The input line is too long' },
+              @{ name = 'device-not-functioning'; pattern = 'A device attached to the system is not functioning' },
+              @{ name = 'powershell-script-location'; pattern = 'At line:\s*\d+ char:\s*\d+' },
+              @{ name = 'arg-exception-path'; pattern = 'Unhandled Exception:.*System\.ArgumentException:.*path' }
+            )
+            $totalHits = 0
+            foreach ($p in $patterns) {
+              $m = Select-String -Path $logPath -Pattern $p.pattern
+              if ($m) {
+                $count = $m.Count
+                $totalHits += $count
+                Write-Host "⚠️  Pattern '$($p.name)' detected ($count occurrences)" -ForegroundColor Yellow
+              }
+            }
+            if ($totalHits -eq 0) {
+              Write-Host "✅ No Windows path/quoting error messages detected in logs"
+            }
+          } else {
+            Write-Host "ℹ️ Log file not found; skipping scan"
+          }
+
+      - name: Upload extended test logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: for-range-ext-logs
+          path: logs/for_range_ext_ci.log
 
       - name: Generate coverage (native)
         shell: pwsh

@@ -33,6 +33,7 @@ dist/
 target/
 out/
 bin/
+cache/
 
 # Node.js
 node_modules/
@@ -258,3 +259,8 @@ BLOCKCHAIN_TARGETS_RESTORATION_REPORT.md
 
 # Allow env example file (override any earlier ignore rules)
 !.env.example
+
+# ========================================
+# Exceptions: Track specific source files inside ignored dirs
+# ========================================
+# Wrapper source relocated to src/wrapper; legacy build path no longer tracked

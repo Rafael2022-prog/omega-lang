@@ -816,15 +816,23 @@ impl OmegaLexer {
         return result;
     }
     
-    /// Extract substring
+    /// Extract substring (safe bounds-checked)
     function substring(string memory str, uint256 start, uint256 end) private pure returns (string memory) {
         bytes memory str_bytes = bytes(str);
+        uint256 len = str_bytes.length;
+        if (start >= len) {
+            return "";
+        }
+        if (end > len) {
+            end = len;
+        }
+        if (end <= start) {
+            return "";
+        }
         bytes memory result = new bytes(end - start);
-        
         for (uint256 i = start; i < end; i++) {
             result[i - start] = str_bytes[i];
         }
-        
         return string(result);
     }
     

@@ -208,6 +208,71 @@ omega build
 .\omega_native.ps1 deploy --target solana --network devnet
 ```
 
+## 🔧 Toolchain Setup & Testing
+
+### EVM Testing & Deploy dengan Foundry (Direkomendasikan)
+- OMEGA menyediakan perintah native untuk menyiapkan scaffolding Foundry dan menjalankan test minimal:
+  - `omega-production.exe test --target evm --input tests/test_contracts/BasicToken.omega`
+  - `omega-production.exe deploy --target evm --input tests/test_contracts/BasicToken.omega`
+
+#### Windows (WSL/Git Bash)
+Foundry tidak mendukung PowerShell/CMD secara native. Pada Windows, gunakan WSL atau Git Bash.
+
+Opsi cepat (WSL):
+1) Install WSL: `wsl --install` lalu reboot
+2) Di terminal WSL, jalankan:
+   - `curl -L https://foundry.paradigm.xyz | bash`
+   - `~/.foundry/bin/foundryup -y`
+3) Jalankan perintah OMEGA seperti di atas. OMEGA otomatis mendeteksi WSL dan menjalankan `forge` di dalam WSL jika tidak tersedia di PATH Windows.
+
+Atau gunakan skrip bantu kami:
+```powershell
+./scripts/setup_foundry_windows.ps1
+```
+Skrip ini akan mendeteksi WSL dan mencoba instalasi Foundry di dalam WSL (best-effort). Jika WSL belum ada, skrip menampilkan panduan langkah demi langkah.
+
+#### Linux/macOS
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+foundryup -y
+forge --version
+```
+Setelah Foundry tersedia, jalankan:
+```bash
+./omega-production.exe test --target evm --input tests/test_contracts/BasicToken.omega
+```
+
+### Fallback Hardhat (otomatis jika Foundry tidak tersedia)
+Jika Foundry tidak terdeteksi, OMEGA kini mendukung fallback otomatis ke Hardhat apabila Node.js, npm, dan npx tersedia.
+
+Apa yang dilakukan perintah OMEGA:
+- Membuat scaffolding proyek Hardhat di `./build/hardhat_evm`
+- Menghasilkan `contracts/<Module>.sol` dari input `.omega`
+- Menulis `hardhat.config.js` minimal dan file test JS
+- Menginstal dev dependencies: `hardhat`, `@nomicfoundation/hardhat-ethers`, `ethers`, `chai`
+- Menjalankan `npx hardhat test` secara otomatis
+
+Contoh menjalankan test dengan fallback Hardhat:
+```powershell
+omega-production.exe test --target evm --input tests/test_contracts/BasicToken.omega
+```
+
+Untuk deploy lokal dengan Hardhat:
+```powershell
+# Setelah scaffolding dibuat dan dependencies terinstal
+npx hardhat run scripts/deploy.js --network hardhat
+```
+
+Catatan:
+- Hardhat fallback membutuhkan Node.js >= 16, npm, dan npx di PATH.
+- Skrip deploy/test menggunakan Ethers v6 API (`waitForDeployment()`, `getAddress()`).
+
+### Status Implementasi Toolchain Non-EVM
+- Solana/Anchor: codegen dasar (state, events, Accounts, handler stub) tersedia; wiring deploy/test otomatis sedang dalam pengembangan.
+- Cosmos/SDK: scaffolding dasar (MsgTransfer/MsgApproval, Keeper, handler stub) tersedia; wiring deploy/test otomatis sedang dalam pengembangan.
+
+Lihat dokumentasi detail: `./docs/toolchains/foundry_windows.md`, `./docs/solana-integration.md`, `./docs/cosmos-integration.md`.
+
 ## 📚 Dokumentasi Lengkap
 
 ### 📖 Panduan Pembelajaran

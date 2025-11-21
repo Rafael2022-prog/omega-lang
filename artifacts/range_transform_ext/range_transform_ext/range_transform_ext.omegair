@@ -1,0 +1,6 @@
+; OMEGA IR v1.0
+module range_transform_ext
+  ; This is a simplified textual IR placeholder
+  ; Real IR generation is handled by the native compiler,
+  ; and will include typed symbols, control-flow graphs,
+  ; and target-lowering information.

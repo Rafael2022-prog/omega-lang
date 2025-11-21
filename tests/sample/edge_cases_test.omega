@@ -1,0 +1,58 @@
+// Edge case tests - Tests boundary conditions and error scenarios
+import "src/std/assert";
+
+test_large_integer() {
+    let large: i32 = 2147483647;
+    assert_greater(large, 0);
+}
+
+test_small_integer() {
+    let small: i32 = -2147483648;
+    assert_less(small, 0);
+}
+
+test_zero_operations() {
+    assert_equal_int(0 + 0, 0);
+    assert_equal_int(0 - 0, 0);
+    assert_equal_int(0 * 100, 0);
+}
+
+test_one_operations() {
+    assert_equal_int(1 * 100, 100);
+    assert_equal_int(1 + 0, 1);
+}
+
+test_negative_operations() {
+    assert_equal_int(-5 * -5, 25);
+    assert_equal_int(-10 + 5, -5);
+}
+
+test_boolean_true() {
+    assert_true(true);
+}
+
+test_boolean_false() {
+    assert_false(false);
+}
+
+test_boolean_not() {
+    assert_true(!false);
+    assert_false(!true);
+}
+
+test_comparison_chain() {
+    assert_true(5 > 3);
+    assert_true(3 < 5);
+    assert_true(5 >= 5);
+    assert_true(3 <= 5);
+}
+
+test_null_handling() {
+    let maybe_value: i32 = null;
+    assert_null(maybe_value);
+}
+
+test_not_null() {
+    let value: i32 = 42;
+    assert_not_null(value);
+}

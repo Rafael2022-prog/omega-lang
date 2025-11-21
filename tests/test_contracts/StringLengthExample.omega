@@ -1,0 +1,19 @@
+blockchain StringLengthExample {
+    // Return length of input string
+    function strLen(string s) returns (u256) {
+        return len(s);
+    }
+
+    // Return length of input bytes
+    function bytesLen(bytes b) returns (u256) {
+        return len(b);
+    }
+
+    // Return length of first string if non-empty array, else 0
+    function mixed(string[] ss) returns (u256) {
+        if len(ss) > 0 {
+            return len(ss[0]);
+        }
+        return 0;
+    }
+}

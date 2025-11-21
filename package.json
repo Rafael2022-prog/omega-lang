@@ -45,7 +45,11 @@
     "powershell": ">=7.0.0"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^4.0.3",
     "@types/node": "^20.0.0",
+    "chai": "^6.2.1",
+    "ethers": "^6.15.0",
+    "hardhat": "^3.0.15",
     "typescript": "^5.0.0"
   },
   "omega": {
@@ -75,5 +79,6 @@
       "cosmos",
       "substrate"
     ]
-  }
+  },
+  "type": "module"
 }

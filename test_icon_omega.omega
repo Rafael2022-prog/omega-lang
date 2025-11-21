@@ -1,0 +1,14 @@
+// Test file untuk melihat ikon OMEGA
+blockchain TestIconOmega {
+    state {
+        uint256 value;
+    }
+    
+    constructor() {
+        value = 42;
+    }
+    
+    function getValue() public view returns (uint256) {
+        return value;
+    }
+}

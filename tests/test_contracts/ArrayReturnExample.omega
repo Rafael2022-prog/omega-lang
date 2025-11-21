@@ -1,0 +1,22 @@
+blockchain ArrayReturnExample {
+    // Non-string/bytes dynamic array params and returns
+    function takesUints(i32[] values) public returns (i32) {
+        // placeholder implementation
+        return 0;
+    }
+
+    function retUints(i32[] values) public returns (i32[]) {
+        return values;
+    }
+
+    function takesAddresses(address[] addrs) public returns (address) {
+        if (len(addrs) > 0) {
+            return addrs[0];
+        }
+        return 0x0000000000000000000000000000000000000000;
+    }
+
+    function retAddresses(address[] addrs) public returns (address[]) {
+        return addrs;
+    }
+}
