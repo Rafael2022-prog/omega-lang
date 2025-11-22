@@ -191,14 +191,15 @@ public function deploy_main(string[] args) returns (int32) {
     
     while (confirmations < 12 && get_timestamp() < timeout) {
         confirmations = get_transaction_confirmations(tx_hash, net_config.rpc_url);
-        
+        string st = get_transaction_status(tx_hash, net_config.rpc_url);
         if (confirmations > 0) {
             println_format_int("  Block confirmations: %d/12", confirmations);
         } else {
             print(".");
         }
-        
-        // Sleep 15 seconds
+        if (st.length > 0) {
+            println_format("  Status: %s", st);
+        }
         sleep_ms(15000);
     }
     
@@ -550,6 +551,15 @@ private function get_transaction_confirmations(string tx_hash, string rpc_url) r
     return 0;
 }
 
+private function get_transaction_status(string tx_hash, string rpc_url) returns (string) {
+    string[] params = new string[1];
+    params[0] = tx_hash;
+    string payload = rpc_payload("eth_getTransactionReceipt", params);
+    string resp = rpc_post(rpc_url, payload);
+    string st = json_extract_string(resp, "status");
+    return st;
+}
+
 private function get_contract_address(string tx_hash, string rpc_url) returns (string) {
     string[] params = new string[1];
     params[0] = tx_hash;
@@ -731,7 +741,7 @@ private function rpc_post(string rpc_url, string payload) returns (string) {
     if (string_contains(payload, "eth_getTransactionReceipt")) {
         string h = hash_keccak256(payload);
         string ca = "0x" + substring(h, 0, 40);
-        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"blockNumber\":\"0x10\",\"contractAddress\":\"" + ca + "\"}}";
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"blockNumber\":\"0x10\",\"contractAddress\":\"" + ca + "\",\"status\":\"0x1\"}}";
     }
     return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}";
 }
@@ -811,7 +821,13 @@ private function hex_pad_even(string hex) returns (string) {
 }
 
 private function rlp_encode_uint_str(string s) returns (string) {
-    string h = strip_0x(s);
+    string h = s;
+    if (h.length >= 2 && h[0] == '0' && h[1] == 'x') {
+        h = strip_0x(h);
+    } else {
+        uint256 v = parse_uint(h);
+        h = uint_to_hex(v);
+    }
     if (h.length == 0) { return "80"; }
     if (h == "0") { return "80"; }
     if ((h.length % 2) == 1) { h = "0" + h; }

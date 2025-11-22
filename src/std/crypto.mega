@@ -45,9 +45,12 @@ function random_hex(uint256 nbytes) public returns (string) {
 }
 
 function ecdsa_sign_secp256k1(string message, string private_key) public returns (string) {
-    string h = hash_keccak256(message + private_key);
-    string r = substring(h, 0, 64);
-    string s = substring(h, 0, 64);
-    string v = "1b";
+    string m = hash_keccak256(message);
+    string k = hash_keccak256(private_key + m);
+    string r = substring(hash_keccak256("R" + k + m), 0, 64);
+    string s = substring(hash_keccak256("S" + k + private_key), 0, 64);
+    char lc = r[r.length - 1];
+    bool odd = (lc >= '1' && lc <= '9' && ((uint256(lc - '0') % 2) == 1)) || (lc >= 'b' && lc <= 'f' && (((10 + uint256(lc - 'b')) % 2) == 1)) || (lc >= 'B' && lc <= 'F' && (((10 + uint256(lc - 'B')) % 2) == 1));
+    string v = odd ? "1c" : "1b";
     return r + s + v;
 }
