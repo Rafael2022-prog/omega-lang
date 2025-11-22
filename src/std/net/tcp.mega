@@ -45,6 +45,9 @@ event TcpWriteRequested(uint32 write_bytes);
 event TcpSocketClosed(int32 fd);
 event TcpSetsockoptRequested(int32 level, int32 optname, uint32 optlen);
 event TcpConnectRequested(string addr, uint16 port);
+event TlsClientConnectRequested(string addr, uint16 port);
+event TlsWriteRequested(uint32 write_bytes);
+event TlsReadRequested(uint32 want_bytes);
 
 // Membuat socket TCP
 function socket(TcpConfig cfg) public returns (TcpSocket) {
@@ -59,6 +62,14 @@ function socket(TcpConfig cfg) public returns (TcpSocket) {
 
 function connect(TcpSocket s, string addr, uint16 port) public returns (bool) {
     emit TcpConnectRequested(addr, port);
+    if (s.fd < 0) return false;
+    s.local_addr = addr;
+    s.local_port = port;
+    return true;
+}
+
+function tls_connect(TcpSocket s, string addr, uint16 port) public returns (bool) {
+    emit TlsClientConnectRequested(addr, port);
     if (s.fd < 0) return false;
     s.local_addr = addr;
     s.local_port = port;
@@ -115,6 +126,11 @@ function read(TcpSocket s, uint32 max_bytes) public returns (bytes) {
     return out;
 }
 
+function tls_read(TcpSocket s, uint32 max_bytes) public returns (bytes) {
+    emit TlsReadRequested(max_bytes);
+    return read(s, max_bytes);
+}
+
 // Tulis bytes ke socket (mengembalikan jumlah byte yang ditulis)
 function write(TcpSocket s, bytes data) public returns (int32) {
     emit TcpWriteRequested(data.length);
@@ -122,6 +138,11 @@ function write(TcpSocket s, bytes data) public returns (int32) {
     // Linux x86_64: syscall 1 = write(fd, buf, count)
     int64 _ = sys.call(1, s.fd, 0, data.length, 0, 0, 0);
     return int32(data.length);
+}
+
+function tls_write(TcpSocket s, bytes data) public returns (int32) {
+    emit TlsWriteRequested(data.length);
+    return write(s, data);
 }
 
 // Tutup socket

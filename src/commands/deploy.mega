@@ -200,15 +200,28 @@ public function deploy_main(string[] args) returns (int32) {
         if (st.length > 0) {
             println_format("  Status: %s", st);
         }
+        if (string_equal(st, "0x0") && confirmations > 0) {
+            println_error("Transaction reverted");
+            println_format("View at: %s/tx/%s", net_config.explorer_url, tx_hash);
+            return 1;
+        }
+        if (string_equal(st, "0x1") && confirmations >= 2) {
+            break;
+        }
         sleep_ms(15000);
     }
     
     println("");
     
     if (confirmations < 12) {
-        println_error("Deployment timeout - still waiting for confirmations");
-        println_format("View at: %s/tx/%s", net_config.explorer_url, tx_hash);
-        return 1;
+        string stf = get_transaction_status(tx_hash, net_config.rpc_url);
+        if (string_equal(stf, "0x1") && confirmations >= 2) {
+            // proceed
+        } else {
+            println_error("Deployment timeout - still waiting for confirmations");
+            println_format("View at: %s/tx/%s", net_config.explorer_url, tx_hash);
+            return 1;
+        }
     }
     
     // Get deployed contract address
@@ -487,7 +500,7 @@ private function rlp_encode_fields(string fields) returns (string) {
 private function sign_transaction(string tx_data, string key_content) returns (string) {
     if (tx_data == null || tx_data.length == 0) { return ""; }
     string unsigned_rlp = rlp_encode_fields(tx_data);
-    string rsv = ecdsa_sign_secp256k1(unsigned_rlp, key_content);
+    string rsv = ecdsa_sign_secp256k1_native(unsigned_rlp, key_content);
     string vhex = substring(rsv, 64 + 64, rsv.length);
     uint256 vdec = 0;
     if (vhex.length >= 2) {
@@ -764,14 +777,15 @@ private function http_post_json(string url, string payload) returns (string) {
     }
     TcpConfig cfg = TcpConfig({ reuse_addr: true, reuse_port: true, no_delay: true, read_timeout_ms: 30000, write_timeout_ms: 30000 });
     TcpSocket s = socket(cfg);
-    bool ok = connect(s, host, port);
+    bool ok = false;
+    if (string_equal(scheme, "https")) { ok = tls_connect(s, host, port); } else { ok = connect(s, host, port); }
     if (!ok) { return ""; }
     string cl = uint_to_string(string.length(payload));
     string req = "POST " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Content-Type: application/json\r\n" + "Content-Length: " + cl + "\r\n" + "Connection: close\r\n\r\n" + payload;
     bytes outb = bytes(req);
-    int32 wr = write(s, outb);
+    int32 wr = string_equal(scheme, "https") ? tls_write(s, outb) : write(s, outb);
     if (wr <= 0) { return ""; }
-    bytes inb = read(s, 8192);
+    bytes inb = string_equal(scheme, "https") ? tls_read(s, 8192) : read(s, 8192);
     string resp = bytes_to_string(inb);
     string body = parse_http_body(resp);
     return body;

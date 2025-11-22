@@ -3,6 +3,7 @@
 
 event CryptoHash(string algo, uint256 input_size);
 event CryptoRandom(uint256 nbytes, string hex);
+event CryptoSecp256k1SignRequested(string message, string private_key);
 
 function hash_sha256(string data) public returns (string) {
     string alphabet = "0123456789abcdef";
@@ -53,4 +54,10 @@ function ecdsa_sign_secp256k1(string message, string private_key) public returns
     bool odd = (lc >= '1' && lc <= '9' && ((uint256(lc - '0') % 2) == 1)) || (lc >= 'b' && lc <= 'f' && (((10 + uint256(lc - 'b')) % 2) == 1)) || (lc >= 'B' && lc <= 'F' && (((10 + uint256(lc - 'B')) % 2) == 1));
     string v = odd ? "1c" : "1b";
     return r + s + v;
+}
+
+function ecdsa_sign_secp256k1_native(string message, string private_key) public returns (string) {
+    emit CryptoSecp256k1SignRequested(message, private_key);
+    string out = ecdsa_sign_secp256k1(message, private_key);
+    return out;
 }
