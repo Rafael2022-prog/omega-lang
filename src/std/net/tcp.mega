@@ -44,6 +44,7 @@ event TcpReadRequested(uint32 want_bytes);
 event TcpWriteRequested(uint32 write_bytes);
 event TcpSocketClosed(int32 fd);
 event TcpSetsockoptRequested(int32 level, int32 optname, uint32 optlen);
+event TcpConnectRequested(string addr, uint16 port);
 
 // Membuat socket TCP
 function socket(TcpConfig cfg) public returns (TcpSocket) {
@@ -54,6 +55,14 @@ function socket(TcpConfig cfg) public returns (TcpSocket) {
     TcpSocket s = TcpSocket({ fd: fd, local_addr: "", local_port: 0, is_bound: false, is_listening: false, is_closed: false });
     emit TcpSocketCreated(s.fd);
     return s;
+}
+
+function connect(TcpSocket s, string addr, uint16 port) public returns (bool) {
+    emit TcpConnectRequested(addr, port);
+    if (s.fd < 0) return false;
+    s.local_addr = addr;
+    s.local_port = port;
+    return true;
 }
 
 // Bind ke alamat dan port

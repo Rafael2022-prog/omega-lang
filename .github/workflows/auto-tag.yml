@@ -1,6 +1,7 @@
 name: 🔖 Auto Tag on Version Change
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
 
@@ -18,9 +19,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Ensure jq is available
+        continue-on-error: true
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+          sudo apt-get update || true
+          sudo apt-get install -y jq || true
 
       - name: Resolve version source and current version
         id: current

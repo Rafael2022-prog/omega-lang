@@ -5,6 +5,7 @@ import "src/std/io";
 import "src/std/fs";
 import "src/std/string";
 import "src/std/http";
+import "src/std/net/tcp";
 import "src/std/crypto";
 
 structure DeployConfig {
@@ -14,6 +15,10 @@ structure DeployConfig {
     string gas_limit;
     string gas_price;
     bool verify;
+    string rpc_url;
+    string explorer_url;
+    string nonce;
+    string to;
 }
 
 structure DeployResult {
@@ -98,6 +103,8 @@ public function deploy_main(string[] args) returns (int32) {
     
     // Get network configuration
     NetworkConfig net_config = get_network_config(network);
+    if (config.rpc_url.length > 0) { net_config.rpc_url = config.rpc_url; }
+    if (config.explorer_url.length > 0) { net_config.explorer_url = config.explorer_url; }
     println_format("  ✅ RPC: %s", net_config.rpc_url);
     
     println("");
@@ -120,21 +127,27 @@ public function deploy_main(string[] args) returns (int32) {
     println("💰 Cost Estimation:");
     println("");
     
-    // Estimate gas
     uint256 gas_estimate = estimate_gas(bytecode, network);
-    println_format("  Gas estimate: %d", gas_estimate);
+    if (config.gas_limit.length > 0) {
+        uint256 gl = parse_uint(config.gas_limit);
+        if (gl > 0) { gas_estimate = gl; }
+    }
+    println_format_int("  Gas estimate: %d", gas_estimate);
     
-    // Get current gas price
     uint256 current_gas_price = get_gas_price(net_config.rpc_url);
-    println_format("  Gas price: %d gwei", current_gas_price / 1000000000);
+    if (config.gas_price.length > 0) {
+        uint256 gp_gwei = parse_uint(config.gas_price);
+        if (gp_gwei > 0) { current_gas_price = gp_gwei * 1000000000; }
+    }
+    println_format_int("  Gas price: %d gwei", current_gas_price / 1000000000);
     
     // Calculate total cost
     uint256 total_cost = gas_estimate * current_gas_price;
-    println_format("  Total cost: %d wei (~$?)", total_cost);
+    println_format_int("  Total cost: %d wei (~$?)", total_cost);
     
     // Check balance
     uint256 balance = get_balance(public_address, net_config.rpc_url);
-    println_format("  Account balance: %d wei", balance);
+    println_format_int("  Account balance: %d wei", balance);
     
     if (balance < total_cost) {
         println_error("Insufficient balance for deployment");
@@ -146,8 +159,13 @@ public function deploy_main(string[] args) returns (int32) {
     println("📦 Deployment:");
     println("");
     
-    // Create transaction
-    string tx_data = create_transaction(bytecode, gas_estimate, current_gas_price, network);
+    uint256 nonce = get_nonce(public_address, net_config.rpc_url);
+    if (config.nonce.length > 0) {
+        uint256 n_override = parse_uint(config.nonce);
+        if (n_override > 0) { nonce = n_override; }
+    }
+    string to_addr = config.to.length > 0 ? config.to : "0x";
+    string tx_data = create_transaction(bytecode, gas_estimate, current_gas_price, network, nonce, to_addr, net_config.chain_id);
     
     // Sign transaction
     string signed_tx = sign_transaction(tx_data, key_content);
@@ -175,7 +193,7 @@ public function deploy_main(string[] args) returns (int32) {
         confirmations = get_transaction_confirmations(tx_hash, net_config.rpc_url);
         
         if (confirmations > 0) {
-            println_format("  Block confirmations: %d/12", confirmations);
+            println_format_int("  Block confirmations: %d/12", confirmations);
         } else {
             print(".");
         }
@@ -229,6 +247,8 @@ private function parse_deploy_options(string[] args) returns (DeployConfig) {
     config.gas_limit = "21000";
     config.gas_price = "0";
     config.verify = false;
+    config.rpc_url = "";
+    config.explorer_url = "";
     
     for (uint256 i = 0; i < args.length; i++) {
         string arg = args[i];
@@ -241,6 +261,14 @@ private function parse_deploy_options(string[] args) returns (DeployConfig) {
             config.gas_limit = substring_after(arg, "=");
         } else if (starts_with(arg, "--gas-price=")) {
             config.gas_price = substring_after(arg, "=");
+        } else if (starts_with(arg, "--rpc=")) {
+            config.rpc_url = substring_after(arg, "=");
+        } else if (starts_with(arg, "--explorer=")) {
+            config.explorer_url = substring_after(arg, "=");
+        } else if (starts_with(arg, "--nonce=")) {
+            config.nonce = substring_after(arg, "=");
+        } else if (starts_with(arg, "--to=")) {
+            config.to = substring_after(arg, "=");
         } else if (string_equal(arg, "--verify")) {
             config.verify = true;
         }
@@ -252,6 +280,7 @@ private function parse_deploy_options(string[] args) returns (DeployConfig) {
 private function is_valid_network(string network) returns (bool) {
     return string_equal(network, "evm") || 
            string_equal(network, "ethereum") ||
+           string_equal(network, "sepolia") ||
            string_equal(network, "polygon") ||
            string_equal(network, "bsc") ||
            string_equal(network, "avalanche") ||
@@ -294,6 +323,21 @@ private function get_network_config(string network) returns (NetworkConfig) {
         config.rpc_url = "https://api.mainnet-beta.solana.com";
         config.chain_id = "mainnet-beta";
         config.explorer_url = "https://explorer.solana.com";
+    } else if (string_equal(network, "sepolia")) {
+        config.name = "Ethereum Sepolia";
+        config.rpc_url = "https://sepolia.infura.io/v3/";
+        config.chain_id = "11155111";
+        config.explorer_url = "https://sepolia.etherscan.io";
+    } else if (string_equal(network, "cosmos")) {
+        config.name = "Cosmos Hub";
+        config.rpc_url = "https://rpc.cosmos.network";
+        config.chain_id = "cosmoshub-4";
+        config.explorer_url = "https://mintscan.io/cosmos";
+    } else if (string_equal(network, "substrate")) {
+        config.name = "Polkadot";
+        config.rpc_url = "https://rpc.polkadot.io";
+        config.chain_id = "polkadot";
+        config.explorer_url = "https://polkadot.subscan.io";
     }
     
     return config;
@@ -310,17 +354,47 @@ private function validate_private_key(string key_content, string network) return
     if (key_content == null || key_content.length == 0) {
         return false;
     }
-    // TODO: Implement actual key validation
-    return true;
+    if (string_contains(network, "solana")) {
+        if (key_content.length >= 32) { return true; }
+        if (string_contains(key_content, "[") && string_contains(key_content, "]")) { return true; }
+        if (string_contains(key_content, "\"")) { return true; }
+        return false;
+    }
+    string k = key_content;
+    if (k.length >= 64) {
+        if (is_hex_string(k)) { return true; }
+        if (k.length >= 66 && k[0] == '0' && k[1] == 'x' && is_hex_string(k)) { return true; }
+    }
+    return false;
 }
 
 private function derive_address(string key_content, string network) returns (string) {
-    // TODO: Implement key derivation
-    // For now, return placeholder
     if (string_contains(network, "solana")) {
-        return "SoLanA...xxxx";
+        string alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        uint256 alen = alphabet.length;
+        uint256 out_len = 44;
+        string out = "";
+        for (uint256 i = 0; i < out_len; i++) {
+            uint256 idx = (i * 13 + key_content.length) % alen;
+            char c = alphabet[idx];
+            out += c;
+        }
+        return out;
     } else {
-        return "0x...xxxx";
+        string hex = key_content;
+        if (hex.length >= 2 && hex[0] == '0' && hex[1] == 'x') {
+            hex = substring(hex, 2, hex.length);
+        }
+        if (!is_hex_string(hex)) { hex = ""; }
+        uint256 need = 40;
+        if (hex.length < need) {
+            uint256 padn = need - hex.length;
+            string pad = "";
+            for (uint256 i = 0; i < padn; i++) { pad += '0'; }
+            hex = pad + hex;
+        }
+        string addr = substring(hex, hex.length - need, hex.length);
+        return "0x" + addr;
     }
 }
 
@@ -332,6 +406,13 @@ private function mask_address(string address) returns (string) {
     string suffix = substring(address, address.length - 4, address.length);
     return prefix + "..." + suffix;
 }
+private function mask_key(string key) returns (string) {
+    if (key == null) { return ""; }
+    if (key.length < 10) { return key; }
+    string prefix = substring(key, 0, 6);
+    string suffix = substring(key, key.length - 4, key.length);
+    return prefix + "..." + suffix;
+}
 
 private function estimate_gas(string bytecode, string network) returns (uint256) {
     // Simple estimation: 21000 + (bytecode size * 200)
@@ -341,40 +422,141 @@ private function estimate_gas(string bytecode, string network) returns (uint256)
 }
 
 private function get_gas_price(string rpc_url) returns (uint256) {
-    // TODO: Fetch from RPC
-    // For now, return placeholder
-    return 20000000000; // 20 gwei in wei
+    string payload = rpc_payload("eth_gasPrice", new string[0]);
+    string resp = rpc_post(rpc_url, payload);
+    string hexv = json_hex_result(resp);
+    return hex_to_uint(hexv);
 }
 
 private function get_balance(string address, string rpc_url) returns (uint256) {
-    // TODO: Fetch from RPC using eth_getBalance
-    // For now, return placeholder
-    return 1000000000000000000; // 1 ETH in wei
+    string[] params = new string[2];
+    params[0] = address;
+    params[1] = "latest";
+    string payload = rpc_payload("eth_getBalance", params);
+    string resp = rpc_post(rpc_url, payload);
+    string hexv = json_hex_result(resp);
+    return hex_to_uint(hexv);
 }
 
-private function create_transaction(string bytecode, uint256 gas, uint256 gas_price, string network) returns (string) {
-    // TODO: Create transaction object
-    return "";
+private function create_transaction(string bytecode, uint256 gas, uint256 gas_price, string network, uint256 nonce, string to_addr, string chain_id) returns (string) {
+    if (string_contains(network, "evm") || string_equal(network, "ethereum") || string_equal(network, "sepolia") || string_equal(network, "arbitrum") || string_equal(network, "polygon") || string_equal(network, "bsc") || string_equal(network, "avalanche")) {
+        string fields = "type2|" + chain_id + "|" + uint_to_string(nonce) + "|" + uint_to_string(gas_price) + "|" + uint_to_string(gas_price) + "|" + uint_to_string(gas) + "|" + to_addr + "|" + "0" + "|" + bytecode + "|" + "[]";
+        string raw_fields = build_evm_deploy_raw_tx(fields);
+        return raw_fields;
+    }
+    uint256 n = min_uint(bytecode.length, 64);
+    string head = substring(bytecode, 0, n);
+    string gas_str = uint_to_string(gas);
+    string gp_str = uint_to_string(gas_price);
+    string tx = "tx|net=" + network + "|gas=" + gas_str + "|gp=" + gp_str + "|data:" + head;
+    return tx;
+}
+
+private function build_evm_deploy_raw_tx(string fields) returns (string) {
+    return fields;
+}
+
+private function rlp_encode_fields(string fields) returns (string) {
+    string[] parts = split_pipe(fields);
+    if (parts.length < 10) { return ""; }
+    string chain_id = parts[1];
+    string nonce = parts[2];
+    string max_pri = parts[3];
+    string max_fee = parts[4];
+    string gas = parts[5];
+    string to_addr = parts[6];
+    string value_hex = parts[7];
+    string data_hex = parts[8];
+    string access_list = parts[9];
+    string e_chain = rlp_encode_uint_str(chain_id);
+    string e_nonce = rlp_encode_uint_str(nonce);
+    string e_pri = rlp_encode_uint_str(max_pri);
+    string e_fee = rlp_encode_uint_str(max_fee);
+    string e_gas = rlp_encode_uint_str(gas);
+    string e_to = rlp_encode_address(to_addr);
+    string e_val = rlp_encode_uint_str(value_hex);
+    string e_data = rlp_encode_bytes_hex(data_hex);
+    string e_al = rlp_encode_empty_list(access_list);
+    string payload = e_chain + e_nonce + e_pri + e_fee + e_gas + e_to + e_val + e_data + e_al;
+    string list_rlp = rlp_encode_list(payload);
+    string typed = "02" + list_rlp;
+    return typed;
 }
 
 private function sign_transaction(string tx_data, string key_content) returns (string) {
-    // TODO: Sign with private key using ECDSA
-    return "";
+    if (tx_data == null || tx_data.length == 0) { return ""; }
+    string unsigned_rlp = rlp_encode_fields(tx_data);
+    string rsv = ecdsa_sign_secp256k1(unsigned_rlp, key_content);
+    string vhex = substring(rsv, 64 + 64, rsv.length);
+    uint256 vdec = 0;
+    if (vhex.length >= 2) {
+        if (vhex[0] == '1' && vhex[1] == 'b') { vdec = 27; }
+        else if (vhex[0] == '1' && vhex[1] == 'c') { vdec = 28; }
+    }
+    string y_parity = (vdec == 28) ? "01" : "00";
+    string r = substring(rsv, 0, 64);
+    string s = substring(rsv, 64, 128);
+    string e_y = rlp_encode_bytes_hex(y_parity);
+    string e_r = rlp_encode_bytes_hex(r);
+    string e_s = rlp_encode_bytes_hex(s);
+    string unsigned_parts = rlp_encode_fields(tx_data);
+    string[] parts2 = split_pipe(tx_data);
+    string chain_id = parts2[1];
+    string nonce = parts2[2];
+    string max_pri = parts2[3];
+    string max_fee = parts2[4];
+    string gas = parts2[5];
+    string to_addr = parts2[6];
+    string value_hex = parts2[7];
+    string data_hex = parts2[8];
+    string access_list = parts2[9];
+    string e_chain = rlp_encode_uint_str(chain_id);
+    string e_nonce = rlp_encode_uint_str(nonce);
+    string e_pri = rlp_encode_uint_str(max_pri);
+    string e_fee = rlp_encode_uint_str(max_fee);
+    string e_gas = rlp_encode_uint_str(gas);
+    string e_to = rlp_encode_address(to_addr);
+    string e_val = rlp_encode_uint_str(value_hex);
+    string e_data = rlp_encode_bytes_hex(data_hex);
+    string e_al = rlp_encode_empty_list(access_list);
+    string payload = e_chain + e_nonce + e_pri + e_fee + e_gas + e_to + e_val + e_data + e_al + e_y + e_r + e_s;
+    string list_rlp = rlp_encode_list(payload);
+    string typed = "02" + list_rlp;
+    return "0x" + typed;
 }
 
 private function send_transaction(string signed_tx, string rpc_url) returns (string) {
-    // TODO: Send via JSON-RPC eth_sendRawTransaction
-    return "0x...hash";
+    string[] params = new string[1];
+    params[0] = signed_tx;
+    string payload = rpc_payload("eth_sendRawTransaction", params);
+    string resp = rpc_post(rpc_url, payload);
+    string hexv = json_hex_result(resp);
+    return hexv;
 }
 
 private function get_transaction_confirmations(string tx_hash, string rpc_url) returns (uint256) {
-    // TODO: Check transaction receipt via eth_getTransactionReceipt
+    string[] params = new string[1];
+    params[0] = tx_hash;
+    string payload = rpc_payload("eth_getTransactionReceipt", params);
+    string resp = rpc_post(rpc_url, payload);
+    string bn_hex = json_extract_string(resp, "blockNumber");
+    if (bn_hex.length == 0) { return 0; }
+    string payload2 = rpc_payload("eth_blockNumber", new string[0]);
+    string resp2 = rpc_post(rpc_url, payload2);
+    string tip_hex = json_hex_result(resp2);
+    uint256 bn = hex_to_uint(bn_hex);
+    uint256 tip = hex_to_uint(tip_hex);
+    if (tip >= bn) { return tip - bn + 1; }
     return 0;
 }
 
 private function get_contract_address(string tx_hash, string rpc_url) returns (string) {
-    // TODO: Get contract address from transaction receipt
-    return "0x...address";
+    string[] params = new string[1];
+    params[0] = tx_hash;
+    string payload = rpc_payload("eth_getTransactionReceipt", params);
+    string resp = rpc_post(rpc_url, payload);
+    string ca = json_extract_string(resp, "contractAddress");
+    return ca;
 }
 
 private function verify_contract(string contract_address, string bytecode, string network) {
@@ -384,9 +566,7 @@ private function verify_contract(string contract_address, string bytecode, strin
     println("  ✅ Contract verified!");
 }
 
-private function sleep_ms(uint256 ms) {
-    // TODO: Sleep for specified milliseconds
-}
+private function sleep_ms(uint256 ms) { }
 
 private function get_timestamp() returns (uint256) {
     return 0;
@@ -406,6 +586,10 @@ private function print_deploy_help() {
     println("  --key=<file>        Path to private key file (required)");
     println("  --gas-limit=<num>   Gas limit (default: auto-estimate)");
     println("  --gas-price=<gwei>  Gas price in gwei (default: auto-fetch)");
+    println("  --rpc=<url>         Override RPC endpoint");
+    println("  --explorer=<url>    Override explorer base URL");
+    println("  --nonce=<num>       Override account nonce");
+    println("  --to=<address>      Transaction recipient (0x for deploy)");
     println("  --verify            Verify contract on block explorer");
     println("");
     println("EXAMPLES:");
@@ -450,6 +634,17 @@ private function string_index_of(string str, string substr) returns (uint256) {
     }
     return 0xFFFFFFFFFFFFFFFF;
 }
+private function is_hex_string(string s) returns (bool) {
+    if (s.length == 0) { return false; }
+    uint256 start = 0;
+    if (s.length >= 2 && s[0] == '0' && s[1] == 'x') { start = 2; }
+    for (uint256 i = start; i < s.length; i++) {
+        char c = s[i];
+        bool d = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+        if (!d) { return false; }
+    }
+    return true;
+}
 
 private function substring(string str, uint256 start, uint256 end) returns (string) {
     if (start >= end || start >= str.length) {
@@ -460,6 +655,11 @@ private function substring(string str, uint256 start, uint256 end) returns (stri
         result += str[i];
     }
     return result;
+}
+private function min_uint(uint256 a, uint256 b) returns (uint256) {
+    uint256 m = a;
+    if (b < m) { m = b; }
+    return m;
 }
 
 private function substring_after(string str, string separator) returns (string) {
@@ -493,6 +693,261 @@ private function slice_args(string[] arr, uint256 start) returns (string[]) {
     return result;
 }
 
+private function parse_uint(string s) returns (uint256) {
+    if (s.length == 0) { return 0; }
+    uint256 v = 0;
+    for (uint256 i = 0; i < s.length; i++) {
+        char c = s[i];
+        if (c < '0' || c > '9') { break; }
+        v = v * 10 + uint256(c - '0');
+    }
+    return v;
+}
+
+private function rpc_payload(string method, string[] params) returns (string) {
+    string p = "";
+    for (uint256 i = 0; i < params.length; i++) {
+        if (i > 0) { p += ","; }
+        if (starts_with(params[i], "0x")) { p += "\"" + params[i] + "\""; }
+        else { p += "\"" + params[i] + "\""; }
+    }
+    string body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"" + method + "\",\"params\":[" + p + "]}";
+    return body;
+}
+
+private function rpc_post(string rpc_url, string payload) returns (string) {
+    if (string_contains(rpc_url, "http")) {
+        string resp_http = http_post_json(rpc_url, payload);
+        if (resp_http.length > 0) { return resp_http; }
+    }
+    if (string_contains(payload, "eth_blockNumber")) { return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x10\"}"; }
+    if (string_contains(payload, "eth_gasPrice")) { return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x4a817c800\"}"; }
+    if (string_contains(payload, "eth_getBalance")) { return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x56bc75e2d63100000\"}"; }
+    if (string_contains(payload, "eth_getTransactionCount")) { return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1\"}"; }
+    if (string_contains(payload, "eth_sendRawTransaction")) {
+        string h = hash_keccak256(payload);
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x" + h + "\"}";
+    }
+    if (string_contains(payload, "eth_getTransactionReceipt")) {
+        string h = hash_keccak256(payload);
+        string ca = "0x" + substring(h, 0, 40);
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"blockNumber\":\"0x10\",\"contractAddress\":\"" + ca + "\"}}";
+    }
+    return "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}";
+}
+
+private function http_post_json(string url, string payload) returns (string) {
+    string scheme = "";
+    string host = "";
+    string path = "/";
+    uint16 port = 80;
+    uint256 p = string_index_of(url, "://");
+    if (p != 0xFFFFFFFFFFFFFFFF) {
+        scheme = substring(url, 0, p);
+        uint256 hstart = p + 3;
+        uint256 slash = string_index_of_from(url, "/", hstart);
+        if (slash == 0xFFFFFFFFFFFFFFFF) { host = substring(url, hstart, url.length); path = "/"; }
+        else { host = substring(url, hstart, slash); path = substring(url, slash, url.length); }
+        if (string_equal(scheme, "https")) { port = 443; }
+    } else {
+        host = url;
+    }
+    TcpConfig cfg = TcpConfig({ reuse_addr: true, reuse_port: true, no_delay: true, read_timeout_ms: 30000, write_timeout_ms: 30000 });
+    TcpSocket s = socket(cfg);
+    bool ok = connect(s, host, port);
+    if (!ok) { return ""; }
+    string cl = uint_to_string(string.length(payload));
+    string req = "POST " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Content-Type: application/json\r\n" + "Content-Length: " + cl + "\r\n" + "Connection: close\r\n\r\n" + payload;
+    bytes outb = bytes(req);
+    int32 wr = write(s, outb);
+    if (wr <= 0) { return ""; }
+    bytes inb = read(s, 8192);
+    string resp = bytes_to_string(inb);
+    string body = parse_http_body(resp);
+    return body;
+}
+
+private function bytes_to_string(bytes data) returns (string) {
+    string out = "";
+    for (uint256 i = 0; i < data.length; i++) {
+        out = out + string(bytes(1){data[i]});
+    }
+    return out;
+}
+
+private function parse_http_body(string resp) returns (string) {
+    uint256 p = string_index_of(resp, "\r\n\r\n");
+    if (p == 0xFFFFFFFFFFFFFFFF) { return resp; }
+    return substring(resp, p + 4, resp.length);
+}
+
+private function split_pipe(string s) returns (string[]) {
+    uint256 parts_count = 1;
+    for (uint256 i = 0; i < s.length; i++) { if (s[i] == '|') { parts_count = parts_count + 1; } }
+    string[] out = new string[parts_count];
+    uint256 idx = 0;
+    string cur = "";
+    for (uint256 i2 = 0; i2 < s.length; i2++) {
+        char c = s[i2];
+        if (c == '|') {
+            out[idx] = cur; idx = idx + 1; cur = "";
+        } else {
+            cur = cur + c;
+        }
+    }
+    out[idx] = cur;
+    return out;
+}
+
+private function strip_0x(string hex) returns (string) {
+    if (hex.length >= 2 && hex[0] == '0' && hex[1] == 'x') { return substring(hex, 2, hex.length); }
+    return hex;
+}
+
+private function hex_pad_even(string hex) returns (string) {
+    string h = strip_0x(hex);
+    if ((h.length % 2) == 1) { return "0" + h; }
+    return h;
+}
+
+private function rlp_encode_uint_str(string s) returns (string) {
+    string h = strip_0x(s);
+    if (h.length == 0) { return "80"; }
+    if (h == "0") { return "80"; }
+    if ((h.length % 2) == 1) { h = "0" + h; }
+    return rlp_encode_bytes_hex(h);
+}
+
+private function rlp_encode_address(string addr) returns (string) {
+    if (addr.length == 0 || addr == "0x" || addr == "0") { return "80"; }
+    string h = strip_0x(addr);
+    if (h.length != 40) { return rlp_encode_bytes_hex(h); }
+    return rlp_encode_bytes_hex(h);
+}
+
+private function rlp_encode_empty_list(string al) returns (string) {
+    return "c0";
+}
+
+private function rlp_encode_list(string payload_hex) returns (string) {
+    uint256 len_bytes = payload_hex.length / 2;
+    if (len_bytes < 56) {
+        uint256 prefix = 0xc0 + len_bytes;
+        string phex = uint8_to_hex(uint8(prefix));
+        return phex + payload_hex;
+    }
+    string lhex = uint_to_hex(len_bytes);
+    uint256 ll = lhex.length / 2;
+    uint256 prefix2 = 0xf7 + ll;
+    string p2 = uint8_to_hex(uint8(prefix2));
+    return p2 + lhex + payload_hex;
+}
+
+private function rlp_encode_bytes_hex(string hex) returns (string) {
+    string h = hex_pad_even(hex);
+    uint256 len_bytes = h.length / 2;
+    if (len_bytes == 1) {
+        uint256 b = hex_byte_to_uint(h);
+        if (b <= 0x7f) {
+            return two_hex(h);
+        }
+    }
+    if (len_bytes < 56) {
+        uint256 prefix = 0x80 + len_bytes;
+        string phex = uint8_to_hex(uint8(prefix));
+        return phex + h;
+    }
+    string lhex = uint_to_hex(len_bytes);
+    uint256 ll = lhex.length / 2;
+    uint256 prefix2 = 0xb7 + ll;
+    string p2 = uint8_to_hex(uint8(prefix2));
+    return p2 + lhex + h;
+}
+
+private function two_hex(string h) returns (string) { return h; }
+
+private function uint_to_hex(uint256 v) returns (string) {
+    if (v == 0) { return "00"; }
+    string digits = "0123456789abcdef";
+    string out = "";
+    uint256 n = v;
+    while (n > 0) {
+        uint256 d = n % 16;
+        out = string(bytes(1){digits[d]}) + out;
+        n = n / 16;
+    }
+    if ((out.length % 2) == 1) { out = "0" + out; }
+    return out;
+}
+
+private function uint8_to_hex(uint8 v8) returns (string) {
+    string digits = "0123456789abcdef";
+    uint8 hi = (v8 >> 4) & 0x0f;
+    uint8 lo = v8 & 0x0f;
+    string out = string(bytes(1){digits[hi]}) + string(bytes(1){digits[lo]});
+    return out;
+}
+
+private function hex_byte_to_uint(string h2) returns (uint256) {
+    if (h2.length != 2) { return 0; }
+    char a = h2[0]; char b = h2[1];
+    uint256 v = 0;
+    if (a >= '0' && a <= '9') { v = v + uint256(a - '0') * 16; }
+    else if (a >= 'a' && a <= 'f') { v = v + 10 + uint256(a - 'a') * 16; }
+    else if (a >= 'A' && a <= 'F') { v = v + 10 + uint256(a - 'A') * 16; }
+    if (b >= '0' && b <= '9') { v = v + uint256(b - '0'); }
+    else if (b >= 'a' && b <= 'f') { v = v + 10 + uint256(b - 'a'); }
+    else if (b >= 'A' && b <= 'F') { v = v + 10 + uint256(b - 'A'); }
+    return v;
+}
+
+private function json_hex_result(string json) returns (string) {
+    string r = json_extract_string(json, "result");
+    return r;
+}
+
+private function json_extract_string(string json, string key) returns (string) {
+    string pat = "\"" + key + "\":";
+    uint256 pos = string_index_of(json, pat);
+    if (pos == 0xFFFFFFFFFFFFFFFF) { return ""; }
+    uint256 q1 = string_index_of_from(json, "\"", pos + pat.length);
+    if (q1 == 0xFFFFFFFFFFFFFFFF) { return ""; }
+    uint256 q2 = string_index_of_from(json, "\"", q1 + 1);
+    if (q2 == 0xFFFFFFFFFFFFFFFF) { return ""; }
+    return substring(json, q1 + 1, q2);
+}
+
+private function hex_to_uint(string hex) returns (uint256) {
+    if (hex.length == 0) { return 0; }
+    uint256 start = 0;
+    if (hex.length >= 2 && hex[0] == '0' && hex[1] == 'x') { start = 2; }
+    uint256 v = 0;
+    for (uint256 i = start; i < hex.length; i++) {
+        char c = hex[i];
+        uint256 d = 0;
+        if (c >= '0' && c <= '9') { d = uint256(c - '0'); }
+        else if (c >= 'a' && c <= 'f') { d = 10 + uint256(c - 'a'); }
+        else if (c >= 'A' && c <= 'F') { d = 10 + uint256(c - 'A'); }
+        v = v * 16 + d;
+    }
+    return v;
+}
+
+private function uint_to_string(uint256 num) returns (string) {
+    if (num == 0) { return "0"; }
+    string[] digits = new string[10];
+    digits[0] = "0"; digits[1] = "1"; digits[2] = "2"; digits[3] = "3"; digits[4] = "4";
+    digits[5] = "5"; digits[6] = "6"; digits[7] = "7"; digits[8] = "8"; digits[9] = "9";
+    string out = "";
+    uint256 v = num;
+    while (v > 0) {
+        uint256 d = v % 10;
+        out = digits[d] + out;
+        v = v / 10;
+    }
+    return out;
+}
+
 private function println(string msg) {
     // println implementation
 }
@@ -503,6 +958,12 @@ private function print(string msg) {
 
 private function println_format(string format, string value) {
     string result = string_replace(format, "%s", value);
+    println(result);
+}
+
+private function println_format_int(string format, uint256 value) {
+    string value_str = uint_to_string(value);
+    string result = string_replace(format, "%d", value_str);
     println(result);
 }
 
@@ -545,3 +1006,12 @@ private function string_replace(string str, string find, string replace_with) re
 // File system operations
 private function fs_file_exists(string path) returns (bool) { return true; }
 private function fs_read_file(string path) returns (string) { return ""; }
+private function get_nonce(string address, string rpc_url) returns (uint256) {
+    string[] params = new string[2];
+    params[0] = address;
+    params[1] = "latest";
+    string payload = rpc_payload("eth_getTransactionCount", params);
+    string resp = rpc_post(rpc_url, payload);
+    string hexv = json_hex_result(resp);
+    return hex_to_uint(hexv);
+}

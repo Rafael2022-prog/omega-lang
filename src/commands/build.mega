@@ -635,6 +635,12 @@ private function verify_artifacts(string[] source_files, ProjectConfig config, B
             if (ext.length > 0) {
                 string art = string_concat(string_concat(tdir, "/"), string_concat(base, ext));
                 if (!fs_file_exists(art)) { ok = false; }
+                else {
+                    string content = fs_read_file(art);
+                    if (content != null && content.length > 0) {
+                        if (!validate_artifact_content(target, content)) { ok = false; }
+                    }
+                }
             }
         }
     }
@@ -648,6 +654,28 @@ private function print_artifact_summary(ProjectConfig config) {
         string tdir = string_concat("target/", target);
         println_format("║    • %s", tdir);
     }
+}
+
+private function validate_artifact_content(string target, string content) returns (bool) {
+    if (string_equal(target, "evm")) {
+        if (string_contains(content, "pragma solidity ^0.8")) { return true; }
+        if (string_contains(content, "pragma solidity")) { return true; }
+        if (string_contains(content, "contract ")) { return true; }
+        if (string_contains(content, "interface ")) { return true; }
+        return false;
+    }
+    if (string_equal(target, "solana")) {
+        if (string_contains(content, "use anchor_lang")) { return true; }
+        if (string_contains(content, "pub struct")) { return true; }
+        if (string_contains(content, "pub fn")) { return true; }
+        return false;
+    }
+    if (string_equal(target, "cosmos")) {
+        if (string_contains(content, "package ")) { return true; }
+        if (string_contains(content, "func ")) { return true; }
+        return false;
+    }
+    return true;
 }
 
 private function basename_without_ext(string path) returns (string) {

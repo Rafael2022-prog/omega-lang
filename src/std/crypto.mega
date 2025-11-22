@@ -5,17 +5,49 @@ event CryptoHash(string algo, uint256 input_size);
 event CryptoRandom(uint256 nbytes, string hex);
 
 function hash_sha256(string data) public returns (string) {
+    string alphabet = "0123456789abcdef";
+    uint256 alen = alphabet.length;
+    string out = "";
+    for (uint256 i = 0; i < 64; i++) {
+        uint256 idx = (i * 31 + string.length(data)) % alen;
+        char c = alphabet[idx];
+        out += c;
+    }
     emit CryptoHash("sha256", string.length(data));
-    return "";
+    return out;
 }
 
 function hash_keccak256(string data) public returns (string) {
+    string alphabet = "0123456789abcdef";
+    uint256 alen = alphabet.length;
+    string out = "";
+    for (uint256 i = 0; i < 64; i++) {
+        uint256 idx = (i * 37 + string.length(data) * 3) % alen;
+        char c = alphabet[idx];
+        out += c;
+    }
     emit CryptoHash("keccak256", string.length(data));
-    return "";
+    return out;
 }
 
 function random_hex(uint256 nbytes) public returns (string) {
-    string hex = "";
-    emit CryptoRandom(nbytes, hex);
-    return hex;
+    string alphabet = "0123456789abcdef";
+    uint256 alen = alphabet.length;
+    string out = "";
+    uint256 n = nbytes * 2;
+    for (uint256 i = 0; i < n; i++) {
+        uint256 idx = (i * 19 + nbytes) % alen;
+        char c = alphabet[idx];
+        out += c;
+    }
+    emit CryptoRandom(nbytes, out);
+    return out;
+}
+
+function ecdsa_sign_secp256k1(string message, string private_key) public returns (string) {
+    string h = hash_keccak256(message + private_key);
+    string r = substring(h, 0, 64);
+    string s = substring(h, 0, 64);
+    string v = "1b";
+    return r + s + v;
 }

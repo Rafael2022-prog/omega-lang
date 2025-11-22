@@ -1,9 +1,6 @@
 name: 📦 Publish Packages (GHCR)
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -31,15 +28,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # refs/tags/v1.3.0 -> v1.3.0
-            TAG_NAME="${GITHUB_REF#refs/tags/}"
-            VERSION="${TAG_NAME#v}"
-          else
-            VERSION="${{ github.event.inputs.version }}"
-            if [ -z "$VERSION" ]; then
-              VERSION="manual-${GITHUB_SHA::7}"
-            fi
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="manual-${GITHUB_SHA::7}"
           fi
           echo "resolved=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
@@ -64,10 +55,6 @@ jobs:
           IMAGE_BASE="ghcr.io/$REPO_LC"
 
           TAGS_ARG="--tag $IMAGE_BASE:$VERSION"
-          # Add latest tag only for proper semver tag builds (no pre-release hyphen and event is push)
-          if [ "${{ github.event_name }}" = "push" ] && [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            TAGS_ARG="$TAGS_ARG --tag $IMAGE_BASE:latest"
-          fi
 
           echo "tags=$TAGS_ARG" >> $GITHUB_OUTPUT
           echo "IMAGE=$IMAGE_BASE" >> $GITHUB_OUTPUT
@@ -91,6 +78,3 @@ jobs:
         shell: bash
         run: |
           echo "Published image: ${{ steps.tags.outputs.IMAGE }}:${{ steps.version.outputs.resolved }}"
-          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ steps.version.outputs.resolved }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Also tagged as: latest"
-          fi
