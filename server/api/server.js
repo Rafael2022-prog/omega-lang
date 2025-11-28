@@ -64,7 +64,7 @@ app.get('/api/health', (req, res) => {
 
 // Compiler info
 app.get('/api/info', (req, res) => {
-    let compilerVersion = 'unknown';
+    let compilerVersion = '1.3.0';
     try {
         if (fs.existsSync(CONFIG.omegaPath)) {
             compilerVersion = execSync(`${CONFIG.omegaPath} --version 2>/dev/null || echo "1.3.0"`).toString().trim();
