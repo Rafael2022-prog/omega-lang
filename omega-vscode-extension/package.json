@@ -41,9 +41,12 @@
         "id": "omega",
         "aliases": [
           "OMEGA",
-          "omega"
+          "omega",
+          "MEGA",
+          "mega"
         ],
         "extensions": [
+          ".omega",
           ".mega"
         ],
         "configuration": "./language-configuration.json",
@@ -51,6 +54,13 @@
           "light": "./images/omega-file-icon-mega.svg",
           "dark": "./images/omega-file-icon-mega.svg"
         }
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "omega-icons",
+        "label": "OMEGA File Icons",
+        "path": "./themes/omega-icon-theme.json"
       }
     ],
     "grammars": [

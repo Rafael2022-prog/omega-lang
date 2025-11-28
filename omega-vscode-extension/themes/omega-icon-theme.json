@@ -1,0 +1,37 @@
+{
+  "iconDefinitions": {
+    "_omega_file": {
+      "iconPath": "../images/omega-file-icon-mega.svg"
+    },
+    "_omega_file_light": {
+      "iconPath": "../images/omega-file-icon-light.svg"
+    },
+    "_folder": {
+      "iconPath": "../images/omega-file-icon-16.svg"
+    }
+  },
+  "file": "_omega_file",
+  "fileExtensions": {
+    "omega": "_omega_file",
+    "mega": "_omega_file"
+  },
+  "fileNames": {
+    "omega.toml": "_omega_file",
+    "omega.json": "_omega_file"
+  },
+  "languageIds": {
+    "omega": "_omega_file"
+  },
+  "light": {
+    "fileExtensions": {
+      "omega": "_omega_file_light",
+      "mega": "_omega_file_light"
+    }
+  },
+  "highContrast": {
+    "fileExtensions": {
+      "omega": "_omega_file",
+      "mega": "_omega_file"
+    }
+  }
+}
