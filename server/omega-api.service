@@ -1,0 +1,28 @@
+[Unit]
+Description=OMEGA Lang API Server
+After=network.target
+
+[Service]
+Type=simple
+User=nginx
+Group=nginx
+WorkingDirectory=/opt/omega-api
+ExecStart=/usr/bin/node /opt/omega-api/server.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp/omega-compile
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=omega-api
+
+[Install]
+WantedBy=multi-user.target

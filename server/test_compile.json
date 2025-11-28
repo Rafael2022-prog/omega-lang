@@ -1,0 +1,4 @@
+{
+  "code": "blockchain HelloWorld {\n    state {\n        string message;\n    }\n    \n    constructor() {\n        message = \"Hello, OMEGA!\";\n    }\n    \n    function getMessage() public view returns (string) {\n        return message;\n    }\n}",
+  "target": "evm"
+}
