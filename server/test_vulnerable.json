@@ -1,0 +1,3 @@
+{
+  "code": "blockchain VulnerableContract {\n    state {\n        address owner;\n        mapping(address => uint256) balances;\n    }\n    \n    function withdraw(uint256 amount) public {\n        require(balances[msg.sender] >= amount);\n        msg.sender.call{value: amount}(\"\");\n        balances[msg.sender] -= amount;\n    }\n    \n    function setOwner(address newOwner) public {\n        owner = newOwner;\n    }\n}"
+}

@@ -1,0 +1,4 @@
+{
+  "code": "blockchain StakingPool {\n    state {\n        address stakingToken;\n        uint256 totalStaked;\n        mapping(address => uint256) stakedBalance;\n        mapping(address => uint256) rewards;\n    }\n    \n    constructor() {\n        totalStaked = 0;\n    }\n    \n    function stake(uint256 amount) public {\n        require(amount > 0, \"Amount must be positive\");\n        stakedBalance[msg.sender] += amount;\n        totalStaked += amount;\n    }\n    \n    function withdraw(uint256 amount) public {\n        require(stakedBalance[msg.sender] >= amount, \"Insufficient balance\");\n        stakedBalance[msg.sender] -= amount;\n        totalStaked -= amount;\n    }\n    \n    function getStakedBalance(address account) public view returns (uint256) {\n        return stakedBalance[account];\n    }\n    \n    function getTotalStaked() public view returns (uint256) {\n        return totalStaked;\n    }\n}",
+  "target": "cosmos"
+}
