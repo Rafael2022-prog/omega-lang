@@ -1,0 +1,66 @@
+# OMEGA Project Configuration
+# Copy this file to omega.toml and customize for your project
+
+[project]
+name = "my-omega-project"
+version = "1.0.0"
+description = "My OMEGA blockchain project"
+authors = ["Your Name <your@email.com>"]
+
+[build]
+# Source directories to compile
+sources = ["src", "contracts"]
+
+# Target platforms to generate code for
+# Options: native, evm, solana, cosmos, substrate, move, near
+targets = ["evm", "solana"]
+
+# Build mode: debug or release
+mode = "release"
+
+# Optimization level: 0 (none), 1 (basic), 2 (standard), 3 (aggressive)
+optimization = 2
+
+[evm]
+# EVM-specific settings
+solidity_version = "0.8.20"
+optimizer_runs = 200
+via_ir = true
+
+[solana]
+# Solana-specific settings
+anchor_version = "0.29.0"
+cluster = "devnet"
+
+[security]
+# Security checks to enable
+reentrancy_check = true
+overflow_check = true
+access_control_check = true
+
+[deploy]
+# Default deployment settings
+default_network = "sepolia"
+gas_multiplier = 1.2
+confirmation_blocks = 2
+
+[deploy.networks.sepolia]
+rpc_url = "https://sepolia.infura.io/v3/YOUR_API_KEY"
+chain_id = 11155111
+explorer = "https://sepolia.etherscan.io"
+
+[deploy.networks.polygon-amoy]
+rpc_url = "https://rpc-amoy.polygon.technology"
+chain_id = 80002
+explorer = "https://amoy.polygonscan.com"
+
+[deploy.networks.solana-devnet]
+rpc_url = "https://api.devnet.solana.com"
+cluster = "devnet"
+explorer = "https://explorer.solana.com/?cluster=devnet"
+
+[test]
+# Test configuration
+test_dir = "tests"
+coverage = true
+verbose = false

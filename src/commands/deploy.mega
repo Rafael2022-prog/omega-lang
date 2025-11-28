@@ -292,16 +292,29 @@ private function parse_deploy_options(string[] args) returns (DeployConfig) {
 }
 
 private function is_valid_network(string network) returns (bool) {
-    return string_equal(network, "evm") || 
-           string_equal(network, "ethereum") ||
-           string_equal(network, "sepolia") ||
-           string_equal(network, "polygon") ||
-           string_equal(network, "bsc") ||
-           string_equal(network, "avalanche") ||
-           string_equal(network, "arbitrum") ||
-           string_equal(network, "solana") ||
-           string_equal(network, "cosmos") ||
-           string_equal(network, "substrate");
+    // Mainnets
+    if (string_equal(network, "evm")) { return true; }
+    if (string_equal(network, "ethereum")) { return true; }
+    if (string_equal(network, "polygon")) { return true; }
+    if (string_equal(network, "bsc")) { return true; }
+    if (string_equal(network, "avalanche")) { return true; }
+    if (string_equal(network, "arbitrum")) { return true; }
+    if (string_equal(network, "solana")) { return true; }
+    if (string_equal(network, "cosmos")) { return true; }
+    if (string_equal(network, "substrate")) { return true; }
+    
+    // Testnets (recommended for initial deployment)
+    if (string_equal(network, "sepolia")) { return true; }
+    if (string_equal(network, "goerli")) { return true; }
+    if (string_equal(network, "polygon-amoy")) { return true; }
+    if (string_equal(network, "polygon-mumbai")) { return true; }
+    if (string_equal(network, "bsc-testnet")) { return true; }
+    if (string_equal(network, "avalanche-fuji")) { return true; }
+    if (string_equal(network, "arbitrum-sepolia")) { return true; }
+    if (string_equal(network, "solana-devnet")) { return true; }
+    if (string_equal(network, "solana-testnet")) { return true; }
+    
+    return false;
 }
 
 private function get_network_config(string network) returns (NetworkConfig) {
@@ -352,6 +365,43 @@ private function get_network_config(string network) returns (NetworkConfig) {
         config.rpc_url = "https://rpc.polkadot.io";
         config.chain_id = "polkadot";
         config.explorer_url = "https://polkadot.subscan.io";
+    }
+    // Testnets
+    else if (string_equal(network, "polygon-amoy")) {
+        config.name = "Polygon Amoy Testnet";
+        config.rpc_url = "https://rpc-amoy.polygon.technology";
+        config.chain_id = "80002";
+        config.explorer_url = "https://amoy.polygonscan.com";
+    } else if (string_equal(network, "polygon-mumbai")) {
+        config.name = "Polygon Mumbai (Deprecated)";
+        config.rpc_url = "https://rpc-mumbai.maticvigil.com";
+        config.chain_id = "80001";
+        config.explorer_url = "https://mumbai.polygonscan.com";
+    } else if (string_equal(network, "bsc-testnet")) {
+        config.name = "BSC Testnet";
+        config.rpc_url = "https://data-seed-prebsc-1-s1.binance.org:8545";
+        config.chain_id = "97";
+        config.explorer_url = "https://testnet.bscscan.com";
+    } else if (string_equal(network, "avalanche-fuji")) {
+        config.name = "Avalanche Fuji Testnet";
+        config.rpc_url = "https://api.avax-test.network/ext/bc/C/rpc";
+        config.chain_id = "43113";
+        config.explorer_url = "https://testnet.snowtrace.io";
+    } else if (string_equal(network, "arbitrum-sepolia")) {
+        config.name = "Arbitrum Sepolia Testnet";
+        config.rpc_url = "https://sepolia-rollup.arbitrum.io/rpc";
+        config.chain_id = "421614";
+        config.explorer_url = "https://sepolia.arbiscan.io";
+    } else if (string_equal(network, "solana-devnet")) {
+        config.name = "Solana Devnet";
+        config.rpc_url = "https://api.devnet.solana.com";
+        config.chain_id = "devnet";
+        config.explorer_url = "https://explorer.solana.com/?cluster=devnet";
+    } else if (string_equal(network, "solana-testnet")) {
+        config.name = "Solana Testnet";
+        config.rpc_url = "https://api.testnet.solana.com";
+        config.chain_id = "testnet";
+        config.explorer_url = "https://explorer.solana.com/?cluster=testnet";
     }
     
     return config;
@@ -597,12 +647,22 @@ private function get_timestamp() returns (uint256) {
 
 private function print_deploy_help() {
     println("DEPLOY NETWORKS:");
-    println("  ethereum            Ethereum Mainnet");
-    println("  polygon             Polygon Mainnet");
-    println("  bsc                 Binance Smart Chain");
-    println("  avalanche           Avalanche C-Chain");
-    println("  arbitrum            Arbitrum One");
-    println("  solana              Solana Mainnet");
+    println("");
+    println("  MAINNETS:");
+    println("    ethereum          Ethereum Mainnet (Chain ID: 1)");
+    println("    polygon           Polygon Mainnet (Chain ID: 137)");
+    println("    bsc               Binance Smart Chain (Chain ID: 56)");
+    println("    avalanche         Avalanche C-Chain (Chain ID: 43114)");
+    println("    arbitrum          Arbitrum One (Chain ID: 42161)");
+    println("    solana            Solana Mainnet");
+    println("");
+    println("  TESTNETS (Recommended for testing):");
+    println("    sepolia           Ethereum Sepolia (Chain ID: 11155111)");
+    println("    polygon-amoy      Polygon Amoy (Chain ID: 80002)");
+    println("    bsc-testnet       BSC Testnet (Chain ID: 97)");
+    println("    avalanche-fuji    Avalanche Fuji (Chain ID: 43113)");
+    println("    arbitrum-sepolia  Arbitrum Sepolia (Chain ID: 421614)");
+    println("    solana-devnet     Solana Devnet");
     println("");
     println("OPTIONS:");
     println("  --contract=<file>   Path to compiled contract bytecode (required)");
@@ -614,11 +674,27 @@ private function print_deploy_help() {
     println("  --nonce=<num>       Override account nonce");
     println("  --to=<address>      Transaction recipient (0x for deploy)");
     println("  --verify            Verify contract on block explorer");
+    println("  --dry-run           Simulate deployment without sending tx");
     println("");
     println("EXAMPLES:");
-    println("  omega deploy ethereum --contract=target/evm/contract.abi --key=.env.key");
+    println("");
+    println("  # Deploy to Sepolia testnet (recommended first step)");
+    println("  omega deploy sepolia --contract=target/evm/Token.sol --key=.keys/test.key");
+    println("");
+    println("  # Deploy to Polygon mainnet with verification");
     println("  omega deploy polygon --contract=build/contract.bin --key=key.json --verify");
-    println("  omega deploy solana --contract=target/solana/program.so --key=keypair.json");
+    println("");
+    println("  # Deploy to Solana devnet");
+    println("  omega deploy solana-devnet --contract=target/solana/program.so --key=keypair.json");
+    println("");
+    println("  # Dry run (simulate without sending)");
+    println("  omega deploy sepolia --contract=target/evm/Token.sol --key=.keys/test.key --dry-run");
+    println("");
+    println("FAUCETS (Get free testnet tokens):");
+    println("  Sepolia:        https://sepoliafaucet.com");
+    println("  Polygon Amoy:   https://faucet.polygon.technology");
+    println("  BSC Testnet:    https://testnet.bnbchain.org/faucet-smart");
+    println("  Solana Devnet:  https://solfaucet.com");
 }
 
 // Utility functions
